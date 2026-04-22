@@ -43,4 +43,3 @@ h1 {
   font-size: 1.05rem;
 }
 </style>
-

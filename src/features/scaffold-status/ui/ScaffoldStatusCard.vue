@@ -62,4 +62,3 @@ li + li {
   margin-top: 0.75rem;
 }
 </style>
-

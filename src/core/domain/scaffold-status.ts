@@ -3,4 +3,3 @@ export interface ScaffoldStatus {
   readonly summary: string
   readonly highlights: readonly string[]
 }
-

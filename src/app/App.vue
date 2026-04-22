@@ -5,4 +5,3 @@ import HomePage from '@/pages/home/ui/HomePage.vue'
 <template>
   <HomePage />
 </template>
-

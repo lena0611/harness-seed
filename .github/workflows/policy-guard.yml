@@ -1,0 +1,35 @@
+name: Policy Guard
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  policy-guard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run policy guard
+        env:
+          POLICY_BASE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          POLICY_HEAD_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: npm run guard -- --base "$POLICY_BASE_REF" --head "$POLICY_HEAD_REF"

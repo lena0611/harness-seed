@@ -1,0 +1,14 @@
+<type>: <summary>
+
+Why:
+- 
+
+Scope:
+- 
+
+Checks:
+- [ ] npm run lint
+- [ ] npm run test
+- [ ] npm run guard
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>

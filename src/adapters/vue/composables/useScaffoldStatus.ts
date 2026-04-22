@@ -13,4 +13,3 @@ export function useScaffoldStatus() {
     hydrate: store.hydrate,
   }
 }
-

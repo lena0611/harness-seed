@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "policies": [
+    {
+      "id": "architecture-core",
+      "title": "Core isolation and dependency direction",
+      "documents": [
+        ".github/copilot-instructions/architecture.md",
+        ".github/copilot-instructions/development-workflow.md"
+      ],
+      "ownedAreas": [
+        "src/core/**",
+        "src/adapters/**",
+        "src/pages/**",
+        "src/widgets/**",
+        "src/features/**"
+      ],
+      "checks": [
+        "core-purity",
+        "adapter-ui-boundary"
+      ]
+    },
+    {
+      "id": "state-management",
+      "title": "Pinia and composable adapter rules",
+      "documents": [
+        ".github/copilot-instructions/state-management.md"
+      ],
+      "ownedAreas": [
+        "src/adapters/vue/stores/**",
+        "src/adapters/vue/composables/**"
+      ],
+      "checks": [
+        "store-placement",
+        "composable-placement",
+        "adapter-ui-boundary"
+      ]
+    },
+    {
+      "id": "feature-sliced-design",
+      "title": "Feature boundaries and shared purity",
+      "documents": [
+        ".github/copilot-instructions/feature-sliced-design.md",
+        ".github/copilot-instructions/architecture.md"
+      ],
+      "ownedAreas": [
+        "src/features/**",
+        "src/shared/**",
+        "src/entities/**"
+      ],
+      "checks": [
+        "feature-structure",
+        "shared-boundary",
+        "no-dumping-folders"
+      ]
+    },
+    {
+      "id": "policy-harness",
+      "title": "Policy synchronization harness",
+      "documents": [
+        ".github/policy-harness/**",
+        ".github/session-harness/**"
+      ],
+      "ownedAreas": [
+        ".github/policy-harness/**",
+        ".github/session-harness/**",
+        "scripts/policy-harness.mjs",
+        ".github/workflows/policy-guard.yml"
+      ],
+      "checks": []
+    }
+  ]
+}

@@ -6,17 +6,33 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "guard": "node scripts/guard.mjs",
+    "hooks:install": "node scripts/install-hooks.mjs",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "policy:check": "node scripts/policy-harness.mjs check",
+    "policy:impact": "node scripts/policy-harness.mjs impact",
+    "policy:guard": "node scripts/policy-harness.mjs guard",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "pinia": "^3.0.2",
     "vue": "^3.5.22"
   },
   "devDependencies": {
+    "@eslint/js": "^9.38.0",
     "@vue/tsconfig": "^0.8.1",
     "@vitejs/plugin-vue": "^6.0.1",
+    "eslint": "^9.38.0",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "eslint-plugin-vue": "^10.5.1",
+    "globals": "^16.4.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.2",
     "vite": "^7.1.9",
+    "vitest": "^3.2.4",
     "vue-tsc": "^3.1.1"
   }
 }
