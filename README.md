@@ -5,13 +5,25 @@
 
 ## 30초 시작
 
+### 시나리오 1: **이미 있는 프로젝트에 하네스만 얹기** (가장 흔함)
+
+```bash
+cd my-existing-project
+npx -y github:lena0611/bareunmal init
+npm run hooks:install
+```
+
+`.github/` `scripts/` `.githooks/` 와 `package.json` 의 harness scripts만 추가됩니다. 기존 `src/`, 의존성, 사용자 scripts는 그대로 보존됩니다(이미 존재하는 파일은 자동 skip). 끝나면 곧바로 `npm run guard` 가능.
+
+### 시나리오 2: **빈 디렉토리에서 통째로 시작**
+
 ```bash
 npx degit lena0611/bareunmal my-app
 cd my-app
 rm .harness-seed-mode          # 이 저장소를 내 프로젝트로 쓰기 (한 번만)
 npm run stack:apply            # 활성 스택의 scaffold 복사 + 의존성 머지
 npm install
-npm run hooks:install          # git pre-commit hook 등록 (권장)
+npm run hooks:install
 npm run dev                    # vite 개발 서버
 ```
 
