@@ -1,4 +1,6 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -91,24 +93,23 @@ function copyFileEnsuringDir(src, dest) {
   fs.copyFileSync(src, dest)
 }
 
-function mergePackageJson(packageMergePath) {
-  if (!packageMergePath || !fs.existsSync(packageMergePath)) {
+function mergePackageJson(packageMergeData) {
+  if (!packageMergeData) {
     return null
   }
 
   const rootPkgPath = path.join(repoRoot, 'package.json')
   const rootPkg = readJson(rootPkgPath, {})
   const snapshot = JSON.parse(JSON.stringify(rootPkg))
-  const mergeData = readJson(packageMergePath, {})
 
   for (const section of ['scripts', 'dependencies', 'devDependencies']) {
-    if (!mergeData[section]) {
+    if (!packageMergeData[section]) {
       continue
     }
 
     rootPkg[section] = rootPkg[section] ?? {}
 
-    for (const [key, value] of Object.entries(mergeData[section])) {
+    for (const [key, value] of Object.entries(packageMergeData[section])) {
       if (section === 'scripts' && key in rootPkg[section]) {
         // harness script wins on conflict
         continue
@@ -150,13 +151,67 @@ function adapterLocal(manifest) {
     copied.push(toPosix(rel))
   }
 
-  return copied
+  // packageMerge는 repoRoot 기준 경로로 manifest에 적혀 있음
+  const packageMergeRel = manifest.source?.packageMerge
+  let packageMergeData = null
+
+  if (packageMergeRel) {
+    const absMerge = path.join(repoRoot, packageMergeRel)
+    if (fs.existsSync(absMerge)) {
+      packageMergeData = readJson(absMerge, null)
+    }
+  }
+
+  return { copied, packageMergeData }
 }
 
-function adapterTiged() {
-  throw new Error(
-    'source.type=tiged 어댑터는 아직 구현되지 않았습니다. 향후 마이그레이션 시 npx tiged <ref> .를 호출하는 구현을 이 함수에 추가하세요. 인터페이스는 adapterLocal과 동일하게 copied 파일 목록을 반환해야 합니다.',
-  )
+function adapterTiged(manifest) {
+  const ref = manifest.source?.ref
+
+  if (!ref) {
+    throw new Error('source.type=tiged 사용 시 manifest.source.ref(예: "owner/repo" 또는 "owner/repo#branch")가 필요합니다.')
+  }
+
+  const subdir = manifest.source?.subdir ?? ''
+  const packageMergeRel = manifest.source?.packageMerge ?? ''
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bareunmal-stack-'))
+
+  try {
+    console.log(`  Fetching '${ref}' via tiged into temp...`)
+
+    execFileSync('npx', ['-y', 'tiged', '--force', ref, tmpRoot], {
+      stdio: 'inherit',
+    })
+
+    const sourceRoot = subdir ? path.join(tmpRoot, subdir) : tmpRoot
+
+    if (!fs.existsSync(sourceRoot)) {
+      throw new Error(`tiged 결과물에서 subdir 경로를 찾을 수 없습니다: ${subdir || '(root)'}`)
+    }
+
+    let packageMergeData = null
+    if (packageMergeRel) {
+      // packageMerge는 sourceRoot 기준 상대 경로로 본다
+      const absMerge = path.join(sourceRoot, packageMergeRel)
+      if (fs.existsSync(absMerge)) {
+        packageMergeData = readJson(absMerge, null)
+      }
+    }
+
+    const files = listScaffoldFiles(sourceRoot).filter((rel) => rel !== packageMergeRel)
+    const copied = []
+
+    for (const rel of files) {
+      const src = path.join(sourceRoot, rel)
+      const dest = path.join(repoRoot, rel)
+      copyFileEnsuringDir(src, dest)
+      copied.push(toPosix(rel))
+    }
+
+    return { copied, packageMergeData }
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true })
+  }
 }
 
 const SOURCE_ADAPTERS = {
@@ -216,10 +271,9 @@ function commandApply() {
   }
 
   console.log(`Applying stack '${stackId}' (source.type=${sourceType})...`)
-  const copiedFiles = adapter(manifest)
-  const packageBackup = mergePackageJson(
-    manifest.source?.packageMerge ? path.join(repoRoot, manifest.source.packageMerge) : null,
-  )
+  const result = adapter(manifest)
+  const copiedFiles = result.copied
+  const packageBackup = mergePackageJson(result.packageMergeData)
 
   writeMarker({
     stackId,
