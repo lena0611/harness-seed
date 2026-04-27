@@ -1,5 +1,12 @@
 # 결정 로그
 
+## 2026-04-27 - 시드 하네스 저장소 분리 및 이름 변경 (bareunmal → harness-seed)
+- bareunmal은 원래 실제 작업 프로젝트로 의도되었으나, 작업 중 시드 하네스로 진화함을 인지했습니다.
+- 시드 하네스의 정체성을 명확히 분리하기 위해 GitHub 저장소명을 `bareunmal` → `harness-seed`로 rename합니다.
+- 코드/문서 내 참조를 일괄 교체했고 (`scripts/init.mjs`, `package.json`, `README.md`, `.harness-seed-mode`, scaffold의 기본 프로젝트명 등), 과거 결정 로그의 `bareunmal` 언급은 역사 기록으로 보존합니다.
+- `scripts/apply-stack.mjs` 의 tmpdir prefix를 `bareunmal-stack-` → `harness-seed-stack-`으로 변경했습니다 (의미 변화 없음, 정체성 정합만 맞춤).
+- 실제 작업 프로젝트는 추후 별도 repo로 분리합니다.
+
 ## 2026-04-22 - 기본 스캐폴드 채택
 - Vue 3 + Pinia + Vite + TypeScript 조합으로 초기 스캐폴드를 구성했습니다.
 - 도메인이 아직 없으므로 중립적인 예시 use-case만 두고 구조를 먼저 고정했습니다.

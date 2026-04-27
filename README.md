@@ -1,4 +1,4 @@
-# bareunmal
+# harness-seed
 
 > **AI 코딩 에이전트가 헷갈리지 않게 정책↔코드↔문서를 자동 동기화 검증하는 프론트엔드 프로젝트 시드.**
 > Vue 3 / FSD 스택이 기본 포함되어 있고, 다른 스택은 프리셋으로 추가 가능합니다.
@@ -9,7 +9,7 @@
 
 ```bash
 cd my-existing-project
-npx -y github:lena0611/bareunmal init
+npx -y github:lena0611/harness-seed init
 npm run hooks:install
 ```
 
@@ -18,7 +18,7 @@ npm run hooks:install
 ### 시나리오 2: **빈 디렉토리에서 통째로 시작**
 
 ```bash
-npx degit lena0611/bareunmal my-app
+npx degit lena0611/harness-seed my-app
 cd my-app
 rm .harness-seed-mode          # 이 저장소를 내 프로젝트로 쓰기 (한 번만)
 npm run stack:apply            # 활성 스택의 scaffold 복사 + 의존성 머지
@@ -34,7 +34,7 @@ npm run dev                    # vite 개발 서버
 - **하네스(harness)**: 프로젝트의 정책·문서·세션 컨텍스트를 결정적으로 검증하는 메타 인프라. `.github/` 안에 있음.
 - **스택 프리셋(stack preset)**: 특정 프레임워크+디자인패턴 꾸러미 (instructions + 정책 + scaffold). `.github/stacks/<id>/`.
 - **활성 스택(activeStack)**: `.github/policy-harness/profile.json`이 가리키는 현재 스택. `none`도 가능.
-- **시드 모드(seed mode)**: `.harness-seed-mode` 파일이 있으면 활성. bareunmal 본 저장소에서만 사용. 일반 사용자는 첫 사용 시 삭제.
+- **시드 모드(seed mode)**: `.harness-seed-mode` 파일이 있으면 활성. harness-seed 본 저장소에서만 사용. 일반 사용자는 첫 사용 시 삭제.
 - **SYNC GAP**: 정책과 코드 중 한쪽만 변경되어 동기화가 깨진 상태. `policy:impact`가 자동 검출.
 
 ## 두 가지 사용 모드
@@ -45,7 +45,7 @@ rm .harness-seed-mode
 ```
 이후 `src/`, `index.html`, `vite.config.ts`, `package.json` 등 모든 파일을 자유롭게 commit할 수 있습니다.
 
-### B) 시드 하네스로 계속 운영하는 경우 (bareunmal 본 저장소)
+### B) 시드 하네스로 계속 운영하는 경우 (harness-seed 본 저장소)
 - `.harness-seed-mode`를 그대로 둡니다.
 - pre-commit hook이 stack 산출물(scaffold 파일들 + 머지된 `package.json`)의 staging을 차단합니다.
 - commit 직전 사이클: `npm run stack:reset` → `git commit` → (다시 작업하려면) `npm run stack:apply` + `npm install`.
@@ -93,8 +93,7 @@ npm run hooks:install       # 로컬 git pre-commit hook 등록
 
 ## 자동 배포 (vue3-fsd 스택 기준)
 
-`main` 푸시 시 GitHub Actions가 빌드 후 GitHub Pages로 배포합니다.
-- 배포 주소: `https://lena0611.github.io/bareunmal/`
+`main` 푸시 시 GitHub Actions가 빌드 후 GitHub Pages로 배포합니다. 배포 주소는 사용자 저장소명에 따라 결정되며, scaffold의 `vite.config.ts` 의 `base` 와 `.github/workflows/deploy-pages.yml` 을 본인 저장소명으로 수정하세요. (이 시드 저장소 자체는 페이지를 배포하지 않습니다.)
 
 ## 이식 / 더 읽을 거리
 

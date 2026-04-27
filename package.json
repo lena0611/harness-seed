@@ -1,10 +1,10 @@
 {
-  "name": "bareunmal",
+  "name": "harness-seed",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "bin": {
-    "bareunmal": "./scripts/init.mjs"
+    "harness-seed": "./scripts/init.mjs"
   },
   "files": [
     ".github",

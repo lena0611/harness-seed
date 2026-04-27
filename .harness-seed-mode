@@ -1,6 +1,6 @@
 # Seed Mode Marker
 
-이 파일이 존재하면 현재 저장소는 **bareunmal 시드 하네스 자체**로 운영됩니다.
+이 파일이 존재하면 현재 저장소는 **harness-seed 시드 하네스 자체**로 운영됩니다.
 즉 `.github/stacks/<id>/scaffold/` 안의 파일만 정식으로 추적되고,
 `npm run stack:apply` 산출물(`/src/`, `/index.html`, `/vite.config.ts`, ...)을 commit하면
 pre-commit hook이 차단합니다.
@@ -9,12 +9,12 @@ pre-commit hook이 차단합니다.
 
 ```bash
 rm .harness-seed-mode
-git add -A && git commit -m "chore: claim bareunmal seed as my project"
+git add -A && git commit -m "chore: claim harness-seed as my project"
 ```
 
 이후 `src/`, `index.html`, `vite.config.ts` 등 일반 프로젝트 파일을 자유롭게 commit할 수 있습니다.
 
-## 이 저장소를 시드로 계속 운영하려는 경우 (bareunmal 본 저장소)
+## 이 저장소를 시드로 계속 운영하려는 경우 (harness-seed 본 저장소)
 
 이 파일을 그대로 두세요. 작업 사이클은 다음과 같습니다.
 

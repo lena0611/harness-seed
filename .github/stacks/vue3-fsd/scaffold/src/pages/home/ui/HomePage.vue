@@ -6,7 +6,7 @@ import MainLayout from '@/widgets/main-layout/ui/MainLayout.vue'
 <template>
   <MainLayout>
     <section class="page-header">
-      <p class="page-header__eyebrow">bareunmal</p>
+      <p class="page-header__eyebrow">my-app</p>
       <h1>기본 아키텍처 스캐폴드</h1>
       <p class="page-header__description">
         현재는 도메인 중립적인 기본 뼈대만 구성되어 있으며, 이후 실제 기능은 core부터 확장하면 됩니다.

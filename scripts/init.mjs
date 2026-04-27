@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * bareunmal init: 기존 프로젝트에 harness만 설치한다.
+ * harness-seed init: 기존 프로젝트에 harness만 설치한다.
  *
  * 사용법 (외부 프로젝트의 루트에서):
- *   npx -y github:lena0611/bareunmal init
+ *   npx -y github:lena0611/harness-seed init
  *
  * 동작:
  *  - .github/ 의 harness 산출물(copilot-instructions, project/policy/session/
@@ -36,7 +36,7 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const SOURCE_ROOT = pathResolve(__dirname, '..'); // 패키지 루트(= bareunmal repo)
+const SOURCE_ROOT = pathResolve(__dirname, '..'); // 패키지 루트(= harness-seed repo)
 const TARGET = process.cwd();
 
 // .github/ 아래에서 복사할 항목(허용 리스트)
@@ -132,7 +132,7 @@ function mergePackageJson() {
 
 function printUsageAndExit(code = 0) {
   console.log(`Usage:
-  npx -y github:lena0611/bareunmal init
+  npx -y github:lena0611/harness-seed init
 
 기존 프로젝트 루트에서 실행하세요. 하네스(.github/, scripts/, .githooks/, package.json scripts) 만 설치합니다.
 `);
@@ -146,7 +146,7 @@ if (cmd !== 'init') {
   printUsageAndExit(1);
 }
 
-console.log(`bareunmal: harness 설치 시작 → ${TARGET}\n`);
+console.log(`harness-seed: harness 설치 시작 → ${TARGET}\n`);
 
 if (!existsSync(join(TARGET, '.git'))) {
   console.warn('⚠ .git 이 없습니다. git 저장소에서 사용하길 권장합니다.\n');
@@ -195,5 +195,5 @@ console.log(`
 문서:
   - .github/copilot-instructions.md            # AI 에이전트 진입점
   - .github/project-harness/bootstrap.md       # 새 프로젝트 부트스트랩 절차
-  - https://github.com/lena0611/bareunmal#readme
+  - https://github.com/lena0611/harness-seed#readme
 `);

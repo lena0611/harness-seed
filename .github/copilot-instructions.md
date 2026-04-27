@@ -1,6 +1,6 @@
 # Copilot Instructions
 
-bareunmal 프로젝트에 대한 GitHub Copilot 지침 목차입니다.
+harness-seed 프로젝트에 대한 GitHub Copilot 지침 목차입니다.
 
 ## 목차
 - 프로젝트 개요: 추가 예정 (`.github/project-harness/project-charter.md`)

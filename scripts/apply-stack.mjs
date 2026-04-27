@@ -174,7 +174,7 @@ function adapterTiged(manifest) {
 
   const subdir = manifest.source?.subdir ?? ''
   const packageMergeRel = manifest.source?.packageMerge ?? ''
-  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bareunmal-stack-'))
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-stack-'))
 
   try {
     console.log(`  Fetching '${ref}' via tiged into temp...`)
