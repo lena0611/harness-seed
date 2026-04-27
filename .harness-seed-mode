@@ -1,0 +1,24 @@
+# Seed Mode Marker
+
+이 파일이 존재하면 현재 저장소는 **bareunmal 시드 하네스 자체**로 운영됩니다.
+즉 `.github/stacks/<id>/scaffold/` 안의 파일만 정식으로 추적되고,
+`npm run stack:apply` 산출물(`/src/`, `/index.html`, `/vite.config.ts`, ...)을 commit하면
+pre-commit hook이 차단합니다.
+
+## 이 저장소를 자기 프로젝트로 쓰려는 경우 (가장 흔한 시나리오)
+
+```bash
+rm .harness-seed-mode
+git add -A && git commit -m "chore: claim bareunmal seed as my project"
+```
+
+이후 `src/`, `index.html`, `vite.config.ts` 등 일반 프로젝트 파일을 자유롭게 commit할 수 있습니다.
+
+## 이 저장소를 시드로 계속 운영하려는 경우 (bareunmal 본 저장소)
+
+이 파일을 그대로 두세요. 작업 사이클은 다음과 같습니다.
+
+1. `npm run stack:apply` + `npm install` → 개발 환경 활성화
+2. 기능 작업 (`.github/`, `.github/stacks/<id>/scaffold/` 안에서)
+3. commit 전 `npm run stack:reset` → root를 슬림 상태로 복원
+4. `git commit`
