@@ -8,11 +8,11 @@ dist/
 .node-version.cache
 .package-json.hash
 .vite.pid
+.idea/
 
 # 동적 산출물 / 백업
 .github/.stack-applied.json
 .harness-backup/
-node_modules/
 
 # 시드 모드 안전장치
 # .harness-seed-mode 파일이 있으면 pre-commit hook이 stack-applied 산출물(src/, index.html, vite.config.* 등)의
