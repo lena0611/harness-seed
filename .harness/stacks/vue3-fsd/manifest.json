@@ -14,16 +14,16 @@
     "Adapter Pattern"
   ],
   "instructions": [
-    ".github/stacks/vue3-fsd/instructions/architecture.md",
-    ".github/stacks/vue3-fsd/instructions/state-management.md",
-    ".github/stacks/vue3-fsd/instructions/feature-sliced-design.md"
+    ".harness/stacks/vue3-fsd/instructions/architecture.md",
+    ".harness/stacks/vue3-fsd/instructions/state-management.md",
+    ".harness/stacks/vue3-fsd/instructions/feature-sliced-design.md"
   ],
-  "policiesFile": ".github/stacks/vue3-fsd/policies.json",
+  "policiesFile": ".harness/stacks/vue3-fsd/policies.json",
   "checksKey": "vue-fsd",
   "source": {
     "type": "local",
-    "path": ".github/stacks/vue3-fsd/scaffold",
-    "packageMerge": ".github/stacks/vue3-fsd/scaffold/package.merge.json",
+    "path": ".harness/stacks/vue3-fsd/scaffold",
+    "packageMerge": ".harness/stacks/vue3-fsd/scaffold/package.merge.json",
     "futureMigration": {
       "type": "tiged",
       "ref": "lena0611/stack-vue3-fsd",

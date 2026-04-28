@@ -10,7 +10,7 @@
 
 ## 담당 범위
 - `.github/copilot-instructions/`
-- `.github/policy-harness/`
+- `.harness/policy/`
 - `src/`
 - `.github/workflows/policy-guard.yml`
 

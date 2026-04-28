@@ -6,7 +6,7 @@
       "id": "architecture-core",
       "title": "Core isolation and dependency direction",
       "documents": [
-        ".github/stacks/vue3-fsd/instructions/architecture.md",
+        ".harness/stacks/vue3-fsd/instructions/architecture.md",
         ".github/copilot-instructions/development-workflow.md"
       ],
       "ownedAreas": [
@@ -25,7 +25,7 @@
       "id": "state-management",
       "title": "Pinia and composable adapter rules",
       "documents": [
-        ".github/stacks/vue3-fsd/instructions/state-management.md"
+        ".harness/stacks/vue3-fsd/instructions/state-management.md"
       ],
       "ownedAreas": [
         "src/adapters/vue/stores/**",
@@ -41,8 +41,8 @@
       "id": "feature-sliced-design",
       "title": "Feature boundaries and shared purity",
       "documents": [
-        ".github/stacks/vue3-fsd/instructions/feature-sliced-design.md",
-        ".github/stacks/vue3-fsd/instructions/architecture.md"
+        ".harness/stacks/vue3-fsd/instructions/feature-sliced-design.md",
+        ".harness/stacks/vue3-fsd/instructions/architecture.md"
       ],
       "ownedAreas": [
         "src/features/**",

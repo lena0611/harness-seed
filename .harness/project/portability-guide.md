@@ -9,11 +9,11 @@
 ## 이식 절차
 1. 기존 프로젝트 루트에서 `npx -y github:lena0611/harness-seed#<tag> init`을 실행합니다. 안정 재현이 필요하면 `main` 대신 릴리스 tag를 사용합니다.
 2. `npm run hooks:install`로 로컬 hook을 연결합니다.
-3. `.github/policy-harness/profile.json`의 `activeStack`을 원하는 값으로 변경합니다 (구조만 쓰고 싶으면 `"none"`).
+3. `.harness/policy/profile.json`의 `activeStack`을 원하는 값으로 변경합니다 (구조만 쓰고 싶으면 `"none"`).
 4. `npm run guard`로 일반 하네스가 통과하는지 먼저 확인합니다.
 5. 스택 scaffold가 필요하면 `npm run stack:apply`를 실행합니다.
 6. `npm install` 후 `npm run guard`로 lint/test/build까지 검증합니다.
-7. 새 스택이 필요하면 `.github/stacks/<new-id>/`를 추가하고(manifest.json + policies.json + instructions/ + scaffold/ + package.merge.json), `.github/stacks/README.md` 표에 등록합니다.
+7. 새 스택이 필요하면 `.harness/stacks/<new-id>/`를 추가하고(manifest.json + policies.json + instructions/ + scaffold/ + package.merge.json), `.harness/stacks/README.md` 표에 등록합니다.
 8. `policy-registry.json`은 일반 정책만 유지합니다. 스택-특화 정책은 스택의 `policies.json`으로만 둡니다.
 9. `policy-harness.mjs`의 framework-specific 블록은 새 `checksKey`를 원할 때만 분기 확장합니다.
 10. `project-charter.md`, `scope-contract.md`를 새 도메인 정보로 채웁니다.

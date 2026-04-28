@@ -12,22 +12,22 @@
 - `none` — 일반 하네스만 사용
 
 ## 활성 스택 결정
-- `.github/policy-harness/profile.json`의 `activeStack`이 단일 진실 출처입니다.
+- `.harness/policy/profile.json`의 `activeStack`이 단일 진실 출처입니다.
 - 활성 스택의 `manifest.json`이 `instructions`, `policiesFile`, `checksKey`, `source`(scaffold 가져오는 방법)를 모두 정의합니다.
 
 ## 일반 하네스 구성
-- `.github/session-harness/`: 세션 컨텍스트 복구
-- `.github/project-harness/`: 프로젝트 목적/범위 + 부트스트랩 인터뷰 + 이식 가이드
-- `.github/policy-harness/`: 정책↔코드 양방향 동기화, SYNC GAP 검출, waiver
-- `.github/documentation-harness/`: 문서 인덱싱/분리 규칙, doc-link 무결성
-- `.github/style-harness/`: 코딩 스타일 검증
-- `.github/stacks/`: 스택 프리셋 꾸러미 (자체-완결, 폴더 격리)
+- `.harness/session/`: 세션 컨텍스트 복구
+- `.harness/project/`: 프로젝트 목적/범위 + 부트스트랩 인터뷰 + 이식 가이드
+- `.harness/policy/`: 정책↔코드 양방향 동기화, SYNC GAP 검출, waiver
+- `.harness/documentation/`: 문서 인덱싱/분리 규칙, doc-link 무결성
+- `.harness/style/`: 코딩 스타일 검증
+- `.harness/stacks/`: 스택 프리셋 꾸러미 (자체-완결, 폴더 격리)
 
 ## 스택 적용 메커니즘
 - `scripts/apply-stack.mjs`가 source adapter 패턴으로 동작:
-  - `local`: `.github/stacks/<id>/scaffold/`를 root로 복사 (현재 구현)
+  - `local`: `.harness/stacks/<id>/scaffold/`를 root로 복사 (현재 구현)
   - `tiged`: `npx tiged <ref> .` (스텁, 향후 마이그레이션 시 구현)
-- 적용 시 root `package.json`에 `package.merge.json`을 머지하고 `.github/.stack-applied.json` 마커 기록.
+- 적용 시 root `package.json`에 `package.merge.json`을 머지하고 `.harness/.stack-applied.json` 마커 기록.
 - `stack:reset`은 마커를 기준으로 복사된 파일 제거 + package.json 적용 전 상태로 복원.
 - harness 스크립트는 충돌 시 항상 우선 (스택이 덮어쓰지 못함).
 

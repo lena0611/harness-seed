@@ -10,10 +10,10 @@
 5. [현재 컨텍스트](./active-context.md)
 6. [결정 로그](./decision-log.md)
 7. [개발자 입력 큐](./developer-input-queue.md)
-8. [프로젝트 하네스](../project-harness/README.md)
-9. [프로젝트 시작 인터뷰 (Bootstrap)](../project-harness/bootstrap.md)
-10. [정책 하네스](../policy-harness/README.md)
-11. [문서 하네스](../documentation-harness/README.md)
+8. [프로젝트 하네스](../project/README.md)
+9. [프로젝트 시작 인터뷰 (Bootstrap)](../project/bootstrap.md)
+10. [정책 하네스](../policy/README.md)
+11. [문서 하네스](../documentation/README.md)
 12. [스택 프리셋 목록](../stacks/README.md)
 
 ## 목적
@@ -30,4 +30,4 @@
 - 사용자가 `세션종료`라고 말하면 그 세션의 미결 사항과 다음 세션 상기 사항을 `next-session-reminder.md`에 정리합니다.
 - 정보 부족으로 막힌 항목은 `developer-input-queue.md`에 남겨 다음 세션에서 다시 묻습니다.
 - 정책 문서 또는 `src/` 변경 작업은 항상 `policy:guard` 트리거와 함께 다룹니다.
-- 문서가 길어지면 내용을 계속 누적하지 말고 `documentation-harness` 규칙에 따라 인덱스/세부 문서로 분리합니다.
+- 문서가 길어지면 내용을 계속 누적하지 말고 `documentation` 하네스 규칙에 따라 인덱스/세부 문서로 분리합니다.

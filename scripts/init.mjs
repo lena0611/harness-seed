@@ -6,10 +6,9 @@
  *   npx -y github:lena0611/harness-seed init
  *
  * 동작:
- *  - .github/ 의 harness 산출물(copilot-instructions, project/policy/session/
- *    documentation/style-harness, stacks, workflows)만 복사.
- *    ISSUE_TEMPLATE/ pull_request_template.md / commit-template.txt 는 프로젝트마다
- *    다르므로 제외.
+ *  - .harness/ 하네스 본체를 복사한다.
+ *  - .github/ 는 Copilot shim과 workflows만 복사한다.
+ *    ISSUE_TEMPLATE/ pull_request_template.md / commit-template.txt 는 프로젝트마다 다르므로 제외.
  *  - scripts/*.mjs (apply-stack, guard, policy-harness, doc-link-check,
  *    install-hooks, check-node-version, check-seed-mode) 복사. init.mjs 자체는 제외.
  *  - .githooks/ 복사.
@@ -66,16 +65,10 @@ if (!isSupportedNode(nodeVersion)) {
   process.exit(1);
 }
 
-// .github/ 아래에서 복사할 항목(허용 리스트)
+// .github/ 아래에서 복사할 플랫폼/에이전트 어댑터(허용 리스트)
 const GITHUB_INCLUDE = [
   'copilot-instructions.md',
   'copilot-instructions',
-  'project-harness',
-  'policy-harness',
-  'session-harness',
-  'documentation-harness',
-  'style-harness',
-  'stacks',
   'workflows', // harness CI (policy-guard.yml). 사용자 충돌 시 자동 skip.
 ];
 
@@ -92,6 +85,8 @@ const SCRIPTS_INCLUDE = [
 
 const ROOT_INCLUDE = [
   '.nvmrc',
+  'AGENTS.md',
+  'CLAUDE.md',
 ];
 
 function walkFiles(dir) {
@@ -173,7 +168,7 @@ function mergeGitignore() {
     '.node-version.cache',
     '.package-json.hash',
     '.vite.pid',
-    '.github/.stack-applied.json',
+    '.harness/.stack-applied.json',
     '.harness-backup/',
   ];
 
@@ -198,7 +193,7 @@ function printUsageAndExit(code = 0) {
   console.log(`Usage:
   npx -y github:lena0611/harness-seed init
 
-기존 프로젝트 루트에서 실행하세요. 하네스(.github/, scripts/, .githooks/, package.json scripts) 만 설치합니다.
+기존 프로젝트 루트에서 실행하세요. 하네스(.harness/, scripts/, .githooks/, package.json scripts) 만 설치합니다.
 `);
   process.exit(code);
 }
@@ -218,6 +213,9 @@ if (!existsSync(join(TARGET, '.git'))) {
 
 const conflicts = [];
 let copied = 0;
+
+// .harness/ 본체
+copied += copyPath('.harness', conflicts);
 
 // .github/ allow-list
 for (const name of GITHUB_INCLUDE) {
@@ -256,13 +254,15 @@ console.log(`
   1) git hook 활성화
        npm run hooks:install
   2) (선택) 스택 프리셋 적용
-       ls .github/stacks                       # 사용 가능한 스택 확인
+       ls .harness/stacks                       # 사용 가능한 스택 확인
        npm run stack:apply -- <stack-id>
   3) 정책↔코드↔문서 동기화 검증
        npm run guard
 
 문서:
-  - .github/copilot-instructions.md            # AI 에이전트 진입점
-  - .github/project-harness/bootstrap.md       # 새 프로젝트 부트스트랩 절차
+  - CLAUDE.md                                  # 기준 AI 에이전트 진입점
+  - AGENTS.md                                  # 보조 AI 에이전트 shim
+  - .github/copilot-instructions.md            # GitHub Copilot shim
+  - .harness/project/bootstrap.md              # 새 프로젝트 부트스트랩 절차
   - https://github.com/lena0611/harness-seed#readme
 `);

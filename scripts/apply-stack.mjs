@@ -7,8 +7,11 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '..')
-const profilePath = path.join(repoRoot, '.github', 'policy-harness', 'profile.json')
-const markerPath = path.join(repoRoot, '.github', '.stack-applied.json')
+const harnessRootRel = fs.existsSync(path.join(repoRoot, '.harness')) ? '.harness' : '.github'
+const harnessRoot = path.join(repoRoot, harnessRootRel)
+const profilePath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'policy' : 'policy-harness', 'profile.json')
+const stacksRoot = path.join(harnessRoot, 'stacks')
+const markerPath = path.join(harnessRoot, '.stack-applied.json')
 
 const args = process.argv.slice(2)
 const isReset = args.includes('--reset')
@@ -39,7 +42,7 @@ function readProfile() {
 }
 
 function readManifest(stackId) {
-  const manifestPath = path.join(repoRoot, '.github', 'stacks', stackId, 'manifest.json')
+  const manifestPath = path.join(stacksRoot, stackId, 'manifest.json')
   const manifest = readJson(manifestPath)
 
   if (!manifest) {
@@ -254,7 +257,7 @@ function commandApply() {
   const stackId = profile.activeStack
 
   if (!stackId || stackId === 'none') {
-    console.error('activeStack이 설정되지 않았습니다. .github/policy-harness/profile.json의 activeStack을 먼저 지정하세요.')
+    console.error(`activeStack이 설정되지 않았습니다. ${toPosix(path.relative(repoRoot, profilePath))}의 activeStack을 먼저 지정하세요.`)
     process.exit(1)
   }
 

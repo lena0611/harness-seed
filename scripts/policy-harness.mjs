@@ -6,8 +6,11 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '..')
-const registryPath = path.join(repoRoot, '.github', 'policy-harness', 'policy-registry.json')
-const profilePath = path.join(repoRoot, '.github', 'policy-harness', 'profile.json')
+const harnessRootRel = fs.existsSync(path.join(repoRoot, '.harness')) ? '.harness' : '.github'
+const harnessRoot = path.join(repoRoot, harnessRootRel)
+const registryPath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'policy' : 'policy-harness', 'policy-registry.json')
+const profilePath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'policy' : 'policy-harness', 'profile.json')
+const stacksRoot = path.join(harnessRoot, 'stacks')
 
 const args = process.argv.slice(2)
 const mode = args[0] ?? 'guard'
@@ -33,7 +36,7 @@ function readActiveStack() {
     return { id: 'none', manifest: null, policies: [], checksKey: null }
   }
 
-  const stackDir = path.join(repoRoot, '.github', 'stacks', stackId)
+  const stackDir = path.join(stacksRoot, stackId)
   const manifestPath = path.join(stackDir, 'manifest.json')
 
   if (!fs.existsSync(manifestPath)) {
@@ -436,10 +439,14 @@ function formatFileList(files) {
 function isHarnessBootstrapChange(filePath) {
   return (
     filePath.startsWith('.github/') ||
+    filePath.startsWith('.harness/') ||
     filePath.startsWith('.githooks/') ||
     filePath.startsWith('scripts/') ||
     filePath === '.nvmrc' ||
     filePath === '.gitignore' ||
+    filePath === 'AGENTS.md' ||
+    filePath === 'CLAUDE.md' ||
+    filePath === '.harness/.stack-applied.json' ||
     filePath === '.github/.stack-applied.json' ||
     filePath === 'package.json' ||
     filePath === 'package-lock.json'
@@ -476,6 +483,7 @@ function runImpact() {
   for (const policy of registry.policies) {
     const documentChanged = changedFiles.some((filePath) => matchesAnyGlob(filePath, policy.documents))
     const sourceChanged = changedFiles.some((filePath) => matchesAnyGlob(filePath, policy.ownedAreas))
+    const hasOwnedFiles = trackedFiles.some((filePath) => matchesAnyGlob(filePath, policy.ownedAreas))
 
     if (documentChanged) {
       const impactedFiles = trackedFiles.filter((filePath) => matchesAnyGlob(filePath, policy.ownedAreas))
@@ -492,7 +500,7 @@ function runImpact() {
       })
     }
 
-    if (documentChanged !== sourceChanged) {
+    if (documentChanged !== sourceChanged && (sourceChanged || hasOwnedFiles)) {
       syncGaps.push({
         id: policy.id,
         title: policy.title,

@@ -19,6 +19,11 @@ if (!fs.existsSync(markerPath)) {
   process.exit(0)
 }
 
+const harnessRootRel = fs.existsSync(path.join(repoRoot, '.harness')) ? '.harness' : '.github'
+const harnessRoot = path.join(repoRoot, harnessRootRel)
+const profilePath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'policy' : 'policy-harness', 'profile.json')
+const stacksRoot = path.join(harnessRoot, 'stacks')
+
 function readJson(absPath, fallback = null) {
   try {
     return JSON.parse(fs.readFileSync(absPath, 'utf8'))
@@ -41,13 +46,13 @@ function walkScaffold(absDir, relDir, out) {
   }
 }
 
-const profile = readJson(path.join(repoRoot, '.github', 'policy-harness', 'profile.json'), {})
+const profile = readJson(profilePath, {})
 const stackId = profile.activeStack
 const scaffoldFiles = new Set()
 let packageMergeData = null
 
 if (stackId && stackId !== 'none') {
-  const manifest = readJson(path.join(repoRoot, '.github', 'stacks', stackId, 'manifest.json'))
+  const manifest = readJson(path.join(stacksRoot, stackId, 'manifest.json'))
   const scaffoldRel = manifest?.source?.path
   if (scaffoldRel) {
     walkScaffold(path.join(repoRoot, scaffoldRel), '', scaffoldFiles)

@@ -9,10 +9,13 @@
     "harness-seed": "./scripts/init.mjs"
   },
   "files": [
+    ".harness",
     ".github",
     "scripts",
     ".githooks",
     ".nvmrc",
+    "AGENTS.md",
+    "CLAUDE.md",
     "README.md"
   ],
   "scripts": {

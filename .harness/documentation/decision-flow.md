@@ -56,7 +56,7 @@
 - 자동 실행 또는 차단이 필요하면 **Hook**
 - 차단이 필요한 경우는 **Block 수준**까지 고려
 
-기준은 `.github/policy-harness/enforcement-ladder.md`를 따릅니다.
+기준은 `.harness/policy/enforcement-ladder.md`를 따릅니다.
 
 ### 7. 예외 범위 판단
 - 예외 없이 바로 지켜야 하는지

@@ -7,7 +7,10 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '..')
 const forwardedArgs = process.argv.slice(2)
-const markerPath = path.join(repoRoot, '.github', '.stack-applied.json')
+const harnessRoot = fs.existsSync(path.join(repoRoot, '.harness'))
+  ? path.join(repoRoot, '.harness')
+  : path.join(repoRoot, '.github')
+const markerPath = path.join(harnessRoot, '.stack-applied.json')
 const stackApplied = fs.existsSync(markerPath)
 
 function run(command, args) {
@@ -22,7 +25,7 @@ run('node', ['scripts/doc-link-check.mjs', ...forwardedArgs])
 
 if (!stackApplied) {
   console.log('')
-  console.log('Stack not applied (.github/.stack-applied.json 없음). lint/test/build 단계는 건너뜁니다.')
+  console.log(`Stack not applied (${path.relative(repoRoot, markerPath)} 없음). lint/test/build 단계는 건너뜁니다.`)
   console.log('스택을 적용하려면: npm run stack:apply')
   process.exit(0)
 }

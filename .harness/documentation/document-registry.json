@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "groups": [
+    {
+      "id": "agent-entrypoints",
+      "index": "CLAUDE.md",
+      "children": [
+        "AGENTS.md"
+      ]
+    },
+    {
+      "id": "copilot-instructions",
+      "index": ".github/copilot-instructions.md",
+      "children": [
+        ".github/copilot-instructions/coding-conventions.md",
+        ".github/copilot-instructions/project-setup.md",
+        ".github/copilot-instructions/development-workflow.md"
+      ]
+    },
+    {
+      "id": "session-harness",
+      "index": ".harness/session/README.md",
+      "children": [
+        ".harness/session/next-session-reminder.md",
+        ".harness/session/session-start-alert.md",
+        ".harness/session/session-boot.md",
+        ".harness/session/project-memory.md",
+        ".harness/session/active-context.md",
+        ".harness/session/decision-log.md",
+        ".harness/session/developer-input-queue.md"
+      ]
+    },
+    {
+      "id": "project-harness",
+      "index": ".harness/project/README.md",
+      "children": [
+        ".harness/project/config-contract.md",
+        ".harness/project/project-charter.md",
+        ".harness/project/scope-contract.md",
+        ".harness/project/portability-guide.md",
+        ".harness/project/bootstrap.md"
+      ]
+    },
+    {
+      "id": "policy-harness",
+      "index": ".harness/policy/README.md",
+      "children": [
+        ".harness/policy/enforcement-ladder.md",
+        ".harness/policy/policy-steward.md",
+        ".harness/policy/sync-protocol.md",
+        ".harness/policy/automation-coverage.md",
+        ".harness/policy/waiver-guidelines.md",
+        ".harness/policy/policy-registry.json",
+        ".harness/policy/profile.json",
+        ".harness/policy/waivers.json"
+      ]
+    },
+    {
+      "id": "documentation-harness",
+      "index": ".harness/documentation/README.md",
+      "children": [
+        ".harness/documentation/concept-map.md",
+        ".harness/documentation/decision-flow.md",
+        ".harness/documentation/indexing-rules.md",
+        ".harness/documentation/split-thresholds.md",
+        ".harness/documentation/document-registry.json"
+      ]
+    },
+    {
+      "id": "style-harness",
+      "index": ".harness/style/README.md",
+      "children": [
+        ".harness/style/style-rules.md",
+        ".harness/style/validation-rules.md",
+        ".harness/style/style-evolution.md"
+      ]
+    },
+    {
+      "id": "stacks",
+      "index": ".harness/stacks/README.md",
+      "children": []
+    },
+    {
+      "id": "stack-vue3-fsd",
+      "index": ".harness/stacks/vue3-fsd/manifest.json",
+      "children": [
+        ".harness/stacks/vue3-fsd/policies.json",
+        ".harness/stacks/vue3-fsd/instructions/architecture.md",
+        ".harness/stacks/vue3-fsd/instructions/state-management.md",
+        ".harness/stacks/vue3-fsd/instructions/feature-sliced-design.md"
+      ]
+    }
+  ]
+}

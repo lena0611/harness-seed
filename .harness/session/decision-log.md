@@ -1,5 +1,13 @@
 # 결정 로그
 
+## 2026-04-28 - 하네스 본체를 .harness로 이동
+- Copilot/GitHub 의존을 줄이기 위해 일반 하네스 본체를 `.github/`에서 `.harness/`로 이동했습니다.
+- `.github/`에는 Copilot shim, GitHub Actions, GitHub issue/PR template처럼 GitHub 플랫폼에 속한 어댑터만 남깁니다.
+- 범용 에이전트 진입점 `AGENTS.md`와 Claude 진입점 `CLAUDE.md`를 추가했습니다.
+- 사내 표준 에이전트는 Claude로 정하고, `CLAUDE.md`를 모든 에이전트의 기준 진입점으로 승격했습니다. `AGENTS.md`와 Copilot instructions는 shim 역할만 합니다.
+- `scripts/*`는 `.harness`를 우선 사용하고, 기존 `.github` 기반 설치본도 읽을 수 있도록 fallback을 유지합니다.
+- stack 적용 마커는 새 구조에서 `.harness/.stack-applied.json`을 사용합니다.
+
 ## 2026-04-28 - Node 런타임 고정 및 init 안정화
 - `.nvmrc`를 `22.14.0`으로 추가하고 `package.json`의 `engines.node`를 현재 Vite/ESLint 도구체인 요구사항(`>=20.19.0 || >=22.13.0`)에 맞췄습니다.
 - 모든 npm harness 명령 앞에 `scripts/check-node-version.mjs`를 연결해 낮은 Node에서 문법 에러 대신 명확한 업그레이드 안내가 나오게 했습니다.
@@ -27,15 +35,15 @@
 - 저장소명을 반영하기 위해 Vite `base`를 `/bareunmal/`로 설정했습니다.
 
 ## 2026-04-22 - 세션 하네스 도입
-- 새 세션이 이전 상태를 빠르게 복구할 수 있도록 `.github/session-harness/`를 추가했습니다.
+- 새 세션이 이전 상태를 빠르게 복구할 수 있도록 `.harness/session/`를 추가했습니다.
 - 장기 메모리와 단기 컨텍스트를 분리해 읽기 순서를 고정했습니다.
 
 ## 2026-04-22 - 정책 동기화 하네스 도입
-- 정책 문서와 소스 코드의 상호 영향을 놓치지 않도록 `.github/policy-harness/`를 추가했습니다.
+- 정책 문서와 소스 코드의 상호 영향을 놓치지 않도록 `.harness/policy/`를 추가했습니다.
 - 정책 영향 분석과 위반 검사를 `scripts/policy-harness.mjs` 및 GitHub Actions `policy-guard.yml`에 연결했습니다.
 
 ## 2026-04-22 - 프로젝트 하네스 및 세션 시작 알림 도입
-- 아직 도메인이 없더라도 프로젝트 목적과 범위를 담을 수 있도록 `.github/project-harness/`를 추가했습니다.
+- 아직 도메인이 없더라도 프로젝트 목적과 범위를 담을 수 있도록 `.harness/project/`를 추가했습니다.
 - 새 세션에서 미해결 항목을 반드시 다시 보도록 `session-start-alert.md`를 최우선 읽기 대상으로 추가했습니다.
 
 ## 2026-04-22 - 개발자 입력 큐 도입
@@ -43,11 +51,11 @@
 - 개발자에게는 항상 `지금 답변 / 이번 세션 유보 / 나중에 다시 묻기` 선택권을 남기도록 원칙을 고정했습니다.
 
 ## 2026-04-22 - 문서 인덱싱 하네스 도입
-- 긴 문서가 한 파일에 계속 누적되지 않도록 `.github/documentation-harness/`를 추가했습니다.
+- 긴 문서가 한 파일에 계속 누적되지 않도록 `.harness/documentation/`를 추가했습니다.
 - 문서군마다 인덱스 문서와 세부 문서를 나누는 규칙을 세션 시작 하네스에 연결했습니다.
 
 ## 2026-04-22 - 스타일 검증 하네스 도입
-- 코딩 스타일을 문서와 자동 검사로 함께 유지하기 위해 `.github/style-harness/`와 ESLint 기반 검증을 추가했습니다.
+- 코딩 스타일을 문서와 자동 검사로 함께 유지하기 위해 `.harness/style/`와 ESLint 기반 검증을 추가했습니다.
 - 통합 가드(`npm run guard`)에 lint를 포함해 구조/정책 검증과 스타일 검증을 함께 돌리도록 했습니다.
 
 ## 2026-04-22 - 사전준비 운영 세트 확장
@@ -56,7 +64,7 @@
 
 ## 2026-04-27 - 일반화 하네스와 스택 프리셋 분리
 - 저장소를 일반 하네스(프레임워크 독립 인프라)와 스택 프리셋(프레임워크+디자인패턴 꾸러미)으로 분리했습니다.
-- `vue3-fsd` 스택 자산을 `.github/stacks/vue3-fsd/scaffold/`로 이동해 root가 스택-독립적이 되게 했습니다.
+- `vue3-fsd` 스택 자산을 `.harness/stacks/vue3-fsd/scaffold/`로 이동해 root가 스택-독립적이 되게 했습니다.
 - `apply-stack.mjs`를 source adapter 패턴(`local` 구현, `tiged` 스텅)으로 설계해 향후 외부 저장소로 분리가 저비용으로 가능하도록 했습니다 (B안 + A-1 호환).
 - `npm run stack:apply` / `stack:reset` / `stack:status` 명령과 `.github/.stack-applied.json` 마커를 도입했습니다.
 - `guard.mjs`는 스택 미적용 시 lint/test/build를 자동 스킵하고 일반 검사만 실행합니다.

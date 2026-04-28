@@ -5,9 +5,12 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '..')
-const docHarnessRoot = path.join(repoRoot, '.github')
-const registryPath = path.join(docHarnessRoot, 'documentation-harness', 'document-registry.json')
-const profilePath = path.join(docHarnessRoot, 'policy-harness', 'profile.json')
+const harnessRootRel = fs.existsSync(path.join(repoRoot, '.harness')) ? '.harness' : '.github'
+const harnessRoot = path.join(repoRoot, harnessRootRel)
+const registryPath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'documentation' : 'documentation-harness', 'document-registry.json')
+const profilePath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'policy' : 'policy-harness', 'profile.json')
+const stacksRel = harnessRootRel === '.harness' ? '.harness/stacks' : '.github/stacks'
+const stacksRoot = path.join(repoRoot, stacksRel)
 
 const args = process.argv.slice(2)
 const strictMode = args.includes('--strict')
@@ -31,7 +34,7 @@ function readActiveScaffoldRoot() {
     return null
   }
 
-  const manifestPath = path.join(docHarnessRoot, 'stacks', stackId, 'manifest.json')
+  const manifestPath = path.join(stacksRoot, stackId, 'manifest.json')
 
   if (!fs.existsSync(manifestPath)) {
     return null
@@ -59,6 +62,7 @@ const activeScaffoldRoot = readActiveScaffoldRoot()
 
 // 런타임에만 생성되는 마커/산출물 경로. 문서가 참조해도 실제 파일 부재를 broken으로 보지 않습니다.
 const dynamicArtifactPaths = new Set([
+  '.harness/.stack-applied.json',
   '.github/.stack-applied.json',
   // npx init 진입점은 사용자 프로젝트에 복사하지 않는다. 시드 결정 로그의
   // 역사적 참조는 사용자 프로젝트에서도 broken reference로 취급하지 않는다.
@@ -107,10 +111,18 @@ function walk(dir) {
 }
 
 function listMarkdownFiles() {
-  return walk(docHarnessRoot)
+  const markdownFiles = walk(harnessRoot)
     .filter((f) => f.endsWith('.md'))
     .map((f) => toPosix(path.relative(repoRoot, f)))
     .filter((rel) => !rel.includes('/scaffold/'))
+
+  for (const rel of ['AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md']) {
+    if (fs.existsSync(path.join(repoRoot, rel))) {
+      markdownFiles.push(rel)
+    }
+  }
+
+  return markdownFiles
 }
 
 function readRegistry() {
@@ -173,7 +185,7 @@ function findMissingFromRegistry(registered) {
 }
 
 const linkPattern = /\[[^\]]*\]\(([^)\s]+)\)/g
-const codePathPattern = /`((?:src|scripts|\.github|\.githooks)\/[A-Za-z0-9_./-]+)`/g
+const codePathPattern = /`((?:src|scripts|\.github|\.harness|\.githooks)\/[A-Za-z0-9_./-]+)`/g
 
 function stripFence(text) {
   return text.replace(/```[\s\S]*?```/g, '')
@@ -240,8 +252,6 @@ function findBrokenLinks() {
 }
 
 function findStackIsolationViolations() {
-  const stacksRoot = path.join(repoRoot, '.github', 'stacks')
-
   if (!fs.existsSync(stacksRoot)) {
     return []
   }
@@ -267,7 +277,7 @@ function findStackIsolationViolations() {
       const otherStacks = stackIds.filter((id) => id !== stackId)
 
       for (const other of otherStacks) {
-        const needle = `.github/stacks/${other}/`
+        const needle = `${stacksRel}/${other}/`
 
         if (content.includes(needle)) {
           violations.push({ file: rel, otherStack: other })
@@ -323,7 +333,7 @@ function main() {
     hasIssue = true
     console.log('Stack isolation violation (\ud55c \uc2a4\ud0dd \ud3f4\ub354\uac00 \ub2e4\ub978 \uc2a4\ud0dd \ud3f4\ub354\ub97c \ucc38\uc870\ud568):')
     for (const v of stackViolations) {
-      console.log(`  - ${v.file} -> .github/stacks/${v.otherStack}/`)
+      console.log(`  - ${v.file} -> ${stacksRel}/${v.otherStack}/`)
     }
     console.log('')
   }

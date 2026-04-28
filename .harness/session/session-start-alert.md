@@ -5,16 +5,16 @@
 바로 이어서 [`next-session-reminder.md`](./next-session-reminder.md)를 봅니다.
 
 ## 지금 반드시 떠올릴 것
-1. 프로젝트 목적은 아직 `TBD`입니다. 새 기능 전에 `.github/project-harness/project-charter.md`를 먼저 확인합니다.
+1. 프로젝트 목적은 아직 `TBD`입니다. 새 기능 전에 `.harness/project/project-charter.md`를 먼저 확인합니다.
 2. `src/`, 정책 문서, 하네스 문서를 손대면 `npm run policy:guard`를 시작 전과 종료 전에 실행합니다.
-3. 자동 검사가 통과해도 수동 검토 항목은 `.github/policy-harness/automation-coverage.md`를 보고 다시 판단합니다.
-4. `.github/session-harness/developer-input-queue.md`의 `open`/`deferred` 항목은 새 세션에서 다시 확인합니다.
-5. 문서를 키워야 한다면 먼저 `.github/documentation-harness/indexing-rules.md`에 맞게 인덱스/세부 문서 분리를 판단합니다.
+3. 자동 검사가 통과해도 수동 검토 항목은 `.harness/policy/automation-coverage.md`를 보고 다시 판단합니다.
+4. `.harness/session/developer-input-queue.md`의 `open`/`deferred` 항목은 새 세션에서 다시 확인합니다.
+5. 문서를 키워야 한다면 먼저 `.harness/documentation/indexing-rules.md`에 맞게 인덱스/세부 문서 분리를 판단합니다.
 6. 개발 방향을 유지하려면 하네스만 만들지 말고, 필요 시 trigger와 hook까지 함께 설계해야 합니다.
-7. 강제 강도와 예외 허용 범위가 애매하면 `.github/policy-harness/enforcement-ladder.md`를 보고 사용자에게 묻습니다.
+7. 강제 강도와 예외 허용 범위가 애매하면 `.harness/policy/enforcement-ladder.md`를 보고 사용자에게 묻습니다.
 8. 코드 변경 시 스타일 검증도 구조 검증과 함께 보며, `npm run lint` 또는 `npm run guard`를 기준으로 판단합니다.
 9. 새 환경을 준비한 뒤에는 `npm run hooks:install`로 로컬 훅과 커밋 템플릿을 연결합니다.
-10. 스타일이 반복 패턴으로 굳어지기 시작하면 `.github/style-harness/style-evolution.md` 기준으로 규칙 승격 후보를 확인합니다.
+10. 스타일이 반복 패턴으로 굳어지기 시작하면 `.harness/style/style-evolution.md` 기준으로 규칙 승격 후보를 확인합니다.
 
 ## 방향 유지 장치 원칙
 - **Harness**는 방향과 작업 레일을 정합니다.

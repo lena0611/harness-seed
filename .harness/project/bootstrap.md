@@ -7,7 +7,7 @@
 
 ## 목적
 - 일반 하네스(세션·정책·문서·스타일 동기화 인프라)는 그대로 두고, 프로젝트마다 달라지는 부분(목적, 사용자, 성공 기준, 기술 스택 선택)을 한 자리에서 입력받습니다.
-- 입력 결과는 `project-charter.md`, `scope-contract.md`, `.github/policy-harness/profile.json`에 분산 저장됩니다.
+- 입력 결과는 `project-charter.md`, `scope-contract.md`, `.harness/policy/profile.json`에 분산 저장됩니다.
 
 ## 인터뷰 순서
 
@@ -22,17 +22,17 @@
 6. 성공 기준 (기능/운영/품질 각각)
 7. 알려진 제약 (제품/기술/일정)
 
-답이 들어오는 즉시 `.github/project-harness/project-charter.md`를 갱신합니다. 보류 항목은 `.github/session-harness/developer-input-queue.md`에 등록합니다.
+답이 들어오는 즉시 `.harness/project/project-charter.md`를 갱신합니다. 보류 항목은 `.harness/session/developer-input-queue.md`에 등록합니다.
 
 ### 2. 기술 스택 선택 (필수)
-사용 가능한 스택 프리셋을 보여주고 하나를 선택받습니다. 목록 출처는 `.github/stacks/README.md`입니다.
+사용 가능한 스택 프리셋을 보여주고 하나를 선택받습니다. 목록 출처는 `.harness/stacks/README.md`입니다.
 
 질문 예시:
 > 사용할 스택 프리셋을 골라주세요.
 > - `vue3-fsd` — Vue 3 + Pinia + Vite + TypeScript / FSD + Clean Architecture + Headless Core + Adapter
 > - `none` — 어떤 프리셋도 적용하지 않음 (일반 하네스만 사용)
 
-선택 결과는 `.github/policy-harness/profile.json`의 `activeStack`에 기록합니다. 기본값 변경 시 `decision-log.md`에 사유를 한 줄 남깁니다.
+선택 결과는 `.harness/policy/profile.json`의 `activeStack`에 기록합니다. 기본값 변경 시 `decision-log.md`에 사유를 한 줄 남깁니다.
 
 ### 3. 스택 호환성 검증 및 적용
 선택된 스택이 동작 가능한 상태인지 다음으로 결정합니다.

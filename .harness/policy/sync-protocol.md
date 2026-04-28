@@ -2,7 +2,7 @@
 
 ## 언제 반드시 실행하는가
 - `.github/copilot-instructions/**`가 바뀔 때
-- `.github/policy-harness/**`가 바뀔 때
+- `.harness/policy/**`가 바뀔 때
 - `src/**`가 바뀔 때
 - 구조, 상태 관리, feature 경계에 영향을 줄 수 있는 리팩터링을 할 때
 

@@ -13,7 +13,7 @@ npx -y github:lena0611/harness-seed#vX.Y.Z init
 npm run hooks:install
 ```
 
-`.github/` `scripts/` `.githooks/` 와 `package.json` 의 harness scripts만 추가됩니다. 기존 `src/`, 의존성, 사용자 scripts는 그대로 보존됩니다(이미 존재하는 파일은 자동 skip). 릴리스 tag가 아직 없을 때만 `github:lena0611/harness-seed`를 직접 사용하세요.
+`.harness/` `CLAUDE.md` `AGENTS.md` `.github/`의 선택 어댑터, `scripts/`, `.githooks/`, `package.json`의 harness scripts만 추가됩니다. 기존 `src/`, 의존성, 사용자 scripts는 그대로 보존됩니다(이미 존재하는 파일은 자동 skip). 릴리스 tag가 아직 없을 때만 `github:lena0611/harness-seed`를 직접 사용하세요.
 
 ### 시나리오 2: **빈 디렉토리에서 통째로 시작**
 
@@ -32,9 +32,9 @@ npm run dev                    # vite 개발 서버
 
 ## 용어 1줄 글로싸리
 
-- **하네스(harness)**: 프로젝트의 정책·문서·세션 컨텍스트를 결정적으로 검증하는 메타 인프라. `.github/` 안에 있음.
-- **스택 프리셋(stack preset)**: 특정 프레임워크+디자인패턴 꾸러미 (instructions + 정책 + scaffold). `.github/stacks/<id>/`.
-- **활성 스택(activeStack)**: `.github/policy-harness/profile.json`이 가리키는 현재 스택. `none`도 가능.
+- **하네스(harness)**: 프로젝트의 정책·문서·세션 컨텍스트를 결정적으로 검증하는 메타 인프라. `.harness/` 안에 있음.
+- **스택 프리셋(stack preset)**: 특정 프레임워크+디자인패턴 꾸러미 (instructions + 정책 + scaffold). `.harness/stacks/<id>/`.
+- **활성 스택(activeStack)**: `.harness/policy/profile.json`이 가리키는 현재 스택. `none`도 가능.
 - **시드 모드(seed mode)**: `.harness-seed-mode` 파일이 있으면 활성. harness-seed 본 저장소에서만 사용. 일반 사용자는 첫 사용 시 삭제.
 - **SYNC GAP**: 정책과 코드 중 한쪽만 변경되어 동기화가 깨진 상태. `policy:impact`가 자동 검출.
 
@@ -58,7 +58,7 @@ rm .harness-seed-mode
 | `vue3-fsd` | Vue 3 + Pinia + Vite + TypeScript / FSD + Clean Architecture + Headless Core + Adapter |
 | `none` | 일반 하네스만, 프레임워크-종속 검사 비활성화 |
 
-새 스택 추가는 [.github/stacks/README.md](.github/stacks/README.md) 참고.
+새 스택 추가는 [.harness/stacks/README.md](.harness/stacks/README.md) 참고.
 
 ## 주요 명령
 
@@ -87,16 +87,16 @@ npm run hooks:install       # 로컬 git pre-commit hook 등록
 
 ## 새 프로젝트 부트스트랩 (AI 에이전트와 함께)
 
-이 저장소를 fork/degit한 직후 Copilot/Claude 세션에서 다음 명령을 사용하세요.
+이 저장소를 fork/degit한 직후 Claude 세션에서 다음 명령을 사용하세요. 다른 에이전트를 쓰는 경우에도 `CLAUDE.md`를 기준 진입점으로 둡니다.
 
 > 사용자: "프로젝트 부트스트랩 인터뷰 시작해줘"
 
-에이전트는 [.github/project-harness/bootstrap.md](.github/project-harness/bootstrap.md) 절차에 따라 프로젝트 개요(문제·사용자·목표·성공기준 등)와 스택을 묻고, [project-charter.md](.github/project-harness/project-charter.md)·[profile.json](.github/policy-harness/profile.json)을 채웁니다.
+에이전트는 [.harness/project/bootstrap.md](.harness/project/bootstrap.md) 절차에 따라 프로젝트 개요(문제·사용자·목표·성공기준 등)와 스택을 묻고, [project-charter.md](.harness/project/project-charter.md)·[profile.json](.harness/policy/profile.json)을 채웁니다.
 
 ## 세션 컨텍스트 복구
 
-- 새 세션은 [.github/session-harness/README.md](.github/session-harness/README.md)부터 읽어 컨텍스트를 복구합니다.
-- 다음 세션에서 다시 확인할 항목은 [next-session-reminder.md](.github/session-harness/next-session-reminder.md)에 정리됩니다.
+- 새 세션은 [.harness/session/README.md](.harness/session/README.md)부터 읽어 컨텍스트를 복구합니다.
+- 다음 세션에서 다시 확인할 항목은 [next-session-reminder.md](.harness/session/next-session-reminder.md)에 정리됩니다.
 
 ## 자동 배포 (vue3-fsd 스택 기준)
 
@@ -104,6 +104,6 @@ npm run hooks:install       # 로컬 git pre-commit hook 등록
 
 ## 이식 / 더 읽을 거리
 
-- 다른 프로젝트로 옮기는 절차: [.github/project-harness/portability-guide.md](.github/project-harness/portability-guide.md)
-- 새 스택 추가: [.github/stacks/README.md](.github/stacks/README.md)
-- 정책↔코드 동기화 모델: [.github/policy-harness/sync-protocol.md](.github/policy-harness/sync-protocol.md)
+- 다른 프로젝트로 옮기는 절차: [.harness/project/portability-guide.md](.harness/project/portability-guide.md)
+- 새 스택 추가: [.harness/stacks/README.md](.harness/stacks/README.md)
+- 정책↔코드 동기화 모델: [.harness/policy/sync-protocol.md](.harness/policy/sync-protocol.md)

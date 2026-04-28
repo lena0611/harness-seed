@@ -1,0 +1,6 @@
+{
+  "version": 2,
+  "activeStack": "vue3-fsd",
+  "available": ["vue3-fsd", "none"],
+  "notes": "activeStack 값으로 .harness/stacks/<id>/ 프리셋이 활성화됩니다. 'none'이면 일반 하네스만 동작하고 프레임워크-특화 검사와 정책 병합은 비활성화됩니다. 새 프리셋 추가 절차는 .harness/stacks/README.md 참고."
+}

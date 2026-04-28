@@ -4,7 +4,7 @@
 
 ## 마지막 세션 마감 상태 (2026-04-27)
 - 일반화 하네스 ↔ 스택 프리셋 분리가 완료되었습니다 (B안 + A-1 호환 구조).
-- `vue3-fsd` 스택 자산은 모두 `.github/stacks/vue3-fsd/scaffold/`에 있으며 root는 스택-독립적입니다.
+- `vue3-fsd` 스택 자산은 모두 `.harness/stacks/vue3-fsd/scaffold/`에 있으며 root는 스택-독립적입니다.
 - 결정/이유는 `decision-log.md` 2026-04-27 항목 참고.
 - 세션 종료 시점의 `npm run guard`는 적용/미적용 두 다 통과.
 
@@ -29,7 +29,7 @@
 ## 알아둘 절차 (스택 관련)
 - 다른 스택으로 전환: `npm run stack:reset` → `profile.json`의 `activeStack` 변경 → `npm run stack:apply` → `npm install`
 - 일반 하네스만 쓰고 싶을 때: `activeStack: "none"`으로 설정 (자동 lint/test/build 스킵)
-- 새 스택 추가: `.github/stacks/README.md`의 "신규 스택 추가 가이드" 따르기
+- 새 스택 추가: `.harness/stacks/README.md`의 "신규 스택 추가 가이드" 따르기
 - A-1 마이그레이션 결정: 스택 수 ≥ 2 또는 외부 공유 필요 시 고려
 
 ## 내일 시작용 한 줄

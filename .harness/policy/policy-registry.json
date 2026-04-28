@@ -5,12 +5,12 @@
       "id": "policy-harness",
       "title": "Policy synchronization harness",
       "documents": [
-        ".github/policy-harness/**",
-        ".github/session-harness/**"
+        ".harness/policy/**",
+        ".harness/session/**"
       ],
       "ownedAreas": [
-        ".github/policy-harness/**",
-        ".github/session-harness/**",
+        ".harness/policy/**",
+        ".harness/session/**",
         "scripts/policy-harness.mjs",
         "scripts/doc-link-check.mjs",
         "scripts/apply-stack.mjs",
@@ -23,10 +23,10 @@
       "id": "documentation-harness",
       "title": "Documentation registry and link integrity",
       "documents": [
-        ".github/documentation-harness/**"
+        ".harness/documentation/**"
       ],
       "ownedAreas": [
-        ".github/documentation-harness/**",
+        ".harness/documentation/**",
         "scripts/doc-link-check.mjs"
       ],
       "checks": []
@@ -35,11 +35,11 @@
       "id": "stack-preset",
       "title": "Stack preset bundle integrity",
       "documents": [
-        ".github/stacks/**"
+        ".harness/stacks/**"
       ],
       "ownedAreas": [
-        ".github/stacks/**",
-        ".github/policy-harness/profile.json",
+        ".harness/stacks/**",
+        ".harness/policy/profile.json",
         "scripts/apply-stack.mjs"
       ],
       "checks": []
