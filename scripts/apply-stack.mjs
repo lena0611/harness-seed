@@ -110,7 +110,7 @@ function mergePackageJson(packageMergeData) {
     rootPkg[section] = rootPkg[section] ?? {}
 
     for (const [key, value] of Object.entries(packageMergeData[section])) {
-      if (section === 'scripts' && key in rootPkg[section]) {
+      if (section === 'scripts' && key in rootPkg[section] && !isNpmInitPlaceholderScript(key, rootPkg[section][key])) {
         // harness script wins on conflict
         continue
       }
@@ -121,6 +121,10 @@ function mergePackageJson(packageMergeData) {
 
   writeJson(rootPkgPath, rootPkg)
   return snapshot
+}
+
+function isNpmInitPlaceholderScript(key, value) {
+  return key === 'test' && value === 'echo "Error: no test specified" && exit 1'
 }
 
 function restorePackageJson(snapshot) {

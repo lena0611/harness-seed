@@ -60,6 +60,9 @@ const activeScaffoldRoot = readActiveScaffoldRoot()
 // 런타임에만 생성되는 마커/산출물 경로. 문서가 참조해도 실제 파일 부재를 broken으로 보지 않습니다.
 const dynamicArtifactPaths = new Set([
   '.github/.stack-applied.json',
+  // npx init 진입점은 사용자 프로젝트에 복사하지 않는다. 시드 결정 로그의
+  // 역사적 참조는 사용자 프로젝트에서도 broken reference로 취급하지 않는다.
+  'scripts/init.mjs',
 ])
 
 function toPosix(p) {

@@ -191,7 +191,7 @@ function getWorkingTreeChangedFiles() {
     // noop
   }
 
-  return unique(changed)
+  return unique(changed).filter((filePath) => !isIgnoredPolicyChange(filePath))
 }
 
 function getChangedFilesFromHead() {
@@ -211,10 +211,23 @@ function getChangedFilesFromHead() {
         .split('\n')
         .filter(Boolean)
         .map((line) => line.slice(3))
+        .filter((filePath) => !isIgnoredPolicyChange(filePath))
     } catch {
       return []
     }
   }
+}
+
+function isIgnoredPolicyChange(filePath) {
+  return (
+    filePath.startsWith('node_modules/') ||
+    filePath.startsWith('dist/') ||
+    filePath.startsWith('.git/') ||
+    filePath.startsWith('.idea/') ||
+    filePath === '.package-json.hash' ||
+    filePath === '.node-version.cache' ||
+    filePath === '.vite.pid'
+  )
 }
 
 function resolveImport(importerPath, specifier) {
@@ -420,6 +433,19 @@ function formatFileList(files) {
   return files.map((filePath) => `  - ${filePath}`).join('\n')
 }
 
+function isHarnessBootstrapChange(filePath) {
+  return (
+    filePath.startsWith('.github/') ||
+    filePath.startsWith('.githooks/') ||
+    filePath.startsWith('scripts/') ||
+    filePath === '.nvmrc' ||
+    filePath === '.gitignore' ||
+    filePath === '.github/.stack-applied.json' ||
+    filePath === 'package.json' ||
+    filePath === 'package-lock.json'
+  )
+}
+
 function runImpact() {
   const registry = readRegistry()
   const trackedFiles = getAllTrackedFiles()
@@ -430,6 +456,12 @@ function runImpact() {
 
   if (changedFiles.length === 0) {
     console.log('변경 파일을 찾지 못했습니다. 정책 영향도는 현재 작업 트리 기준으로 수동 확인이 필요합니다.')
+    return
+  }
+
+  if (!strictMode && changedFiles.length > 20 && changedFiles.every(isHarnessBootstrapChange)) {
+    console.log(`Harness bootstrap changes detected (${changedFiles.length} files).`)
+    console.log('상세 정책 영향 목록은 생략합니다. CI/릴리스 검증에서는 --strict로 전체 영향을 확인하세요.')
     return
   }
 

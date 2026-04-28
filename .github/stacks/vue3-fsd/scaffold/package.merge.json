@@ -1,7 +1,7 @@
 {
   "_comment": "apply-stack 적용 시 root package.json에 머지되는 키. 'scripts'는 충돌 시 root 우선(즉, harness 스크립트 보호).",
   "scripts": {
-    "dev": "vite",
+    "dev": "bash scripts/dev.sh",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 0",

@@ -28,7 +28,7 @@ if (!stackApplied) {
 }
 
 const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'))
-const scripts = pkg.scripts ?? {}
+const scripts = pkg.scripts || {}
 
 if (scripts.lint) {
   run('npm', ['run', 'lint'])

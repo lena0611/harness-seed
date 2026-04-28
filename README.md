@@ -9,17 +9,18 @@
 
 ```bash
 cd my-existing-project
-npx -y github:lena0611/harness-seed init
+npx -y github:lena0611/harness-seed#vX.Y.Z init
 npm run hooks:install
 ```
 
-`.github/` `scripts/` `.githooks/` 와 `package.json` 의 harness scripts만 추가됩니다. 기존 `src/`, 의존성, 사용자 scripts는 그대로 보존됩니다(이미 존재하는 파일은 자동 skip). 끝나면 곧바로 `npm run guard` 가능.
+`.github/` `scripts/` `.githooks/` 와 `package.json` 의 harness scripts만 추가됩니다. 기존 `src/`, 의존성, 사용자 scripts는 그대로 보존됩니다(이미 존재하는 파일은 자동 skip). 릴리스 tag가 아직 없을 때만 `github:lena0611/harness-seed`를 직접 사용하세요.
 
 ### 시나리오 2: **빈 디렉토리에서 통째로 시작**
 
 ```bash
 npx degit lena0611/harness-seed my-app
 cd my-app
+nvm install && nvm use
 rm .harness-seed-mode          # 이 저장소를 내 프로젝트로 쓰기 (한 번만)
 npm run stack:apply            # 활성 스택의 scaffold 복사 + 의존성 머지
 npm install
@@ -77,6 +78,12 @@ npm run hooks:install       # 로컬 git pre-commit hook 등록
 ```
 
 > `npm run guard`는 스택 미적용 상태에서는 policy + docs만 실행하고 lint/test/build를 자동으로 건너뜁니다.
+
+## Node 버전
+
+- 기준 버전은 `.nvmrc`의 Node `22.14.0`입니다.
+- Vite 7 기반 스택을 위해 `package.json`의 `engines.node`는 `>=20.19.0 || >=22.13.0`입니다.
+- 낮은 Node에서는 `npm run guard`가 먼저 버전 안내를 출력합니다. vue3-fsd의 `npm run dev`는 `scripts/dev.sh`가 nvm으로 `.nvmrc` 버전을 맞춘 뒤 Vite를 실행합니다.
 
 ## 새 프로젝트 부트스트랩 (AI 에이전트와 함께)
 
