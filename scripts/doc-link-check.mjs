@@ -64,6 +64,8 @@ const activeScaffoldRoot = readActiveScaffoldRoot()
 const dynamicArtifactPaths = new Set([
   '.harness/.stack-applied.json',
   '.github/.stack-applied.json',
+  '.claude/settings.local.json',
+  'CLAUDE.local.md',
   // npx init 진입점은 사용자 프로젝트에 복사하지 않는다. 시드 결정 로그의
   // 역사적 참조는 사용자 프로젝트에서도 broken reference로 취급하지 않는다.
   'scripts/init.mjs',
@@ -115,6 +117,14 @@ function listMarkdownFiles() {
     .filter((f) => f.endsWith('.md'))
     .map((f) => toPosix(path.relative(repoRoot, f)))
     .filter((rel) => !rel.includes('/scaffold/'))
+
+  if (fs.existsSync(path.join(repoRoot, '.claude'))) {
+    markdownFiles.push(
+      ...walk(path.join(repoRoot, '.claude'))
+        .filter((f) => f.endsWith('.md'))
+        .map((f) => toPosix(path.relative(repoRoot, f))),
+    )
+  }
 
   for (const rel of ['AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md']) {
     if (fs.existsSync(path.join(repoRoot, rel))) {
@@ -185,7 +195,7 @@ function findMissingFromRegistry(registered) {
 }
 
 const linkPattern = /\[[^\]]*\]\(([^)\s]+)\)/g
-const codePathPattern = /`((?:src|scripts|\.github|\.harness|\.githooks)\/[A-Za-z0-9_./-]+)`/g
+const codePathPattern = /`((?:src|scripts|\.github|\.harness|\.claude|\.githooks)\/[A-Za-z0-9_./-]+)`/g
 
 function stripFence(text) {
   return text.replace(/```[\s\S]*?```/g, '')

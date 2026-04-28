@@ -16,6 +16,7 @@
 ## 기준
 - 하네스 본체는 `.harness/`에 있습니다.
 - `.github/`는 GitHub Copilot, GitHub Actions, GitHub template용 어댑터입니다.
+- `.claude/`는 Claude Code hooks, agents, slash command용 어댑터입니다.
 - `AGENTS.md`와 `.github/copilot-instructions.md`는 이 파일을 가리키는 보조 진입점입니다.
 - 정책, 세션, 문서, 스택 기준은 `.harness/`를 단일 진실 출처로 봅니다.
 

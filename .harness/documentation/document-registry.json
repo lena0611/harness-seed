@@ -18,6 +18,18 @@
       ]
     },
     {
+      "id": "claude-code-adapter",
+      "index": ".claude/README.md",
+      "children": [
+        ".claude/commands/harness-absorb.md",
+        ".claude/agents/code-reviewer.md",
+        ".claude/agents/debug-detective.md",
+        ".claude/agents/test-writer.md",
+        ".claude/agents/security-auditor.md",
+        ".claude/settings.json"
+      ]
+    },
+    {
       "id": "session-harness",
       "index": ".harness/session/README.md",
       "children": [

@@ -44,6 +44,7 @@ npx -y github:<owner>/<repo>#vX.Y.Z init
 | `.harness/` | 하네스 본체. 정책, 문서, 세션, 스택 프리셋이 들어 있습니다. |
 | `CLAUDE.md` | 기준 AI 에이전트 진입점입니다. Claude를 쓰지 않아도 이 파일을 기준 문서로 둡니다. |
 | `AGENTS.md` | 다른 AI 에이전트가 읽기 쉬운 보조 진입점입니다. 실제 기준은 `CLAUDE.md`입니다. |
+| `.claude/` | Claude Code 전용 어댑터입니다. hooks, agents, slash command가 `.harness/`를 읽도록 연결합니다. |
 | `.github/` | GitHub Actions, Copilot shim 같은 GitHub 전용 어댑터입니다. |
 | `scripts/` | `guard`, `stack:apply`, 문서 링크 검사, 정책 검사 실행 스크립트입니다. |
 | `.githooks/` | 로컬 commit 전 검증 hook입니다. |
@@ -65,6 +66,26 @@ npm run stack:reset         # 적용된 scaffold 제거
 ```
 
 `npm run guard`는 스택이 아직 적용되지 않았으면 policy/docs만 검사하고 lint/test/build는 건너뜁니다.
+
+## init 업데이트 옵션
+
+`init`은 기존 하네스 파일이 있으면 먼저 `.harness-backup/<timestamp>/`에 백업하고, 하네스 소유 파일은 갱신하며, 프로젝트 소유 파일은 보존합니다.
+
+```bash
+npx -y git+<seed-repo-url>#vX.Y.Z init --dry-run
+npx -y git+<seed-repo-url>#vX.Y.Z init --force
+npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
+```
+
+보존 대상 예시는 `.harness/project/project-charter.md`, `.harness/session/active-context.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
+
+## Claude Code 어댑터
+
+`.claude/`는 Claude Code 실행 표면을 하네스에 연결하는 선택형 어댑터입니다. 기준 문서와 정책은 계속 `.harness/`에 있고, Claude Code에서는 다음 기능을 추가로 쓸 수 있습니다.
+
+- `/harness-absorb`: 현재 프로젝트를 분석해 `.harness/project`, `.harness/policy`, `.harness/session` 문서에 반영합니다.
+- `code-reviewer`, `debug-detective`, `test-writer`, `security-auditor`: 하네스 정책을 먼저 읽는 Claude Code 서브에이전트입니다.
+- status line과 context hook: 브랜치, dirty 상태, active stack을 짧게 표시합니다.
 
 ## Node 버전
 

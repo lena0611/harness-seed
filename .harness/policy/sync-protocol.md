@@ -2,9 +2,11 @@
 
 ## 언제 반드시 실행하는가
 - `.github/copilot-instructions/**`가 바뀔 때
+- `.claude/**` 어댑터가 바뀔 때
 - `.harness/policy/**`가 바뀔 때
 - `src/**`가 바뀔 때
 - 구조, 상태 관리, feature 경계에 영향을 줄 수 있는 리팩터링을 할 때
+- `scripts/init.mjs` 또는 문서 검사 스크립트가 바뀔 때
 
 ## 기본 실행 순서
 1. `npm run policy:impact`
@@ -32,3 +34,10 @@
 - `policy:check`는 "지금 바로 위반인지"를 알려줍니다.
 - `policy:impact`가 출력한 영역이 넓더라도, 검토 대상에서 제외하지 않습니다.
 - 자동 검사로 다 잡히지 않는 항목은 `automation-coverage.md`와 `waivers.json` 기준으로 추가 판단합니다.
+
+## 어댑터와 설치 스크립트
+- `.harness/`는 단일 진실 출처입니다. `.claude/`와 `.github/`는 플랫폼 어댑터로만 둡니다.
+- 새 어댑터 문서를 추가하면 `document-registry.json`과 `scripts/doc-link-check.mjs`의 탐색 범위를 함께 확인합니다.
+- `init`은 하네스 소유 파일을 갱신하고 프로젝트 소유 파일을 보존해야 합니다.
+- 프로젝트 소유 파일 예시는 `.harness/project/project-charter.md`, `.harness/session/active-context.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
+- 설치/업데이트 UX가 바뀌면 README의 init 사용법과 보존 정책 설명도 함께 갱신합니다.
