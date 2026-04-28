@@ -3,7 +3,7 @@
  * harness-seed init: 기존 프로젝트에 harness만 설치한다.
  *
  * 사용법 (외부 프로젝트의 루트에서):
- *   npx -y github:lena0611/harness-seed init
+ *   npx -y git+<seed-repo-url>#<tag> init
  *
  * 동작:
  *  - .harness/ 하네스 본체를 복사한다.
@@ -191,7 +191,7 @@ function mergeGitignore() {
 
 function printUsageAndExit(code = 0) {
   console.log(`Usage:
-  npx -y github:lena0611/harness-seed init
+  npx -y git+<seed-repo-url>#<tag> init
 
 기존 프로젝트 루트에서 실행하세요. 하네스(.harness/, scripts/, .githooks/, package.json scripts) 만 설치합니다.
 `);
@@ -264,5 +264,5 @@ console.log(`
   - AGENTS.md                                  # 보조 AI 에이전트 shim
   - .github/copilot-instructions.md            # GitHub Copilot shim
   - .harness/project/bootstrap.md              # 새 프로젝트 부트스트랩 절차
-  - https://github.com/lena0611/harness-seed#readme
+  - README.md                                  # 설치/운영 개요
 `);

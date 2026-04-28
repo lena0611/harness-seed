@@ -26,7 +26,7 @@
     "packageMerge": ".harness/stacks/vue3-fsd/scaffold/package.merge.json",
     "futureMigration": {
       "type": "tiged",
-      "ref": "lena0611/stack-vue3-fsd",
+      "ref": "<owner-or-group>/stack-vue3-fsd",
       "note": "스택을 별도 저장소로 분리할 때 source.type을 'tiged'로 바꾸고 ref를 활성화하면 됩니다. 일반 인프라/apply-stack 어댑터는 그대로 동작합니다."
     }
   },

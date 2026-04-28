@@ -1,109 +1,127 @@
 # harness-seed
 
-> **AI 코딩 에이전트가 헷갈리지 않게 정책↔코드↔문서를 자동 동기화 검증하는 프론트엔드 프로젝트 시드.**
-> Vue 3 / FSD 스택이 기본 포함되어 있고, 다른 스택은 프리셋으로 추가 가능합니다.
+AI 개발 에이전트가 프로젝트의 규칙, 문서, 코드 구조를 같은 기준으로 읽고 검증하도록 넣는 시드 하네스입니다.
 
-## 30초 시작
+이 저장소는 업무 프로젝트 자체가 아닙니다. 여러 프로젝트에 복사해 넣는 공통 개발 안전장치입니다.
 
-### 시나리오 1: **이미 있는 프로젝트에 하네스만 얹기** (가장 흔함)
+## 리버덕을 위한 핵심 요약
+
+리버덕이 새 프로젝트를 맡았다고 가정합니다.
+
+1. 프로젝트 루트에서 `init`을 실행합니다.
+2. `.harness/`, `CLAUDE.md`, `AGENTS.md`, 검증 스크립트가 추가됩니다.
+3. 기존 `src/`, 기존 README, 기존 업무 코드는 덮어쓰지 않습니다.
+4. AI 에이전트는 먼저 `CLAUDE.md`를 읽고 작업 기준을 잡습니다.
+5. 개발자는 `npm run guard`로 정책, 문서 링크, 코드 동기화 상태를 확인합니다.
+
+## 가장 흔한 사용법: 기존 프로젝트에 하네스만 주입
+
+사내 GitLab, 개인 GitHub, npm 배포 중 어떤 방식을 쓰든 원칙은 같습니다. 릴리스 태그를 고정해서 실행합니다.
 
 ```bash
 cd my-existing-project
-npx -y github:lena0611/harness-seed#vX.Y.Z init
+npx -y git+<seed-repo-url>#vX.Y.Z init
 npm run hooks:install
+npm run guard
 ```
 
-`.harness/` `CLAUDE.md` `AGENTS.md` `.github/`의 선택 어댑터, `scripts/`, `.githooks/`, `package.json`의 harness scripts만 추가됩니다. 기존 `src/`, 의존성, 사용자 scripts는 그대로 보존됩니다(이미 존재하는 파일은 자동 skip). 릴리스 tag가 아직 없을 때만 `github:lena0611/harness-seed`를 직접 사용하세요.
-
-### 시나리오 2: **빈 디렉토리에서 통째로 시작**
+예시:
 
 ```bash
-npx degit lena0611/harness-seed my-app
-cd my-app
-nvm install && nvm use
-rm .harness-seed-mode          # 이 저장소를 내 프로젝트로 쓰기 (한 번만)
-npm run stack:apply            # 활성 스택의 scaffold 복사 + 의존성 머지
-npm install
-npm run hooks:install
-npm run dev                    # vite 개발 서버
+# 사내 GitLab 예시
+npx -y git+https://git.example.com/group/harness-seed.git#vX.Y.Z init
+
+# GitHub 예시
+npx -y github:<owner>/<repo>#vX.Y.Z init
 ```
 
-`npm run stack:apply` 직후부터 `src/`, `vite.config.ts` 등이 생성되며 일반 Vue 프로젝트와 동일하게 작업할 수 있습니다.
+`main`, `master` 같은 움직이는 브랜치보다 `vX.Y.Z` 태그를 권장합니다. 같은 명령을 나중에 다시 실행해도 같은 하네스 버전이 들어가야 팀 결과가 흔들리지 않습니다.
 
-## 용어 1줄 글로싸리
+## 설치 후 생기는 것
 
-- **하네스(harness)**: 프로젝트의 정책·문서·세션 컨텍스트를 결정적으로 검증하는 메타 인프라. `.harness/` 안에 있음.
-- **스택 프리셋(stack preset)**: 특정 프레임워크+디자인패턴 꾸러미 (instructions + 정책 + scaffold). `.harness/stacks/<id>/`.
-- **활성 스택(activeStack)**: `.harness/policy/profile.json`이 가리키는 현재 스택. `none`도 가능.
-- **시드 모드(seed mode)**: `.harness-seed-mode` 파일이 있으면 활성. harness-seed 본 저장소에서만 사용. 일반 사용자는 첫 사용 시 삭제.
-- **SYNC GAP**: 정책과 코드 중 한쪽만 변경되어 동기화가 깨진 상태. `policy:impact`가 자동 검출.
-
-## 두 가지 사용 모드
-
-### A) 자기 프로젝트로 쓰는 경우 (보통의 사용자)
-```bash
-rm .harness-seed-mode
-```
-이후 `src/`, `index.html`, `vite.config.ts`, `package.json` 등 모든 파일을 자유롭게 commit할 수 있습니다.
-
-### B) 시드 하네스로 계속 운영하는 경우 (harness-seed 본 저장소)
-- `.harness-seed-mode`를 그대로 둡니다.
-- pre-commit hook이 stack 산출물(scaffold 파일들 + 머지된 `package.json`)의 staging을 차단합니다.
-- commit 직전 사이클: `npm run stack:reset` → `git commit` → (다시 작업하려면) `npm run stack:apply` + `npm install`.
-
-## 사용 가능한 스택
-
-| id | 설명 |
+| 경로 | 역할 |
 | --- | --- |
-| `vue3-fsd` | Vue 3 + Pinia + Vite + TypeScript / FSD + Clean Architecture + Headless Core + Adapter |
-| `none` | 일반 하네스만, 프레임워크-종속 검사 비활성화 |
+| `.harness/` | 하네스 본체. 정책, 문서, 세션, 스택 프리셋이 들어 있습니다. |
+| `CLAUDE.md` | 기준 AI 에이전트 진입점입니다. Claude를 쓰지 않아도 이 파일을 기준 문서로 둡니다. |
+| `AGENTS.md` | 다른 AI 에이전트가 읽기 쉬운 보조 진입점입니다. 실제 기준은 `CLAUDE.md`입니다. |
+| `.github/` | GitHub Actions, Copilot shim 같은 GitHub 전용 어댑터입니다. |
+| `scripts/` | `guard`, `stack:apply`, 문서 링크 검사, 정책 검사 실행 스크립트입니다. |
+| `.githooks/` | 로컬 commit 전 검증 hook입니다. |
+| `.nvmrc` | 권장 Node 버전입니다. 이미 있으면 보존합니다. |
 
-새 스택 추가는 [.harness/stacks/README.md](.harness/stacks/README.md) 참고.
+기존 파일이 있으면 자동으로 덮어쓰지 않고 건너뜁니다. 충돌 파일은 init 출력에 표시됩니다.
 
 ## 주요 명령
 
 ```bash
-# 스택 라이프사이클
-npm run stack:status        # 활성 스택 / 적용 상태 확인
-npm run stack:apply         # 활성 스택 scaffold 적용 (+ package.json 머지)
-npm run stack:reset         # 적용된 scaffold 제거 + package.json 복원
-
-# 검증
-npm run guard               # 통합 가드 (policy + docs + lint/test/build)
+npm run guard               # 통합 검증
 npm run policy:guard        # 정책 영향 분석 + 위반 검사
-npm run docs:check          # 문서 레지스트리/링크/코드 경로 무결성
+npm run docs:check          # 문서 레지스트리, 링크, 코드 경로 검사
+npm run hooks:install       # 로컬 git hook 등록
 
-# 환경
-npm run hooks:install       # 로컬 git pre-commit hook 등록
+npm run stack:status        # 활성 스택과 적용 상태 확인
+npm run stack:apply         # 활성 스택 scaffold 적용
+npm run stack:reset         # 적용된 scaffold 제거
 ```
 
-> `npm run guard`는 스택 미적용 상태에서는 policy + docs만 실행하고 lint/test/build를 자동으로 건너뜁니다.
+`npm run guard`는 스택이 아직 적용되지 않았으면 policy/docs만 검사하고 lint/test/build는 건너뜁니다.
 
 ## Node 버전
 
 - 기준 버전은 `.nvmrc`의 Node `22.14.0`입니다.
-- Vite 7 기반 스택을 위해 `package.json`의 `engines.node`는 `>=20.19.0 || >=22.13.0`입니다.
-- 낮은 Node에서는 `npm run guard`가 먼저 버전 안내를 출력합니다. vue3-fsd의 `npm run dev`는 `scripts/dev.sh`가 nvm으로 `.nvmrc` 버전을 맞춘 뒤 Vite를 실행합니다.
+- `package.json`의 `engines.node`는 `>=20.19.0 || >=22.13.0`입니다.
+- 낮은 Node에서 실행하면 하네스 명령이 먼저 버전 안내를 출력합니다.
+- vue3-fsd 스택의 `npm run dev`는 `scripts/dev.sh`가 nvm, `.nvmrc`, 의존성 동기화를 처리한 뒤 Vite를 실행합니다.
 
-## 새 프로젝트 부트스트랩 (AI 에이전트와 함께)
+## 스택 프리셋
 
-이 저장소를 fork/degit한 직후 Claude 세션에서 다음 명령을 사용하세요. 다른 에이전트를 쓰는 경우에도 `CLAUDE.md`를 기준 진입점으로 둡니다.
+| id | 설명 |
+| --- | --- |
+| `vue3-fsd` | Vue 3 + Pinia + Vite + TypeScript / FSD + Clean Architecture |
+| `none` | 프레임워크별 검사를 끄고 일반 하네스만 사용 |
 
-> 사용자: "프로젝트 부트스트랩 인터뷰 시작해줘"
+기존 프로젝트에 하네스만 얹는 경우에는 먼저 `activeStack`을 확인하세요. 프레임워크 scaffold까지 필요할 때만 `npm run stack:apply`를 실행합니다.
 
-에이전트는 [.harness/project/bootstrap.md](.harness/project/bootstrap.md) 절차에 따라 프로젝트 개요(문제·사용자·목표·성공기준 등)와 스택을 묻고, [project-charter.md](.harness/project/project-charter.md)·[profile.json](.harness/policy/profile.json)을 채웁니다.
+## 빈 프로젝트를 새로 시작할 때
 
-## 세션 컨텍스트 복구
+하네스 저장소 자체를 복제해 새 프로젝트의 시작점으로 쓸 수 있습니다.
 
-- 새 세션은 [.harness/session/README.md](.harness/session/README.md)부터 읽어 컨텍스트를 복구합니다.
-- 다음 세션에서 다시 확인할 항목은 [next-session-reminder.md](.harness/session/next-session-reminder.md)에 정리됩니다.
+```bash
+npx degit <seed-repo-url> my-app
+cd my-app
+nvm install && nvm use
+rm .harness-seed-mode
+npm run stack:apply
+npm install
+npm run hooks:install
+npm run guard
+```
 
-## 자동 배포 (vue3-fsd 스택 기준)
+`.harness-seed-mode`는 이 저장소를 "하네스 본체"로 운영할 때만 남겨두는 마커입니다. 일반 업무 프로젝트로 쓸 때는 삭제합니다.
 
-`main` 푸시 시 GitHub Actions가 빌드 후 GitHub Pages로 배포합니다. 배포 주소는 사용자 저장소명에 따라 결정되며, scaffold의 `vite.config.ts` 의 `base` 와 `.github/workflows/deploy-pages.yml` 을 본인 저장소명으로 수정하세요. (이 시드 저장소 자체는 페이지를 배포하지 않습니다.)
+## 본체 저장소를 운영할 때
 
-## 이식 / 더 읽을 거리
+이 저장소를 하네스 본체로 계속 관리하는 경우:
 
-- 다른 프로젝트로 옮기는 절차: [.harness/project/portability-guide.md](.harness/project/portability-guide.md)
-- 새 스택 추가: [.harness/stacks/README.md](.harness/stacks/README.md)
-- 정책↔코드 동기화 모델: [.harness/policy/sync-protocol.md](.harness/policy/sync-protocol.md)
+- `.harness-seed-mode`를 유지합니다.
+- 하네스 본체 변경 후 `npm run guard -- --strict`를 실행합니다.
+- 배포는 태그 기준으로 합니다. 예: `v0.2.0`, `v0.2.1`.
+- 사내 GitLab처럼 보호 브랜치를 쓰는 저장소에는 fast-forward 가능한 배포 커밋으로 반영합니다.
+
+## AI 에이전트 기준점
+
+사내 표준 에이전트가 Claude라면 `CLAUDE.md`를 기준점으로 둡니다. 다른 에이전트를 쓰더라도 `AGENTS.md`와 `.github/copilot-instructions.md`는 `CLAUDE.md`를 가리키는 보조 진입점입니다.
+
+새 세션은 다음 순서로 읽으면 됩니다.
+
+1. `CLAUDE.md`
+2. `.harness/session/README.md`
+3. `.harness/session/active-context.md`
+4. `.harness/session/next-session-reminder.md`
+
+## 더 읽을 문서
+
+- 이식 절차: `.harness/project/portability-guide.md`
+- 새 프로젝트 인터뷰: `.harness/project/bootstrap.md`
+- 정책 동기화 모델: `.harness/policy/sync-protocol.md`
+- 스택 프리셋 구조: `.harness/stacks/README.md`

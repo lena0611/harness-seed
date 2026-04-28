@@ -7,7 +7,7 @@
 - 프레임워크-특화 검사(현재는 Vue/Pinia/FSD)는 프로파일로만 켜고 끕니다.
 
 ## 이식 절차
-1. 기존 프로젝트 루트에서 `npx -y github:lena0611/harness-seed#<tag> init`을 실행합니다. 안정 재현이 필요하면 `main` 대신 릴리스 tag를 사용합니다.
+1. 기존 프로젝트 루트에서 `npx -y git+<seed-repo-url>#<tag> init`을 실행합니다. 안정 재현을 위해 `main`/`master` 대신 릴리스 tag를 사용합니다.
 2. `npm run hooks:install`로 로컬 hook을 연결합니다.
 3. `.harness/policy/profile.json`의 `activeStack`을 원하는 값으로 변경합니다 (구조만 쓰고 싶으면 `"none"`).
 4. `npm run guard`로 일반 하네스가 통과하는지 먼저 확인합니다.
@@ -31,7 +31,10 @@
 - 전환 방법: 스택 `manifest.json`의 `source` 섹션을 `{ "type": "tiged", "ref": "owner/repo#tag-or-branch" }`로 바꾸면 됩니다 (인터페이스 동일).
 
 ## 릴리스와 실행 방식
-- 문서와 샘플에서는 개발 중 확인을 위해 `github:lena0611/harness-seed`를 쓸 수 있지만, 팀 배포 절차에는 `github:lena0611/harness-seed#vX.Y.Z`처럼 tag를 고정합니다.
+- 문서와 샘플에서는 저장소 종류와 무관하게 `<seed-repo-url>` placeholder를 사용합니다.
+- 팀 배포 절차에는 `git+<seed-repo-url>#vX.Y.Z`처럼 tag를 고정합니다.
+- GitHub 저장소를 직접 쓰는 개인 환경에서는 `github:<owner>/<repo>#vX.Y.Z` 형식도 사용할 수 있습니다.
+- 사내 GitLab처럼 방화벽 내부 저장소를 쓰는 환경에서는 `git+https://git.example.com/group/harness-seed.git#vX.Y.Z` 형식이 가장 명시적입니다.
 - npm publish로 전환할 때는 현재 `bin.harness-seed`, `files`, `engines`, `.nvmrc` 구조를 그대로 사용할 수 있습니다. publish 전에는 패키지명을 확정하고 `npm pack --dry-run`으로 포함 파일을 확인합니다.
 
 
