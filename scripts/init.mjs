@@ -8,9 +8,10 @@
  *  - 기존 항목이 있으면 .harness-backup/<timestamp>/ 아래에 먼저 백업한다.
  */
 
-import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
-import {
+import { createHash } from 'crypto';
+import { spawnSync } from 'child_process';
+import * as fs from 'fs';
+const {
   chmodSync,
   copyFileSync,
   cpSync,
@@ -22,15 +23,15 @@ import {
   rmSync,
   statSync,
   writeFileSync,
-} from 'node:fs';
-import { tmpdir, homedir } from 'node:os';
+} = fs;
+import { tmpdir, homedir } from 'os';
 import {
   dirname,
   join,
   relative,
   resolve as pathResolve,
-} from 'node:path';
-import { fileURLToPath } from 'node:url';
+} from 'path';
+import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -51,6 +52,7 @@ const INSTALL_ITEMS = [
   'scripts/policy-harness.mjs',
   'scripts/doc-link-check.mjs',
   'scripts/absorb-project.mjs',
+  'scripts/list-templates.mjs',
   'scripts/check-node-version.mjs',
   'scripts/check-seed-mode.mjs',
   '.githooks',
@@ -259,7 +261,7 @@ function isProjectOwned(relPath) {
 }
 
 function isManagedByManifest(manifest, relPath) {
-  return Boolean(manifest?.managedFiles?.[toPosix(relPath)]);
+  return Boolean(manifest && manifest.managedFiles && manifest.managedFiles[toPosix(relPath)]);
 }
 
 function hasHarnessLikeFiles(target) {
@@ -372,7 +374,7 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
 
   return {
     tool: 'harness-seed',
-    version: seedPkg.version ?? '0.0.0',
+    version: seedPkg.version || '0.0.0',
     installedAt: new Date().toISOString(),
     source: opts.fromGit ? `${opts.fromGit}#${opts.ref}` : 'bundled',
     manifestVersion: 1,
@@ -529,7 +531,7 @@ function main() {
 
     const files = collectInstallFiles(sourceRoot);
     const existingManifest = readJson(join(TARGET, MANIFEST_PATH), null);
-    const recognizedManifest = existingManifest?.tool === 'harness-seed' ? existingManifest : null;
+    const recognizedManifest = existingManifest && existingManifest.tool === 'harness-seed' ? existingManifest : null;
     const externalHarnessMode = !recognizedManifest && hasHarnessLikeFiles(TARGET);
 
     if (externalHarnessMode) {
