@@ -24,7 +24,9 @@
 - `.harness/documentation/`: 문서 인덱싱/분리 규칙, doc-link 무결성
 - `.harness/style/`: 코딩 스타일 검증
 - `.harness/stacks/`: 외부 프리셋 계약과 적용 방법 문서
-- `scripts/list-stack-standards.mjs`: 사내 스택 기준 후보 조회
+- `scripts/list-stack-standards.mjs`: 사내 스택 하네스 후보 조회
+- `scripts/outdated-harness.mjs`: lock 기준으로 같은 SemVer caret 범위의 업데이트 후보만 조회
+- `scripts/update-harness.mjs`: lock에 기록된 스택 하네스를 다시 실행해 compatible/latest/locked 전략으로 업데이트
 
 ## 스택 적용 메커니즘
 - `scripts/apply-stack.mjs`가 source adapter 패턴으로 동작:
@@ -33,6 +35,8 @@
   - `stackManifest`: 프로젝트에 고정된 외부 manifest 경로 사용
 - 적용 시 `.harness/project/stack-preset-rules.md`에 instruction을 정착하고 `.harness/.stack-applied.json` 마커를 기록합니다. scaffold가 있으면 root `package.json`에 `package.merge.json`을 머지합니다.
 - `stack:reset`은 마커를 기준으로 복사된 파일 제거 + package.json 적용 전 상태로 복원.
+- `harness:outdated`는 `.harness/harness-lock.json`의 스택 하네스 repo/version을 읽고 원격 tag에서 업데이트 후보만 확인. 프로젝트 파일은 수정하지 않음.
+- `harness:update`는 `.harness/harness-lock.json`의 스택 하네스 repo/version을 읽고 기본 `compatible` 전략으로 같은 SemVer caret 범위의 최신 태그를 다시 실행.
 - harness 스크립트는 충돌 시 항상 우선 (스택이 덮어쓰지 못함).
 
 ## 핵심 검증 명령
@@ -40,6 +44,8 @@
 - `npm run harness:check`: 통합 검사. policy + docs + (스택 적용 시) lint+test+build
 - `npm run harness:check:strict`: CI/릴리스용 엄격 검사
 - `npm run guard`: `harness:check` 호환 alias
+- `npm run harness:outdated`: 현재 적용된 스택 하네스 업데이트 후보 확인
+- `npm run harness:update`: 현재 적용된 스택 하네스 기준 업데이트
 - `npm run policy:guard` / `policy:guard:strict`
 - `npm run docs:check` / `docs:check:strict`
 - `npm run standards:list` / `stack:status` / `stack:apply` / `stack:reset`

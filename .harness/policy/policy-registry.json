@@ -16,6 +16,8 @@
         "scripts/test-init.mjs",
         "scripts/absorb-project.mjs",
         "scripts/apply-stack.mjs",
+        "scripts/outdated-harness.mjs",
+        "scripts/update-harness.mjs",
         "scripts/guard.mjs",
         ".github/workflows/policy-guard.yml"
       ],
@@ -43,6 +45,8 @@
         ".harness/stacks/**",
         ".harness/policy/profile.json",
         "scripts/apply-stack.mjs",
+        "scripts/outdated-harness.mjs",
+        "scripts/update-harness.mjs",
         "scripts/list-stack-standards.mjs"
       ],
       "checks": []

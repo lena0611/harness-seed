@@ -3,8 +3,9 @@
 이 저장소의 본체는 **일반 하네스(generic harness)** 입니다. 스택 기준과 scaffold 템플릿은 본체 밖에서 받아오는 선택형 자산입니다.
 
 ## 정의
-- **일반 하네스**: 세션 복구, 기준 동기화, 문서 인덱싱, 스타일 출처 감지, doc-link 검사 등 어떤 프레임워크에서도 동일하게 쓰는 인프라.
-- **스택 기준**: 특정 프레임워크, 런타임, 디자인 패턴에 맞춘 instruction 문서와 기준 매핑.
+- **일반 하네스**: 세션 복구, 기준 동기화, 문서 인덱싱, 스타일 출처 감지, doc-link 검사 등 어떤 프레임워크에서도 동일하게 쓰는 설치 엔진과 인프라.
+- **스택 하네스**: 일반 하네스를 내부 베이스로 설치하거나 업데이트한 뒤, 특정 프레임워크, 런타임, 디자인 패턴에 맞춘 기준을 프로젝트 로컬룰로 정착시키는 사용자-facing 진입점.
+- **스택 기준**: 스택 하네스가 제공하는 instruction 문서와 기준 매핑.
 - **스택 템플릿**: 실제 프로젝트 scaffold 파일 묶음. 기준과 분리될 수 있습니다.
 
 ## 기본 상태
@@ -12,10 +13,10 @@
 | --- | --- | --- |
 | `none` | 스택 기준을 아직 고르지 않았거나 예외적으로 공통 기준만 운영 | internal |
 
-하네스시드 본체는 특정 스택 기준이나 scaffold 템플릿을 포함하지 않습니다. 프로젝트 적용 시에는 스택 기준을 선택하고, 필요한 경우 별도 템플릿 저장소에서 scaffold를 적용합니다.
+하네스시드 본체는 특정 스택 기준이나 scaffold 템플릿을 포함하지 않습니다. 실제 프로젝트 개발자는 보통 스택 하네스의 `init`을 실행하고, 필요한 경우 별도 템플릿 저장소에서 scaffold를 적용합니다.
 
-## 스택 기준 후보 조회
-사내 GitLab에서는 `ai-standard/harnesses` 하위 저장소를 스택 기준 후보로 조회합니다.
+## 스택 하네스 후보 조회
+사내 GitLab에서는 `ai-standard/harnesses` 하위 저장소를 스택 하네스 후보로 조회합니다.
 
 ```bash
 npm run standards:list
@@ -27,10 +28,10 @@ npm run standards:list
 GITLAB_TOKEN=<private-token> npm run standards:list
 ```
 
-현재 예정된 스택 기준 후보 예시:
+현재 예정된 스택 하네스 후보 예시:
 
 ```bash
-npm run stack:apply -- --preset-git https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git --ref v0.1.2
+npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#v0.1.3 init
 ```
 
 기본 조회 대상:
@@ -100,12 +101,15 @@ ai-standard
 - `docs`: 표준 문서 진입점
 
 ## 외부 스택 자산 계약
-외부 스택 자산은 아래 구조를 가진 독립 폴더 또는 별도 저장소입니다.
+외부 스택 자산은 아래 구조를 가진 독립 폴더 또는 별도 저장소입니다. 사용자에게 직접 제공되는 스택 하네스라면 `package.json`의 `bin`과 `scripts/init.mjs` 같은 설치 진입점을 함께 둡니다.
 
 ```text
 my-stack-preset/
+  package.json              # 사용자-facing init bin이 필요한 경우
   manifest.json
   policies.json
+  scripts/
+    init.mjs                # 일반 하네스 설치 + 자기 스택 기준 적용
   instructions/
     architecture.md
   scaffold/                 # scaffold가 있는 경우에만 필요
@@ -119,6 +123,25 @@ my-stack-preset/
 {
   "id": "my-stack",
   "title": "My Stack",
+  "stackHarness": {
+    "repo": "https://git.smartscore.kr/ai-standard/harnesses/my-stack.git",
+    "ref": "v1.0.0",
+    "range": "^1.0.0"
+  },
+  "baseHarness": {
+    "repo": "https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git",
+    "ref": "v0.2.12",
+    "minVersion": "0.2.12"
+  },
+  "compatibility": {
+    "allowEmptyProject": true,
+    "expected": [
+      { "package": "my-runtime", "major": 1, "label": "My Runtime 1" }
+    ],
+    "incompatible": [
+      { "package": "other-runtime", "label": "Other Runtime" }
+    ]
+  },
   "instructions": ["instructions/architecture.md"],
   "policiesFile": "policies.json",
   "checksKey": null,
@@ -136,6 +159,25 @@ my-stack-preset/
 {
   "id": "my-stack",
   "title": "My Stack",
+  "stackHarness": {
+    "repo": "https://git.smartscore.kr/ai-standard/harnesses/my-stack.git",
+    "ref": "v1.0.0",
+    "range": "^1.0.0"
+  },
+  "baseHarness": {
+    "repo": "https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git",
+    "ref": "v0.2.12",
+    "minVersion": "0.2.12"
+  },
+  "compatibility": {
+    "allowEmptyProject": true,
+    "expected": [
+      { "package": "my-runtime", "major": 1, "label": "My Runtime 1" }
+    ],
+    "incompatible": [
+      { "package": "other-runtime", "label": "Other Runtime" }
+    ]
+  },
   "instructions": ["instructions/architecture.md"],
   "policiesFile": "policies.json",
   "checksKey": null,
@@ -145,7 +187,29 @@ my-stack-preset/
 }
 ```
 
+`stackHarness`는 사용자-facing 스택 하네스 자체의 저장소와 ref입니다. `range`는 `harness:update`가 같은 major 안에서 최신 버전을 다시 받을 때 우선 사용하는 SemVer 범위입니다. `baseHarness`는 그 스택 하네스가 내부적으로 설치해야 하는 일반 하네스입니다. 프로젝트 적용 결과에는 두 값이 모두 `.harness/harness-lock.json`에 기록됩니다.
+
 ## 적용 방법
+일반 프로젝트 개발자는 스택 하네스의 `init`을 실행합니다.
+
+```bash
+npx -y git+<stack-harness-repo-url>#<tag> init
+```
+
+스택 하네스 `init`은 일반적으로 다음 순서로 동작합니다.
+
+1. `baseHarness`에 명시된 일반 하네스를 설치하거나 업데이트합니다.
+2. `compatibility` 계약으로 기존 프로젝트의 package stack과 이미 적용된 하네스 스택이 맞는지 선검사합니다.
+3. 맞지 않으면 일반 하네스 설치 전에 중단하고, 조회 가능한 스택 하네스 목록에서 호환 후보가 있으면 추천합니다.
+4. 자기 저장소의 `manifest.json`을 `stack:apply -- --preset-path <self>`로 적용합니다.
+5. `.harness/stacks/.applied/<stack-id>/`에 스택 기준 스냅샷을 남깁니다.
+6. `.harness/harness-lock.json`에 공통 하네스와 스택 하네스의 repo, ref, version을 기록합니다.
+7. `harness:doctor`와 `harness:check`를 실행합니다.
+
+터미널이 대화형이면 추천 후보로 계속 진행할지 물을 수 있습니다. 자동화 환경에서는 추천 명령만 출력하고 사용자가 직접 실행하게 합니다. 마이그레이션 목적의 불일치 적용은 스택 하네스가 `--allow-mismatch` 같은 명시 옵션으로만 허용합니다.
+
+일반 하네스가 이미 설치된 관리자/고급 흐름에서는 아래 명령을 직접 사용할 수 있습니다.
+
 로컬 폴더에서 적용:
 
 ```bash
@@ -163,7 +227,7 @@ npm run stack:apply -- --preset-git <repo-url> --ref <tag-or-branch>
 ```json
 {
   "activeStack": "my-stack",
-  "stackManifest": "../my-stack-preset/manifest.json"
+  "stackManifest": ".harness/stacks/.applied/my-stack/manifest.json"
 }
 ```
 
@@ -171,9 +235,23 @@ npm run stack:apply -- --preset-git <repo-url> --ref <tag-or-branch>
 
 적용 후에는 `npm run harness:check`로 일반 하네스 문서, 기준, 링크, 적용된 스택 상태를 함께 확인합니다.
 
+현재 프로젝트에 기록된 버전은 `npm run stack:status`와 `npm run harness:doctor`의 `Harness Versions` 섹션에서 확인합니다. 스택 기준을 제거하면 `stack:reset`이 스택 하네스 잠금 정보도 비웁니다. 공통 하네스 버전은 그대로 남겨 이후 스택 하네스 재적용이나 업데이트 기준으로 사용합니다.
+
+패치나 마이너 업데이트를 각 프로젝트에 반영하려면 적용 프로젝트에서 다음 명령을 다시 실행합니다.
+
+```bash
+npm run harness:outdated
+npm run harness:update
+```
+
+`harness:outdated`는 원격 tag를 조회해 업데이트 후보만 확인하고 파일은 수정하지 않습니다. `harness:update`의 기본 전략은 `compatible`입니다. lock에 기록된 현재 버전이 `1.0.0`이면 `#semver:^1.0.0` 범위로 스택 하네스를 다시 받아 실행합니다. 특정 태그를 그대로 재실행하려면 `npm run harness:update -- --strategy locked`, 기본 브랜치 최신을 직접 따라가려면 `npm run harness:update -- --strategy latest`를 사용합니다.
+
+여러 소비 프로젝트에 자동 MR을 만드는 기능은 이 저장소가 아니라 향후 `ai-standard-cli`에서 담당합니다. 이 저장소는 개별 프로젝트 안에서 outdated 확인과 update 실행까지만 제공합니다.
+
 ## 격리 원칙
 1. 일반 하네스 문서와 스크립트는 특정 스택 폴더를 직접 참조하지 않습니다.
-2. 스택 기준과 템플릿은 자체 완결적인 폴더 또는 저장소여야 합니다.
-3. 스택 기준은 `policies.json`을 통해서만 일반 인프라에 노출합니다.
-4. 스택 전용 자동 검사는 본체가 아니라 해당 스택 기준 또는 템플릿 저장소의 guard에 연결합니다.
-5. 본체는 manifest, policies, instructions, scaffold를 읽고 적용하는 런타임 역할만 담당합니다.
+2. 스택 하네스는 일반 하네스를 복사해서 품지 않고, `baseHarness` 참조로 설치기를 호출합니다.
+3. 스택 기준과 템플릿은 자체 완결적인 폴더 또는 저장소여야 합니다.
+4. 스택 기준은 `policies.json`을 통해서만 일반 인프라에 노출합니다.
+5. 스택 전용 자동 검사는 본체가 아니라 해당 스택 기준 또는 템플릿 저장소의 guard에 연결합니다.
+6. 본체는 manifest, policies, instructions, scaffold를 읽고 적용하는 런타임 역할만 담당합니다.

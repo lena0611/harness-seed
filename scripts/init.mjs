@@ -39,6 +39,7 @@ const BUNDLED_SOURCE_ROOT = pathResolve(__dirname, '..');
 const TARGET = process.cwd();
 const MIN_NODE_MESSAGE = 'harness-seed requires Node.js >=20.19.0 or >=22.13.0.';
 const MANIFEST_PATH = '.harness/install-manifest.json';
+const LOCK_PATH = '.harness/harness-lock.json';
 
 const INSTALL_ITEMS = [
   '.harness',
@@ -54,6 +55,8 @@ const INSTALL_ITEMS = [
   'scripts/absorb-project.mjs',
   'scripts/list-stack-standards.mjs',
   'scripts/list-templates.mjs',
+  'scripts/outdated-harness.mjs',
+  'scripts/update-harness.mjs',
   'scripts/check-node-version.mjs',
   'scripts/check-seed-mode.mjs',
   '.githooks',
@@ -130,6 +133,9 @@ Options:
   --no-check             설치 후 하네스 기본 검사를 자동 실행하지 않습니다.
   --from-git <repo-url>  동봉본 대신 git 저장소에서 소스를 가져옵니다.
   --ref <ref>            --from-git과 함께 사용할 branch/tag/sha입니다. 기본값: main
+  --source-repo <url>    설치 메타데이터에 기록할 공통 하네스 저장소입니다.
+  --source-ref <ref>     설치 메타데이터에 기록할 공통 하네스 ref입니다.
+  --source-commit <sha>  설치 메타데이터에 기록할 공통 하네스 commit입니다.
   -h, --help             도움말을 출력합니다.
 
 기존 프로젝트 루트에서 실행하세요. 기존 업무 코드는 덮어쓰지 않습니다.
@@ -147,6 +153,9 @@ function parseArgs(argv) {
     noCheck: false,
     fromGit: null,
     ref: 'main',
+    sourceRepo: null,
+    sourceRef: null,
+    sourceCommit: null,
   };
 
   const args = argv.slice(3);
@@ -188,6 +197,33 @@ function parseArgs(argv) {
           process.exit(1);
         }
         opts.ref = ref;
+        break;
+      }
+      case '--source-repo': {
+        const repo = args[++i];
+        if (!repo || repo.startsWith('-')) {
+          console.error('--source-repo에는 repository URL이 필요합니다.');
+          process.exit(1);
+        }
+        opts.sourceRepo = repo;
+        break;
+      }
+      case '--source-ref': {
+        const ref = args[++i];
+        if (!ref || ref.startsWith('-')) {
+          console.error('--source-ref에는 branch/tag/sha가 필요합니다.');
+          process.exit(1);
+        }
+        opts.sourceRef = ref;
+        break;
+      }
+      case '--source-commit': {
+        const commit = args[++i];
+        if (!commit || commit.startsWith('-')) {
+          console.error('--source-commit에는 commit sha가 필요합니다.');
+          process.exit(1);
+        }
+        opts.sourceCommit = commit;
         break;
       }
       default:
@@ -372,6 +408,7 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
   const seedPkg = readJson(join(sourceRoot, 'package.json'), {})
   const managedFiles = {}
   const projectOwnedFiles = files.filter((rel) => isProjectOwned(rel)).sort()
+  const source = buildSourceMetadata(sourceRoot, opts, seedPkg)
 
   for (const rel of copiedFiles) {
     const abs = join(target, rel)
@@ -388,10 +425,36 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
     tool: 'harness-seed',
     version: seedPkg.version || '0.0.0',
     installedAt: new Date().toISOString(),
-    source: opts.fromGit ? `${opts.fromGit}#${opts.ref}` : 'bundled',
-    manifestVersion: 1,
+    source,
+    manifestVersion: 2,
     managedFiles,
     projectOwnedFiles: projectOwnedFiles.sort(),
+  }
+}
+
+function gitOutput(cwd, args) {
+  const result = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  })
+
+  return result.status === 0 ? result.stdout.trim() : null
+}
+
+function buildSourceMetadata(sourceRoot, opts, seedPkg) {
+  const repo = opts.fromGit ?? opts.sourceRepo ?? null
+  const ref = opts.fromGit ? opts.ref : opts.sourceRef
+  const commit = opts.sourceCommit ?? (opts.fromGit ? gitOutput(sourceRoot, ['rev-parse', 'HEAD']) : null)
+  const packageVersion = seedPkg.version || '0.0.0'
+
+  return {
+    type: repo ? 'git' : 'bundled',
+    repo,
+    ref: ref ?? null,
+    commit,
+    packageVersion,
+    spec: repo ? `${repo}${ref ? `#${ref}` : ''}` : 'bundled',
   }
 }
 
@@ -403,6 +466,31 @@ function writeInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
   mkdirSync(dirname(manifestAbs), { recursive: true })
   writeFileSync(manifestAbs, `${JSON.stringify(manifest, null, 2)}\n`)
   return manifest
+}
+
+function writeHarnessLock(target, installManifest, opts) {
+  if (opts.dryRun) return null
+
+  const lockAbs = join(target, LOCK_PATH)
+  const previous = readJson(lockAbs, {})
+  const source = installManifest.source ?? {}
+  const next = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    baseHarness: {
+      id: 'harness-seed',
+      version: installManifest.version,
+      repo: source.repo ?? null,
+      ref: source.ref ?? null,
+      commit: source.commit ?? null,
+      source,
+    },
+    stackHarness: previous.stackHarness ?? null,
+  }
+
+  mkdirSync(dirname(lockAbs), { recursive: true })
+  writeFileSync(lockAbs, `${JSON.stringify(next, null, 2)}\n`)
+  return next
 }
 
 function readJson(absPath, fallback) {
@@ -607,6 +695,7 @@ function main() {
     const gitignoreAdded = mergeGitignore(TARGET, opts);
     ensureExecutable(TARGET, opts);
     const writtenManifest = writeInstallManifest(sourceRoot, TARGET, files, installed.copiedFiles, opts);
+    const writtenLock = writtenManifest ? writeHarnessLock(TARGET, writtenManifest, opts) : null;
     const diagnostics = runPostInstallDiagnostics(TARGET, opts);
 
     console.log('');
@@ -617,6 +706,7 @@ function main() {
     );
     console.log(`.gitignore: harness entry ${gitignoreAdded}개 추가`);
     console.log(`install manifest: ${opts.dryRun ? 'dry-run' : `${Object.keys(writtenManifest.managedFiles).length}개 managed file 기록`}`);
+    console.log(`harness lock: ${opts.dryRun ? 'dry-run' : `${writtenLock.baseHarness.version} (${writtenLock.baseHarness.ref ?? writtenLock.baseHarness.source.type})`}`);
     console.log(`doctor: ${diagnostics.doctor}`);
     console.log(`check: ${diagnostics.check}`);
 

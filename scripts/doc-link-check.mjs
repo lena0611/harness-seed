@@ -75,6 +75,7 @@ const dynamicArtifactPaths = new Set([
   'CLAUDE.local.md',
   '.harness/session/absorb-report.md',
   '.harness/install-manifest.json',
+  '.harness/harness-lock.json',
   // npx init 진입점은 사용자 프로젝트에 복사하지 않는다. 시드 결정 로그의
   // 역사적 참조는 사용자 프로젝트에서도 broken reference로 취급하지 않는다.
   'scripts/init.mjs',

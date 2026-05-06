@@ -27,7 +27,7 @@
 - 실제 첫 feature 후보를 정하고 `core` 기준 첫 use-case 설계 시작
 
 ## 알아둘 절차 (스택 관련)
-- 스택 기준 후보 조회: `npm run standards:list`
+- 스택 하네스 후보 조회: `npm run standards:list`
 - 원격 스택 기준 적용: `npm run stack:apply -- --preset-git <repo-url> --ref <tag-or-branch>`
 - 로컬 스택 기준 적용: `npm run stack:apply -- --preset-path <preset-dir>`
 - scaffold 템플릿 후보 조회: `npm run templates:list`

@@ -3,5 +3,5 @@
   "activeStack": "none",
   "available": ["none"],
   "stackManifest": null,
-  "notes": "activeStack 값으로 프리셋이 활성화됩니다. 'none'이면 일반 하네스만 동작하고 프레임워크-특화 검사와 기준 병합은 비활성화됩니다. 사내 스택 기준 후보는 standards:list로 조회합니다. 외부 프리셋은 stackManifest에 manifest.json 경로를 지정하거나 stack:apply -- --preset-path <dir>, stack:apply -- --preset-git <repo-url> --ref <tag>로 적용합니다."
+  "notes": "activeStack 값으로 프리셋이 활성화됩니다. 'none'이면 일반 하네스만 동작하고 프레임워크-특화 검사와 기준 병합은 비활성화됩니다. 일반 프로젝트 개발자는 스택 하네스의 npx ... init 흐름을 사용합니다. 사내 스택 하네스 후보는 standards:list로 조회합니다. 관리자/고급 흐름에서는 stackManifest에 적용 스냅샷 manifest.json 경로를 지정하거나 stack:apply -- --preset-path <dir>, stack:apply -- --preset-git <repo-url> --ref <tag>로 직접 적용할 수 있습니다."
 }

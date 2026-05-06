@@ -21,5 +21,5 @@
 - 새 하네스나 개발 기준 문서를 만들면 registry에 등록합니다.
 - npx init 진입점인 `scripts/init.mjs`처럼 사용자 프로젝트에 복사하지 않는 seed-only 파일은 문서에 남아 있어도 링크 검사에서 허용할 수 있습니다. 예외를 추가하면 이유를 함께 기록합니다.
 - `.claude/` 아래의 Markdown 어댑터 문서도 문서 레지스트리 검사 대상입니다.
-- `.harness/session/absorb-report.md`처럼 명령 실행으로 생기는 런타임 산출물은 registry 필수 문서가 아니라 동적 산출물 예외로 둡니다.
+- `.harness/session/absorb-report.md`, `.harness/install-manifest.json`, `.harness/harness-lock.json`처럼 명령 실행으로 생기는 런타임 산출물은 registry 필수 문서가 아니라 동적 산출물 예외로 둡니다.
 - `profile.json`의 `stackManifest`가 외부 프리셋을 가리키면, doc-link 검사는 해당 manifest 기준 scaffold 경로도 활성 스택 산출물로 해석할 수 있습니다.

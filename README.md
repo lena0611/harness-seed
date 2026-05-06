@@ -23,16 +23,28 @@
 
 ## 사용법
 
-### 1. 프로젝트 폴더에서 공통 하네스 설치
+### 1. 프로젝트 폴더에서 스택 하네스 설치
+
+실제 프로젝트 개발자는 보통 `harness-seed`를 직접 설치하지 않습니다. 프로젝트에 맞는 스택 하네스를 선택하면, 그 스택 하네스가 내부적으로 공통 하네스를 설치하거나 업데이트한 뒤 자기 기준을 로컬룰로 정착시킵니다.
 
 이미 작업 중인 프로젝트라면 그 폴더로 이동합니다. 새 프로젝트라면 빈 폴더를 만든 뒤 같은 명령을 실행합니다.
 
 ```bash
 cd my-project
-npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2.11 init
+npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#v0.1.3 init
 ```
 
-`init`은 설치 직후 현재 프로젝트를 진단하고 기본 검사를 실행합니다. 자동 실행을 끄고 싶으면 `--no-doctor`, `--no-check` 옵션을 사용합니다.
+스택 하네스의 `init`은 다음 순서로 동작합니다.
+
+1. 공통 하네스가 없으면 설치하고, 있으면 관리 파일을 업데이트합니다.
+2. 기존 프로젝트의 package stack과 이미 적용된 하네스 스택이 선택한 스택 하네스와 맞는지 검사합니다.
+3. 맞지 않으면 설치를 시작하기 전에 중단하고, 조회 가능한 후보 중 맞는 스택 하네스가 있으면 추천합니다.
+4. 선택한 스택 기준을 `.harness/project/stack-preset-rules.md`에 프로젝트 로컬룰로 기록합니다.
+5. `.harness/harness-lock.json`에 실제 설치된 공통 하네스와 스택 하네스의 repo, ref, version을 기록합니다.
+6. 현재 프로젝트를 진단하고 `.harness/session/absorb-report.md`를 생성합니다.
+7. `harness:check`로 문서 링크, 기준 동기화, 스택 적용 상태를 확인합니다.
+
+자동 진단이나 검사를 끄고 싶으면 `--no-doctor`, `--no-check` 옵션을 사용합니다.
 
 ### 2. 진단 리포트 확인
 
@@ -44,14 +56,13 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2
 npm run harness:doctor
 ```
 
-### 3. 스택 기준 선택
-
-공통 하네스는 특정 프레임워크 기준을 직접 담지 않습니다. 프로젝트에 맞는 스택 기준을 조회하고 선택합니다.
+### 3. 다른 스택 기준 조회
 
 ```bash
 npm run standards:list
-npm run stack:apply -- --preset-git https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git --ref v0.1.2
 ```
+
+`standards:list`는 적용 가능한 스택 하네스 후보와 `npx ... init` 명령을 보여줍니다. 공통 하네스가 이미 설치된 관리자/고급 흐름에서는 `npm run stack:apply -- --preset-git <repo-url> --ref <tag>`로 직접 적용할 수도 있습니다.
 
 ### 4. 필요한 경우 scaffold 템플릿 선택
 
@@ -79,14 +90,50 @@ npm run hooks:install
 
 AI 에이전트 작업에서는 hook 선택 여부와 별개로 하네스 검증 기준을 따라야 합니다.
 
-다른 저장소 위치를 쓰는 경우:
+### 공통 하네스 직접 설치
+
+`harness-seed` 직접 설치는 공통 기준 관리자, 스택 하네스 관리자, 또는 예외적으로 스택 기준 없이 공통 기준만 운영하는 프로젝트를 위한 고급 흐름입니다.
 
 ```bash
-npx -y git+https://git.example.com/group/harness-seed.git#vX.Y.Z init
-npx -y github:<owner>/<repo>#vX.Y.Z init
+npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2.12 init
 ```
 
-하네스시드는 계속 개선되므로 `main`, `master` 같은 움직이는 브랜치를 따라가며 최신 변경을 빠르게 받는 방식도 가능합니다. 다만 팀 프로젝트에서는 하네스 변경이 언제 들어왔는지 추적할 수 있도록 릴리스 태그인 `vX.Y.Z`를 고정해 주입하는 것을 권장합니다. 최신 버전으로 올릴 때는 새 태그로 다시 `init`을 실행하고, 생성된 변경분과 `harness:doctor`, `harness:check` 결과를 함께 확인합니다.
+하네스시드는 계속 개선되므로 `main`, `master` 같은 움직이는 브랜치를 따라가며 최신 변경을 빠르게 받는 방식도 가능합니다. 다만 팀 프로젝트에서는 하네스 변경이 언제 들어왔는지 추적할 수 있도록 릴리스 태그인 `vX.Y.Z`를 고정해 주입하는 것을 권장합니다. 최신 버전으로 올릴 때는 스택 하네스의 새 태그로 다시 `init`을 실행하고, 생성된 변경분과 `harness:doctor`, `harness:check` 결과를 함께 확인합니다.
+
+## 버전 추적과 업데이트
+
+프로젝트에는 두 종류의 버전 정보가 남습니다.
+
+| 파일 | 역할 |
+| --- | --- |
+| `.harness/install-manifest.json` | 공통 하네스가 어떤 파일을 설치/갱신했는지 추적하는 설치 manifest |
+| `.harness/harness-lock.json` | 현재 프로젝트에 설치된 공통 하네스와 스택 하네스의 repo, ref, version을 기록하는 잠금 파일 |
+
+스택 하네스의 `manifest.json`은 자신이 요구하는 공통 하네스를 `baseHarness`로 명시합니다. 예를 들어 스택 하네스 `v0.1.3`이 공통 하네스 `v0.2.12` 이상을 요구하면, 스택 하네스 `init`은 해당 공통 하네스를 먼저 설치하거나 업데이트합니다.
+
+업데이트는 보통 다음처럼 진행합니다.
+
+```bash
+npm run harness:outdated
+npm run harness:update
+npm run harness:doctor
+npm run harness:check
+```
+
+`harness:update`는 `.harness/harness-lock.json`을 읽고 현재 적용된 스택 하네스를 다시 실행합니다. 기본 전략은 `compatible`이며, 현재 설치된 버전의 SemVer caret 범위 안에서 최신 태그를 선택합니다. 예를 들어 `1.0.0`이 설치되어 있으면 `^1.0.0` 범위의 최신 패치/마이너를 받습니다.
+
+```bash
+npm run harness:outdated -- --json
+npm run harness:outdated -- --fail-on-outdated
+npm run harness:update -- --dry-run
+npm run harness:update -- --strategy locked
+npm run harness:update -- --strategy latest
+npm run harness:update -- --range ^1.0.0
+```
+
+`harness:outdated`는 원격 tag를 조회해 업데이트 후보가 있는지만 확인하고 프로젝트 파일은 수정하지 않습니다. 향후 `ai-standard-cli`에서 여러 프로젝트에 업데이트 MR을 만들 때도 이 명령을 먼저 호출하는 방식으로 확장합니다.
+
+같은 스택 하네스를 새 버전으로 다시 실행하면 공통 하네스 관리 파일은 업데이트되고, 스택 기준은 기존 적용분을 reset한 뒤 다시 적용됩니다. 프로젝트 소유 문서와 기존 업무 코드는 보존됩니다. 적용 후 `stack:status`와 `harness:doctor`에서 공통/스택 하네스 버전 상태를 확인할 수 있습니다.
 
 ## 하네스시드가 하는 일
 
@@ -130,8 +177,9 @@ npx -y github:<owner>/<repo>#vX.Y.Z init
 1. 기존 업무 코드는 덮어쓰지 않습니다.
 2. 기존 하네스나 개인 룰 파일이 있으면 먼저 보존합니다.
 3. 하네스시드가 만든 파일은 `.harness/install-manifest.json`으로 추적합니다.
-4. 출처를 알 수 없는 기존 파일은 기본적으로 프로젝트 소유로 봅니다.
-5. 기존 로컬 방법론은 `.harness/project/` 아래 문서와 연결합니다.
+4. 실제 설치된 공통/스택 하네스 버전은 `.harness/harness-lock.json`으로 추적합니다.
+5. 출처를 알 수 없는 기존 파일은 기본적으로 프로젝트 소유로 봅니다.
+6. 기존 로컬 방법론은 `.harness/project/` 아래 문서와 연결합니다.
 
 즉, 기존 프로젝트의 개발 방식을 삭제하는 것이 아니라 다음처럼 공존시킵니다.
 
@@ -147,8 +195,8 @@ npx -y github:<owner>/<repo>#vX.Y.Z init
 
 | 상황 | 권장 방식 |
 | --- | --- |
-| 기존 프로젝트에 회사 기준 적용 | `init` 후 스택 기준을 선택하고 기존 프로젝트 기준과 충돌 여부 확인 |
-| 빈 프로젝트를 새로 시작 | 스택 기준을 선택한 뒤 필요한 scaffold 템플릿 적용 |
+| 기존 프로젝트에 회사 기준 적용 | 프로젝트에 맞는 스택 하네스 `init` 실행 후 기존 프로젝트 기준과 충돌 여부 확인 |
+| 빈 프로젝트를 새로 시작 | 스택 하네스 `init` 실행 후 필요한 scaffold 템플릿 적용 |
 | 이미 팀 전용 하네스가 있음 | 기존 하네스를 보존하고 브리지로 연결 |
 | 스타일 기준이 이미 있음 | 설정 파일을 읽어 로컬룰 초안 생성 |
 | 스타일 기준이 없음 | 프리셋 후보 중 선택 |
@@ -170,6 +218,7 @@ npm run harness:check
 - formatter/linter 설정
 - 스타일 룰 초안
 - 회사/스택/프로젝트/개인 기준 계층
+- 공통/스택 하네스 버전 상태
 - 기준 충돌 후보
 - 기존 룰 문서와 하네스 연결 후보
 - 확인이 필요한 질문
@@ -190,39 +239,41 @@ npm run harness:check
 | `npm run absorb:report` | `harness:doctor` 호환 alias |
 | `npm run guard` | `harness:check` 호환 alias |
 | `npm run hooks:install` | 로컬 git hook 등록 |
-| `npm run standards:list` | 원격 스택 기준 후보 조회 |
+| `npm run harness:outdated` | lock 기준으로 같은 major 범위의 업데이트 후보 조회. 파일 수정 없음 |
+| `npm run harness:update` | lock에 기록된 스택 하네스를 다시 실행해 같은 major 범위의 최신 기준으로 업데이트 |
+| `npm run standards:list` | 원격 스택 하네스 후보 조회 |
 | `npm run stack:list` | `standards:list` alias |
 | `npm run templates:list` | 원격 템플릿 후보 조회 |
-| `npm run stack:status` | 활성 스택과 적용 상태 확인 |
+| `npm run stack:status` | 활성 스택, 적용 상태, 공통/스택 하네스 버전 확인 |
 | `npm run stack:apply` | 선택한 스택 기준을 로컬룰로 적용하고, 포함된 scaffold가 있으면 함께 적용 |
 | `npm run stack:reset` | 적용된 스택 기준 관리 섹션과 scaffold 산출물 제거 |
 
 ## 스택 기준과 템플릿
 
-하네스시드 본체는 특정 프레임워크를 전제로 하지 않습니다. 프로젝트에서는 회사 공통 기준을 직접 고르는 대신, 보통 회사 공통 기준을 기반으로 한 스택 기준을 선택합니다.
+하네스시드 본체는 특정 프레임워크를 전제로 하지 않습니다. 프로젝트에서는 회사 공통 기준을 직접 고르는 대신, 보통 회사 공통 기준을 기반으로 한 스택 하네스를 선택합니다.
 
 `none`은 스택 기준을 아직 고르지 않았거나, 예외적으로 공통 기준만 운영하는 내부 상태입니다. 일반 프로젝트 적용 흐름에서는 `harness:doctor` 리포트의 충돌 후보를 확인하고 스택 기준 선택 여부를 기록합니다.
 
 본체에는 특정 스택 기준이나 템플릿을 넣지 않습니다. 스택 기준은 `ai-standard/harnesses` 쪽에서, 실제 scaffold 템플릿은 `ai-standard/stacks` 쪽에서 관리합니다.
 
-스택 기준 후보는 다음 명령으로 조회합니다.
+스택 하네스 후보는 다음 명령으로 조회합니다.
 
 ```bash
 npm run standards:list
 GITLAB_TOKEN=<private-token> npm run standards:list
 ```
 
-현재 예정된 스택 기준 후보 예시는 다음 저장소입니다.
+현재 예정된 스택 하네스 후보 예시는 다음 저장소입니다.
 
 ```bash
-npm run stack:apply -- --preset-git https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git --ref v0.1.2
+npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#v0.1.3 init
 ```
 
 `stack:apply`는 선택한 스택의 instruction을 `.harness/project/stack-preset-rules.md`에 로컬룰로 기록합니다. 스택 기준 패키지가 `source.type=none`이면 파일 복사 없이 기준 문서만 정착합니다.
 
 즉, 스택 기준은 공통 하네스가 모든 프로젝트에 강제하는 규칙이 아니라, 이 프로젝트가 선택한 기준으로 정착됩니다.
 
-외부 스택 기준은 별도 폴더나 저장소로 관리합니다. 일회성 적용은 `npm run stack:apply -- --preset-path ../my-stack-standard` 또는 `npm run stack:apply -- --preset-git <repo-url> --ref <tag-or-branch>`를 사용합니다. 프로젝트에 고정하려면 `.harness/policy/profile.json`의 `stackManifest`에 외부 `manifest.json` 경로를 기록합니다.
+스택 하네스는 자체 `init` 명령을 제공하는 것이 기본입니다. 공통 하네스가 이미 설치된 관리자/고급 흐름에서는 `npm run stack:apply -- --preset-path ../my-stack-standard` 또는 `npm run stack:apply -- --preset-git <repo-url> --ref <tag-or-branch>`를 직접 사용할 수 있습니다. 프로젝트에 고정하려면 `.harness/policy/profile.json`의 `stackManifest`에 적용 스냅샷 `manifest.json` 경로를 기록합니다.
 
 scaffold 템플릿은 업무 파일을 생성하거나 복사할 수 있는 별도 자산입니다. 스택 기준만 적용하려는 경우에는 필요하지 않습니다. 새 프로젝트의 기본 파일 묶음이 필요할 때만 `ai-standard/stacks` 하위 저장소를 조회합니다.
 
@@ -294,15 +345,13 @@ npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 
 ## 빈 프로젝트를 새로 시작할 때
 
-빈 폴더를 만든 뒤 공통 하네스를 설치하고, 필요한 스택 기준과 scaffold 템플릿을 선택합니다.
+빈 폴더를 만든 뒤 프로젝트에 맞는 스택 하네스를 설치하고, 필요한 경우 scaffold 템플릿을 선택합니다.
 
 ```bash
 mkdir my-app
 cd my-app
-npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2.11 init
+npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#v0.1.3 init
 npm run stack:status
-npm run standards:list
-npm run stack:apply -- --preset-git https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git --ref v0.1.2
 npm run templates:list      # scaffold 템플릿이 필요할 때만 조회
 npm run hooks:install
 npm run harness:check
@@ -315,7 +364,7 @@ npm run harness:check
 - `.harness-seed-mode`를 유지합니다.
 - 하네스 본체 변경 후 `npm run harness:check:strict`를 실행합니다.
 - seed-mode에서는 `harness:check`가 init smoke test를 함께 실행합니다.
-- 배포는 태그 기준으로 합니다. 예: `v0.2.11`.
+- 배포는 태그 기준으로 합니다. 예: `v0.2.12`.
 - 사내 GitLab처럼 보호 브랜치를 쓰는 저장소에는 fast-forward 가능한 배포 커밋으로 반영합니다.
 
 ## AI 에이전트 기준점

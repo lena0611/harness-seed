@@ -13,6 +13,7 @@ const profilePath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'poli
 const stacksRoot = path.join(harnessRoot, 'stacks')
 const appliedStacksRoot = path.join(stacksRoot, '.applied')
 const markerPath = path.join(harnessRoot, '.stack-applied.json')
+const lockPath = path.join(harnessRoot, 'harness-lock.json')
 const stackPresetRulesRel = `${harnessRootRel}/project/stack-preset-rules.md`
 const stackPresetRulesPath = path.join(repoRoot, stackPresetRulesRel)
 const stackRulesStart = '<!-- harness-stack-rules:start -->'
@@ -31,6 +32,10 @@ function getArgValue(flag) {
   }
 
   return args[index + 1]
+}
+
+function nonEmpty(value) {
+  return value === undefined || value === null || value === '' ? null : value
 }
 
 function toPosix(p) {
@@ -160,6 +165,14 @@ function writeMarker(value) {
   writeJson(markerPath, value)
 }
 
+function readLock() {
+  return readJson(lockPath, { version: 1 })
+}
+
+function writeLock(value) {
+  writeJson(lockPath, value)
+}
+
 function deleteMarker() {
   if (fs.existsSync(markerPath)) {
     fs.unlinkSync(markerPath)
@@ -171,12 +184,19 @@ function snapshotStackStandard(stackId, manifest, context) {
   fs.rmSync(snapshotRoot, { recursive: true, force: true })
   fs.mkdirSync(snapshotRoot, { recursive: true })
 
+  const excludedSnapshotPaths = new Set([
+    '.git',
+    '.idea',
+    '.vscode',
+    'node_modules',
+    '.DS_Store',
+  ])
   const sourcePath = manifest.source?.path
   const sourceRel = sourcePath ? toPosix(sourcePath) : null
   const packageMergeRel = manifest.source?.packageMerge ? toPosix(manifest.source.packageMerge) : null
 
   copyDirectoryExcluding(context.manifestRoot, snapshotRoot, (rel, entry) => {
-    if (rel === '.git' || rel.startsWith('.git/')) {
+    if ([...excludedSnapshotPaths].some((excluded) => rel === excluded || rel.startsWith(`${excluded}/`))) {
       return true
     }
 
@@ -213,6 +233,63 @@ function updateProfileForAppliedStack(stackId, stackSnapshot) {
 
   writeJson(profilePath, next)
   return previous
+}
+
+function readPackageVersion(manifestRoot) {
+  const pkg = readJson(path.join(manifestRoot, 'package.json'), {})
+  return pkg.version ?? null
+}
+
+function buildStackHarnessMetadata(stackId, manifest, context, stackSnapshot) {
+  const cliPresetGit = nonEmpty(getArgValue('--preset-git'))
+  const cliRef = nonEmpty(getArgValue('--ref'))
+  const repo = nonEmpty(getArgValue('--stack-repo')) ?? cliPresetGit ?? manifest.stackHarness?.repo ?? null
+  const ref = nonEmpty(getArgValue('--stack-ref')) ?? (cliPresetGit ? cliRef : manifest.stackHarness?.ref) ?? null
+  const range = nonEmpty(getArgValue('--stack-range')) ?? manifest.stackHarness?.range ?? null
+  const version = nonEmpty(getArgValue('--stack-version')) ?? readPackageVersion(context.manifestRoot) ?? manifest.stackHarness?.version ?? null
+  const commit = nonEmpty(getArgValue('--stack-commit'))
+
+  return {
+    id: stackId,
+    title: manifest.title ?? stackId,
+    version,
+    repo,
+    ref,
+    range,
+    commit,
+    manifestVersion: manifest.version ?? null,
+    manifestPath: stackSnapshot.manifestPath,
+    requiredBaseHarness: manifest.baseHarness ?? null,
+  }
+}
+
+function updateHarnessLockForStack(stackHarness) {
+  const previous = readLock()
+  const next = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    baseHarness: previous.baseHarness ?? null,
+    stackHarness,
+  }
+
+  writeLock(next)
+  return next
+}
+
+function clearStackHarnessLock() {
+  const previous = readLock()
+  if (!previous.stackHarness) {
+    return previous
+  }
+
+  const next = {
+    ...previous,
+    updatedAt: new Date().toISOString(),
+    stackHarness: null,
+  }
+
+  writeLock(next)
+  return next
 }
 
 function restoreProfile(snapshot) {
@@ -476,11 +553,26 @@ const SOURCE_ADAPTERS = {
 function commandStatus() {
   const profile = readProfile()
   const marker = readMarker()
+  const lock = readLock()
 
   console.log('Stack status')
   console.log(`  activeStack: ${profile.activeStack ?? 'none'}`)
   if (profile.stackManifest) {
     console.log(`  stackManifest: ${profile.stackManifest}`)
+  }
+
+  if (lock.baseHarness || lock.stackHarness) {
+    console.log('')
+    console.log('Harness versions')
+    if (lock.baseHarness) {
+      console.log(`  base: ${lock.baseHarness.id ?? 'harness-seed'} ${lock.baseHarness.version ?? 'unknown'}${lock.baseHarness.ref ? ` (${lock.baseHarness.ref})` : ''}`)
+    }
+    if (lock.stackHarness) {
+      console.log(`  stack: ${lock.stackHarness.id ?? profile.activeStack ?? 'unknown'} ${lock.stackHarness.version ?? 'unknown'}${lock.stackHarness.ref ? ` (${lock.stackHarness.ref})` : ''}`)
+      if (lock.stackHarness.requiredBaseHarness?.ref) {
+        console.log(`  requiredBase: ${lock.stackHarness.requiredBaseHarness.ref}`)
+      }
+    }
   }
 
   if (!marker) {
@@ -545,16 +637,20 @@ function commandApply() {
   const stackLocalRulesBackup = applyStackLocalRules(stackId, manifest, context.manifestRoot)
   const stackSnapshot = snapshotStackStandard(stackId, manifest, context)
   const profileBackup = updateProfileForAppliedStack(stackId, stackSnapshot)
+  const stackHarness = buildStackHarnessMetadata(stackId, manifest, context, stackSnapshot)
+  const lock = updateHarnessLockForStack(stackHarness)
 
   writeMarker({
     stackId,
     appliedAt: new Date().toISOString(),
-    manifestPath: toPosix(path.relative(repoRoot, context.manifestPath)),
+    manifestPath: stackSnapshot.manifestPath,
+    sourceManifestPath: toPosix(path.relative(repoRoot, context.manifestPath)),
     source: manifest.source,
     copiedFiles,
     packageJsonBackup: packageBackup,
     stackLocalRulesBackup,
     stackSnapshot,
+    stackHarness,
     profileBackup,
   })
 
@@ -563,6 +659,9 @@ function commandApply() {
     console.log('rules-only 스택 기준입니다. scaffold 파일 복사는 수행하지 않았습니다.')
   }
   console.log(`stackManifest: ${stackSnapshot.manifestPath}`)
+  if (lock.baseHarness?.version || stackHarness.version) {
+    console.log(`harness lock: base=${lock.baseHarness?.version ?? 'unknown'}, stack=${stackHarness.version ?? stackId}`)
+  }
   console.log('다음 단계:')
   if (sourceType !== 'none') {
     console.log('  1. npm install')
@@ -613,6 +712,7 @@ function commandReset() {
     fs.rmSync(path.join(repoRoot, marker.stackSnapshot.root), { recursive: true, force: true })
     removeEmptyParents(path.join(repoRoot, marker.stackSnapshot.root))
   }
+  clearStackHarnessLock()
   deleteMarker()
 
   console.log(`Reset complete. ${removed} file(s) removed. package.json도 적용 전 상태로 복원했습니다.`)

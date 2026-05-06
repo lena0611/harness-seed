@@ -411,6 +411,88 @@ function detectStackStandardFiles(profile) {
   return files
 }
 
+function parseSemver(value) {
+  const match = String(value ?? '').match(/^v?(\d+)\.(\d+)\.(\d+)/)
+  if (!match) return null
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+  }
+}
+
+function compareSemver(a, b) {
+  const left = parseSemver(a)
+  const right = parseSemver(b)
+  if (!left || !right) return null
+
+  for (const key of ['major', 'minor', 'patch']) {
+    if (left[key] > right[key]) return 1
+    if (left[key] < right[key]) return -1
+  }
+
+  return 0
+}
+
+function resolveStackManifest(profile) {
+  if (!profile.activeStack || profile.activeStack === 'none') {
+    return null
+  }
+
+  const rel = profile.stackManifest || `.harness/stacks/${profile.activeStack}/manifest.json`
+  const abs = path.resolve(repoRoot, rel)
+  const manifest = readJson(path.relative(repoRoot, abs))
+
+  return manifest ? { rel: path.relative(repoRoot, abs).split(path.sep).join('/'), manifest } : null
+}
+
+function buildHarnessVersionStatus(profile) {
+  const lock = readJson('.harness/harness-lock.json')
+  const installManifest = readJson('.harness/install-manifest.json')
+  const stack = resolveStackManifest(profile)
+  const requiredBase = stack?.manifest?.baseHarness ?? lock?.stackHarness?.requiredBaseHarness
+  const lines = []
+  const conflicts = []
+
+  if (!lock) {
+    lines.push('harness lock: 없음')
+    if (profile.activeStack && profile.activeStack !== 'none') {
+      conflicts.push('harness lock이 없습니다. 스택 하네스 init을 다시 실행해 공통/스택 하네스 버전을 기록하세요.')
+    }
+  } else {
+    const base = lock.baseHarness
+    const stackHarness = lock.stackHarness
+    lines.push(`installed base harness: ${base?.id ?? 'harness-seed'} ${base?.version ?? installManifest?.version ?? 'unknown'}${base?.ref ? ` (${base.ref})` : ''}`)
+    lines.push(`active stack harness: ${stackHarness?.id ?? profile.activeStack ?? 'none'} ${stackHarness?.version ?? 'unknown'}${stackHarness?.ref ? ` (${stackHarness.ref})` : ''}`)
+  }
+
+  if (requiredBase) {
+    const installedVersion = lock?.baseHarness?.version ?? installManifest?.version
+    const installedRef = lock?.baseHarness?.ref ?? installManifest?.source?.ref
+    const minVersion = requiredBase.minVersion ?? requiredBase.ref
+    lines.push(`required base by stack: ${requiredBase.repo ?? 'harness-seed'} ${requiredBase.ref ?? '(ref unspecified)'} / min ${minVersion ?? '(none)'}`)
+
+    const compare = compareSemver(installedVersion, minVersion)
+    if (compare !== null && compare < 0) {
+      conflicts.push(`공통 하네스 버전이 낮습니다. required >= ${minVersion}, installed ${installedVersion}. 스택 하네스 init을 다시 실행하세요.`)
+    }
+
+    if (requiredBase.ref && installedRef && requiredBase.ref !== installedRef) {
+      conflicts.push(`공통 하네스 ref가 스택 요구사항과 다릅니다. required ${requiredBase.ref}, installed ${installedRef}. 스택 하네스 init으로 업데이트하세요.`)
+    }
+  }
+
+  if (stack?.rel) {
+    lines.push(`stack manifest: ${stack.rel}`)
+  }
+
+  if (conflicts.length === 0) {
+    lines.push('version status: OK')
+  }
+
+  return { lines, conflicts }
+}
+
 function detectBridgeCandidates() {
   return listExisting(['CLAUDE.md', 'AGENTS.md', '.github/copilot-instructions.md'])
     .filter((rel) => {
@@ -486,7 +568,7 @@ function buildStandardsLayerSummary(profile, companyFiles, stackFiles, projectFi
   ]
 }
 
-function buildConflictCandidates({ profile, pkg, testRoots, styleGuideFiles, styleRuleDraft, bridgeCandidates, personalFiles, projectFiles }) {
+function buildConflictCandidates({ profile, pkg, testRoots, styleGuideFiles, styleRuleDraft, bridgeCandidates, personalFiles, projectFiles, harnessVersionConflicts }) {
   const conflicts = []
   const activeStack = profile.activeStack || 'none'
 
@@ -511,6 +593,7 @@ function buildConflictCandidates({ profile, pkg, testRoots, styleGuideFiles, sty
   }
 
   conflicts.push(...detectStyleConflicts(styleRuleDraft))
+  conflicts.push(...harnessVersionConflicts)
 
   if (testRoots.length === 0 && (!pkg || !pkg.scripts.some((name) => name.includes('test')))) {
     conflicts.push('회사 공통 기준은 검증 흐름을 요구하지만 테스트 루트나 test script가 없습니다. 검증 전략을 선택하세요.')
@@ -543,6 +626,7 @@ function buildReport() {
   const personalStandardFiles = detectPersonalStandardFiles()
   const companyStandardFiles = detectCompanyStandardFiles()
   const stackStandardFiles = detectStackStandardFiles(profile)
+  const harnessVersionStatus = buildHarnessVersionStatus(profile)
   const bridgeCandidates = detectBridgeCandidates()
   const standardsLayerSummary = buildStandardsLayerSummary(
     profile,
@@ -560,6 +644,7 @@ function buildReport() {
     bridgeCandidates,
     personalFiles: personalStandardFiles,
     projectFiles: localMethodologyFiles,
+    harnessVersionConflicts: harnessVersionStatus.conflicts,
   })
 
   const suggestedCommands = pkg
@@ -637,6 +722,9 @@ ${formatList(testRoots)}
 
 ## Standards Layers
 ${formatList(standardsLayerSummary)}
+
+## Harness Versions
+${formatList(harnessVersionStatus.lines)}
 
 ## Conflict Candidates
 ${formatList(conflictCandidates, '- 자동 감지 기준의 충돌 후보 없음')}
