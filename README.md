@@ -111,7 +111,7 @@ AI 에이전트 작업에서는 hook 선택 여부와 별개로 하네스 검증
 `harness-seed` 직접 설치는 공통 기준 관리자, 스택 하네스 관리자, 또는 예외적으로 스택 기준 없이 공통 기준만 운영하는 프로젝트를 위한 고급 흐름입니다.
 
 ```bash
-npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2.15 init
+npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2.16 init
 ```
 
 하네스시드는 계속 개선되므로 `main`, `master` 같은 움직이는 브랜치를 따라가며 최신 변경을 빠르게 받는 방식도 가능합니다. 다만 팀 프로젝트에서는 하네스 변경이 언제 들어왔는지 추적할 수 있도록 릴리스 태그인 `vX.Y.Z`를 고정해 주입하는 것을 권장합니다. 최신 버전으로 올릴 때는 스택 하네스의 새 태그로 다시 `init`을 실행하고, 생성된 변경분과 `harness:doctor`, `harness:check` 결과를 함께 확인합니다.
@@ -125,7 +125,7 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2
 | `.harness/install-manifest.json` | 공통 하네스가 어떤 파일을 설치/갱신했는지 추적하는 설치 manifest |
 | `.harness/harness-lock.json` | 현재 프로젝트에 설치된 공통 하네스와 스택 하네스의 repo, ref, version을 기록하는 잠금 파일 |
 
-스택 하네스의 `manifest.json`은 자신이 요구하는 공통 하네스를 `baseHarness`로 명시합니다. 예를 들어 스택 하네스 `v0.1.6`이 공통 하네스 `v0.2.15` 이상을 요구하면, 스택 하네스 `init`은 해당 공통 하네스를 먼저 설치하거나 업데이트합니다.
+스택 하네스의 `manifest.json`은 자신이 요구하는 공통 하네스를 `baseHarness`로 명시합니다. 예를 들어 스택 하네스 `v0.1.7`이 공통 하네스 `v0.2.16` 이상을 요구하면, 스택 하네스 `init`은 해당 공통 하네스를 먼저 설치하거나 업데이트합니다.
 
 업데이트는 보통 다음처럼 진행합니다.
 
@@ -166,7 +166,6 @@ npm run harness:update -- --range ^1.0.0
 | 플랫폼 어댑터 | 사용하는 코드 호스팅, CI, 에이전트 도구와 하네스를 연결하는 선택형 파일 |
 | `scripts/` | 기준 동기화 검사, 문서 링크 검사, 프로젝트 분석, 스택 적용 명령 |
 | `.githooks/` | 커밋 전 검증 연결 |
-| `.nvmrc` | 권장 Node 버전 |
 
 중요한 점은 업무 코드 자체를 대신 작성하는 것이 아니라, 작업 기준과 검증 경로를 프로젝트 안에 고정한다는 점입니다.
 
@@ -409,9 +408,12 @@ npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 
 ## Node 버전
 
-- 권장 버전은 `.nvmrc`의 Node `22.14.0`입니다.
-- 지원 범위는 `>=20.19.0 || >=22.13.0`입니다.
-- 낮은 Node에서 실행하면 하네스 명령이 먼저 업그레이드 안내를 출력합니다.
+- 하네스 실행 최소 버전은 Node `20.19.0`입니다. 하네스 스크립트는 이 버전에서 동작하도록 유지합니다.
+- `package.json`에는 `>=20.19.0`로 기록합니다.
+- 하네스 패키지는 소비자 프로젝트에 `.nvmrc`를 주입하지 않습니다.
+- 기존 프로젝트의 `.nvmrc`는 프로젝트/Jenkins 빌드 계약으로 보고 자동 덮어쓰기하지 않습니다.
+- 기존 `.nvmrc`가 Node 20.19 이상이면 그대로 사용합니다. 더 낮은 버전이면 설치 전에 중단하고 안내하며, 의도적이면 `--allow-node-mismatch`로 진행할 수 있습니다.
+- Node 20은 2026-04-30에 EOL이므로 신규 프로젝트는 Jenkins 검증이 준비되는 대로 Node 22/24 전환을 검토합니다.
 - 스택 기준이나 템플릿이 더 높은 Node 버전을 요구하면 해당 자산의 `manifest.json` 또는 instruction 문서에 별도로 기록합니다.
 
 ## 빈 프로젝트를 새로 시작할 때
@@ -436,7 +438,7 @@ npm run harness:check
 - `.harness-seed-mode`를 유지합니다.
 - 하네스 본체 변경 후 `npm run harness:check:strict`를 실행합니다.
 - seed-mode에서는 `harness:check`가 init smoke test를 함께 실행합니다.
-- 배포는 태그 기준으로 합니다. 예: `v0.2.15`.
+- 배포는 태그 기준으로 합니다. 예: `v0.2.16`.
 - 사내 GitLab처럼 보호 브랜치를 쓰는 저장소에는 fast-forward 가능한 배포 커밋으로 반영합니다.
 
 ## AI 에이전트 기준점

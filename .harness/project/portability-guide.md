@@ -23,8 +23,12 @@
 13. `project-charter.md`, `scope-contract.md`를 새 도메인 정보로 채웁니다.
 
 ## Node 런타임 계약
-- 기준 Node는 `.nvmrc`의 `22.14.0`입니다.
-- `package.json`의 `engines.node`는 기본 하네스와 현재 도구체인 요구사항에 맞춰 `>=20.19.0 || >=22.13.0`로 고정합니다.
+- 하네스 실행 최소 Node는 `20.19.0`입니다. 하네스 스크립트는 이 버전에서 동작하도록 유지합니다.
+- `package.json`의 `engines.node`는 `>=20.19.0`로 고정합니다.
+- 하네스 패키지는 소비자 프로젝트에 `.nvmrc`를 주입하지 않습니다.
+- 적용 프로젝트의 `.nvmrc`는 프로젝트/Jenkins 빌드 계약입니다. 하네스 설치나 scaffold 템플릿 적용은 기존 `.nvmrc`를 자동 덮어쓰지 않습니다.
+- 기존 `.nvmrc`가 Node 20.19 이상이면 그대로 사용합니다. 더 낮은 버전이면 설치 전에 중단하고 안내하며, 의도적이면 `--allow-node-mismatch`로 진행할 수 있습니다.
+- Node 20은 2026-04-30에 EOL이므로 신규 프로젝트는 Jenkins 검증이 준비되는 대로 Node 22/24 전환을 검토합니다.
 - 낮은 Node에서 harness 명령을 실행하면 `scripts/check-node-version.mjs`가 먼저 실패해 문법 에러 대신 업그레이드 안내를 보여줍니다.
 - 각 프리셋이 추가 런타임 제약을 갖는 경우 해당 프리셋의 instruction 또는 manifest에 기록합니다.
 
@@ -45,7 +49,7 @@
 - 적용 후 패치나 마이너 업데이트 후보는 `npm run harness:outdated`로 확인하고, 반영하려면 `npm run harness:update`를 실행합니다. 기본 전략은 현재 설치 버전의 SemVer caret 범위 안에서 최신 태그를 다시 선택하는 방식입니다.
 - 여러 소비 프로젝트에 업데이트 MR을 만드는 자동화는 향후 `ai-standard-cli`가 담당합니다. 이식 대상 프로젝트 안에서는 outdated 확인과 update 실행까지만 다룹니다.
 - 사내 GitLab처럼 방화벽 내부 저장소를 쓰는 환경에서는 `git+https://git.example.com/group/my-stack-harness.git#vX.Y.Z` 형식이 가장 명시적입니다.
-- npm publish로 전환할 때는 현재 `bin.harness-seed`, `files`, `engines`, `.nvmrc` 구조를 그대로 사용할 수 있습니다. publish 전에는 패키지명을 확정하고 `npm pack --dry-run`으로 포함 파일을 확인합니다.
+- npm publish로 전환할 때는 현재 `bin.harness-seed`, `files`, `engines` 구조를 그대로 사용할 수 있습니다. publish 전에는 패키지명을 확정하고 `npm pack --dry-run`으로 포함 파일을 확인합니다.
 
 
 ## 그대로 두는 것

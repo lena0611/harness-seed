@@ -33,6 +33,10 @@ const isTemplateMode = args.includes('--template')
 const isTemplateReset = args.includes('--template-reset')
 const isTemplateStatus = args.includes('--template-status')
 const tempRoots = []
+const PROJECT_RUNTIME_CONTRACT_FILES = new Set([
+  '.nvmrc',
+  '.node-version',
+])
 
 function getArgValue(flag) {
   const index = args.indexOf(flag)
@@ -497,6 +501,11 @@ function copyFileEnsuringDir(src, dest) {
   fs.copyFileSync(src, dest)
 }
 
+function shouldPreserveProjectRuntimeContract(rel) {
+  const normalized = toPosix(rel)
+  return PROJECT_RUNTIME_CONTRACT_FILES.has(normalized) && fs.existsSync(path.join(repoRoot, normalized))
+}
+
 function mergePackageJson(packageMergeData) {
   if (!packageMergeData) {
     return null
@@ -710,6 +719,10 @@ function adapterLocal(manifest, context) {
   for (const rel of files) {
     const src = path.join(scaffoldRoot, rel)
     const dest = path.join(repoRoot, rel)
+    if (shouldPreserveProjectRuntimeContract(rel)) {
+      console.log(`Preserved project runtime contract: ${rel}`)
+      continue
+    }
     copyFileEnsuringDir(src, dest)
     copied.push(toPosix(rel))
   }
@@ -767,6 +780,10 @@ function adapterTiged(manifest) {
     for (const rel of files) {
       const src = path.join(sourceRoot, rel)
       const dest = path.join(repoRoot, rel)
+      if (shouldPreserveProjectRuntimeContract(rel)) {
+        console.log(`Preserved project runtime contract: ${rel}`)
+        continue
+      }
       copyFileEnsuringDir(src, dest)
       copied.push(toPosix(rel))
     }

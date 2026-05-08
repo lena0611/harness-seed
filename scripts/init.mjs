@@ -37,7 +37,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const BUNDLED_SOURCE_ROOT = pathResolve(__dirname, '..');
 const TARGET = process.cwd();
-const MIN_NODE_MESSAGE = 'harness-seed requires Node.js >=20.19.0 or >=22.13.0.';
+const MIN_NODE_MESSAGE = 'harness-seed requires Node.js >=20.19.0.';
 const MANIFEST_PATH = '.harness/install-manifest.json';
 const LOCK_PATH = '.harness/harness-lock.json';
 
@@ -60,7 +60,6 @@ const INSTALL_ITEMS = [
   'scripts/check-node-version.mjs',
   'scripts/check-seed-mode.mjs',
   '.githooks',
-  '.nvmrc',
   'AGENTS.md',
   'CLAUDE.md',
 ];
@@ -85,6 +84,7 @@ const PROJECT_OWNED_PATHS = new Set([
   '.harness/session/project-memory.md',
   '.claude/settings.local.json',
   'CLAUDE.local.md',
+  '.nvmrc',
 ]);
 
 const PROJECT_OWNED_PREFIXES = [
@@ -104,8 +104,7 @@ function parseNodeVersion(version) {
 }
 
 function isSupportedNode(version) {
-  if (version.major > 22) return true;
-  if (version.major === 22) return version.minor >= 13;
+  if (version.major > 20) return true;
   if (version.major === 20) return version.minor >= 19;
   return false;
 }
@@ -122,6 +121,47 @@ function checkNodeVersion() {
   }
 }
 
+function parseNodeContract(raw) {
+  const value = String(raw ?? '').trim();
+  const match = value.match(/^v?(\d+)(?:\.(\d+))?/);
+  if (!match) return null;
+
+  return {
+    raw: value,
+    major: Number(match[1]),
+    minor: Number(match[2] ?? 0),
+  };
+}
+
+function checkProjectNodeContract(target, opts) {
+  const nvmrcPath = join(target, '.nvmrc');
+  if (!existsSync(nvmrcPath)) return;
+
+  const value = readFileSync(nvmrcPath, 'utf8').trim();
+  const parsed = parseNodeContract(value);
+  const supported = parsed && isSupportedNode(parsed);
+
+  if (supported) {
+    console.log(`project node: existing .nvmrc ${value} preserved`);
+    return;
+  }
+
+  const message = [
+    `project node: existing .nvmrc ${value || '(empty)'} is below harness minimum Node 20.19.0.`,
+    'Jenkins가 이 버전으로 `nvm use` 후 하네스 검사 또는 빌드를 실행하면 실패할 수 있습니다.',
+    '프로젝트 Node 전환 계획을 먼저 정하거나, 의도적이면 --allow-node-mismatch를 붙여 진행하세요.',
+  ].join('\n');
+
+  if (opts.allowNodeMismatch) {
+    console.warn(message);
+    console.warn('mode: node mismatch allowed');
+    return;
+  }
+
+  console.error(message);
+  process.exit(1);
+}
+
 function printUsageAndExit(code = 0) {
   console.log(`Usage:
   npx -y git+<seed-repo-url>#<tag> init [options]
@@ -132,6 +172,7 @@ Options:
   --no-backup            백업을 만들지 않습니다. 기존 항목이 있으면 --force가 필요합니다.
   --no-doctor            설치 후 프로젝트 진단 리포트를 자동 생성하지 않습니다.
   --no-check             설치 후 하네스 기본 검사를 자동 실행하지 않습니다.
+  --allow-node-mismatch  기존 프로젝트 .nvmrc가 하네스 최소 버전보다 낮아도 명시적으로 진행합니다.
   --from-git <repo-url>  동봉본 대신 git 저장소에서 소스를 가져옵니다.
   --ref <ref>            --from-git과 함께 사용할 branch/tag/sha입니다. 기본값: main
   --source-repo <url>    설치 메타데이터에 기록할 공통 하네스 저장소입니다.
@@ -152,6 +193,7 @@ function parseArgs(argv) {
     noBackup: false,
     noDoctor: false,
     noCheck: false,
+    allowNodeMismatch: false,
     fromGit: null,
     ref: 'main',
     sourceRepo: null,
@@ -181,6 +223,9 @@ function parseArgs(argv) {
         break;
       case '--no-check':
         opts.noCheck = true;
+        break;
+      case '--allow-node-mismatch':
+        opts.allowNodeMismatch = true;
         break;
       case '--from-git': {
         const repo = args[++i];
@@ -794,6 +839,8 @@ function main() {
   if (!existsSync(join(TARGET, '.git'))) {
     console.warn('.git이 없습니다. git 저장소에서 사용하길 권장합니다.\n');
   }
+
+  checkProjectNodeContract(TARGET, opts);
 
   const sourceRoot = opts.fromGit ? fetchFromGit(opts.fromGit, opts.ref) : BUNDLED_SOURCE_ROOT;
   const sourceIsTemp = Boolean(opts.fromGit);

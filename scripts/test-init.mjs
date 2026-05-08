@@ -59,6 +59,7 @@ function cleanInstallCreatesExpectedFiles() {
   assert(exists(target, 'scripts/outdated-harness.mjs'), 'clean install should copy harness outdated script')
   assert(exists(target, 'scripts/update-harness.mjs'), 'clean install should copy harness update script')
   assert(!exists(target, 'scripts/init.mjs'), 'clean install should not copy seed-only init entrypoint')
+  assert(!exists(target, '.nvmrc'), 'clean install should not create project runtime contract')
   assert(exists(target, '.harness/install-manifest.json'), 'clean install should write install manifest')
   assert(exists(target, '.harness/harness-lock.json'), 'clean install should write harness lock')
   assert(exists(target, '.harness/session/absorb-report.md'), 'clean install should auto-create doctor report')
@@ -77,12 +78,12 @@ function cleanInstallCreatesExpectedFiles() {
 
   const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
   assert(manifest.tool === 'harness-seed', 'install manifest should identify harness-seed')
-  assert(manifest.version === '0.2.15', 'install manifest should record package version')
-  assert(manifest.source.packageVersion === '0.2.15', 'install manifest should record source package version')
+  assert(manifest.version === '0.2.16', 'install manifest should record package version')
+  assert(manifest.source.packageVersion === '0.2.16', 'install manifest should record source package version')
   assert(manifest.managedFiles['scripts/guard.mjs'], 'install manifest should record managed files')
 
   const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
-  assert(lock.baseHarness.version === '0.2.15', 'harness lock should record base harness version')
+  assert(lock.baseHarness.version === '0.2.16', 'harness lock should record base harness version')
 
   const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
   assert(profile.activeStack === 'none', 'clean install should default to stack-agnostic mode')
@@ -230,6 +231,34 @@ function noBackupRequiresForce() {
   assert(failed, '--no-backup without --force should fail')
 }
 
+function unsupportedProjectNvmrcRequiresExplicitOverride() {
+  const target = makeTarget()
+  fs.writeFileSync(path.join(target, '.nvmrc'), '18.20.0\n')
+
+  let failed = false
+  try {
+    runInit(target)
+  } catch (error) {
+    failed = error.status === 1
+    assert(String(error.stderr).includes('below harness minimum Node 20.19.0'), 'unsupported .nvmrc should explain node mismatch')
+  }
+
+  assert(failed, 'unsupported existing .nvmrc should stop init by default')
+
+  const output = runInit(target, '--allow-node-mismatch')
+  assert(output.includes('files:'), 'explicit node mismatch override should allow init')
+  assert(read(target, '.nvmrc') === '18.20.0\n', 'existing .nvmrc should be preserved even with mismatch override')
+}
+
+function existingProjectNvmrcIsPreserved() {
+  const target = makeTarget()
+  fs.writeFileSync(path.join(target, '.nvmrc'), '20.19.0\n')
+
+  const output = runInit(target)
+  assert(output.includes('project node: existing .nvmrc 20.19.0 preserved'), 'init should report existing project .nvmrc preservation')
+  assert(read(target, '.nvmrc') === '20.19.0\n', 'init should preserve existing project .nvmrc')
+}
+
 function externalHarnessWithoutManifestIsPreserved() {
   const target = makeTarget()
 
@@ -290,8 +319,8 @@ function makePreset() {
     },
     baseHarness: {
       repo: 'https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git',
-      ref: 'v0.2.15',
-      minVersion: '0.2.15',
+      ref: 'v0.2.16',
+      minVersion: '0.2.16',
     },
     framework: {
       runtime: 'demo',
@@ -352,6 +381,7 @@ function makeScaffoldTemplatePreset(requiredStackId = 'rules-only-demo') {
   fs.mkdirSync(path.join(preset, 'src'), { recursive: true })
   fs.mkdirSync(path.join(preset, 'node_modules/ignored'), { recursive: true })
   fs.writeFileSync(path.join(preset, 'README.md'), '# Demo Template\n')
+  fs.writeFileSync(path.join(preset, '.nvmrc'), 'v24.14.0\n')
   fs.writeFileSync(path.join(preset, 'developmentGuide/README.md'), '# Template Guide\n')
   fs.writeFileSync(path.join(preset, 'developmentGuide/menu.md'), '# Menu Contract\n')
   fs.writeFileSync(path.join(preset, 'src/App.vue'), '<template><main>demo</main></template>\n')
@@ -483,7 +513,7 @@ function stackApplySupportsExternalPresetPath() {
   assert(lock.stackHarness.repo === 'https://example.test/external-demo.git', 'harness lock should record stack repository')
   assert(lock.stackHarness.ref === 'v9.8.7', 'harness lock should record stack ref')
   assert(lock.stackHarness.manifestPath === '.harness/stacks/.applied/external-demo/manifest.json', 'harness lock should record stack manifest snapshot')
-  assert(lock.stackHarness.requiredBaseHarness.ref === 'v0.2.15', 'harness lock should record required base harness ref')
+  assert(lock.stackHarness.requiredBaseHarness.ref === 'v0.2.16', 'harness lock should record required base harness ref')
 
   const updatePlan = run('npm', ['run', 'harness:update', '--', '--dry-run'], { cwd: target })
   assert(updatePlan.includes('npx -y git+https://example.test/external-demo.git#semver:^9.8.7 init'), 'harness update dry-run should target compatible stack range')
@@ -574,10 +604,12 @@ function templateApplyCreatesBridgeWithoutReplacingActiveStack() {
   const templatePreset = makeScaffoldTemplatePreset()
 
   runInit(target)
+  fs.writeFileSync(path.join(target, '.nvmrc'), '20.19.0\n')
   run('npm', ['run', 'stack:apply', '--', '--preset-path', stackPreset], { cwd: target })
   run('npm', ['run', 'template:apply', '--', '--preset-path', templatePreset], { cwd: target })
 
   assert(exists(target, 'src/App.vue'), 'template apply should copy scaffold files')
+  assert(read(target, '.nvmrc') === '20.19.0\n', 'template apply should preserve existing project .nvmrc')
   assert(!exists(target, 'node_modules/ignored/file.txt'), 'template apply should exclude node_modules')
   assert(!exists(target, 'manifest.json'), 'template apply should not copy template manifest to project root')
 
@@ -616,6 +648,18 @@ function templateApplyCreatesBridgeWithoutReplacingActiveStack() {
   const resetLock = JSON.parse(read(target, '.harness/harness-lock.json'))
   assert(resetLock.stackHarness.id === 'rules-only-demo', 'template reset should preserve stack harness lock')
   assert(resetLock.scaffoldTemplate === null, 'template reset should clear template lock')
+}
+
+function templateApplyCreatesProjectNvmrcWhenMissing() {
+  const target = makeTarget()
+  const stackPreset = makeRulesOnlyPreset()
+  const templatePreset = makeScaffoldTemplatePreset()
+
+  runInit(target)
+  run('npm', ['run', 'stack:apply', '--', '--preset-path', stackPreset], { cwd: target })
+  run('npm', ['run', 'template:apply', '--', '--preset-path', templatePreset], { cwd: target })
+
+  assert(read(target, '.nvmrc') === 'v24.14.0\n', 'template apply should create project .nvmrc when missing')
 }
 
 function templateApplyStopsWhenRequiredStackDoesNotMatch() {
@@ -692,6 +736,8 @@ const tests = [
   forceOverwritesProjectOwnedFiles,
   dryRunDoesNotWriteFiles,
   noBackupRequiresForce,
+  unsupportedProjectNvmrcRequiresExplicitOverride,
+  existingProjectNvmrcIsPreserved,
   externalHarnessWithoutManifestIsPreserved,
   absorbReportSuggestsBridgeCandidates,
   stackApplyMaterializesPresetAsLocalRules,
@@ -700,6 +746,7 @@ const tests = [
   stackApplySupportsExternalPresetGit,
   stackApplySupportsRulesOnlyPreset,
   templateApplyCreatesBridgeWithoutReplacingActiveStack,
+  templateApplyCreatesProjectNvmrcWhenMissing,
   templateApplyStopsWhenRequiredStackDoesNotMatch,
   absorbReportSuggestsStylePresetsWhenStyleSourceMissing,
   absorbReportDraftsStyleRulesFromConfigFiles,
