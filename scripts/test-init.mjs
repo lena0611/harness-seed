@@ -53,14 +53,14 @@ function cleanInstallCreatesExpectedFiles() {
 
   assert(exists(target, '.harness/policy/profile.json'), 'clean install should copy .harness')
   assert(exists(target, '.claude/settings.json'), 'clean install should copy Claude Code adapter')
-  assert(exists(target, 'scripts/absorb-project.mjs'), 'clean install should copy absorb report script')
-  assert(exists(target, 'scripts/list-stack-standards.mjs'), 'clean install should copy stack standard listing script')
-  assert(exists(target, 'scripts/list-templates.mjs'), 'clean install should copy template listing script')
-  assert(exists(target, 'scripts/outdated-harness.mjs'), 'clean install should copy harness outdated script')
-  assert(exists(target, 'scripts/update-harness.mjs'), 'clean install should copy harness update script')
-  assert(exists(target, 'scripts/sync-context.mjs'), 'clean install should copy harness sync script')
-  assert(exists(target, 'scripts/build-context.mjs'), 'clean install should copy harness context script')
-  assert(!exists(target, 'scripts/init.mjs'), 'clean install should not copy seed-only init entrypoint')
+  assert(exists(target, '.harness/bin/absorb-project.mjs'), 'clean install should copy absorb report script under .harness/bin')
+  assert(exists(target, '.harness/bin/list-stack-standards.mjs'), 'clean install should copy stack standard listing script under .harness/bin')
+  assert(exists(target, '.harness/bin/list-templates.mjs'), 'clean install should copy template listing script under .harness/bin')
+  assert(exists(target, '.harness/bin/outdated-harness.mjs'), 'clean install should copy harness outdated script under .harness/bin')
+  assert(exists(target, '.harness/bin/update-harness.mjs'), 'clean install should copy harness update script under .harness/bin')
+  assert(exists(target, '.harness/bin/sync-context.mjs'), 'clean install should copy harness sync script under .harness/bin')
+  assert(exists(target, '.harness/bin/build-context.mjs'), 'clean install should copy harness context script under .harness/bin')
+  assert(!exists(target, 'scripts'), 'clean install should not create root scripts directory')
   assert(!exists(target, '.nvmrc'), 'clean install should not create project runtime contract')
   assert(exists(target, '.harness/install-manifest.json'), 'clean install should write install manifest')
   assert(exists(target, '.harness/harness-lock.json'), 'clean install should write harness lock')
@@ -82,13 +82,13 @@ function cleanInstallCreatesExpectedFiles() {
 
   const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
   assert(manifest.tool === 'harness-seed', 'install manifest should identify harness-seed')
-  assert(manifest.version === '0.2.17', 'install manifest should record package version')
-  assert(manifest.source.packageVersion === '0.2.17', 'install manifest should record source package version')
-  assert(manifest.managedFiles['scripts/guard.mjs'], 'install manifest should record managed files')
-  assert(manifest.managedFiles['scripts/sync-context.mjs'], 'install manifest should record sync context script')
+  assert(manifest.version === '0.2.18', 'install manifest should record package version')
+  assert(manifest.source.packageVersion === '0.2.18', 'install manifest should record source package version')
+  assert(manifest.managedFiles['.harness/bin/guard.mjs'], 'install manifest should record managed files')
+  assert(manifest.managedFiles['.harness/bin/sync-context.mjs'], 'install manifest should record sync context script')
 
   const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
-  assert(lock.baseHarness.version === '0.2.17', 'harness lock should record base harness version')
+  assert(lock.baseHarness.version === '0.2.18', 'harness lock should record base harness version')
 
   const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
   assert(profile.activeStack === 'none', 'clean install should default to stack-agnostic mode')
@@ -150,7 +150,7 @@ export default defineConfig([
 
   assert(output.includes('eslint config: eslint.config.js .harness-backup ignore, Node scripts override 추가'), 'init should report eslint harness config patch')
   assert(config.includes("'**/.harness-backup/**'"), 'init should add harness backup ignore')
-  assert(config.includes("files: ['scripts/**/*.mjs', '.harness/**/scripts/**/*.mjs']"), 'init should add scripts mjs override')
+  assert(config.includes("files: ['.harness/bin/**/*.mjs']"), 'init should add harness bin mjs override')
   assert(config.includes('...globals.node'), 'init should add node globals')
 }
 
@@ -172,7 +172,7 @@ export default defineConfig([
   globalIgnores(['**/dist/**', '**/coverage/**']),
 
   {
-    files: ['scripts/**/*.mjs', '.harness/**/scripts/**/*.mjs'],
+    files: ['.harness/bin/**/*.mjs'],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -206,6 +206,29 @@ function reinstallPreservesProjectOwnedFiles() {
   assert(read(target, '.harness/project/local-methodology.md') === sentinel, 'reinstall should preserve local methodology')
   assert(read(target, '.harness/policy/profile.json').includes('"custom"'), 'reinstall should preserve profile')
   assert(exists(target, '.harness-backup'), 'reinstall should create backup directory')
+}
+
+function reinstallMigratesManagedRootScriptsIntoHarnessBin() {
+  const target = makeTarget()
+  runInit(target)
+
+  fs.mkdirSync(path.join(target, 'scripts'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'scripts/guard.mjs'), 'managed legacy guard\n')
+  fs.writeFileSync(path.join(target, 'scripts/custom-project-script.mjs'), 'project owned script\n')
+
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  manifest.managedFiles['scripts/guard.mjs'] = {
+    hash: 'legacy',
+    size: 21,
+  }
+  writeJson(target, '.harness/install-manifest.json', manifest)
+
+  const output = runInit(target, '--no-doctor', '--no-check')
+
+  assert(output.includes('legacy root scripts: 1개 제거'), 'reinstall should report managed root script migration')
+  assert(!exists(target, 'scripts/guard.mjs'), 'reinstall should remove managed legacy root script')
+  assert(exists(target, 'scripts/custom-project-script.mjs'), 'reinstall should preserve project-owned root script')
+  assert(exists(target, '.harness/bin/guard.mjs'), 'reinstall should keep harness runtime under .harness/bin')
 }
 
 function forceOverwritesProjectOwnedFiles() {
@@ -329,8 +352,8 @@ function makePreset() {
     },
     baseHarness: {
       repo: 'https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git',
-      ref: 'v0.2.17',
-      minVersion: '0.2.17',
+      ref: 'v0.2.18',
+      minVersion: '0.2.18',
     },
     framework: {
       runtime: 'demo',
@@ -523,7 +546,7 @@ function stackApplySupportsExternalPresetPath() {
   assert(lock.stackHarness.repo === 'https://example.test/external-demo.git', 'harness lock should record stack repository')
   assert(lock.stackHarness.ref === 'v9.8.7', 'harness lock should record stack ref')
   assert(lock.stackHarness.manifestPath === '.harness/stacks/.applied/external-demo/manifest.json', 'harness lock should record stack manifest snapshot')
-  assert(lock.stackHarness.requiredBaseHarness.ref === 'v0.2.17', 'harness lock should record required base harness ref')
+  assert(lock.stackHarness.requiredBaseHarness.ref === 'v0.2.18', 'harness lock should record required base harness ref')
 
   const updatePlan = run('npm', ['run', 'harness:update', '--', '--dry-run'], { cwd: target })
   assert(updatePlan.includes('npx -y git+https://example.test/external-demo.git#semver:^9.8.7 init'), 'harness update dry-run should target compatible stack range')
@@ -743,6 +766,7 @@ const tests = [
   initPatchesEslintConfigForHarnessFiles,
   initAddsHarnessBackupIgnoreWhenNodeOverrideExists,
   reinstallPreservesProjectOwnedFiles,
+  reinstallMigratesManagedRootScriptsIntoHarnessBin,
   forceOverwritesProjectOwnedFiles,
   dryRunDoesNotWriteFiles,
   noBackupRequiresForce,

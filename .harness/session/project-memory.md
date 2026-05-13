@@ -24,12 +24,12 @@
 - `.harness/documentation/`: 문서 인덱싱/분리 규칙, doc-link 무결성
 - `.harness/style/`: 코딩 스타일 검증
 - `.harness/stacks/`: 외부 프리셋 계약과 적용 방법 문서
-- `scripts/list-stack-standards.mjs`: 사내 스택 하네스 후보 조회
-- `scripts/outdated-harness.mjs`: lock 기준으로 같은 SemVer caret 범위의 업데이트 후보만 조회
-- `scripts/update-harness.mjs`: lock에 기록된 스택 하네스를 다시 실행해 compatible/latest/locked 전략으로 업데이트
+- `.harness/bin/list-stack-standards.mjs`: 사내 스택 하네스 후보 조회
+- `.harness/bin/outdated-harness.mjs`: lock 기준으로 같은 SemVer caret 범위의 업데이트 후보만 조회
+- `.harness/bin/update-harness.mjs`: lock에 기록된 스택 하네스를 다시 실행해 compatible/latest/locked 전략으로 업데이트
 
 ## 스택 적용 메커니즘
-- `scripts/apply-stack.mjs`가 source adapter 패턴으로 동작:
+- `.harness/bin/apply-stack.mjs`가 source adapter 패턴으로 동작:
   - `--preset-path`: 로컬 프리셋 폴더의 `manifest.json` 사용
   - `--preset-git`: 원격 저장소를 임시 clone해 `manifest.json` 사용
   - `stackManifest`: 프로젝트에 고정된 외부 manifest 경로 사용

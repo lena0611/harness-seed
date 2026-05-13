@@ -6,7 +6,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
-const repoRoot = path.resolve(path.dirname(__filename), '..')
+const repoRoot = path.resolve(path.dirname(__filename), '..', '..')
 const harnessRoot = fs.existsSync(path.join(repoRoot, '.harness'))
   ? path.join(repoRoot, '.harness')
   : path.join(repoRoot, '.github')

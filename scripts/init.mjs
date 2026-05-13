@@ -47,6 +47,12 @@ const INSTALL_ITEMS = [
   '.github/copilot-instructions.md',
   '.github/copilot-instructions',
   '.github/workflows',
+  '.githooks',
+  'AGENTS.md',
+  'CLAUDE.md',
+];
+
+const LEGACY_MANAGED_ROOT_SCRIPTS = [
   'scripts/apply-stack.mjs',
   'scripts/guard.mjs',
   'scripts/sync-context.mjs',
@@ -61,9 +67,6 @@ const INSTALL_ITEMS = [
   'scripts/update-harness.mjs',
   'scripts/check-node-version.mjs',
   'scripts/check-seed-mode.mjs',
-  '.githooks',
-  'AGENTS.md',
-  'CLAUDE.md',
 ];
 
 const PROJECT_OWNED_PATHS = new Set([
@@ -339,15 +342,38 @@ function collectInstallFiles(sourceRoot) {
 
     if (statSync(abs).isDirectory()) {
       for (const file of walkFiles(abs)) {
-        files.push(toPosix(relative(sourceRoot, file)));
+        const rel = toPosix(relative(sourceRoot, file));
+        if (shouldIncludeInstallFile(rel)) {
+          files.push(rel);
+        }
       }
       continue;
     }
 
-    files.push(toPosix(item));
+    const rel = toPosix(item);
+    if (shouldIncludeInstallFile(rel)) {
+      files.push(rel);
+    }
   }
 
   return [...new Set(files)].filter((file) => !file.endsWith('scripts/init.mjs'));
+}
+
+function shouldIncludeInstallFile(relPath) {
+  const rel = toPosix(relPath);
+  return !(
+    rel.startsWith('.harness/generated/') ||
+    rel.startsWith('.harness/stacks/.applied/') ||
+    rel.startsWith('.harness/templates/.applied/') ||
+    [
+      '.harness/session/absorb-report.md',
+      '.harness/session/task-context.md',
+      '.harness/install-manifest.json',
+      '.harness/harness-lock.json',
+      '.harness/.stack-applied.json',
+      '.harness/.template-applied.json',
+    ].includes(rel)
+  );
 }
 
 function isProjectOwned(relPath) {
@@ -358,6 +384,39 @@ function isProjectOwned(relPath) {
 
 function isManagedByManifest(manifest, relPath) {
   return Boolean(manifest && manifest.managedFiles && manifest.managedFiles[toPosix(relPath)]);
+}
+
+function collectLegacyManagedRootScripts(target, manifest) {
+  if (!manifest) return [];
+
+  return LEGACY_MANAGED_ROOT_SCRIPTS.filter((rel) => (
+    isManagedByManifest(manifest, rel) &&
+    existsSync(join(target, rel))
+  ));
+}
+
+function removeLegacyManagedRootScripts(target, files, opts) {
+  if (files.length === 0) return { removed: 0, files: [] };
+  if (opts.dryRun) return { removed: 0, files };
+
+  const removed = [];
+  for (const rel of files) {
+    rmSync(join(target, rel), { force: true });
+    removed.push(rel);
+  }
+
+  const scriptsDir = join(target, 'scripts');
+  if (existsSync(scriptsDir)) {
+    try {
+      if (readdirSync(scriptsDir).length === 0) {
+        rmSync(scriptsDir, { recursive: true, force: true });
+      }
+    } catch {
+      // 정리 실패는 설치 실패로 보지 않는다.
+    }
+  }
+
+  return { removed: removed.length, files: removed };
 }
 
 function hasHarnessLikeFiles(target) {
@@ -631,7 +690,7 @@ function hasGlobalsImport(content) {
 }
 
 function hasNodeScriptsOverride(content) {
-  return content.includes('scripts/**/*.mjs') && content.includes('globals.node');
+  return content.includes('.harness/bin/**/*.mjs') && content.includes('globals.node');
 }
 
 function hasHarnessBackupIgnore(content) {
@@ -662,7 +721,7 @@ function insertHarnessBackupIgnore(content) {
 
 function insertNodeScriptsOverride(content) {
   const block = `  {
-    files: ['scripts/**/*.mjs', '.harness/**/scripts/**/*.mjs'],
+    files: ['.harness/bin/**/*.mjs'],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -752,7 +811,7 @@ function patchEslintConfigForHarness(target, opts) {
 
 function ensureExecutable(target, opts) {
   if (opts.dryRun) return;
-  for (const dir of [join(target, '.githooks'), join(target, '.claude', 'hooks')]) {
+  for (const dir of [join(target, '.githooks'), join(target, '.claude', 'hooks'), join(target, '.harness', 'bin')]) {
     if (!existsSync(dir)) continue;
     for (const file of walkFiles(dir)) {
       if (/\.(sh|mjs|js|py)$/.test(file)) {
@@ -790,7 +849,7 @@ function runPostInstallDiagnostics(target, opts) {
     result.doctor = runPostInstallStep(
       target,
       '자동 진단: 현재 프로젝트 분석 리포트 생성',
-      [process.execPath, 'scripts/absorb-project.mjs', '--write'],
+      [process.execPath, '.harness/bin/absorb-project.mjs', '--write'],
     ) ? 'ok' : 'failed';
   }
 
@@ -798,7 +857,7 @@ function runPostInstallDiagnostics(target, opts) {
     result.check = runPostInstallStep(
       target,
       '자동 검사: 하네스 설치 상태 확인',
-      [process.execPath, 'scripts/guard.mjs'],
+      [process.execPath, '.harness/bin/guard.mjs'],
     ) ? 'ok' : 'failed';
   }
 
@@ -856,6 +915,7 @@ function main() {
     const files = collectInstallFiles(sourceRoot);
     const existingManifest = readJson(join(TARGET, MANIFEST_PATH), null);
     const recognizedManifest = existingManifest && existingManifest.tool === 'harness-seed' ? existingManifest : null;
+    const legacyManagedRootScripts = collectLegacyManagedRootScripts(TARGET, recognizedManifest);
     const externalHarnessMode = !recognizedManifest && hasHarnessLikeFiles(TARGET);
 
     if (externalHarnessMode) {
@@ -865,7 +925,7 @@ function main() {
     }
 
     if (!opts.noBackup) {
-      const backup = backupExisting(TARGET, files, opts.dryRun);
+      const backup = backupExisting(TARGET, [...files, ...legacyManagedRootScripts], opts.dryRun);
       if (backup.count > 0) {
         console.log(`backup: ${backup.dir} (${backup.count}개 기존 파일)`);
       } else {
@@ -875,6 +935,7 @@ function main() {
     }
 
     const installed = installFiles(sourceRoot, TARGET, files, opts, recognizedManifest);
+    const migration = removeLegacyManagedRootScripts(TARGET, legacyManagedRootScripts, opts);
     const pkg = mergePackageJson(sourceRoot, TARGET, opts);
     const gitignoreAdded = mergeGitignore(TARGET, opts);
     const eslintPatch = patchEslintConfigForHarness(TARGET, opts);
@@ -891,6 +952,7 @@ function main() {
     );
     console.log(`.gitignore: harness entry ${gitignoreAdded}개 추가`);
     console.log(`eslint config: ${eslintPatch.message}`);
+    console.log(`legacy root scripts: ${opts.dryRun ? `${legacyManagedRootScripts.length}개 제거 예정` : `${migration.removed}개 제거`}`);
     console.log(`install manifest: ${opts.dryRun ? 'dry-run' : `${Object.keys(writtenManifest.managedFiles).length}개 managed file 기록`}`);
     console.log(`harness lock: ${opts.dryRun ? 'dry-run' : `${writtenLock.baseHarness.version} (${writtenLock.baseHarness.ref ?? writtenLock.baseHarness.source.type})`}`);
     console.log(`doctor: ${diagnostics.doctor}`);

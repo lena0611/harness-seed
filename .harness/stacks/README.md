@@ -17,6 +17,8 @@
 
 새 스택 하네스를 만들어야 한다면 먼저 [스택 하네스 작성 가이드](./authoring-guide.md)를 봅니다. API, 배치, 모바일, 라이브러리 패키지, 운영 도구처럼 서로 다른 스택도 같은 계약으로 만들 수 있습니다.
 
+일반 하네스의 실행 로직은 소비자 프로젝트 루트의 `scripts/`에 드러내지 않고 `.harness/bin/` 아래에 둡니다. 스택 하네스의 사용자-facing `scripts/init.mjs`는 해당 스택 저장소의 설치 진입점으로만 두고, 적용 대상 프로젝트에는 공통 하네스 런타임을 `.harness/bin/` 형태로 정착시킵니다.
+
 ## 스택 하네스 후보 조회
 사내 GitLab에서는 `ai-standard/harnesses` 하위 저장소를 스택 하네스 후보로 조회합니다.
 
@@ -134,8 +136,8 @@ my-stack-preset/
   },
   "baseHarness": {
     "repo": "https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git",
-    "ref": "v0.2.17",
-    "minVersion": "0.2.17"
+    "ref": "v0.2.18",
+    "minVersion": "0.2.18"
   },
   "compatibility": {
     "allowEmptyProject": true,
@@ -170,8 +172,8 @@ my-stack-preset/
   },
   "baseHarness": {
     "repo": "https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git",
-    "ref": "v0.2.17",
-    "minVersion": "0.2.17"
+    "ref": "v0.2.18",
+    "minVersion": "0.2.18"
   },
   "compatibility": {
     "allowEmptyProject": true,

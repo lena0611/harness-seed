@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
-const repoRoot = path.resolve(path.dirname(__filename), '..')
+const repoRoot = path.resolve(path.dirname(__filename), '..', '..')
 const args = process.argv.slice(2)
 const writeReport = args.includes('--write')
 const outputArgIndex = args.indexOf('--output')
@@ -158,9 +158,9 @@ function detectQualityFiles() {
 }
 
 function hasNodeHarnessScripts() {
-  const scriptsDir = path.join(repoRoot, 'scripts')
-  if (!fs.existsSync(scriptsDir)) return false
-  return fs.readdirSync(scriptsDir).some((name) => name.endsWith('.mjs'))
+  const binDir = path.join(repoRoot, '.harness/bin')
+  if (!fs.existsSync(binDir)) return false
+  return fs.readdirSync(binDir).some((name) => name.endsWith('.mjs'))
 }
 
 function detectEslintNodeScriptsAdvice() {
@@ -170,16 +170,16 @@ function detectEslintNodeScriptsAdvice() {
   }
 
   const content = readText(configRel) ?? ''
-  const mentionsScripts = /scripts\/\*\*|scripts\//.test(content)
+  const mentionsScripts = /\.harness\/bin\/\*\*|\.harness\/bin\//.test(content)
   const mentionsNodeGlobals = /globals\.node|env\s*:\s*{[^}]*node\s*:\s*true|sourceType\s*:\s*['"]script['"]/.test(content)
 
   if (mentionsScripts && mentionsNodeGlobals) {
-    return [`${configRel}: scripts/**/*.mjs Node 환경 override 후보가 감지되었습니다.`]
+    return [`${configRel}: .harness/bin/**/*.mjs Node 환경 override 후보가 감지되었습니다.`]
   }
 
   return [
-    `${configRel}: scripts/**/*.mjs용 Node 환경 override를 확인하세요.`,
-    '하네스가 추가한 scripts/*.mjs는 Node 환경 파일입니다. lint가 `process is not defined` 또는 `no-undef`로 실패하면 Node globals override가 필요할 수 있습니다.',
+    `${configRel}: .harness/bin/**/*.mjs용 Node 환경 override를 확인하세요.`,
+    '하네스가 추가한 .harness/bin/*.mjs는 Node 환경 파일입니다. lint가 `process is not defined` 또는 `no-undef`로 실패하면 Node globals override가 필요할 수 있습니다.',
   ]
 }
 
@@ -624,7 +624,7 @@ function buildConflictCandidates({ profile, pkg, testRoots, styleGuideFiles, sty
 
   const eslintAdvice = detectEslintNodeScriptsAdvice()
   if (eslintAdvice.length > 1) {
-    conflicts.push('ESLint 설정이 하네스 Node 스크립트(scripts/*.mjs)에 Node globals를 적용하지 않을 수 있습니다.')
+    conflicts.push('ESLint 설정이 하네스 Node 스크립트(.harness/bin/*.mjs)에 Node globals를 적용하지 않을 수 있습니다.')
   }
 
   if (bridgeCandidates.length > 0) {

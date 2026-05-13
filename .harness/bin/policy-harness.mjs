@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const repoRoot = path.resolve(__dirname, '..')
+const repoRoot = path.resolve(__dirname, '..', '..')
 const harnessRootRel = fs.existsSync(path.join(repoRoot, '.harness')) ? '.harness' : '.github'
 const harnessRoot = path.join(repoRoot, harnessRootRel)
 const registryPath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'policy' : 'policy-harness', 'policy-registry.json')
@@ -197,6 +197,7 @@ function runGit(argsToRun) {
 function getAllTrackedFiles() {
   return walkDirectory(path.join(repoRoot, 'src')).concat(
     walkDirectory(path.join(repoRoot, '.github')),
+    walkDirectory(path.join(repoRoot, '.harness/bin')),
     walkDirectory(path.join(repoRoot, 'scripts')),
     ['package.json', 'README.md'].filter((filePath) => fs.existsSync(path.join(repoRoot, filePath))),
   )
@@ -417,6 +418,7 @@ function isFeatureSourceFile(filePath) {
 
 function isHarnessScriptFile(filePath) {
   return (
+    filePath.startsWith('.harness/bin/') ||
     filePath.startsWith('scripts/') ||
     filePath === 'CLAUDE.md' ||
     filePath === 'AGENTS.md'

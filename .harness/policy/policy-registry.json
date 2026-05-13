@@ -11,16 +11,17 @@
       "ownedAreas": [
         ".harness/policy/**",
         ".harness/session/**",
-        "scripts/policy-harness.mjs",
-        "scripts/sync-context.mjs",
-        "scripts/build-context.mjs",
-        "scripts/doc-link-check.mjs",
+        ".harness/bin/policy-harness.mjs",
+        ".harness/bin/sync-context.mjs",
+        ".harness/bin/build-context.mjs",
+        ".harness/bin/doc-link-check.mjs",
         "scripts/test-init.mjs",
-        "scripts/absorb-project.mjs",
-        "scripts/apply-stack.mjs",
-        "scripts/outdated-harness.mjs",
-        "scripts/update-harness.mjs",
-        "scripts/guard.mjs"
+        "scripts/init.mjs",
+        ".harness/bin/absorb-project.mjs",
+        ".harness/bin/apply-stack.mjs",
+        ".harness/bin/outdated-harness.mjs",
+        ".harness/bin/update-harness.mjs",
+        ".harness/bin/guard.mjs"
       ],
       "checks": []
     },
@@ -32,7 +33,7 @@
       ],
       "ownedAreas": [
         ".harness/documentation/**",
-        "scripts/doc-link-check.mjs"
+        ".harness/bin/doc-link-check.mjs"
       ],
       "checks": []
     },
@@ -45,10 +46,10 @@
       "ownedAreas": [
         ".harness/stacks/**",
         ".harness/policy/profile.json",
-        "scripts/apply-stack.mjs",
-        "scripts/outdated-harness.mjs",
-        "scripts/update-harness.mjs",
-        "scripts/list-stack-standards.mjs"
+        ".harness/bin/apply-stack.mjs",
+        ".harness/bin/outdated-harness.mjs",
+        ".harness/bin/update-harness.mjs",
+        ".harness/bin/list-stack-standards.mjs"
       ],
       "checks": []
     }

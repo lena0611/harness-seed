@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const repoRoot = path.resolve(__dirname, '..')
+const repoRoot = path.resolve(__dirname, '..', '..')
 const harnessRoot = path.join(repoRoot, '.harness')
 const registryPath = path.join(harnessRoot, 'documentation', 'document-registry.json')
 const outputPath = path.join(harnessRoot, 'session', 'task-context.md')
@@ -166,7 +166,7 @@ function renderContext() {
 
 if (syncFirst) {
   const { spawnSync } = await import('node:child_process')
-  const result = spawnSync(process.execPath, [path.join(repoRoot, 'scripts', 'sync-context.mjs')], {
+  const result = spawnSync(process.execPath, [path.join(repoRoot, '.harness/bin/sync-context.mjs')], {
     cwd: repoRoot,
     stdio: 'inherit',
   })

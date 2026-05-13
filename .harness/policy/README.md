@@ -40,10 +40,10 @@ npm run docs:check
 - `enforcement-ladder.md`: 강제 강도와 예외 허용 범위 기준
 - `automation-coverage.md`: 자동 검증/수동 검토 범위
 - `waivers.json`: 승인된 예외 기록
-- `scripts/policy-harness.mjs`: 영향 분석 및 위반 검사 (`--strict`로 SYNC GAP을 실패로 취급)
-- `scripts/sync-context.mjs`: 프로젝트 맵, import 맵, 패턴 후보를 `.harness/generated/**`로 재생성
-- `scripts/build-context.mjs`: 작업 설명을 기준으로 `.harness/session/task-context.md` 생성
-- `scripts/doc-link-check.mjs`: 문서 레지스트리 일관성과 마크다운 링크/코드 경로 참조 검증
+- `.harness/bin/policy-harness.mjs`: 영향 분석 및 위반 검사 (`--strict`로 SYNC GAP을 실패로 취급)
+- `.harness/bin/sync-context.mjs`: 프로젝트 맵, import 맵, 패턴 후보를 `.harness/generated/**`로 재생성
+- `.harness/bin/build-context.mjs`: 작업 설명을 기준으로 `.harness/session/task-context.md` 생성
+- `.harness/bin/doc-link-check.mjs`: 문서 레지스트리 일관성과 마크다운 링크/코드 경로 참조 검증
 - CI 설정: 푸시/PR 시 `npm run harness:check:strict` 실행
 
 ## 운영 원칙

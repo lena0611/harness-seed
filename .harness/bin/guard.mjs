@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const repoRoot = path.resolve(__dirname, '..')
+const repoRoot = path.resolve(__dirname, '..', '..')
 const forwardedArgs = process.argv.slice(2)
 const harnessRoot = fs.existsSync(path.join(repoRoot, '.harness'))
   ? path.join(repoRoot, '.harness')
@@ -34,12 +34,12 @@ function findExisting(paths) {
 }
 
 function hasNodeHarnessScripts() {
-  const scriptsDir = path.join(repoRoot, 'scripts')
-  if (!fs.existsSync(scriptsDir)) {
+  const binDir = path.join(repoRoot, '.harness/bin')
+  if (!fs.existsSync(binDir)) {
     return false
   }
 
-  return fs.readdirSync(scriptsDir).some((name) => name.endsWith('.mjs'))
+  return fs.readdirSync(binDir).some((name) => name.endsWith('.mjs'))
 }
 
 function readTextIfExists(rel) {
@@ -54,7 +54,7 @@ function eslintConfigLikelyMissesNodeScriptsOverride() {
   }
 
   const content = readTextIfExists(configPath)
-  const mentionsScripts = /scripts\/\*\*|scripts\/|scripts:\s/.test(content)
+  const mentionsScripts = /\.harness\/bin\/\*\*|\.harness\/bin\//.test(content)
   const mentionsNodeGlobals = /globals\.node|nodeBuiltin|env\s*:\s*{[^}]*node\s*:\s*true|sourceType\s*:\s*['"]script['"]/.test(content)
   return !mentionsScripts || !mentionsNodeGlobals
 }
@@ -76,7 +76,7 @@ function printEslintHarnessHint(output = '') {
     console.error('')
     console.error('원인 후보:')
     console.error('- 하네스 업데이트 과정에서 .harness-backup/<timestamp>/ 복구용 백업이 생성되었습니다.')
-    console.error('- 현재 ESLint 설정이 .harness-backup/**을 ignore하지 않아 백업된 과거 scripts/*.mjs까지 검사했습니다.')
+    console.error('- 현재 ESLint 설정이 .harness-backup/**을 ignore하지 않아 백업된 과거 하네스 스크립트까지 검사했습니다.')
     console.error('')
     console.error('권장 조치:')
     console.error("- eslint.config.js 또는 eslint.config.mjs의 globalIgnores에 '**/.harness-backup/**'을 추가하세요.")
@@ -95,12 +95,12 @@ function printEslintHarnessHint(output = '') {
   console.error('설치 후 검증 실패: ESLint 환경 충돌 후보')
   console.error('')
   console.error('원인 후보:')
-  console.error('- 하네스가 추가한 scripts/*.mjs는 Node 환경 파일입니다.')
-  console.error('- 현재 ESLint 설정이 scripts/*.mjs에 Node globals를 적용하지 않을 수 있습니다.')
+  console.error('- 하네스가 추가한 .harness/bin/*.mjs는 Node 환경 파일입니다.')
+  console.error('- 현재 ESLint 설정이 .harness/bin/*.mjs에 Node globals를 적용하지 않을 수 있습니다.')
   console.error('')
   console.error('권장 조치:')
-  console.error('- eslint.config.js 또는 eslint.config.mjs에 scripts/**/*.mjs용 Node globals override를 추가하세요.')
-  console.error('- 예: files: ["scripts/**/*.mjs"], languageOptions.globals에 Node globals 적용')
+  console.error('- eslint.config.js 또는 eslint.config.mjs에 .harness/bin/**/*.mjs용 Node globals override를 추가하세요.')
+  console.error('- 예: files: [".harness/bin/**/*.mjs"], languageOptions.globals에 Node globals 적용')
   console.error('')
   console.error('하네스 설치 자체가 실패한 것은 아니며, 설치 후 프로젝트 lint 환경 조정이 필요한 상태일 수 있습니다.')
 }
@@ -219,8 +219,8 @@ function checkHarnessVersionLock() {
   console.log(`Harness versions OK: base=${installedBase.version}${installedBase.ref ? ` (${installedBase.ref})` : ''}, stack=${lock.stackHarness?.version ?? profile.activeStack}`)
 }
 
-run('node', ['scripts/policy-harness.mjs', 'guard', ...forwardedArgs])
-run('node', ['scripts/doc-link-check.mjs', ...forwardedArgs])
+run('node', ['.harness/bin/policy-harness.mjs', 'guard', ...forwardedArgs])
+run('node', ['.harness/bin/doc-link-check.mjs', ...forwardedArgs])
 checkHarnessVersionLock()
 
 if (fs.existsSync(path.join(repoRoot, '.harness-seed-mode')) && fs.existsSync(path.join(repoRoot, 'scripts/test-init.mjs'))) {

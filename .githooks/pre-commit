@@ -3,7 +3,7 @@ set -eu
 
 # 시드 하네스 가드: .harness-seed-mode가 있으면 stack:apply 산출물의 staging을 차단
 # (일반 사용자는 .harness-seed-mode를 삭제하면 자동으로 비활성화됨)
-node scripts/check-seed-mode.mjs
+node .harness/bin/check-seed-mode.mjs
 
 # 통합 가드: 스택 미적용 시 lint/test/build를 자동 스킵, 적용 시 전체 검사
 npm run guard

@@ -26,7 +26,7 @@ jobs:
           cache: npm
 
       - name: Apply active stack (scaffold + package.json merge)
-        run: node scripts/apply-stack.mjs
+        run: node .harness/bin/apply-stack.mjs
 
       - name: Install dependencies
         run: npm install

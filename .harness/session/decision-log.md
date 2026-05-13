@@ -30,12 +30,12 @@
 - 플랫폼별 파일은 하네스 본체 밖의 어댑터로만 남깁니다.
 - 범용 에이전트 진입점 `AGENTS.md`와 Claude 진입점 `CLAUDE.md`를 추가했습니다.
 - 사내 표준 에이전트는 Claude로 정하고, `CLAUDE.md`를 모든 에이전트의 기준 진입점으로 승격했습니다. `AGENTS.md`는 보조 진입점 역할을 합니다.
-- `scripts/*`는 `.harness`를 우선 사용하고, 과거 구조 기반 설치본도 읽을 수 있도록 fallback을 유지합니다.
+- 하네스 실행 스크립트는 `.harness/bin/*`을 우선 사용하고, 과거 구조 기반 설치본도 읽을 수 있도록 fallback을 유지합니다.
 - stack 적용 마커는 새 구조에서 `.harness/.stack-applied.json`을 사용합니다.
 
 ## 2026-04-28 - Node 런타임 고정 및 init 안정화
 - `.nvmrc`를 `22.14.0`으로 추가하고 `package.json`의 `engines.node`를 현재 Node 기반 도구체인 요구사항(`>=20.19.0 || >=22.13.0`)에 맞췄습니다.
-- 모든 npm harness 명령 앞에 `scripts/check-node-version.mjs`를 연결해 낮은 Node에서 문법 에러 대신 명확한 업그레이드 안내가 나오게 했습니다.
+- 모든 npm harness 명령 앞에 `.harness/bin/check-node-version.mjs`를 연결해 낮은 Node에서 문법 에러 대신 명확한 업그레이드 안내가 나오게 했습니다.
 - `scripts/init.mjs`는 기존 프로젝트 병합 진입점이므로 낮은 Node에서도 최소한 버전 안내까지 도달하도록 최신 문법 사용을 피했습니다.
 - 당시 내장 scaffold의 실행 명령은 nvm 로드/설치, `.nvmrc` 전환, Node/패키지 변경 감지, 의존성 동기화 흐름을 처리하도록 설계했습니다.
 - 팀 배포에서는 `git+<seed-repo-url>#<tag>` 형태의 tag 고정 실행을 권장하고, 장기적으로 npm publish가 가능하도록 `bin`, `files`, `engines` 구성을 정리했습니다.
@@ -44,7 +44,7 @@
 - bareunmal은 원래 실제 작업 프로젝트로 의도되었으나, 작업 중 시드 하네스로 진화함을 인지했습니다.
 - 시드 하네스의 정체성을 명확히 분리하기 위해 저장소명을 `bareunmal` → `harness-seed`로 변경합니다.
 - 코드/문서 내 참조를 일괄 교체했고 (`scripts/init.mjs`, `package.json`, `README.md`, `.harness-seed-mode`, scaffold의 기본 프로젝트명 등), 과거 결정 로그의 `bareunmal` 언급은 역사 기록으로 보존합니다.
-- `scripts/apply-stack.mjs` 의 tmpdir prefix를 `bareunmal-stack-` → `harness-seed-stack-`으로 변경했습니다 (의미 변화 없음, 정체성 정합만 맞춤).
+- `.harness/bin/apply-stack.mjs` 의 tmpdir prefix를 `bareunmal-stack-` → `harness-seed-stack-`으로 변경했습니다 (의미 변화 없음, 정체성 정합만 맞춤).
 - 실제 작업 프로젝트는 추후 별도 repo로 분리합니다.
 
 ## 2026-04-22 - 기본 스캐폴드 채택
@@ -64,7 +64,7 @@
 
 ## 2026-04-22 - 정책 동기화 하네스 도입
 - 정책 문서와 소스 코드의 상호 영향을 놓치지 않도록 `.harness/policy/`를 추가했습니다.
-- 정책 영향 분석과 위반 검사를 `scripts/policy-harness.mjs` 및 CI 검증에 연결했습니다.
+- 정책 영향 분석과 위반 검사를 `.harness/bin/policy-harness.mjs` 및 CI 검증에 연결했습니다.
 
 ## 2026-04-22 - 프로젝트 하네스 및 세션 시작 알림 도입
 - 아직 도메인이 없더라도 프로젝트 목적과 범위를 담을 수 있도록 `.harness/project/`를 추가했습니다.
@@ -101,5 +101,5 @@
   - stack 적용 마커가 tracked 상태였음 → 시드 사용자가 dev 머신의 적용 상태를 그대로 받음.
   - `package.json`이 프리셋 의존성 머지 상태로 tracked → root가 슬림이 아님.
 - 두 결함 모두 수정: marker는 `.gitignore`로, root `package.json`/`package-lock.json`은 항상 슬림 상태(stack:reset 후)로만 커밋합니다.
-- CI 검증에 `node scripts/apply-stack.mjs` 단계와 `npm install` 호출을 추가해, 슬림 root에서도 머지된 의존성으로 검증하도록 했습니다.
+- CI 검증에 `node .harness/bin/apply-stack.mjs` 단계와 `npm install` 호출을 추가해, 슬림 root에서도 머지된 의존성으로 검증하도록 했습니다.
 - `.gitignore`에 `.harness-backup/`도 미리 추가해 향후 흡수/백업 기능 도입을 위한 자리만 비워뒀습니다.

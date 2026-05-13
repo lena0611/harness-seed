@@ -24,11 +24,11 @@
 - `.harness/project/template-contract.md` — 템플릿 사용 계약 브리지
 - `.harness/project/bootstrap.md` — 신규 프로젝트 인터뷰
 - `.harness/project/portability-guide.md` — 이식 절차
-- `scripts/apply-stack.mjs` — 외부 스택 기준과 scaffold 템플릿 적용 런타임
-- `scripts/list-stack-standards.mjs` — 원격 스택 하네스 후보 조회
-- `scripts/list-templates.mjs` — 원격 템플릿 후보 조회
-- `scripts/guard.mjs` — 미적용 시 lint/test/build 자동 스킵
-- `scripts/doc-link-check.mjs` — scaffold 경로 자동 제외 + 활성 스택 fallback
+- `.harness/bin/apply-stack.mjs` — 외부 스택 기준과 scaffold 템플릿 적용 런타임
+- `.harness/bin/list-stack-standards.mjs` — 원격 스택 하네스 후보 조회
+- `.harness/bin/list-templates.mjs` — 원격 템플릿 후보 조회
+- `.harness/bin/guard.mjs` — 미적용 시 lint/test/build 자동 스킵
+- `.harness/bin/doc-link-check.mjs` — scaffold 경로 자동 제외 + 활성 스택 fallback
 
 ## 다음 세션이 바로 이어받을 작업
 - 프로젝트 헌장 `TBD` 항목 채우기
