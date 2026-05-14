@@ -42,8 +42,9 @@
 - harness 스크립트는 충돌 시 항상 우선 (스택이 덮어쓰지 못함).
 
 ## 시각 자료 갱신
-- `docs/assets/agent-development-flow.png`는 에이전트 개발 전 사고 흐름의 현재 스냅샷입니다.
-- 에이전트 진입 흐름, 기준 우선순위, 충돌 해석, 검증 절차가 바뀌면 README 설명과 이 이미지를 함께 갱신합니다.
+- `docs/assets/request-lifecycle-flow.svg`는 요구사항 수신부터 커밋 확정까지의 전체 라이프사이클 스냅샷입니다.
+- `docs/assets/agent-development-flow.png`는 에이전트 개발 전 사고 흐름의 세부 스냅샷입니다.
+- 에이전트 진입 흐름, 기준 우선순위, 충돌 해석, 검증 절차, 요청 라이프사이클이 바뀌면 README 설명과 두 이미지를 함께 갱신합니다.
 - `ai-standard/docs`에도 같은 이미지가 있으므로 원문 정책 쪽 자산도 함께 갱신합니다.
 
 ## 핵심 검증 명령

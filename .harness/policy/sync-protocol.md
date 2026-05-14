@@ -56,6 +56,6 @@
 - 원격 템플릿 후보 조회는 `.harness/bin/list-templates.mjs`가 담당하며, 기본 대상은 사내 GitLab의 `ai-standard/stacks` 그룹입니다.
 - 세미콜론, quote, import 정렬 같은 구체 스타일 값은 공통 하네스가 아니라 로컬 방법론 또는 스택 프리셋 로컬 규칙에서 다룹니다.
 - 설치/업데이트 UX가 바뀌면 README의 init 사용법과 보존 기준 설명도 함께 갱신합니다.
-- 에이전트 진입 흐름, 기준 우선순위, 충돌 해석, 검증 절차가 바뀌면 `docs/assets/agent-development-flow.png`와 `ai-standard/docs`의 동일 이미지도 함께 갱신합니다.
+- 에이전트 진입 흐름, 기준 우선순위, 충돌 해석, 검증 절차, 요청 라이프사이클이 바뀌면 `docs/assets/request-lifecycle-flow.svg`, `docs/assets/agent-development-flow.png`, `ai-standard/docs`의 동일 이미지도 함께 갱신합니다.
 - `.harness/bin/absorb-project.mjs`는 자동 감지 리포트까지만 생성하고, 프로젝트 기준 문서를 직접 덮어쓰지 않습니다.
 - `.harness/session/absorb-report.md`는 런타임 산출물이므로 레지스트리 필수 문서로 보지 않습니다.
