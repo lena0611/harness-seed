@@ -165,9 +165,11 @@
 
   <path class="arrow" d="M1485 385 H1535" />
   <polygon class="diamond" points="1610,342 1695,385 1610,428 1525,385" />
-  <text class="label" x="1578" y="392">만족?</text>
+  <text class="label" x="1574" y="382">검토</text>
+  <text class="label" x="1574" y="404">결과?</text>
 
-  <path class="arrow-red" d="M1610 428 V470 H1480" />
+  <path class="arrow-red" d="M1588 418 V440 H1392 V452" />
+  <text class="tiny" x="1472" y="435">재수정</text>
   <rect class="node-red" x="1305" y="452" width="175" height="65" rx="14" />
   <text class="label" x="1328" y="480">재수정 요청</text>
   <text class="small" x="1328" y="502">프롬프트 N회</text>
@@ -178,6 +180,8 @@
   <text class="tiny" x="1228" y="474">기존 구현 위에 보정</text>
   <path class="dash" d="M1215 485 V570 H1185" />
 
+  <path class="arrow" d="M1632 418 V452" />
+  <text class="tiny" x="1640" y="435">직접 수정</text>
   <rect class="node-amber" x="1495" y="452" width="210" height="65" rx="14" />
   <text class="label" x="1520" y="480">개발자 직접 수정</text>
   <text class="small" x="1520" y="502">사용자 소유 변경으로 간주</text>
@@ -190,8 +194,8 @@
   <rect x="1648" y="563" width="44" height="22" rx="11" fill="#0f766e" />
   <text class="badge-text" x="1658" y="579">Tool</text>
 
-  <path class="arrow" d="M1695 385 H1730 V680 H1545" />
-  <text class="tiny" x="1700" y="372">Yes</text>
+  <path class="arrow" d="M1695 385 H1730 V670 H205 V805" />
+  <text class="tiny" x="1700" y="372">만족</text>
 
   <rect class="panel-amber" x="60" y="690" width="1210" height="390" rx="18" />
   <text class="section" x="90" y="732">커밋 전 확정</text>
@@ -231,12 +235,12 @@
   <path class="arrow-red" d="M1009 978 H850 V900 H205 V877" />
   <text class="tiny" x="864" y="966">No: 원인 분류 후 재수정 루프</text>
 
-  <path class="arrow" d="M1195 978 H1260" />
   <rect class="panel-green" x="1305" y="690" width="435" height="390" rx="18" />
   <text class="section" x="1335" y="732">커밋과 인계</text>
   <text class="small" x="1335" y="760">검증된 최종 후보를 기록 가능한 상태로 닫는다</text>
 
   <rect class="node-green" x="1345" y="805" width="350" height="72" rx="14" />
+  <path class="arrow" d="M1195 978 H1305 V841 H1345" />
   <text class="label" x="1376" y="834">커밋 요약과 인계 정리</text>
   <text class="small" x="1376" y="858">decision-log / active-context / memory</text>
   <rect x="1574" y="812" width="56" height="22" rx="11" fill="#2563eb" />
@@ -253,8 +257,6 @@
   <rect x="1636" y="932" width="44" height="22" rx="11" fill="#475569" />
   <text class="badge-text" x="1648" y="948">Repo</text>
 
-  <path class="arrow" d="M1225 841 H1305" />
-  <path class="arrow" d="M1545 680 V805" />
   <path class="arrow-soft" d="M740 589 H830" />
   <path class="arrow-soft" d="M1185 570 H1270" />
   <path class="arrow-soft" d="M1600 605 V680 H205 V805" />
