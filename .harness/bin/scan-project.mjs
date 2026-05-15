@@ -12,7 +12,7 @@ const writeReport = args.includes('--write')
 const outputArgIndex = args.indexOf('--output')
 const outputPath = outputArgIndex >= 0 && args[outputArgIndex + 1]
   ? args[outputArgIndex + 1]
-  : '.harness/session/absorb-report.md'
+  : '.harness/session/project-scan-report.md'
 
 const ignoredDirs = new Set([
   '.git',
@@ -717,7 +717,7 @@ function buildReport() {
     questions.push('로컬 스타일 출처를 찾지 못했습니다. Style Preset Candidates 중 하나를 선택하거나 기존 팀 표준을 연결하세요.')
   }
 
-  return `# Harness Absorb Report
+  return `# Project Scan Report
 
 - generatedAt: ${generatedAt}
 - branch: ${branch}
@@ -833,7 +833,7 @@ if (writeReport) {
   const absOutput = path.resolve(repoRoot, outputPath)
   fs.mkdirSync(path.dirname(absOutput), { recursive: true })
   fs.writeFileSync(absOutput, report)
-  console.log(`Absorb report written: ${path.relative(repoRoot, absOutput).split(path.sep).join('/')}`)
+  console.log(`Project scan report written: ${path.relative(repoRoot, absOutput).split(path.sep).join('/')}`)
 } else {
   process.stdout.write(report)
 }

@@ -55,30 +55,42 @@ function cleanInstallCreatesExpectedFiles() {
 
   assert(exists(target, '.harness/policy/profile.json'), 'clean install should copy .harness')
   assert(exists(target, '.claude/settings.json'), 'clean install should copy Claude Code adapter')
-  assert(exists(target, '.harness/bin/absorb-project.mjs'), 'clean install should copy absorb report script under .harness/bin')
+  assert(exists(target, '.harness/bin/scan-project.mjs'), 'clean install should copy scan report script under .harness/bin')
   assert(exists(target, '.harness/bin/list-stack-standards.mjs'), 'clean install should copy stack standard listing script under .harness/bin')
   assert(exists(target, '.harness/bin/list-templates.mjs'), 'clean install should copy template listing script under .harness/bin')
   assert(exists(target, '.harness/bin/outdated-harness.mjs'), 'clean install should copy harness outdated script under .harness/bin')
   assert(exists(target, '.harness/bin/update-harness.mjs'), 'clean install should copy harness update script under .harness/bin')
   assert(exists(target, '.harness/bin/sync-context.mjs'), 'clean install should copy harness sync script under .harness/bin')
   assert(exists(target, '.harness/bin/build-context.mjs'), 'clean install should copy harness context script under .harness/bin')
+  assert(exists(target, '.harness/bin/harness-guide.mjs'), 'clean install should copy harness guide script under .harness/bin')
+  assert(exists(target, '.harness/bin/handoff.mjs'), 'clean install should copy harness handoff script under .harness/bin')
+  assert(exists(target, '.harness/documentation/guide/index.html'), 'clean install should copy interactive guide')
+  assert(exists(target, '.github/commit-template.txt'), 'clean install should copy commit message template')
   assert(!exists(target, 'scripts'), 'clean install should not create root scripts directory')
   assert(!exists(target, '.nvmrc'), 'clean install should not create project runtime contract')
   assert(exists(target, '.harness/install-manifest.json'), 'clean install should write install manifest')
   assert(exists(target, '.harness/harness-lock.json'), 'clean install should write harness lock')
-  assert(exists(target, '.harness/session/absorb-report.md'), 'clean install should auto-create doctor report')
+  assert(exists(target, '.harness/session/project-scan-report.md'), 'clean install should auto-create scan report')
+  assert(exists(target, '.harness/session/handoff.md'), 'clean install should auto-create handoff report')
   assert(exists(target, '.claude/hooks/enforce-check.sh'), 'clean install should copy agent completion check hook')
 
   const pkg = JSON.parse(read(target, 'package.json'))
-  assert(pkg.scripts['harness:doctor'], 'clean install should merge harness doctor script')
+  assert(pkg.scripts['harness:scan'], 'clean install should merge harness scan script')
+  assert(pkg.scripts['harness:handoff'], 'clean install should merge harness handoff script')
   assert(pkg.scripts['harness:check'], 'clean install should merge harness check script')
-  assert(pkg.scripts.guard, 'clean install should merge guard script')
-  assert(pkg.scripts['absorb:report'], 'clean install should merge absorb report script')
+  assert(pkg.scripts['harness:impact'], 'clean install should merge harness impact script')
   assert(pkg.scripts['harness:outdated'], 'clean install should merge harness outdated script')
   assert(pkg.scripts['harness:update'], 'clean install should merge harness update script')
+  assert(pkg.scripts['harness:guide'], 'clean install should merge harness guide script')
   assert(pkg.scripts['harness:sync'], 'clean install should merge harness sync script')
   assert(pkg.scripts['harness:context'], 'clean install should merge harness context script')
   assert(pkg.scripts['standards:list'], 'clean install should merge stack standard listing script')
+  assert(!pkg.scripts.guard, 'clean install should not add deprecated guard alias')
+  assert(!pkg.scripts['stack:list'], 'clean install should not add deprecated stack list alias')
+  assert(!pkg.scripts['node:check'], 'clean install should not expose harness internal node check script')
+  assert(!pkg.scripts['policy:impact'], 'clean install should not expose harness internal policy script')
+  assert(!pkg.scripts['docs:check'], 'clean install should not expose harness internal docs script')
+  assert(pkg.scripts['harness:check'].startsWith('node .harness/bin/check-node-version.mjs &&'), 'consumer harness scripts should not depend on node:check npm script')
   assert(pkg.scripts['template:apply'], 'clean install should merge template apply script')
   assert(exists(target, '.harness/project/template-contract.md'), 'clean install should copy template contract bridge')
 
@@ -87,6 +99,7 @@ function cleanInstallCreatesExpectedFiles() {
   assert(manifest.version === packageVersion, 'install manifest should record package version')
   assert(manifest.source.packageVersion === packageVersion, 'install manifest should record source package version')
   assert(manifest.managedFiles['.harness/bin/guard.mjs'], 'install manifest should record managed files')
+  assert(manifest.managedFiles['.harness/bin/harness-guide.mjs'], 'install manifest should record harness guide script')
   assert(manifest.managedFiles['.harness/bin/sync-context.mjs'], 'install manifest should record sync context script')
 
   const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
@@ -105,9 +118,9 @@ function cleanInstallCreatesExpectedFiles() {
   const agentCheckStatus = fs.statSync(path.join(target, '.claude/hooks/enforce-check.sh'))
   assert((agentCheckStatus.mode & 0o111) !== 0, 'Claude agent completion check hook should be executable')
 
-  const report = read(target, '.harness/session/absorb-report.md')
-  assert(report.includes('## Standards Layers'), 'doctor report should include standards layers')
-  assert(report.includes('## Conflict Candidates'), 'doctor report should include conflict candidates')
+  const report = read(target, '.harness/session/project-scan-report.md')
+  assert(report.includes('## Standards Layers'), 'scan report should include standards layers')
+  assert(report.includes('## Conflict Candidates'), 'scan report should include conflict candidates')
 }
 
 function initPatchesEslintConfigForHarnessFiles() {
@@ -147,7 +160,7 @@ export default defineConfig([
 ])
 `)
 
-  const output = runInit(target, '--no-doctor', '--no-check')
+  const output = runInit(target, '--no-scan', '--no-check')
   const config = read(target, 'eslint.config.js')
 
   assert(output.includes('eslint config: eslint.config.js .harness-backup ignore, Node scripts override 추가'), 'init should report eslint harness config patch')
@@ -186,7 +199,7 @@ export default defineConfig([
 ])
 `)
 
-  const output = runInit(target, '--no-doctor', '--no-check')
+  const output = runInit(target, '--no-scan', '--no-check')
   const config = read(target, 'eslint.config.js')
 
   assert(output.includes('eslint config: eslint.config.js .harness-backup ignore 추가'), 'init should report harness backup ignore patch')
@@ -225,7 +238,7 @@ function reinstallMigratesManagedRootScriptsIntoHarnessBin() {
   }
   writeJson(target, '.harness/install-manifest.json', manifest)
 
-  const output = runInit(target, '--no-doctor', '--no-check')
+  const output = runInit(target, '--no-scan', '--no-check')
 
   assert(output.includes('legacy root scripts: 1개 제거'), 'reinstall should report managed root script migration')
   assert(!exists(target, 'scripts/guard.mjs'), 'reinstall should remove managed legacy root script')
@@ -314,17 +327,17 @@ function externalHarnessWithoutManifestIsPreserved() {
   assert(!manifest.managedFiles['CLAUDE.md'], 'preserved external CLAUDE.md should not become managed')
 }
 
-function absorbReportSuggestsBridgeCandidates() {
+function scanReportSuggestsBridgeCandidates() {
   const target = makeTarget()
 
   fs.writeFileSync(path.join(target, 'CLAUDE.md'), '# Personal Rules\n')
   runInit(target)
-  run('npm', ['run', 'harness:doctor'], { cwd: target })
+  run('npm', ['run', 'harness:scan'], { cwd: target })
 
-  const report = read(target, '.harness/session/absorb-report.md')
-  assert(report.includes('## Bridge Section Candidates'), 'absorb report should include bridge section candidate section')
-  assert(report.includes('CLAUDE.md'), 'absorb report should suggest CLAUDE.md bridge candidate')
-  assert(report.includes('Project Harness Bridge'), 'absorb report should include bridge template')
+  const report = read(target, '.harness/session/project-scan-report.md')
+  assert(report.includes('## Bridge Section Candidates'), 'scan report should include bridge section candidate section')
+  assert(report.includes('CLAUDE.md'), 'scan report should suggest CLAUDE.md bridge candidate')
+  assert(report.includes('Project Harness Bridge'), 'scan report should include bridge template')
 }
 
 function makePreset() {
@@ -558,7 +571,7 @@ function harnessOutdatedDetectsCompatibleStackUpdate() {
   const target = makeTarget()
   const taggedRepo = makeTaggedHarnessRepo(['v1.0.0', 'v1.0.1', 'v2.0.0'])
 
-  runInit(target, '--no-doctor', '--no-check')
+  runInit(target, '--no-scan', '--no-check')
   const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
   lock.stackHarness = {
     id: 'demo-stack',
@@ -718,22 +731,22 @@ function templateApplyStopsWhenRequiredStackDoesNotMatch() {
   assert(!exists(target, '.harness/.template-applied.json'), 'template mismatch should not write marker')
 }
 
-function absorbReportSuggestsStylePresetsWhenStyleSourceMissing() {
+function scanReportSuggestsStylePresetsWhenStyleSourceMissing() {
   const target = makeTarget()
 
   fs.rmSync(path.join(target, '.editorconfig'), { force: true })
   runInit(target)
   fs.rmSync(path.join(target, '.editorconfig'), { force: true })
-  run('npm', ['run', 'harness:doctor'], { cwd: target })
+  run('npm', ['run', 'harness:scan'], { cwd: target })
 
-  const report = read(target, '.harness/session/absorb-report.md')
-  assert(report.includes('## Style Preset Candidates'), 'absorb report should include style preset candidates')
-  assert(report.includes('standard-js'), 'absorb report should suggest standard-js preset')
-  assert(report.includes('explicit-ts'), 'absorb report should suggest explicit-ts preset')
-  assert(report.includes('formatter-owned'), 'absorb report should suggest formatter-owned preset')
+  const report = read(target, '.harness/session/project-scan-report.md')
+  assert(report.includes('## Style Preset Candidates'), 'scan report should include style preset candidates')
+  assert(report.includes('standard-js'), 'scan report should suggest standard-js preset')
+  assert(report.includes('explicit-ts'), 'scan report should suggest explicit-ts preset')
+  assert(report.includes('formatter-owned'), 'scan report should suggest formatter-owned preset')
 }
 
-function absorbReportDraftsStyleRulesFromConfigFiles() {
+function scanReportDraftsStyleRulesFromConfigFiles() {
   const target = makeTarget()
 
   runInit(target)
@@ -752,15 +765,15 @@ insert_final_newline = true
     },
   }, null, 2))
 
-  run('npm', ['run', 'harness:doctor'], { cwd: target })
+  run('npm', ['run', 'harness:scan'], { cwd: target })
 
-  const report = read(target, '.harness/session/absorb-report.md')
-  assert(report.includes('## Style Rule Draft'), 'absorb report should include style rule draft')
-  assert(report.includes('.editorconfig *: indent_style = space'), 'absorb report should draft editorconfig style rules')
-  assert(report.includes('.eslintrc: quote = single'), 'absorb report should draft eslint quote rule')
-  assert(report.includes('.eslintrc: semicolon = always'), 'absorb report should draft eslint semicolon rule')
-  assert(report.includes('.eslintrc: import grouping/order rule is configured'), 'absorb report should draft eslint import order rule')
-  assert(!report.includes('## Style Preset Candidates'), 'absorb report should not suggest presets when style sources exist')
+  const report = read(target, '.harness/session/project-scan-report.md')
+  assert(report.includes('## Style Rule Draft'), 'scan report should include style rule draft')
+  assert(report.includes('.editorconfig *: indent_style = space'), 'scan report should draft editorconfig style rules')
+  assert(report.includes('.eslintrc: quote = single'), 'scan report should draft eslint quote rule')
+  assert(report.includes('.eslintrc: semicolon = always'), 'scan report should draft eslint semicolon rule')
+  assert(report.includes('.eslintrc: import grouping/order rule is configured'), 'scan report should draft eslint import order rule')
+  assert(!report.includes('## Style Preset Candidates'), 'scan report should not suggest presets when style sources exist')
 }
 
 const tests = [
@@ -775,7 +788,7 @@ const tests = [
   unsupportedProjectNvmrcRequiresExplicitOverride,
   existingProjectNvmrcIsPreserved,
   externalHarnessWithoutManifestIsPreserved,
-  absorbReportSuggestsBridgeCandidates,
+  scanReportSuggestsBridgeCandidates,
   stackApplyMaterializesPresetAsLocalRules,
   stackApplySupportsExternalPresetPath,
   harnessOutdatedDetectsCompatibleStackUpdate,
@@ -784,8 +797,8 @@ const tests = [
   templateApplyCreatesBridgeWithoutReplacingActiveStack,
   templateApplyCreatesProjectNvmrcWhenMissing,
   templateApplyStopsWhenRequiredStackDoesNotMatch,
-  absorbReportSuggestsStylePresetsWhenStyleSourceMissing,
-  absorbReportDraftsStyleRulesFromConfigFiles,
+  scanReportSuggestsStylePresetsWhenStyleSourceMissing,
+  scanReportDraftsStyleRulesFromConfigFiles,
 ]
 
 console.log('Init smoke tests')

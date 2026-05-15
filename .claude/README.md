@@ -9,7 +9,7 @@
 
 ## 구성
 - `settings.json`: Claude Code 권한, hook, status line 설정
-- `commands/harness-absorb.md`: 프로젝트 흡수 절차
+- `commands/harness-scan.md`: 프로젝트 스캔 절차
 - `agents/code-reviewer.md`: 변경 리뷰
 - `agents/debug-detective.md`: 실패 원인 분석
 - `agents/test-writer.md`: 테스트 작성

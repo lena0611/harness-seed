@@ -26,7 +26,7 @@ Read these first:
 ```bash
 git status --short
 git diff --stat
-npm run policy:impact
+npm run harness:impact
 npm run harness:check
 ```
 

@@ -53,7 +53,8 @@ const configNames = new Set([
 ])
 
 const generatedFiles = new Set([
-  '.harness/session/absorb-report.md',
+  '.harness/session/project-scan-report.md',
+  '.harness/session/handoff.md',
   '.harness/session/task-context.md',
   '.harness/install-manifest.json',
   '.harness/harness-lock.json',

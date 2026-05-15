@@ -350,7 +350,8 @@ function isGeneratedHarnessFile(filePath) {
     filePath === `${harnessRootRel}/install-manifest.json` ||
     filePath === `${harnessRootRel}/harness-lock.json` ||
     filePath === `${harnessRootRel}/.stack-applied.json` ||
-    filePath === `${harnessRootRel}/session/absorb-report.md` ||
+    filePath === `${harnessRootRel}/session/project-scan-report.md` ||
+    filePath === `${harnessRootRel}/session/handoff.md` ||
     filePath.startsWith(`${harnessRootRel}/stacks/.applied/`)
   )
 }

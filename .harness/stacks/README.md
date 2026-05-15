@@ -210,7 +210,7 @@ npx -y git+<stack-harness-repo-url>#<tag> init
 4. 자기 저장소의 `manifest.json`을 `stack:apply -- --preset-path <self>`로 적용합니다.
 5. `.harness/stacks/.applied/<stack-id>/`에 스택 기준 스냅샷을 남깁니다.
 6. `.harness/harness-lock.json`에 공통 하네스와 스택 하네스의 repo, ref, version을 기록합니다.
-7. `harness:doctor`와 `harness:check`를 실행합니다.
+7. `harness:scan`, `harness:handoff`, `harness:check`를 실행합니다.
 
 터미널이 대화형이면 추천 후보로 계속 진행할지 물을 수 있습니다. 자동화 환경에서는 추천 명령만 출력하고 사용자가 직접 실행하게 합니다. 마이그레이션 목적의 불일치 적용은 스택 하네스가 `--allow-mismatch` 같은 명시 옵션으로만 허용합니다.
 
@@ -250,7 +250,7 @@ npm run template:apply -- --preset-git <repo-url> --ref <tag-or-branch>
 
 적용 후에는 `npm run harness:check`로 일반 하네스 문서, 기준, 링크, 적용된 스택 상태를 함께 확인합니다.
 
-현재 프로젝트에 기록된 버전은 `npm run stack:status`와 `npm run harness:doctor`의 `Harness Versions` 섹션에서 확인합니다. 스택 기준을 제거하면 `stack:reset`이 스택 하네스 잠금 정보도 비웁니다. 공통 하네스 버전은 그대로 남겨 이후 스택 하네스 재적용이나 업데이트 기준으로 사용합니다.
+현재 프로젝트에 기록된 버전은 `npm run stack:status`와 `npm run harness:scan`의 `Harness Versions` 섹션에서 확인합니다. 스택 기준을 제거하면 `stack:reset`이 스택 하네스 잠금 정보도 비웁니다. 공통 하네스 버전은 그대로 남겨 이후 스택 하네스 재적용이나 업데이트 기준으로 사용합니다.
 
 패치나 마이너 업데이트를 각 프로젝트에 반영하려면 적용 프로젝트에서 다음 명령을 다시 실행합니다.
 

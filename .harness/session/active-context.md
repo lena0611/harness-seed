@@ -16,6 +16,9 @@
 - `source.type=none`인 스택 기준은 scaffold 없이 instruction만 로컬룰로 정착합니다.
 - 외부 프리셋은 `--preset-path`, `--preset-git`, `stackManifest`로 연결합니다.
 - scaffold 템플릿은 `kind=scaffold-template` manifest로 구분하고, 적용 시 `.harness/project/template-contract.md`에 사용 계약 브리지를 남깁니다.
+- 공개 명령은 `harness:scan`, `harness:handoff`, `harness:impact`, `harness:check` 중심으로 정리합니다.
+- 에이전트 진행 설명은 원시 내부 추론이 아니라 visible trace 단계와 판단 결과로 요약합니다.
+- 프로젝트 룰이 누적되면 항상 모두 읽지 않고 `harness:context -- "<작업 설명>"`으로 작업별 후보를 좁힙니다.
 
 ## 핵심 파일 (일반 하네스)
 - `.harness/policy/profile.json` — `activeStack` 단일 진실 출처
@@ -38,5 +41,5 @@
 
 ## 마지막 검증
 - 외부 프리셋 fixture로 `npm run stack:apply` → `npm run stack:reset` 통과
-- `npm run guard` (lint/test/build 스킵) 통과
+- `npm run harness:check` (lint/test/build 스킵) 통과
 - 스택 격리 검사, doc-link 무결성, SYNC GAP, 정책 위반 검사 모두 OK

@@ -4,6 +4,14 @@
 
 처음 보는 개발자는 모든 파일을 직접 수정하려고 하지 말고, 아래 구분을 먼저 봅니다.
 
+전체 문서를 훑기보다 먼저 클릭형 가이드와 현재 상태 대시보드를 엽니다.
+
+```bash
+npm run harness:guide
+```
+
+출력된 `file://` 주소를 브라우저에서 열면 요구 수신, 기준 탐색, 영향 판단, 구현, 검토, 검증, 커밋 확정 단계별로 관련 명령과 파일만 좁혀 볼 수 있습니다.
+
 ## 자주 직접 수정하는 문서
 
 | 파일 | 언제 수정하나 |
@@ -26,7 +34,9 @@
 | `.harness/.stack-applied.json` | 적용된 스택 기준과 복사된 파일 기록 |
 | `.harness/stacks/.applied/**` | 적용된 스택 기준의 스냅샷 |
 | `.harness/generated/**` | `harness:sync`가 만든 프로젝트 맵, import 맵, 패턴 후보 |
-| `.harness/session/absorb-report.md` | `harness:doctor`가 생성한 현재 프로젝트 진단 리포트 |
+| `.harness/generated/harness-dashboard.html` | `harness:guide`가 만든 현재 상태 대시보드 |
+| `.harness/session/project-scan-report.md` | `harness:scan`이 생성한 현재 프로젝트 스캔 리포트 |
+| `.harness/session/handoff.md` | `harness:handoff`가 생성한 설치/업데이트 인수인계 요약 |
 | `.harness/session/task-context.md` | `harness:context`가 생성한 작업별 읽을거리 후보 |
 
 자동 생성 파일은 직접 고치기보다 관련 명령을 다시 실행합니다.

@@ -79,7 +79,7 @@ npm run harness:check
 - 원격 프리셋을 적용하려면 `npm run stack:apply -- --preset-git <repo-url> --ref <tag-or-branch>`를 사용합니다.
 - 외부 프리셋을 일회성으로 적용하려면 `npm run stack:apply -- --preset-path <preset-dir>`를 사용합니다.
 - scaffold 템플릿은 스택 기준과 분리해 `template:apply`로 적용합니다. 적용 후 템플릿 사용 계약은 `template-contract.md`에 브리지로 남깁니다.
-- `"none"`으로 두면 스택 적용 없이 일반 하네스만 운영됩니다. 이 상태는 예외 또는 전환 중 상태로 보고 `harness:doctor`의 충돌 후보를 확인합니다.
+- `"none"`으로 두면 스택 적용 없이 일반 하네스만 운영됩니다. 이 상태는 예외 또는 전환 중 상태로 보고 `harness:scan`의 충돌 후보를 확인합니다.
 
 ### 5. 첫 로컬룰 후보 정착 (선택)
 프로젝트 카드가 채워졌고 스택이 정해졌다면 다음을 이어서 확인합니다.

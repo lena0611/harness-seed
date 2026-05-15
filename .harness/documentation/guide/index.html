@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Harness Interactive Guide</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f8fafc;
+      --panel: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --line: #cbd5e1;
+      --blue: #2563eb;
+      --green: #15803d;
+      --amber: #b45309;
+      --purple: #7c3aed;
+      --red: #dc2626;
+      --blue-soft: #eff6ff;
+      --green-soft: #f0fdf4;
+      --amber-soft: #fffbeb;
+      --purple-soft: #faf5ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    main {
+      width: min(1420px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: start;
+      margin-bottom: 22px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 34px;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 0;
+      max-width: 860px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .quick {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .quick a,
+    .quick code {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(620px, 1.35fr) minmax(360px, 0.65fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .canvas,
+    .detail,
+    .snapshot {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .canvas {
+      padding: 18px;
+    }
+
+    .phase-row {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .phase {
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+      font-weight: 800;
+      text-align: center;
+      font-size: 14px;
+      padding: 8px;
+    }
+
+    .phase.blue { border-color: var(--blue); background: var(--blue-soft); }
+    .phase.green { border-color: var(--green); background: var(--green-soft); }
+    .phase.amber { border-color: var(--amber); background: var(--amber-soft); }
+    .phase.purple { border-color: var(--purple); background: var(--purple-soft); }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .lane {
+      grid-column: span 12;
+      border: 1px solid #dbe3ef;
+      border-radius: 8px;
+      background: #f8fafc;
+      padding: 14px;
+    }
+
+    .lane h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .node-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    button.node {
+      appearance: none;
+      min-height: 86px;
+      width: 100%;
+      border: 2px solid var(--blue);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--text);
+      padding: 12px;
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+      transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+    }
+
+    button.node:hover,
+    button.node:focus-visible {
+      outline: none;
+      border-color: var(--purple);
+      box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12);
+      transform: translateY(-1px);
+    }
+
+    button.node.active {
+      border-color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .node-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+      font-weight: 800;
+      font-size: 15px;
+    }
+
+    .node-desc {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .badge {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .badge.token { background: var(--blue); }
+    .badge.tool { background: #0f766e; }
+    .badge.human { background: var(--purple); }
+    .badge.repo { background: #475569; }
+
+    .detail {
+      position: sticky;
+      top: 18px;
+      padding: 20px;
+    }
+
+    .detail h2 {
+      margin: 0 0 6px;
+      font-size: 24px;
+    }
+
+    .detail p {
+      margin: 0 0 14px;
+      color: var(--muted);
+    }
+
+    .detail-section {
+      margin-top: 16px;
+    }
+
+    .detail-section h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      color: #334155;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    li + li {
+      margin-top: 5px;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+      color: #172554;
+      background: #eff6ff;
+      border: 1px solid #dbeafe;
+      border-radius: 6px;
+      padding: 1px 5px;
+      overflow-wrap: anywhere;
+    }
+
+    .snapshot {
+      margin-top: 18px;
+      padding: 18px;
+    }
+
+    .snapshot h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+
+    .snapshot img {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 72vh;
+      object-fit: contain;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    @media (max-width: 1180px) {
+      main {
+        width: min(100% - 28px, 1420px);
+        padding-top: 22px;
+      }
+
+      header,
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .quick {
+        justify-content: flex-start;
+      }
+
+      .detail {
+        position: static;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .phase-row,
+      .node-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Harness Interactive Guide</h1>
+        <p class="lead">하네스를 전부 읽기보다 현재 상황에서 어떤 기준, 명령, 파일을 봐야 하는지 클릭해서 좁혀 보는 개발자용 진입점입니다.</p>
+      </div>
+      <nav class="quick" aria-label="quick commands">
+        <code>npm run harness:scan</code>
+        <code>npm run harness:handoff</code>
+        <code>npm run harness:context -- "작업 설명"</code>
+        <code>npm run harness:check</code>
+      </nav>
+    </header>
+
+    <section class="layout">
+      <div class="canvas">
+        <div class="phase-row" aria-label="lifecycle phases">
+          <div class="phase green">요구 수신</div>
+          <div class="phase blue">기준 탐색</div>
+          <div class="phase amber">영향 판단</div>
+          <div class="phase blue">초안 구현</div>
+          <div class="phase purple">개발자 검토</div>
+          <div class="phase amber">커밋 전 검증</div>
+          <div class="phase green">확정</div>
+        </div>
+
+        <div class="flow">
+          <section class="lane">
+            <h2>요청 구현 전</h2>
+            <div class="node-grid">
+              <button class="node active" type="button" data-node="request">
+                <span class="node-title">개발 요청 <span class="badge human">Human</span></span>
+                <span class="node-desc">목표, 범위, 완료 조건을 먼저 정리합니다.</span>
+              </button>
+              <button class="node" type="button" data-node="entry">
+                <span class="node-title">진입점 읽기 <span class="badge token">Token</span></span>
+                <span class="node-desc">모든 에이전트는 같은 시작 문서를 봅니다.</span>
+              </button>
+              <button class="node" type="button" data-node="priority">
+                <span class="node-title">우선순위 판단 <span class="badge token">Token</span></span>
+                <span class="node-desc">회사 필수 차단, 사용자 지시, 프로젝트 기준을 정렬합니다.</span>
+              </button>
+              <button class="node" type="button" data-node="context">
+                <span class="node-title">작업 컨텍스트 <span class="badge tool">Tool</span></span>
+                <span class="node-desc">큰 작업이나 낯선 영역이면 읽을거리 후보를 좁힙니다.</span>
+              </button>
+              <button class="node" type="button" data-node="impact">
+                <span class="node-title">영향/충돌 정리 <span class="badge token">Token</span></span>
+                <span class="node-desc">코드, 문서, 설정, 검증에 미칠 영향을 분류합니다.</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="lane">
+            <h2>구현과 검토</h2>
+            <div class="node-grid">
+              <button class="node" type="button" data-node="draft">
+                <span class="node-title">초안 구현 <span class="badge repo">Repo</span></span>
+                <span class="node-desc">기준과 영향 범위 안에서 최소 변경으로 구현합니다.</span>
+              </button>
+              <button class="node" type="button" data-node="review">
+                <span class="node-title">개발자 검토 <span class="badge human">Human</span></span>
+                <span class="node-desc">재수정 요청과 직접 수정 모두 최종 diff에 포함합니다.</span>
+              </button>
+              <button class="node" type="button" data-node="direct-edit">
+                <span class="node-title">직접 수정 반영 <span class="badge repo">Repo</span></span>
+                <span class="node-desc">개발자 수정분은 사용자 소유 변경으로 보고 보존합니다.</span>
+              </button>
+              <button class="node" type="button" data-node="rules">
+                <span class="node-title">로컬룰 후보 <span class="badge token">Token</span></span>
+                <span class="node-desc">반복되는 도메인, 구조, 검증 기준을 승격 후보로 봅니다.</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="lane">
+            <h2>커밋 전</h2>
+            <div class="node-grid">
+              <button class="node" type="button" data-node="diff">
+                <span class="node-title">최종 diff 확인 <span class="badge repo">Repo</span></span>
+                <span class="node-desc">의도하지 않은 변경과 사용자 변경 훼손을 확인합니다.</span>
+              </button>
+              <button class="node" type="button" data-node="sync">
+                <span class="node-title">문서-코드 동기화 <span class="badge token">Token</span></span>
+                <span class="node-desc">기준만 바뀌었는지, 코드만 바뀌었는지 확인합니다.</span>
+              </button>
+              <button class="node" type="button" data-node="verify">
+                <span class="node-title">검증 실행 <span class="badge tool">Tool</span></span>
+                <span class="node-desc">하네스 검사와 프로젝트 검증 명령을 실행합니다.</span>
+              </button>
+              <button class="node" type="button" data-node="commit">
+                <span class="node-title">커밋 확정 <span class="badge human">Human</span></span>
+                <span class="node-desc">검증된 후보를 기록 가능한 상태로 닫습니다.</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <aside class="detail" aria-live="polite">
+        <h2 id="detail-title">개발 요청</h2>
+        <p id="detail-summary">목표, 범위, 완료 조건을 먼저 정리합니다.</p>
+
+        <section class="detail-section">
+          <h3>개발자가 볼 것</h3>
+          <ul id="detail-developer"></ul>
+        </section>
+
+        <section class="detail-section">
+          <h3>에이전트가 할 일</h3>
+          <ul id="detail-agent"></ul>
+        </section>
+
+        <section class="detail-section">
+          <h3>관련 명령</h3>
+          <ul id="detail-commands"></ul>
+        </section>
+
+        <section class="detail-section">
+          <h3>관련 파일</h3>
+          <ul id="detail-files"></ul>
+        </section>
+
+        <section class="detail-section">
+          <h3>막히면</h3>
+          <ul id="detail-fallback"></ul>
+        </section>
+      </aside>
+    </section>
+
+    <section class="snapshot">
+      <h2>한 장으로 보는 전체 흐름</h2>
+      <img src="../assets/request-lifecycle-flow.svg" alt="하네스 설치 프로젝트의 요구사항 라이프사이클">
+    </section>
+  </main>
+
+  <script>
+    const details = {
+      request: {
+        title: '개발 요청',
+        summary: '목표, 범위, 완료 조건을 먼저 정리합니다.',
+        developer: ['원하는 결과와 비목표를 짧게 남깁니다.', '운영 제약, 일정, 위험한 변경 금지를 함께 알려줍니다.'],
+        agent: ['요구사항을 코드 변경으로 바로 번역하지 않고 완료 조건과 제약을 분리합니다.', '애매한 점이 작업을 막으면 질문하거나 보류 기록을 남깁니다.'],
+        commands: ['npm run harness:scan', 'npm run harness:handoff'],
+        files: ['.harness/session/project-scan-report.md', '.harness/session/handoff.md', '.harness/session/developer-input-queue.md', '.harness/project/project-charter.md'],
+        fallback: ['요구가 추상적이면 구현보다 확인 질문을 먼저 남깁니다.']
+      },
+      entry: {
+        title: '진입점 읽기',
+        summary: '모든 에이전트는 같은 시작 문서를 보고 현재 작업 기준을 맞춥니다.',
+        developer: ['에이전트가 엉뚱한 기준을 따르는 것 같으면 CLAUDE.md 기준을 확인합니다.'],
+        agent: ['CLAUDE.md, session-start-alert, active-context를 최소 기준으로 읽습니다.', '세션 재개 시 decision-log와 project-memory를 추가 확인합니다.'],
+        commands: ['npm run harness:impact'],
+        files: ['CLAUDE.md', '.harness/session/session-start-alert.md', '.harness/session/active-context.md'],
+        fallback: ['진입점과 실제 프로젝트 기준이 충돌하면 decision-log에 충돌 출처를 남깁니다.']
+      },
+      priority: {
+        title: '우선순위 판단',
+        summary: '회사 필수 차단, 사용자 지시, 프로젝트 기준, 스택/템플릿 기준을 순서대로 해석합니다.',
+        developer: ['프로젝트 기준이 회사 필수 차단 기준을 낮추는지 확인합니다.', '개인 취향은 팀 공유 기준과 분리합니다.'],
+        agent: ['충돌 출처와 영향을 분리해 보고합니다.', '필수 차단 기준 위반이면 구현을 중단하고 대안을 제시합니다.'],
+        commands: ['npm run harness:impact', 'npm run harness:check'],
+        files: ['.harness/policy/ai-standard-guiding-policy.md', '.harness/project/standards-layers.md', '.harness/project/personal-methodology.local.md'],
+        fallback: ['충돌 해결이 팀 결정이면 developer-input-queue에 선택지를 남깁니다.']
+      },
+      context: {
+        title: '작업 컨텍스트',
+        summary: '큰 작업이나 낯선 영역에서는 모든 문서를 읽지 않고 작업별 읽을거리 후보를 생성합니다.',
+        developer: ['생성된 task-context에서 이번 작업과 관련 있는 기준만 봅니다.'],
+        agent: ['프로젝트 맵과 감지 패턴을 갱신한 뒤 이번 작업의 관련 문서를 좁힙니다.'],
+        commands: ['npm run harness:sync', 'npm run harness:context -- "작업 설명"'],
+        files: ['.harness/generated/project-map.md', '.harness/generated/detected-patterns.md', '.harness/session/task-context.md'],
+        fallback: ['생성 컨텍스트는 원본 기준이 아니므로 최종 판단은 project/policy/session 문서에서 확인합니다.']
+      },
+      impact: {
+        title: '영향/충돌 정리',
+        summary: '코드, 문서, 설정, 검증에 어떤 영향이 있는지 먼저 분류합니다.',
+        developer: ['작업이 여러 영역을 건드리면 검증 범위도 같이 넓힙니다.'],
+        agent: ['변경 후보를 feature, config, harness, generated로 나눠 봅니다.', '문서만 또는 코드만 바뀌는 SYNC GAP 후보를 확인합니다.'],
+        commands: ['npm run harness:impact'],
+        files: ['.harness/policy/policy-registry.json', '.harness/project/architecture-rules.md', '.harness/project/workflow-rules.md'],
+        fallback: ['의도적인 예외는 waiver나 decision-log에 남깁니다.']
+      },
+      draft: {
+        title: '초안 구현',
+        summary: '기준과 영향 범위 안에서 최소 변경으로 구현합니다.',
+        developer: ['초안은 최종안이 아니며, 검토 후 재수정 루프에 들어갈 수 있습니다.'],
+        agent: ['기존 사용자 변경을 되돌리지 않고 그 위에 맞춰 수정합니다.', '관련 코드와 문서를 함께 확인합니다.'],
+        commands: ['npm run harness:impact'],
+        files: ['업무 코드', '.harness/project/stack-preset-rules.md', '.harness/project/template-contract.md'],
+        fallback: ['구현 중 기준 충돌이 드러나면 구현보다 충돌 기록과 질문을 우선합니다.']
+      },
+      review: {
+        title: '개발자 검토',
+        summary: '재수정 요청과 개발자 직접 수정까지 모두 최종 diff에 포함해 재평가합니다.',
+        developer: ['만족하지 않으면 재수정 요청으로 루프를 계속 돌립니다.', '직접 수정한 내용은 에이전트가 보존해야 하는 사용자 변경입니다.'],
+        agent: ['새 요청이 이전 요구와 충돌하는지 확인합니다.', '개발자 직접 수정분을 덮어쓰지 않고 현재 diff 기준으로 다시 평가합니다.'],
+        commands: ['git status --short', 'git diff'],
+        files: ['.harness/session/active-context.md', '.harness/session/decision-log.md'],
+        fallback: ['직접 수정과 에이전트 수정이 충돌하면 어느 쪽이 최종 의도인지 확인합니다.']
+      },
+      'direct-edit': {
+        title: '직접 수정 반영',
+        summary: '개발자 수정분은 사용자 소유 변경으로 간주하고 최종 후보에 포함합니다.',
+        developer: ['직접 수정한 이유가 기준 변화라면 decision-log에 남깁니다.'],
+        agent: ['사용자 수정분을 되돌리지 않고 연동되는 문서와 검증만 보강합니다.'],
+        commands: ['git diff'],
+        files: ['.harness/session/decision-log.md', '.harness/session/active-context.md'],
+        fallback: ['수정 의도가 불명확하면 구현을 계속하기보다 질문으로 멈춥니다.']
+      },
+      rules: {
+        title: '로컬룰 후보',
+        summary: '반복되는 도메인, 구조, 검증 기준을 프로젝트 기준으로 승격할지 점검합니다.',
+        developer: ['이번 변경에서 다음 작업에도 반복될 규칙이 생겼는지 확인합니다.'],
+        agent: ['도메인 불변식, 아키텍처 경계, 워크플로우 검증 기준을 분리합니다.', '확실하지 않은 후보는 질문으로 남깁니다.'],
+        commands: ['npm run harness:impact'],
+        files: ['.harness/project/domain-rules.md', '.harness/project/architecture-rules.md', '.harness/project/workflow-rules.md', '.harness/session/developer-input-queue.md'],
+        fallback: ['한 번뿐인 구현 세부사항은 로컬룰로 승격하지 않습니다.']
+      },
+      diff: {
+        title: '최종 diff 확인',
+        summary: '의도하지 않은 변경, 생성 파일, 사용자 변경 훼손 여부를 확인합니다.',
+        developer: ['커밋에 들어갈 내용이 요청 범위와 맞는지 봅니다.'],
+        agent: ['파일 그룹별로 변경을 요약합니다.', '하네스 baseline/generated 변경과 업무 변경을 구분합니다.'],
+        commands: ['git status --short', 'git diff --check'],
+        files: ['.harness/install-manifest.json', '.harness/harness-lock.json'],
+        fallback: ['의도하지 않은 파일은 되돌리기 전에 사용자 변경인지 먼저 확인합니다.']
+      },
+      sync: {
+        title: '문서-코드 동기화',
+        summary: '기준만 바뀌었는지, 코드만 바뀌었는지 확인하고 필요한 반대편을 보강합니다.',
+        developer: ['규칙을 바꿨다면 구현이나 예외 기록이 함께 있는지 확인합니다.'],
+        agent: ['SYNC GAP을 상황별 severity로 해석합니다.', '의도적이면 decision-log 또는 waiver에 근거를 남깁니다.'],
+        commands: ['npm run harness:impact', 'npm run harness:check'],
+        files: ['.harness/project/*.md', '.harness/session/decision-log.md', '.harness/policy/waivers.json'],
+        fallback: ['초기 설치나 스택 적용 직후의 문서 추가는 정보성으로 해석합니다.']
+      },
+      verify: {
+        title: '검증 실행',
+        summary: '하네스 검사와 프로젝트 검증 명령을 실행합니다.',
+        developer: ['실패 메시지가 설치 실패인지, 프로젝트 환경 충돌인지 구분합니다.'],
+        agent: ['harness:check 결과를 코드, 기준, 환경 문제로 분류합니다.', 'lint/test/build가 없으면 검증 전략 후보를 제안합니다.'],
+        commands: ['npm run harness:check', 'npm run harness:check:strict'],
+        files: ['.harness/session/project-scan-report.md', '.harness/project/workflow-rules.md'],
+        fallback: ['검증 실패 시 원인 분류 후 개발자 검토 루프로 되돌아갑니다.']
+      },
+      commit: {
+        title: '커밋 확정',
+        summary: '검증된 후보를 기록 가능한 상태로 닫고 요청 라이프사이클을 종료합니다.',
+        developer: ['최종 커밋 여부를 확정합니다.', '첫 줄은 한글 요약, 본문은 하이픈 상세, 검증은 실행한 명령과 미실행 사유로 확인합니다.'],
+        agent: ['커밋 요약, 세부 변경, 검증 결과, 남은 리스크를 커밋 양식에 맞춰 정리합니다.'],
+        commands: ['git status --short', 'npm run hooks:install', 'git commit'],
+        files: ['.github/commit-template.txt', '.harness/session/decision-log.md', '.harness/session/active-context.md', '.harness/session/project-memory.md'],
+        fallback: ['커밋 전 미해결 질문이 있으면 developer-input-queue에 남깁니다.']
+      }
+    };
+
+    const nodes = Array.from(document.querySelectorAll('.node'));
+    const title = document.getElementById('detail-title');
+    const summary = document.getElementById('detail-summary');
+    const developer = document.getElementById('detail-developer');
+    const agent = document.getElementById('detail-agent');
+    const commands = document.getElementById('detail-commands');
+    const files = document.getElementById('detail-files');
+    const fallback = document.getElementById('detail-fallback');
+
+    function fillList(target, items) {
+      target.replaceChildren(...items.map((item) => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        return li;
+      }));
+    }
+
+    function selectNode(id) {
+      const data = details[id] || details.request;
+      nodes.forEach((node) => node.classList.toggle('active', node.dataset.node === id));
+      title.textContent = data.title;
+      summary.textContent = data.summary;
+      fillList(developer, data.developer);
+      fillList(agent, data.agent);
+      fillList(commands, data.commands);
+      fillList(files, data.files);
+      fillList(fallback, data.fallback);
+    }
+
+    nodes.forEach((node) => {
+      node.addEventListener('click', () => selectNode(node.dataset.node));
+    });
+
+    selectNode('request');
+  </script>
+</body>
+</html>

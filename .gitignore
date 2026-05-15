@@ -13,7 +13,8 @@ outputs/
 
 # 동적 산출물 / 백업
 .harness/.stack-applied.json
-.harness/session/absorb-report.md
+.harness/session/project-scan-report.md
+.harness/session/handoff.md
 .harness/session/task-context.md
 .harness/generated/
 .harness-backup/

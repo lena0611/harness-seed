@@ -1,16 +1,16 @@
 ---
-description: 현재 프로젝트를 분석해 .harness의 프로젝트/정책/세션 문서에 반영합니다.
+description: 현재 프로젝트를 스캔하고 로컬 기준 후보와 충돌 후보를 정리합니다.
 allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 
-# /harness-absorb
+# /harness-scan
 
-이 명령은 Claude Code 어댑터용 프로젝트 흡수 절차입니다. 기준 산출물은 `.claude/`가 아니라 `.harness/`입니다.
+이 명령은 Claude Code 어댑터용 프로젝트 스캔 절차입니다. 기준 산출물은 `.claude/`가 아니라 `.harness/`입니다.
 
 ## 0. 사전 점검
 1. `CLAUDE.md`를 읽고 지정된 순서의 `.harness/` 문서를 확인합니다.
-2. `npm run policy:impact`를 실행해 현재 변경 영향 범위를 봅니다.
-3. `npm run harness:doctor`를 실행해 `.harness/session/absorb-report.md`를 생성합니다.
+2. `npm run harness:impact`를 실행해 현재 변경 영향 범위를 봅니다.
+3. `npm run harness:scan`을 실행해 `.harness/session/project-scan-report.md`를 생성합니다.
 4. `.harness/project/project-charter.md`가 비어 있으면 `.harness/project/bootstrap.md`의 인터뷰 절차를 먼저 수행합니다.
 
 ## 1. 프로젝트 구조 조사
@@ -31,7 +31,7 @@ allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 - 대표 테스트 파일
 
 ## 3. 하네스 반영
-먼저 `.harness/session/absorb-report.md`의 자동 감지 결과를 검토합니다. 이후 분석 결과를 다음 파일에 반영합니다.
+먼저 `.harness/session/project-scan-report.md`의 자동 감지 결과를 검토합니다. 이후 분석 결과를 다음 파일에 반영합니다.
 - `Bridge Section Candidates`: 기존 개인/전용 룰 파일이 하네스시드 읽기 순서와 연결되어야 하는지 검토
 - `Style Rule Draft`: formatter/linter 설정에서 추출한 스타일 초안을 검토하고 로컬 방법론 승격 여부 판단
 - `Style Preset Candidates`: 로컬 스타일 출처가 없을 때 개발자에게 선택을 요청

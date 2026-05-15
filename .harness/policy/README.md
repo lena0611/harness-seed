@@ -22,6 +22,17 @@
 9. `waivers.json`
 
 ## 실행 명령
+일반 설치 프로젝트는 아래 공개 명령을 먼저 사용합니다.
+
+```bash
+npm run harness:scan
+npm run harness:handoff
+npm run harness:impact
+npm run harness:check
+```
+
+아래 명령은 하네스 본체 저장소에서 세부 원인 분석이나 CI 검증이 필요할 때 사용하는 내부 개발 명령입니다. 일반 소비자 프로젝트에는 기본 npm script로 병합하지 않습니다.
+
 ```bash
 npm run policy:impact
 npm run policy:check

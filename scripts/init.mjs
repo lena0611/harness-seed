@@ -44,6 +44,7 @@ const LOCK_PATH = '.harness/harness-lock.json';
 const INSTALL_ITEMS = [
   '.harness',
   '.claude',
+  '.github/commit-template.txt',
   '.github/copilot-instructions.md',
   '.github/copilot-instructions',
   '.github/workflows',
@@ -60,7 +61,6 @@ const LEGACY_MANAGED_ROOT_SCRIPTS = [
   'scripts/install-hooks.mjs',
   'scripts/policy-harness.mjs',
   'scripts/doc-link-check.mjs',
-  'scripts/absorb-project.mjs',
   'scripts/list-stack-standards.mjs',
   'scripts/list-templates.mjs',
   'scripts/outdated-harness.mjs',
@@ -98,6 +98,28 @@ const PROJECT_OWNED_PREFIXES = [
   '.claude/rules/project/',
   '.claude/skills/project-',
   '.claude/agents/project-',
+];
+
+const CONSUMER_SCRIPT_NAMES = [
+  'harness:guide',
+  'harness:scan',
+  'harness:handoff',
+  'harness:impact',
+  'harness:check',
+  'harness:check:strict',
+  'harness:sync',
+  'harness:context',
+  'harness:outdated',
+  'harness:update',
+  'hooks:install',
+  'standards:list',
+  'templates:list',
+  'stack:status',
+  'stack:apply',
+  'stack:reset',
+  'template:status',
+  'template:apply',
+  'template:reset',
 ];
 
 function parseNodeVersion(version) {
@@ -175,7 +197,8 @@ Options:
   --dry-run              변경 없이 설치 계획만 출력합니다.
   --force                프로젝트 소유 파일까지 덮어씁니다.
   --no-backup            백업을 만들지 않습니다. 기존 항목이 있으면 --force가 필요합니다.
-  --no-doctor            설치 후 프로젝트 진단 리포트를 자동 생성하지 않습니다.
+  --no-scan              설치 후 프로젝트 스캔 리포트를 자동 생성하지 않습니다.
+  --no-handoff           설치/업데이트 인수인계 요약을 자동 생성하지 않습니다.
   --no-check             설치 후 하네스 기본 검사를 자동 실행하지 않습니다.
   --allow-node-mismatch  기존 프로젝트 .nvmrc가 하네스 최소 버전보다 낮아도 명시적으로 진행합니다.
   --from-git <repo-url>  동봉본 대신 git 저장소에서 소스를 가져옵니다.
@@ -196,7 +219,8 @@ function parseArgs(argv) {
     dryRun: false,
     force: false,
     noBackup: false,
-    noDoctor: false,
+    noScan: false,
+    noHandoff: false,
     noCheck: false,
     allowNodeMismatch: false,
     fromGit: null,
@@ -223,8 +247,11 @@ function parseArgs(argv) {
       case '--no-backup':
         opts.noBackup = true;
         break;
-      case '--no-doctor':
-        opts.noDoctor = true;
+      case '--no-scan':
+        opts.noScan = true;
+        break;
+      case '--no-handoff':
+        opts.noHandoff = true;
         break;
       case '--no-check':
         opts.noCheck = true;
@@ -366,7 +393,8 @@ function shouldIncludeInstallFile(relPath) {
     rel.startsWith('.harness/stacks/.applied/') ||
     rel.startsWith('.harness/templates/.applied/') ||
     [
-      '.harness/session/absorb-report.md',
+      '.harness/session/project-scan-report.md',
+      '.harness/session/handoff.md',
       '.harness/session/task-context.md',
       '.harness/install-manifest.json',
       '.harness/harness-lock.json',
@@ -623,7 +651,7 @@ function mergePackageJson(sourceRoot, target, opts) {
 
   let added = 0;
   const skipped = [];
-  for (const [key, value] of Object.entries(seedPkg.scripts || {})) {
+  for (const [key, value] of Object.entries(buildConsumerScripts(seedPkg.scripts || {}))) {
     if (userPkg.scripts[key] !== undefined) {
       if (userPkg.scripts[key] !== value) skipped.push(key);
       continue;
@@ -640,6 +668,21 @@ function mergePackageJson(sourceRoot, target, opts) {
   return { added, skipped, created };
 }
 
+function buildConsumerScripts(seedScripts) {
+  const scripts = {};
+
+  for (const name of CONSUMER_SCRIPT_NAMES) {
+    if (!seedScripts[name]) continue;
+
+    scripts[name] = seedScripts[name].replace(
+      /^npm run node:check --silent && /,
+      'node .harness/bin/check-node-version.mjs && ',
+    );
+  }
+
+  return scripts;
+}
+
 function mergeGitignore(target, opts) {
   const gitignorePath = join(target, '.gitignore');
   const entries = [
@@ -651,7 +694,9 @@ function mergeGitignore(target, opts) {
     '.node-version.cache',
     '.package-json.hash',
     '.harness/.stack-applied.json',
-    '.harness/session/absorb-report.md',
+    '.harness/generated/',
+    '.harness/session/project-scan-report.md',
+    '.harness/session/handoff.md',
     '.harness-backup/',
     'CLAUDE.local.md',
     '.harness/project/personal-methodology.local.md',
@@ -840,16 +885,24 @@ function runPostInstallStep(target, title, commandArgs) {
 
 function runPostInstallDiagnostics(target, opts) {
   if (opts.dryRun) {
-    return { doctor: 'skipped', check: 'skipped' };
+    return { scan: 'skipped', handoff: 'skipped', check: 'skipped' };
   }
 
-  const result = { doctor: 'skipped', check: 'skipped' };
+  const result = { scan: 'skipped', handoff: 'skipped', check: 'skipped' };
 
-  if (!opts.noDoctor) {
-    result.doctor = runPostInstallStep(
+  if (!opts.noScan) {
+    result.scan = runPostInstallStep(
       target,
-      '자동 진단: 현재 프로젝트 분석 리포트 생성',
-      [process.execPath, '.harness/bin/absorb-project.mjs', '--write'],
+      '자동 스캔: 현재 프로젝트 분석 리포트 생성',
+      [process.execPath, '.harness/bin/scan-project.mjs', '--write'],
+    ) ? 'ok' : 'failed';
+  }
+
+  if (!opts.noHandoff) {
+    result.handoff = runPostInstallStep(
+      target,
+      '자동 인수인계: 설치/업데이트 요약 생성',
+      [process.execPath, '.harness/bin/handoff.mjs', '--write'],
     ) ? 'ok' : 'failed';
   }
 
@@ -955,7 +1008,8 @@ function main() {
     console.log(`legacy root scripts: ${opts.dryRun ? `${legacyManagedRootScripts.length}개 제거 예정` : `${migration.removed}개 제거`}`);
     console.log(`install manifest: ${opts.dryRun ? 'dry-run' : `${Object.keys(writtenManifest.managedFiles).length}개 managed file 기록`}`);
     console.log(`harness lock: ${opts.dryRun ? 'dry-run' : `${writtenLock.baseHarness.version} (${writtenLock.baseHarness.ref ?? writtenLock.baseHarness.source.type})`}`);
-    console.log(`doctor: ${diagnostics.doctor}`);
+    console.log(`scan: ${diagnostics.scan}`);
+    console.log(`handoff: ${diagnostics.handoff}`);
     console.log(`check: ${diagnostics.check}`);
 
     if (installed.skippedFiles.length > 0) {
@@ -978,15 +1032,16 @@ function main() {
         console.log(`  - ${rel}`);
       }
       console.log('기존 개인/전용 룰을 보존했기 때문에, 위 파일에 .harness 읽기 순서를 연결할지 검토하세요.');
-      console.log('기준 계층과 충돌 후보는 npm run harness:doctor 결과를 확인하세요.');
+      console.log('기준 계층과 충돌 후보는 npm run harness:scan 결과를 확인하세요.');
     }
 
     console.log(`
 하네스 설치 완료
 
 다음 단계:
-  1) 자동 생성된 프로젝트 진단 리포트 확인
-       .harness/session/absorb-report.md
+  1) 자동 생성된 프로젝트 스캔/인수인계 확인
+       .harness/session/project-scan-report.md
+       .harness/session/handoff.md
   2) git hook 활성화
        npm run hooks:install
   3) 스택 기준 선택, 필요하면 scaffold 템플릿 후보 조회 후 적용

@@ -1,5 +1,35 @@
 # 결정 로그
 
+## 2026-05-14 - scan/handoff 공개 명령 정리
+- 정식 공개 전 공개 명령을 `harness:scan`, `harness:handoff`, `harness:impact`, `harness:check` 중심으로 정리합니다.
+- `harness:scan`은 프로젝트 구조, 스타일 출처, 기준 계층, 충돌 후보를 `.harness/session/project-scan-report.md`에 남깁니다.
+- `harness:handoff`는 설치/업데이트 직후 개발자가 봐야 할 요약과 다음 액션을 `.harness/session/handoff.md`에 남깁니다.
+- 에이전트 사고 흐름은 원시 내부 추론이 아니라 `[harness] request/context/impact/action/decision/verify` 형태의 visible trace로 설명합니다.
+- 커밋 확정 단계는 `.github/commit-template.txt`의 한글 요약 + 하이픈 상세 + 검증 목록 형식을 따릅니다.
+
+## 2026-05-14 - 로컬룰 누적 대응 원칙 추가
+- 프로젝트 운영 기간이 길어져도 모든 로컬룰을 매번 프롬프트에 넣지 않습니다.
+- 항상 읽는 최소 기준은 짧게 유지하고, `harness:context -- "<작업 설명>"`으로 작업별 읽을거리 후보만 좁힙니다.
+- 길어진 룰은 인덱스, 최신 요약, 세부 문서, decision-log로 분리하고, 현재 따라야 할 기준만 상위 문서에 남깁니다.
+- 한 번뿐인 구현 세부사항은 프로젝트 룰로 승격하지 않고, 반복 근거가 있는 도메인/구조/검증 기준만 승격합니다.
+
+## 2026-05-14 - 개발자용 클릭형 가이드 도입
+- 하네스 문서 전체를 개발자가 직접 읽고 이해하는 방식은 실제 도입 장벽이 높다고 판단했습니다.
+- 정적 라이프사이클 이미지는 개요로 유지하되, 실제 사용 진입점은 `npm run harness:guide`로 생성되는 현재 상태 대시보드와 `.harness/documentation/guide/index.html` 클릭형 가이드로 둡니다.
+- 클릭형 가이드는 요구 수신, 기준 탐색, 영향 판단, 구현, 검토, 검증, 커밋 확정 단계별로 관련 명령과 파일만 보여줍니다.
+- `harness:guide`가 생성하는 `.harness/generated/harness-dashboard.html`은 런타임 산출물이므로 형상관리 대상에서 제외합니다.
+
+## 2026-05-14 - 정식 공개 전 npm script alias 정리
+- 정식 공개 전이라 과거 호환을 유지할 필요가 없으므로 오래된 공개 alias를 제거합니다.
+- 개발자용 표준 명령은 `harness:guide`, `harness:scan`, `harness:check`, `standards:list`, `templates:list`, `stack:*`, `template:*`로 정리합니다.
+- `policy:*`와 `docs:*`는 삭제하지 않고 하네스 관리자/CI용 세부 검사 명령으로 문서에서 분리합니다.
+
+## 2026-05-14 - 소비자 프로젝트 npm script 축소
+- 하네스 본체 개발용 npm script와 소비자 프로젝트에 주입되는 npm script를 분리합니다.
+- `scripts/init.mjs`는 package.json의 모든 script를 병합하지 않고 소비자용 allowlist만 병합합니다.
+- 소비자 프로젝트에는 `node:check`, `policy:*`, `docs:*`를 기본 주입하지 않고, 공개 명령인 `harness:impact`, `harness:check`를 통해 필요한 검사를 실행하게 합니다.
+- 소비자용 script는 `node:check` npm script에 의존하지 않도록 `.harness/bin/check-node-version.mjs`를 직접 호출합니다.
+
 ## 2026-05-08 - 하네스 실행 Node와 프로젝트 빌드 Node 분리
 - 공통 하네스, 스택 하네스, scaffold 템플릿이 서로 다른 `.nvmrc` 기준을 보이면 적용 프로젝트 개발자가 어떤 런타임을 선택해야 하는지 헷갈릴 수 있습니다.
 - Jenkins 파이프라인에서 프로젝트 `.nvmrc`를 `nvm use`로 읽는 기존 프로젝트가 있으므로, 하네스 실행 기준과 프로젝트 빌드 기준을 분리합니다.
@@ -10,7 +40,7 @@
 
 ## 2026-04-30 - 최상위 기준 정책 위배 항목 보정
 - `ai-standard/docs`의 최상위 길라잡이는 원본으로 두고, 하네스시드에는 참조 문서만 둡니다.
-- `harness:doctor` 리포트에 회사/스택/템플릿/프로젝트/개인 기준 계층과 충돌 후보 섹션을 추가해, 기준 충돌을 개발자가 선택할 수 있게 합니다.
+- `harness:scan` 리포트에 회사/스택/템플릿/프로젝트/개인 기준 계층과 충돌 후보 섹션을 추가해, 기준 충돌을 개발자가 선택할 수 있게 합니다.
 - 프로젝트 적용 흐름은 공통 기준 직접 사용이 아니라 스택 기준 선택 중심으로 설명합니다. `none`은 예외 또는 전환 중 상태로 둡니다.
 - scaffold 템플릿은 기본값이 아니라 후보 목록으로 표현하며, 현재 등록된 후보 예시만 문서에 남깁니다.
 - 에이전트 작업은 로컬 git hook 설치 여부와 무관하게 완료 시 `harness:check`를 실행하는 Claude Code hook을 추가합니다.
@@ -19,11 +49,11 @@
 - 외부 설명에서는 policy를 회사 규정처럼 보이게 쓰지 않고, "프로젝트가 반복적으로 지키기로 한 개발 기준"으로 풀어 설명합니다.
 - `.harness/policy/` 폴더명과 `policy:*` 명령은 내부 구조명으로 유지하되, README와 하네스 문서에서는 개발 기준, 검증 기준, 기준 동기화라는 표현을 우선 사용합니다.
 
-## 2026-04-29 - doctor/check 설치 흐름 도입
-- 처음 주입할 때는 기존 프로젝트 구조를 파악하는 `harness:doctor`가 `.harness/session/absorb-report.md`를 자동 생성합니다.
+## 2026-04-29 - scan/check 설치 흐름 도입
+- 처음 주입할 때는 기존 프로젝트 구조를 파악하는 `harness:scan`이 `.harness/session/project-scan-report.md`를 자동 생성합니다.
 - 설치 직후 `harness:check`를 자동 실행해 하네스 문서, 정책, 링크, 스택 적용 상태가 기본적으로 맞는지 확인합니다.
-- `absorb:report`와 `guard`는 기존 사용자를 위한 호환 alias로 유지하지만, 새 문서와 CI 표기는 `harness:doctor`와 `harness:check`를 기준으로 정리합니다.
-- 자동 실행이 부담되는 환경을 위해 `init --no-doctor --no-check` 옵션을 둡니다.
+- 새 문서와 CI 표기는 `harness:scan`과 `harness:check`를 기준으로 정리합니다.
+- 자동 실행이 부담되는 환경을 위해 `init --no-scan --no-check` 옵션을 둡니다.
 
 ## 2026-04-28 - 하네스 본체를 .harness로 이동
 - 특정 플랫폼 의존을 줄이기 위해 일반 하네스 본체를 `.harness/`로 이동했습니다.
@@ -80,7 +110,7 @@
 
 ## 2026-04-22 - 스타일 검증 하네스 도입
 - 코딩 스타일을 문서와 자동 검사로 함께 유지하기 위해 `.harness/style/`와 ESLint 기반 검증을 추가했습니다.
-- 통합 가드(`npm run guard`)에 lint를 포함해 구조/정책 검증과 스타일 검증을 함께 돌리도록 했습니다.
+- 통합 검사에 lint를 포함해 구조/정책 검증과 스타일 검증을 함께 돌리도록 했습니다.
 
 ## 2026-04-22 - 사전준비 운영 세트 확장
 - 저장소 관리형 로컬 git hook, 테스트 기반, 협업 템플릿, 설정 계약을 추가했습니다.

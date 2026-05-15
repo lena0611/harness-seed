@@ -17,7 +17,7 @@
       "id": "claude-code-adapter",
       "index": ".claude/README.md",
       "children": [
-        ".claude/commands/harness-absorb.md",
+        ".claude/commands/harness-scan.md",
         ".claude/agents/code-reviewer.md",
         ".claude/agents/debug-detective.md",
         ".claude/agents/test-writer.md",
@@ -80,6 +80,7 @@
       "children": [
         ".harness/documentation/concept-map.md",
         ".harness/documentation/decision-flow.md",
+        ".harness/documentation/guide/index.html",
         ".harness/documentation/indexing-rules.md",
         ".harness/documentation/split-thresholds.md",
         ".harness/documentation/document-registry.json"

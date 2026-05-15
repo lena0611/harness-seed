@@ -25,9 +25,10 @@
 - `../.template-applied.json`
 - `../stacks/.applied/**`
 - `../templates/.applied/**`
-- `../session/absorb-report.md`
+- `../session/project-scan-report.md`
+- `../session/handoff.md`
 
-자동 관리 파일은 직접 고치기보다 `harness:doctor`, `stack:apply`, `template:apply`, `harness:update` 같은 명령을 다시 실행합니다.
+자동 관리 파일은 직접 고치기보다 `harness:scan`, `harness:handoff`, `stack:apply`, `template:apply`, `harness:update` 같은 명령을 다시 실행합니다.
 
 ## 읽기 순서
 1. [프로젝트 하네스 작성 가이드](./project-harness-guide.md)

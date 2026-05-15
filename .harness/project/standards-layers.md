@@ -41,7 +41,7 @@
 
 ## 충돌 처리
 
-`npm run harness:doctor`는 기준 출처를 모아 `.harness/session/absorb-report.md`에 충돌 후보를 남깁니다.
+`npm run harness:scan`은 기준 출처를 모아 `.harness/session/project-scan-report.md`에 충돌 후보를 남깁니다.
 
 충돌이 보이면 개발자는 다음 중 하나를 선택합니다.
 

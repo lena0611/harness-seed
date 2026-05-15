@@ -18,6 +18,8 @@
 
 이 이미지는 코딩 전 사고 흐름을 더 자세히 보여주는 현재 기준의 스냅샷입니다. 에이전트 진입 흐름, 기준 우선순위, 충돌 해석, 검증 절차, 요청 라이프사이클이 바뀌면 두 이미지를 함께 갱신해야 합니다.
 
+개발자가 하네스 문서를 모두 읽고 시작할 필요는 없습니다. 설치된 프로젝트에서는 `npm run harness:guide`로 현재 상태 대시보드와 클릭형 가이드를 열고, 필요한 단계의 명령과 파일만 좁혀 봅니다.
+
 ## 목적
 
 - AI 에이전트와 사람이 같은 개발 기준을 읽고 작업하게 합니다.
@@ -31,7 +33,7 @@
 - 새로 참여한 개발자나 AI 에이전트가 먼저 읽어야 할 기준 위치가 고정됩니다.
 - 프로젝트마다 흩어져 있던 스타일, 도메인, 작업 절차를 문서와 명령으로 확인할 수 있습니다.
 - 기존 전용 하네스나 개인 룰이 있더라도 보존하고, 필요한 연결 지점을 리포트로 제안합니다.
-- `harness:doctor`로 현재 프로젝트의 스택, 문서, 스타일, 충돌 후보를 진단할 수 있습니다.
+- `harness:scan`으로 현재 프로젝트의 스택, 문서, 스타일, 충돌 후보를 스캔할 수 있습니다.
 - `harness:check`로 문서 링크, 기준 동기화, 스택 적용 상태, lint/test/build 연결 상태를 검사할 수 있습니다.
 - 스택 기준과 scaffold 템플릿을 분리해 기존 프로젝트와 새 프로젝트에 같은 방식으로 적용할 수 있습니다.
 
@@ -57,20 +59,29 @@ npx -y git+<stack-harness-repo-url>#<tag> init
 4. 선택한 스택 기준을 `.harness/project/stack-preset-rules.md`에 프로젝트 로컬룰로 기록합니다.
 5. 필요한 scaffold 템플릿을 별도로 적용하면 `.harness/project/template-contract.md`에 템플릿 사용 계약 브리지를 기록합니다.
 6. `.harness/harness-lock.json`에 실제 설치된 공통 하네스, 스택 하네스, scaffold 템플릿의 repo, ref, version을 기록합니다.
-7. 현재 프로젝트를 진단하고 `.harness/session/absorb-report.md`를 생성합니다.
-8. `harness:check`로 문서 링크, 기준 동기화, 스택 적용 상태를 확인합니다.
+7. 현재 프로젝트를 스캔하고 `.harness/session/project-scan-report.md`를 생성합니다.
+8. 설치/업데이트 인수인계 요약을 `.harness/session/handoff.md`에 생성합니다.
+9. `harness:check`로 문서 링크, 기준 동기화, 스택 적용 상태를 확인합니다.
 
-자동 진단이나 검사를 끄고 싶으면 `--no-doctor`, `--no-check` 옵션을 사용합니다.
+자동 스캔, 인수인계 요약, 검사를 끄고 싶으면 `--no-scan`, `--no-handoff`, `--no-check` 옵션을 사용합니다.
 
-### 2. 진단 리포트 확인
+### 2. 스캔 리포트 확인
 
-설치 후 `.harness/session/absorb-report.md`를 먼저 봅니다. 이 리포트에는 감지된 기술 스택, 기존 스타일 설정, 기존 룰 문서, 충돌 후보, 확인 질문이 정리됩니다.
+설치 후 `.harness/session/project-scan-report.md`를 먼저 봅니다. 이 리포트에는 감지된 기술 스택, 기존 스타일 설정, 기존 룰 문서, 충돌 후보, 확인 질문이 정리됩니다.
 
-다시 진단하려면 다음 명령을 실행합니다.
+다시 스캔하려면 다음 명령을 실행합니다.
 
 ```bash
-npm run harness:doctor
+npm run harness:scan
 ```
+
+전체 문서를 훑지 않고 현재 상태와 단계별 안내를 보려면 다음 명령을 실행합니다.
+
+```bash
+npm run harness:guide
+```
+
+이 명령은 `.harness/generated/harness-dashboard.html`을 만들고, 클릭형 가이드인 `.harness/documentation/guide/index.html`의 위치를 함께 안내합니다.
 
 ### 3. 다른 스택 기준 조회
 
@@ -112,6 +123,20 @@ npm run harness:check
 npm run hooks:install
 ```
 
+이 명령은 `.githooks/`와 함께 `.github/commit-template.txt`를 git commit template로 연결합니다. 커밋 메시지는 아래 형식을 기준으로 씁니다.
+
+```text
+변경 요약
+
+- 주요 변경 1
+- 주요 변경 2
+
+검증
+- npm run harness:check
+```
+
+첫 줄은 현재 커밋할 내용의 간략 정보를 한글로 적고, 세부사항은 하이픈 목록으로 정리합니다. 실행하지 못한 검증은 생략하지 말고 사유를 남깁니다.
+
 AI 에이전트 작업에서는 hook 선택 여부와 별개로 하네스 검증 기준을 따라야 합니다.
 
 ### 공통 하네스 직접 설치
@@ -122,7 +147,7 @@ AI 에이전트 작업에서는 hook 선택 여부와 별개로 하네스 검증
 npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2.18 init
 ```
 
-하네스시드는 계속 개선되므로 `main`, `master` 같은 움직이는 브랜치를 따라가며 최신 변경을 빠르게 받는 방식도 가능합니다. 다만 팀 프로젝트에서는 하네스 변경이 언제 들어왔는지 추적할 수 있도록 릴리스 태그인 `vX.Y.Z`를 고정해 주입하는 것을 권장합니다. 최신 버전으로 올릴 때는 스택 하네스의 새 태그로 다시 `init`을 실행하고, 생성된 변경분과 `harness:doctor`, `harness:check` 결과를 함께 확인합니다.
+하네스시드는 계속 개선되므로 `main`, `master` 같은 움직이는 브랜치를 따라가며 최신 변경을 빠르게 받는 방식도 가능합니다. 다만 팀 프로젝트에서는 하네스 변경이 언제 들어왔는지 추적할 수 있도록 릴리스 태그인 `vX.Y.Z`를 고정해 주입하는 것을 권장합니다. 최신 버전으로 올릴 때는 스택 하네스의 새 태그로 다시 `init`을 실행하고, 생성된 변경분과 `harness:scan`, `harness:check` 결과를 함께 확인합니다.
 
 ## 버전 추적과 업데이트
 
@@ -133,14 +158,14 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2
 | `.harness/install-manifest.json` | 공통 하네스가 어떤 파일을 설치/갱신했는지 추적하는 설치 manifest |
 | `.harness/harness-lock.json` | 현재 프로젝트에 설치된 공통 하네스와 스택 하네스의 repo, ref, version을 기록하는 잠금 파일 |
 
-스택 하네스의 `manifest.json`은 자신이 요구하는 공통 하네스를 `baseHarness`로 명시합니다. 예를 들어 스택 하네스 `v0.1.7`이 공통 하네스 `v0.2.18` 이상을 요구하면, 스택 하네스 `init`은 해당 공통 하네스를 먼저 설치하거나 업데이트합니다.
+스택 하네스의 `manifest.json`은 자신이 요구하는 공통 하네스를 `baseHarness`로 명시합니다. 예를 들어 스택 하네스 `v0.1.8`이 공통 하네스 `v0.2.25` 이상을 요구하면, 스택 하네스 `init`은 해당 공통 하네스를 먼저 설치하거나 업데이트합니다.
 
 업데이트는 보통 다음처럼 진행합니다.
 
 ```bash
 npm run harness:outdated
 npm run harness:update
-npm run harness:doctor
+npm run harness:scan
 npm run harness:check
 ```
 
@@ -157,7 +182,7 @@ npm run harness:update -- --range ^1.0.0
 
 `harness:outdated`는 원격 tag를 조회해 업데이트 후보가 있는지만 확인하고 프로젝트 파일은 수정하지 않습니다. 향후 `ai-standard-cli`에서 여러 프로젝트에 업데이트 MR을 만들 때도 이 명령을 먼저 호출하는 방식으로 확장합니다.
 
-같은 스택 하네스를 새 버전으로 다시 실행하면 공통 하네스 관리 파일은 업데이트되고, 스택 기준은 기존 적용분을 reset한 뒤 다시 적용됩니다. 프로젝트 소유 문서와 기존 업무 코드는 보존됩니다. 적용 후 `stack:status`와 `harness:doctor`에서 공통/스택 하네스 버전 상태를 확인할 수 있습니다.
+같은 스택 하네스를 새 버전으로 다시 실행하면 공통 하네스 관리 파일은 업데이트되고, 스택 기준은 기존 적용분을 reset한 뒤 다시 적용됩니다. 프로젝트 소유 문서와 기존 업무 코드는 보존됩니다. 적용 후 `stack:status`와 `harness:scan`에서 공통/스택 하네스 버전 상태를 확인할 수 있습니다.
 
 ## 하네스시드가 하는 일
 
@@ -248,6 +273,35 @@ npm run harness:update -- --range ^1.0.0
 
 이 흐름에서 하네스가 하는 일은 프로젝트 도메인 규칙을 임의로 발명하는 것이 아닙니다. 기존 코드, 반복 패턴, 사용자 확인을 근거로 프로젝트의 기억을 `.harness/project/*`에 쌓아 다음 작업부터 에이전트가 추측 대신 로컬 기준을 따르게 만드는 것입니다.
 
+## 사고 흐름은 어떻게 보이는가
+
+에이전트의 원시 내부 추론을 그대로 콘솔 로그처럼 노출하지는 않습니다. 대신 개발자가 검토할 수 있는 형태의 visible trace를 남깁니다. trace는 생각의 전문이 아니라 작업 단계, 확인한 기준, 실행한 명령, 선택한 판단, 검증 결과입니다.
+
+권장 출력 형태는 다음과 같습니다.
+
+```text
+[harness] request: 목표/범위/완료조건 정리
+[harness] context: 읽은 기준과 추가 확인 문서
+[harness] impact: 영향 파일군과 충돌 후보
+[harness] action: 실행한 명령 또는 수정한 범위
+[harness] decision: 선택한 기준, 예외, 보류 질문
+[harness] verify: harness:check/lint/test/build 결과
+```
+
+이 trace는 `harness:handoff`, `harness:impact`, `harness:check`, 에이전트 최종 응답이 서로 같은 흐름을 말하게 만드는 용도입니다. 자세한 판단 근거는 `decision-log.md`, `developer-input-queue.md`, `waivers.json` 중 알맞은 곳에 남깁니다.
+
+## 로컬 룰이 너무 많아질 때
+
+운영 기간이 길어질수록 프로젝트 룰은 늘어납니다. 하네스는 모든 룰을 매 요청마다 읽는 방식으로 해결하지 않습니다.
+
+1. 항상 읽는 최소 기준은 `CLAUDE.md`, 최상위 정책 참조, 세션 시작 알림, 현재 컨텍스트로 제한합니다.
+2. 작업별로 `npm run harness:context -- "<작업 설명>"`를 실행해 관련 룰 후보만 좁힙니다.
+3. 긴 룰 문서는 인덱스와 세부 문서로 나누고, 상단에는 최신 요약과 적용 범위를 둡니다.
+4. 오래된 결정은 삭제하기보다 `decision-log.md`에 변경 이유를 남기고 최신 기준만 프로젝트 룰에 남깁니다.
+5. 한 번뿐인 구현 세부사항은 프로젝트 룰로 승격하지 않습니다.
+
+즉, 프로젝트 룰은 무제한 프롬프트 재료가 아니라 검색 가능한 기준 저장소로 봅니다. 에이전트는 최소 기준을 먼저 읽고, 나머지는 작업 설명과 현재 diff에 맞춰 선택적으로 가져옵니다.
+
 ## 작업별 컨텍스트 합성
 
 하네스는 모든 기준 문서를 프롬프트에 한꺼번에 넣는 방식을 권장하지 않습니다. 항상 읽어야 하는 최소 기준은 `CLAUDE.md`에 짧게 고정하고, 실제 작업마다 필요한 기준은 로컬에서 다시 합성합니다.
@@ -263,14 +317,16 @@ npm run harness:context -- "예약 버그 원인 분석과 수정"
 
 ## 설치 후 먼저 볼 것
 
-`init`은 설치가 끝나면 기본적으로 현재 프로젝트를 진단하고, 하네스 설치 상태를 검사합니다. 그래서 일반적인 설치에서는 아래 명령을 따로 실행하지 않아도 됩니다. 프로젝트 상태를 다시 확인하고 싶을 때 같은 명령을 다시 실행합니다.
+`init`은 설치가 끝나면 기본적으로 현재 프로젝트를 스캔하고, 설치/업데이트 인수인계 요약을 만들고, 하네스 설치 상태를 검사합니다. 그래서 일반적인 설치에서는 아래 명령을 따로 실행하지 않아도 됩니다. 프로젝트 상태를 다시 확인하고 싶을 때 같은 명령을 다시 실행합니다.
 
 ```bash
-npm run harness:doctor
+npm run harness:scan
+npm run harness:handoff
 npm run harness:check
 ```
 
-`harness:doctor`는 현재 프로젝트를 훑고 `.harness/session/absorb-report.md`를 생성합니다.
+`harness:scan`은 현재 프로젝트를 훑고 `.harness/session/project-scan-report.md`를 생성합니다.
+`harness:handoff`는 설치나 업데이트 직후 개발자가 먼저 볼 파일, 현재 변경 상태, 다음 명령을 `.harness/session/handoff.md`에 정리합니다.
 
 - 소스 루트
 - 테스트 루트
@@ -289,7 +345,7 @@ npm run harness:check
 
 | 단계 | 실행 내용 | 적용 프로젝트에서의 의미 |
 | --- | --- | --- |
-| Node 버전 검사 | `npm run node:check --silent` | 공통 하네스 명령을 실행할 수 있는 Node 범위인지 확인합니다. 스택별 추가 런타임 요구사항은 해당 스택 하네스의 기준을 따릅니다. |
+| Node 버전 검사 | `.harness/bin/check-node-version.mjs` | 공통 하네스 명령을 실행할 수 있는 Node 범위인지 확인합니다. 스택별 추가 런타임 요구사항은 해당 스택 하네스의 기준을 따릅니다. |
 | 기준 영향도/가드 | `.harness/bin/policy-harness.mjs guard` | 변경 파일이 어떤 개발 기준, 세션 기준, 스택 계약에 영향을 주는지 분석합니다. |
 | SYNC GAP 탐지 | `policy-harness.mjs guard` 내부 | 문서만 바뀌었는지, 코드만 바뀌었는지 감지합니다. 일반 `harness:check`에서는 경고 중심이고, `harness:check:strict`에서는 실패 기준으로 봅니다. |
 | 문서 링크/레지스트리 검사 | `.harness/bin/doc-link-check.mjs` | 하네스 문서 registry, 마크다운 링크, 코드 경로 참조가 유효한지 확인합니다. |
@@ -317,26 +373,24 @@ npm run harness:check -- --verbose
 | `maintenance` | 안정화된 운영/유지보수 프로젝트 | 변경 영향도, 예외, 회귀 위험을 더 중요하게 봅니다. |
 | `strict` | CI, 릴리스, 보호 브랜치 | SYNC GAP과 기준 누락을 실패 기준으로 봅니다. 보통 `harness:check:strict`와 함께 씁니다. |
 
-이전 명령인 `npm run absorb:report`와 `npm run guard`도 계속 동작하지만, 새 문서에서는 `harness:doctor`, `harness:check`를 기준으로 설명합니다.
-
 ## 주요 명령
+
+개발자는 아래 명령을 먼저 봅니다.
 
 | 명령 | 역할 |
 | --- | --- |
-| `npm run harness:doctor` | 현재 프로젝트 진단 리포트 생성 |
+| `npm run harness:guide` | 현재 상태 대시보드와 클릭형 하네스 가이드 위치 출력. `-- --open`으로 브라우저 열기 |
+| `npm run harness:scan` | 현재 프로젝트 스캔 리포트 생성 |
+| `npm run harness:handoff` | 설치/업데이트 직후 볼 요약, 현재 변경 상태, 다음 액션 생성 |
+| `npm run harness:impact` | 변경 파일이 어떤 기준과 연결되는지 가볍게 확인 |
 | `npm run harness:check` | Node, 기준 영향도, 문서 링크, 버전, seed test, lint/test/build를 순서대로 실행하는 통합 검사 |
 | `npm run harness:check:strict` | CI/릴리스용 엄격 검사 |
 | `npm run harness:sync` | 프로젝트 맵, import 맵, 감지 패턴을 `.harness/generated/**`로 재생성 |
 | `npm run harness:context -- "<작업>"` | 작업 설명을 기준으로 `.harness/session/task-context.md` 읽을거리 후보 생성 |
-| `npm run policy:guard` | 개발 기준의 영향 분석과 위반 검사 |
-| `npm run docs:check` | 문서 레지스트리, 링크, 코드 경로 검사 |
-| `npm run absorb:report` | `harness:doctor` 호환 alias |
-| `npm run guard` | `harness:check` 호환 alias |
 | `npm run hooks:install` | 로컬 git hook 등록 |
 | `npm run harness:outdated` | lock 기준으로 같은 major 범위의 업데이트 후보 조회. 파일 수정 없음 |
 | `npm run harness:update` | lock에 기록된 스택 하네스를 다시 실행해 같은 major 범위의 최신 기준으로 업데이트 |
 | `npm run standards:list` | 원격 스택 하네스 후보 조회 |
-| `npm run stack:list` | `standards:list` alias |
 | `npm run templates:list` | 원격 템플릿 후보 조회 |
 | `npm run stack:status` | 활성 스택, 적용 상태, 공통/스택 하네스 버전 확인 |
 | `npm run stack:apply` | 선택한 스택 기준을 로컬룰로 적용 |
@@ -345,13 +399,24 @@ npm run harness:check -- --verbose
 | `npm run template:apply` | 선택한 scaffold 템플릿을 적용하고 `template-contract.md` 브리지 생성 |
 | `npm run template:reset` | 적용된 scaffold 템플릿 산출물과 계약 브리지 되돌림 |
 
+하네스 본체 저장소에서는 세부 검사만 따로 볼 때 아래 내부 명령을 사용합니다. 이 내부 명령은 일반 소비자 프로젝트에는 기본 npm script로 병합하지 않습니다.
+
+| 명령 | 역할 |
+| --- | --- |
+| `npm run policy:impact` | 변경 파일이 어떤 기준과 연결되는지 확인 |
+| `npm run policy:check` | 현재 기준 위반 여부 확인 |
+| `npm run policy:guard` | 영향 분석과 기준 위반 검사를 함께 실행 |
+| `npm run policy:guard:strict` | SYNC GAP을 실패로 취급하는 엄격 검사 |
+| `npm run docs:check` | 문서 레지스트리, 링크, 코드 경로 검사 |
+| `npm run docs:check:strict` | 문서 검사 실패를 CI 실패 기준으로 사용 |
+
 ## 스택 기준과 템플릿
 
 하네스시드 본체는 특정 프레임워크를 전제로 하지 않습니다. 프로젝트에서는 회사 공통 기준을 직접 고르는 대신, 보통 회사 공통 기준을 기반으로 한 스택 하네스를 선택합니다.
 
 현재 실제 스택 하네스가 하나뿐이어도 구조는 특정 스택에 묶여 있지 않습니다. API, 배치, 모바일, 라이브러리 패키지, 운영 도구처럼 다른 개발 스택도 같은 방식으로 별도 스택 하네스를 만들 수 있습니다. 새 스택 하네스를 만들 때는 `.harness/stacks/authoring-guide.md`를 기준으로 범위, manifest 계약, compatibility 검사, instruction 작성, 릴리스 절차를 정리합니다.
 
-`none`은 스택 기준을 아직 고르지 않았거나, 예외적으로 공통 기준만 운영하는 내부 상태입니다. 일반 프로젝트 적용 흐름에서는 `harness:doctor` 리포트의 충돌 후보를 확인하고 스택 기준 선택 여부를 기록합니다.
+`none`은 스택 기준을 아직 고르지 않았거나, 예외적으로 공통 기준만 운영하는 내부 상태입니다. 일반 프로젝트 적용 흐름에서는 `harness:scan` 리포트의 충돌 후보를 확인하고 스택 기준 선택 여부를 기록합니다.
 
 본체에는 특정 스택 기준이나 템플릿을 넣지 않습니다. 스택 기준은 `ai-standard/harnesses` 쪽에서, 실제 scaffold 템플릿은 `ai-standard/stacks` 쪽에서 관리합니다.
 
@@ -419,11 +484,11 @@ ai-standard
 ```bash
 npx -y git+<seed-repo-url>#vX.Y.Z init --dry-run
 npx -y git+<seed-repo-url>#vX.Y.Z init --force
-npx -y git+<seed-repo-url>#vX.Y.Z init --no-doctor --no-check
+npx -y git+<seed-repo-url>#vX.Y.Z init --no-scan --no-handoff --no-check
 npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 ```
 
-`--no-doctor`는 설치 직후 프로젝트 진단 리포트 자동 생성을 끕니다. `--no-check`는 설치 직후 하네스 기본 검사 자동 실행을 끕니다.
+`--no-scan`은 설치 직후 프로젝트 스캔 리포트 자동 생성을 끕니다. `--no-handoff`는 설치/업데이트 인수인계 요약 자동 생성을 끕니다. `--no-check`는 설치 직후 하네스 기본 검사 자동 실행을 끕니다.
 
 보존 대상 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/session/active-context.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
 
@@ -431,9 +496,9 @@ npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 
 `.claude/`는 Claude Code 실행 표면을 하네스에 연결하는 선택형 어댑터입니다. 기준 문서와 검증 기준은 계속 `.harness/`에 있고, Claude Code에서는 다음 기능을 추가로 쓸 수 있습니다.
 
-- `/harness-absorb`: 현재 프로젝트를 분석해 `.harness/project`, `.harness/policy`, `.harness/session` 문서에 반영합니다.
-- `npm run harness:doctor`: `/harness-absorb` 전에 `.harness/session/absorb-report.md`를 생성해 자동 감지 결과를 남깁니다.
-- 기존 개인/전용 룰 파일이 보존된 경우 `harness:doctor`가 브리지 섹션 추가 후보와 예시 문구를 제안합니다.
+- `/harness-scan`: 현재 프로젝트를 분석해 `.harness/project`, `.harness/policy`, `.harness/session` 문서에 반영합니다.
+- `npm run harness:scan`: `/harness-scan` 전에 `.harness/session/project-scan-report.md`를 생성해 자동 감지 결과를 남깁니다.
+- 기존 개인/전용 룰 파일이 보존된 경우 `harness:scan`이 브리지 섹션 추가 후보와 예시 문구를 제안합니다.
 - `code-reviewer`, `debug-detective`, `test-writer`, `security-auditor`: 하네스 기준을 먼저 읽는 Claude Code 서브에이전트입니다.
 - status line과 context hook: 브랜치, dirty 상태, active stack을 짧게 표시합니다.
 

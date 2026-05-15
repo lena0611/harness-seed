@@ -48,14 +48,15 @@
 - `ai-standard/docs`에도 같은 이미지가 있으므로 원문 정책 쪽 자산도 함께 갱신합니다.
 
 ## 핵심 검증 명령
-- `npm run harness:doctor`: 현재 프로젝트 진단 리포트 생성
+- `npm run harness:scan`: 현재 프로젝트 스캔 리포트 생성
+- `npm run harness:handoff`: 설치/업데이트 직후 인수인계 요약 생성
 - `npm run harness:check`: 통합 검사. policy + docs + (스택 적용 시) lint+test+build
 - `npm run harness:check:strict`: CI/릴리스용 엄격 검사
-- `npm run guard`: `harness:check` 호환 alias
 - `npm run harness:outdated`: 현재 적용된 스택 하네스 업데이트 후보 확인
 - `npm run harness:update`: 현재 적용된 스택 하네스 기준 업데이트
-- `npm run policy:guard` / `policy:guard:strict`
-- `npm run docs:check` / `docs:check:strict`
+- `npm run harness:impact`: 소비자 프로젝트에 노출되는 영향 범위 확인
+- `npm run policy:impact` / `policy:check` / `policy:guard`: 하네스 본체 저장소 전용 세부 기준 검사
+- `npm run docs:check` / `docs:check:strict`: 하네스 본체 저장소 전용 문서 검사
 - `npm run standards:list` / `stack:status` / `stack:apply` / `stack:reset`
 - `npm run templates:list` / `template:status` / `template:apply` / `template:reset`
 - CI에서는 `npm run harness:check:strict`를 기준으로 실행

@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 set -eu
 
-npm run guard
+npm run harness:check

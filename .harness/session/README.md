@@ -27,9 +27,11 @@
 - 최근 상태, 다음 작업, 확인이 필요한 항목은 `active-context.md`에 기록합니다.
 - 중요한 구조 결정이나 방향 변경은 `decision-log.md`에 남깁니다.
 - 큰 작업이나 생소한 영역은 `harness:sync`로 생성 컨텍스트를 최신화하고 `harness:context`로 이번 작업의 읽을거리 후보를 만듭니다.
+- 설치/업데이트 직후 개발자에게 넘길 요약은 `harness:handoff`로 다시 생성합니다.
+- 작업 중 보이는 사고 흐름은 원시 내부 추론이 아니라 visible trace 단계와 판단 결과로 정리합니다.
 - 새 세션 시작 시에는 항상 `session-boot.md`의 순서를 따릅니다.
 - 새 세션 시작 시에는 항상 `session-start-alert.md`를 최우선으로 읽습니다.
 - 사용자가 `세션종료`라고 말하면 그 세션의 미결 사항과 다음 세션 상기 사항을 `next-session-reminder.md`에 정리합니다.
 - 정보 부족으로 막힌 항목은 `developer-input-queue.md`에 남겨 다음 세션에서 다시 묻습니다.
-- 정책 문서 또는 `src/` 변경 작업은 항상 `policy:guard` 트리거와 함께 다룹니다.
+- 정책 문서 또는 `src/` 변경 작업은 시작 전 `harness:impact`, 종료 전 `harness:check` 흐름으로 다룹니다.
 - 문서가 길어지면 내용을 계속 누적하지 말고 `documentation` 하네스 규칙에 따라 인덱스/세부 문서로 분리합니다.

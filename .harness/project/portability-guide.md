@@ -11,7 +11,7 @@
 1. 기존 프로젝트 루트에서 프로젝트에 맞는 스택 하네스의 `npx -y git+<stack-harness-repo-url>#<tag> init`을 실행합니다. 안정 재현을 위해 `main`/`master` 대신 릴리스 tag를 사용합니다.
 2. 스택 하네스가 내부적으로 일반 하네스를 설치하거나 업데이트하고, 자기 스택 기준을 로컬룰로 정착했는지 확인합니다.
 3. `.harness/harness-lock.json`에서 실제 설치된 일반 하네스와 스택 하네스의 repo, ref, version을 확인합니다.
-4. `.harness/session/absorb-report.md`에서 기존 프로젝트 기준, 스타일 출처, 버전 상태, 충돌 후보를 확인합니다.
+4. `.harness/session/project-scan-report.md`에서 기존 프로젝트 기준, 스타일 출처, 버전 상태, 충돌 후보를 확인합니다.
 5. `npm run hooks:install`로 로컬 hook을 연결합니다.
 6. scaffold가 필요하면 `npm run templates:list`로 별도 템플릿 후보를 확인하고 `template:apply`로 적용합니다.
 7. scaffold 템플릿이 적용되었으면 `.harness/project/template-contract.md`에서 템플릿 사용 계약 브리지를 확인합니다.

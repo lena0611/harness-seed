@@ -27,7 +27,8 @@ Options:
   --allow-mismatch          스택 호환성 불일치를 명시적으로 허용합니다.
   --migration-mode          --allow-mismatch alias입니다.
   --no-backup               공통 하네스 백업을 만들지 않습니다. --force와 함께만 사용합니다.
-  --no-doctor               업데이트 후 프로젝트 진단 리포트 자동 생성을 끕니다.
+  --no-scan                 업데이트 후 프로젝트 스캔 리포트 자동 생성을 끕니다.
+  --no-handoff              업데이트 후 인수인계 요약 자동 생성을 끕니다.
   --no-check                업데이트 후 하네스 기본 검사 자동 실행을 끕니다.
   -h, --help                도움말을 출력합니다.
 
@@ -83,7 +84,8 @@ function parseArgs(argv) {
       case '--allow-mismatch':
       case '--migration-mode':
       case '--no-backup':
-      case '--no-doctor':
+      case '--no-scan':
+      case '--no-handoff':
       case '--no-check':
         opts.forwarded.push(arg)
         break

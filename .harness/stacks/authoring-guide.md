@@ -192,7 +192,7 @@ npx -y git+<stack-harness-repo-url>#v1.0.0 init
 4. `baseHarness`의 일반 하네스를 설치하거나 업데이트합니다.
 5. `npm run stack:apply -- --preset-path <self>`로 자기 `manifest.json`을 적용합니다.
 6. `.harness/harness-lock.json`에 일반/스택 하네스 버전을 남깁니다.
-7. 기본적으로 `npm run harness:doctor`와 `npm run harness:check`를 실행합니다.
+7. 기본적으로 `npm run harness:scan`, `npm run harness:handoff`, `npm run harness:check`를 실행합니다.
 
 호환성 검사에 실패했는데 일부 파일을 이미 썼다면 원복해야 합니다. 가장 좋은 방식은 일반 하네스 설치 전에 호환성 검사를 끝내는 것입니다.
 
@@ -220,7 +220,7 @@ npx -y git+<stack-harness-repo-url>#v1.0.0 init
 - 맞지 않는 프로젝트에서는 설치 전에 중단하는가
 - 설치 후 `.harness/project/stack-preset-rules.md`에 instruction이 들어가는가
 - `.harness/harness-lock.json`에 `baseHarness`와 `stackHarness`가 모두 기록되는가
-- `npm run harness:doctor`가 스택과 충돌 후보를 리포트하는가
+- `npm run harness:scan`이 스택과 충돌 후보를 리포트하는가
 - `npm run harness:check`가 통과하는가
 - `npm run harness:update -- --dry-run`으로 업데이트 대상이 추적되는가
 - `npm pack --dry-run`에 필요한 파일만 포함되는가

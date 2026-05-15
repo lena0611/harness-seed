@@ -22,6 +22,6 @@ npm run lint
 - 스타일 규칙은 로컬 방법론, formatter/linter 설정, 스택 프리셋 로컬 규칙이 함께 움직여야 합니다.
 - 자주 반복되는 스타일 수정은 수동 리뷰가 아니라 자동 검사로 옮깁니다.
 - 새로운 스타일 규칙을 추가하면 lint hook 또는 `harness:check` 포함 여부를 함께 판단합니다.
-- `harness:doctor`가 formatter/linter 설정에서 `Style Rule Draft`를 만들면, 개발자가 확인한 뒤 로컬 방법론에 승격합니다.
+- `harness:scan`이 formatter/linter 설정에서 `Style Rule Draft`를 만들면, 개발자가 확인한 뒤 로컬 방법론에 승격합니다.
 - 로컬 스타일 출처가 없으면 `presets.md`의 후보를 개발자에게 제안하고 선택을 기다립니다.
 - 스타일이 쌓이면서 바뀌면 `style-evolution.md` 기준으로 후보를 승격합니다.

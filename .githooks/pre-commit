@@ -5,5 +5,5 @@ set -eu
 # (일반 사용자는 .harness-seed-mode를 삭제하면 자동으로 비활성화됨)
 node .harness/bin/check-seed-mode.mjs
 
-# 통합 가드: 스택 미적용 시 lint/test/build를 자동 스킵, 적용 시 전체 검사
-npm run guard
+# 통합 검사: 스택 미적용 시 lint/test/build를 자동 스킵, 적용 시 전체 검사
+npm run harness:check

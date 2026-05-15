@@ -7,7 +7,7 @@
 ## 지금 반드시 떠올릴 것
 1. 모든 작업은 `.harness/policy/ai-standard-guiding-policy.md`의 위배 여부를 먼저 확인합니다.
 2. 프로젝트 목적은 아직 `TBD`입니다. 새 기능 전에 `.harness/project/project-charter.md`를 먼저 확인합니다.
-3. `src/`, 기준 문서, 하네스 문서를 손대면 `npm run policy:guard`를 시작 전과 종료 전에 실행합니다.
+3. `src/`, 기준 문서, 하네스 문서를 손대면 시작 전에는 `npm run harness:impact`, 종료 전에는 `npm run harness:check`를 실행합니다.
 4. 자동 검사가 통과해도 수동 검토 항목은 `.harness/policy/automation-coverage.md`를 보고 다시 판단합니다.
 5. `.harness/session/developer-input-queue.md`의 `open`/`deferred` 항목은 새 세션에서 다시 확인합니다.
 6. 문서를 키워야 한다면 먼저 `.harness/documentation/indexing-rules.md`에 맞게 인덱스/세부 문서 분리를 판단합니다.
@@ -19,6 +19,7 @@
 12. 스타일이 반복 패턴으로 굳어지기 시작하면 `.harness/style/style-evolution.md` 기준으로 규칙 승격 후보를 확인합니다.
 13. 코드 변경 후에는 도메인, 아키텍처, 워크플로우 로컬룰로 승격할 후보가 있는지 확인하고, 확신이 없으면 `.harness/session/developer-input-queue.md`에 질문으로 남깁니다.
 14. 큰 작업이나 생소한 영역은 `npm run harness:sync`와 `npm run harness:context -- "<작업 설명>"`로 관련 기준 후보를 먼저 좁힙니다.
+15. 개발자에게 진행 상황을 보일 때는 원시 내부 추론이 아니라 `[harness] request/context/impact/action/decision/verify` 형태의 visible trace로 요약합니다.
 
 ## 방향 유지 장치 원칙
 - **Harness**는 방향과 작업 레일을 정합니다.
@@ -49,6 +50,6 @@
 ```bash
 git --no-pager status --short
 npm run hooks:install
-npm run policy:impact
+npm run harness:impact
 npm run harness:check
 ```

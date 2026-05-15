@@ -21,11 +21,10 @@
       "Bash(git branch *)",
       "Bash(git show *)",
       "Bash(git rev-parse *)",
-      "Bash(npm run harness:doctor*)",
+      "Bash(npm run harness:scan*)",
+      "Bash(npm run harness:handoff*)",
       "Bash(npm run harness:check*)",
-      "Bash(npm run guard*)",
-      "Bash(npm run policy:impact*)",
-      "Bash(npm run docs:check*)",
+      "Bash(npm run harness:impact*)",
       "Bash(npm run stack:status*)"
     ],
     "deny": [

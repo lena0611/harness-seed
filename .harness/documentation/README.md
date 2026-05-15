@@ -12,7 +12,8 @@
 2. [문서 분리 기준](./split-thresholds.md)
 3. [개념 비교 맵](./concept-map.md)
 4. [결과물 생성 흐름](./decision-flow.md)
-5. `document-registry.json`
+5. [클릭형 하네스 가이드](./guide/index.html)
+6. `document-registry.json`
 
 ## 핵심 원칙
 - 진입 문서는 **목차와 짧은 요약**만 담당합니다.
@@ -21,5 +22,10 @@
 - 새 하네스나 개발 기준 문서를 만들면 registry에 등록합니다.
 - npx init 진입점인 `scripts/init.mjs`처럼 사용자 프로젝트에 복사하지 않는 seed-only 파일은 문서에 남아 있어도 링크 검사에서 허용할 수 있습니다. 예외를 추가하면 이유를 함께 기록합니다.
 - `.claude/` 아래의 Markdown 어댑터 문서도 문서 레지스트리 검사 대상입니다.
-- `.harness/session/absorb-report.md`, `.harness/install-manifest.json`, `.harness/harness-lock.json`처럼 명령 실행으로 생기는 런타임 산출물은 registry 필수 문서가 아니라 동적 산출물 예외로 둡니다.
+- `.harness/session/project-scan-report.md`, `.harness/session/handoff.md`, `.harness/install-manifest.json`, `.harness/harness-lock.json`처럼 명령 실행으로 생기는 런타임 산출물은 registry 필수 문서가 아니라 동적 산출물 예외로 둡니다.
 - `profile.json`의 `stackManifest`가 외부 프리셋을 가리키면, doc-link 검사는 해당 manifest 기준 scaffold 경로도 활성 스택 산출물로 해석할 수 있습니다.
+
+## 개발자 진입점
+- 전체 문서를 읽기보다 `npm run harness:guide`로 현재 상태 대시보드와 클릭형 가이드에서 시작합니다.
+- 클릭형 가이드는 요구 수신, 기준 탐색, 영향 판단, 구현, 검토, 검증, 커밋 확정의 각 단계에서 관련 명령과 파일만 보여줍니다.
+- `npm run harness:guide -- --open`을 사용하면 생성된 대시보드를 브라우저로 열 수 있습니다.

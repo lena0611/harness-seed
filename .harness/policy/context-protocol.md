@@ -16,7 +16,8 @@ AI 에이전트에게 모든 문서를 한 번에 주입하지 않습니다. 항
 | Always-on 기준 | 모든 작업에서 먼저 읽는 최소 운영 기준 | `CLAUDE.md`, `ai-standard-guiding-policy.md`, `session-start-alert.md`, `active-context.md` |
 | 작업별 컨텍스트 | 이번 요청과 관련된 기준만 골라 읽는 문서 | `domain-rules.md`, `architecture-rules.md`, 활성 스택 기준, 템플릿 계약 |
 | 생성 컨텍스트 | 프로젝트 구조를 훑어 만든 재생성 가능한 보조 자료 | `.harness/generated/project-map.md`, `.harness/generated/import-map.md` |
-| 실행 도구 | 실제 검증, 적용, 업데이트를 수행하는 명령 | `harness:doctor`, `harness:sync`, `harness:check` |
+| 실행 도구 | 실제 검증, 적용, 업데이트를 수행하는 명령 | `harness:scan`, `harness:handoff`, `harness:sync`, `harness:check` |
+| Visible trace | 개발자가 확인할 수 있는 판단 요약 | `[harness] request/context/impact/action/decision/verify` |
 
 ## 기준 계층
 
@@ -42,6 +43,21 @@ AI 에이전트에게 모든 문서를 한 번에 주입하지 않습니다. 항
 
 스택 기준, 템플릿 계약, 프로젝트 도메인 규칙, 결정 로그 전체는 항상 읽는 기준이 아닙니다. 세션 재개, 충돌 판단, 작업 영향 범위에 따라 추가로 읽습니다.
 
+## Visible Trace 원칙
+
+에이전트의 원시 내부 추론을 그대로 저장하거나 출력하지 않습니다. 개발자가 확인해야 하는 것은 생각의 전문이 아니라 작업을 통제할 수 있는 판단 흔적입니다.
+
+권장 trace 단위:
+
+- `request`: 목표, 범위, 완료 조건, 비목표
+- `context`: 읽은 기준, 추가로 좁힌 문서, 생성 컨텍스트
+- `impact`: 영향 파일군, 기준 충돌 후보, 검증 범위
+- `action`: 실행 명령, 수정 범위, 생성 산출물
+- `decision`: 선택한 기준, 예외, 보류 질문, 기록 위치
+- `verify`: `harness:check`, lint, test, build 결과
+
+trace는 프롬프트 진행 중 짧은 상태 로그, `harness:handoff` 산출물, 에이전트 최종 응답에서 같은 언어로 반복될 수 있습니다. 장기 보존이 필요한 판단은 trace가 아니라 `decision-log.md`, `developer-input-queue.md`, `waivers.json`, 프로젝트 룰 문서 중 맞는 곳으로 승격합니다.
+
 ## 충돌 해석 순서
 
 실제 작업 중 기준이 충돌하면 기반 순서가 아니라 더 구체적인 작업 맥락을 우선합니다. 단, 회사 공통 필수 차단 기준과 사용자의 명시 지시는 프로젝트 기준보다 앞섭니다.
@@ -63,14 +79,27 @@ AI 에이전트에게 모든 문서를 한 번에 주입하지 않습니다. 항
 
 | 항목 | 진실 출처 | 검증 |
 | --- | --- | --- |
-| 공통 운영 원칙 | `.harness/policy/*.md` | `npm run docs:check`, `npm run harness:check` |
+| 공통 운영 원칙 | `.harness/policy/*.md` | `npm run harness:impact`, `npm run harness:check` |
 | 스택/템플릿 계약 | `stack-preset-rules.md`, `template-contract.md`, 외부 manifest/README | `npm run stack:status`, `npm run template:status`, `npm run harness:check` |
-| 프로젝트 로컬룰 | `.harness/project/*.md` | `npm run policy:guard`, 코드/설정과의 SYNC GAP 확인 |
+| 프로젝트 로컬룰 | `.harness/project/*.md` | `npm run harness:check`, 코드/설정과의 SYNC GAP 확인 |
 | 세션 상태 | `.harness/session/*.md` | 항상 읽는 최소 기준, 세션 재개 항목, 미해결 항목 확인 |
 | 프로젝트 구조 요약 | 실제 코드와 설정 파일 | `npm run harness:sync`로 재생성 |
 | 작업별 읽을거리 | 실제 문서와 생성 컨텍스트의 조합 | `npm run harness:context -- "<작업>"`로 재생성 |
 
 `.harness/generated/**`와 `.harness/session/task-context.md`는 재생성 산출물입니다. 사람이 직접 편집해 기준으로 삼지 않습니다.
+
+## 로컬룰 누적 대응
+
+프로젝트 운영 기간이 길어지면 룰 문서가 늘어납니다. 하네스는 이 문제를 모든 문서를 매번 읽는 방식으로 풀지 않습니다.
+
+- 항상 읽는 기준은 짧게 유지하고, 긴 프로젝트 룰은 작업별 컨텍스트로만 불러옵니다.
+- 룰 문서는 인덱스, 적용 범위, 최신 요약, 상세 규칙을 분리합니다.
+- 같은 판단이 반복되는 경우만 프로젝트 룰로 승격합니다.
+- 더 이상 맞지 않는 룰은 바로 삭제하지 않고 변경 이유를 `decision-log.md`에 남긴 뒤 최신 기준으로 정리합니다.
+- 오래된 사례, 긴 회고, 참고용 상세는 세션 로그나 세부 문서로 분리하고, 상위 룰 문서에는 현재 따라야 할 기준만 둡니다.
+- `harness:context -- "<작업 설명>"`의 후보가 너무 많으면 `-- --limit <개수>`로 줄이고, 누락된 문서는 작업 중 직접 확인합니다.
+
+로컬룰은 무제한 프롬프트 재료가 아니라 검색 가능한 기준 저장소입니다. 생성 컨텍스트는 이 저장소에서 이번 작업에 필요한 후보를 찾기 위한 보조 색인입니다.
 
 ## 작업 흐름
 

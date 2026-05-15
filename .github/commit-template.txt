@@ -1,14 +1,11 @@
-<type>: <summary>
+# 첫 줄: 현재 커밋할 내용의 간략 정보를 한글로 작성합니다.
+# 본문: 세부사항은 하이픈 목록으로 정리합니다.
+# 검증: 실행한 검증 명령만 적고, 실행하지 못한 항목은 사유를 남깁니다.
 
-Why:
-- 
+변경 요약
 
-Scope:
-- 
+- 주요 변경 1
+- 주요 변경 2
 
-Checks:
-- [ ] npm run lint
-- [ ] npm run test
-- [ ] npm run harness:check
-
-Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+검증
+- npm run harness:check

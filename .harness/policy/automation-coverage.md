@@ -5,11 +5,11 @@
 ## 일반 하네스 자동 검증 (스택 무관)
 | Rule | 설명 | 현재 상태 |
 | --- | --- | --- |
-| `doc-registry-consistency` | `document-registry.json`과 실제 .md 파일 집합 일치 | 자동 검사 (`docs:check`) |
-| `doc-link-integrity` | `.harness/**/*.md`와 에이전트 진입점 문서의 상대 링크 유효성 | 자동 검사 (`docs:check`) |
-| `doc-code-path-integrity` | 문서가 인용한 업무 코드, `.harness/...`, seed-only `scripts/...` 경로 존재 (활성 스택의 scaffold 내부도 관대 검사) | 자동 검사 (`docs:check`) |
-| `policy-source-sync-gap` | 기준 매핑의 한쪽만 변경되어 동기화 갭 발생 | 자동 검사 (`policy:impact`, CI에서 `--strict`로 차단) |
-| `stack-isolation` | 한 스택 폴더가 다른 스택 폴더를 참조하지 않음 | 자동 검사 (`docs:check`) |
+| `doc-registry-consistency` | `document-registry.json`과 실제 .md 파일 집합 일치 | 자동 검사 (`harness:check`, 본체 개발 시 `docs:check`) |
+| `doc-link-integrity` | `.harness/**/*.md`와 에이전트 진입점 문서의 상대 링크 유효성 | 자동 검사 (`harness:check`, 본체 개발 시 `docs:check`) |
+| `doc-code-path-integrity` | 문서가 인용한 업무 코드, `.harness/...`, seed-only `scripts/...` 경로 존재 (활성 스택의 scaffold 내부도 관대 검사) | 자동 검사 (`harness:check`, 본체 개발 시 `docs:check`) |
+| `policy-source-sync-gap` | 기준 매핑의 한쪽만 변경되어 동기화 갭 발생 | 자동 검사 (`harness:impact`, CI에서 `harness:check:strict`로 차단) |
+| `stack-isolation` | 한 스택 폴더가 다른 스택 폴더를 참조하지 않음 | 자동 검사 (`harness:check`, 본체 개발 시 `docs:check`) |
 | `context-artifact-generation` | 프로젝트 맵, import 맵, 작업별 컨텍스트 후보 생성 | 자동 생성 (`harness:sync`, `harness:context`) |
 
 ## 활성 스택 자동 검증 (`activeStack`에 따라 ON/OFF)
