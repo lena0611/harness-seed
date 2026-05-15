@@ -158,7 +158,7 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2
 | `.harness/install-manifest.json` | 공통 하네스가 어떤 파일을 설치/갱신했는지 추적하는 설치 manifest |
 | `.harness/harness-lock.json` | 현재 프로젝트에 설치된 공통 하네스와 스택 하네스의 repo, ref, version을 기록하는 잠금 파일 |
 
-스택 하네스의 `manifest.json`은 자신이 요구하는 공통 하네스를 `baseHarness`로 명시합니다. 예를 들어 스택 하네스 `v0.1.8`이 공통 하네스 `v0.2.25` 이상을 요구하면, 스택 하네스 `init`은 해당 공통 하네스를 먼저 설치하거나 업데이트합니다.
+스택 하네스의 `manifest.json`은 자신이 요구하는 공통 하네스를 `baseHarness`로 명시합니다. 예를 들어 스택 하네스 `v0.1.9`가 공통 하네스 `v0.2.26` 이상을 요구하면, 스택 하네스 `init`은 해당 공통 하네스를 먼저 설치하거나 업데이트합니다.
 
 업데이트는 보통 다음처럼 진행합니다.
 
@@ -357,9 +357,10 @@ npm run harness:check
 
 lint/test/build는 스택이 적용되어 `.harness/.stack-applied.json`이 있을 때만 실행됩니다. 스택 미적용 상태에서는 공통 하네스 검사만 실행하고, 프로젝트 업무 코드 검증은 스택 선택 이후로 미룹니다.
 
-변경 파일 출력은 기본적으로 feature/source, 로컬 하네스, 설정, 하네스 baseline으로 그룹화합니다. 설치 baseline 파일 전체가 필요할 때만 상세 옵션을 사용합니다.
+변경 파일 출력은 기본적으로 feature/source, 로컬 하네스, 설정, 하네스 baseline으로 그룹화합니다. 설치 직후처럼 성공/실패만 빠르게 보고 싶을 때는 `--brief`를 씁니다. `--brief`에서는 lint/test/build가 성공하면 한 줄로 요약하고, 실패했을 때만 원문 로그와 원인 후보를 보여줍니다. 설치 baseline 파일 전체가 필요할 때만 상세 옵션을 사용합니다.
 
 ```bash
+npm run harness:check -- --brief
 npm run harness:check -- --show-baseline
 npm run harness:check -- --verbose
 ```

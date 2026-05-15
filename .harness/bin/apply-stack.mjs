@@ -32,6 +32,7 @@ const isStatus = args.includes('--status')
 const isTemplateMode = args.includes('--template')
 const isTemplateReset = args.includes('--template-reset')
 const isTemplateStatus = args.includes('--template-status')
+const isEmbedded = args.includes('--embedded')
 const tempRoots = []
 const PROJECT_RUNTIME_CONTRACT_FILES = new Set([
   '.nvmrc',
@@ -1047,13 +1048,15 @@ function commandApply() {
   if (lock.baseHarness?.version || stackHarness.version) {
     console.log(`harness lock: base=${lock.baseHarness?.version ?? 'unknown'}, stack=${stackHarness.version ?? stackId}`)
   }
-  console.log('다음 단계:')
-  if (sourceType !== 'none') {
-    console.log('  1. npm install')
-    console.log('  2. npm run harness:check')
-  } else {
-    console.log('  1. .harness/project/stack-preset-rules.md 확인')
-    console.log('  2. npm run harness:check')
+  if (!isEmbedded) {
+    console.log('다음 단계:')
+    if (sourceType !== 'none') {
+      console.log('  1. npm install')
+      console.log('  2. npm run harness:check')
+    } else {
+      console.log('  1. .harness/project/stack-preset-rules.md 확인')
+      console.log('  2. npm run harness:check')
+    }
   }
 }
 

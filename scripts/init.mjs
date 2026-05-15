@@ -200,6 +200,7 @@ Options:
   --no-scan              설치 후 프로젝트 스캔 리포트를 자동 생성하지 않습니다.
   --no-handoff           설치/업데이트 인수인계 요약을 자동 생성하지 않습니다.
   --no-check             설치 후 하네스 기본 검사를 자동 실행하지 않습니다.
+  --embedded             스택 하네스 설치 흐름 내부에서 호출될 때 중간 안내를 줄입니다.
   --allow-node-mismatch  기존 프로젝트 .nvmrc가 하네스 최소 버전보다 낮아도 명시적으로 진행합니다.
   --from-git <repo-url>  동봉본 대신 git 저장소에서 소스를 가져옵니다.
   --ref <ref>            --from-git과 함께 사용할 branch/tag/sha입니다. 기본값: main
@@ -222,6 +223,7 @@ function parseArgs(argv) {
     noScan: false,
     noHandoff: false,
     noCheck: false,
+    embedded: false,
     allowNodeMismatch: false,
     fromGit: null,
     ref: 'main',
@@ -255,6 +257,9 @@ function parseArgs(argv) {
         break;
       case '--no-check':
         opts.noCheck = true;
+        break;
+      case '--embedded':
+        opts.embedded = true;
         break;
       case '--allow-node-mismatch':
         opts.allowNodeMismatch = true;
@@ -1035,6 +1040,16 @@ function main() {
       console.log('기준 계층과 충돌 후보는 npm run harness:scan 결과를 확인하세요.');
     }
 
+    if (opts.embedded) {
+      console.log(`
+공통 하네스 설치 완료
+
+스택 하네스 설치 흐름 내부에서 실행되었습니다.
+최종 안내는 스택 하네스 설치 완료 후 한 번만 표시됩니다.
+`);
+      return;
+    }
+
     console.log(`
 하네스 설치 완료
 
@@ -1042,6 +1057,7 @@ function main() {
   1) 자동 생성된 프로젝트 스캔/인수인계 확인
        .harness/session/project-scan-report.md
        .harness/session/handoff.md
+       CLI 사용 시: ai guide
   2) git hook 활성화
        npm run hooks:install
   3) 스택 기준 선택, 필요하면 scaffold 템플릿 후보 조회 후 적용
@@ -1051,6 +1067,7 @@ function main() {
        npm run template:apply -- --preset-git <repo-url> --ref <tag-or-branch>
   4) 작업 중간에 다시 검사
        npm run harness:check
+       CLI 사용 시: ai check
 
 문서:
   - CLAUDE.md

@@ -22,6 +22,7 @@ const strictMode = args.includes('--strict') || (() => {
     return false
   }
 })()
+const briefMode = args.includes('--brief')
 const verboseMode = args.includes('--verbose') || args.includes('--all-files')
 const showBaseline = args.includes('--show-baseline') || verboseMode
 
@@ -470,6 +471,20 @@ function printChangedFileGroups(changedFiles) {
   console.log(`  harness baseline/generated changes: ${baselineCount}`)
   console.log('')
 
+  if (briefMode && !verboseMode && !showBaseline) {
+    console.log('Changed files brief:')
+    console.log(`  feature source changes: ${groups.feature.length}`)
+    console.log(`  local harness updates: ${groups.localHarness.length}`)
+    console.log(`  harness script/entrypoint changes: ${groups.harnessScripts.length}`)
+    console.log(`  config changes: ${groups.config.length}`)
+    console.log(`  other project changes: ${groups.other.length}`)
+    console.log(`  harness baseline/generated changes: ${baselineCount}`)
+    console.log('')
+    console.log('상세 파일 목록은 npm run harness:impact 또는 npm run harness:check -- --verbose 로 확인하세요.')
+    console.log('')
+    return groups
+  }
+
   console.log('Feature source changes')
   console.log(formatFileList(groups.feature))
   console.log('')
@@ -522,6 +537,10 @@ function isInformationalSyncGap(changedGroups, harnessMode) {
 function printProjectRuleCandidateReminder(changedGroups) {
   const sourceChangeCount = changedGroups.feature.length + changedGroups.harnessScripts.length + changedGroups.config.length + changedGroups.other.length
   const localHarnessChangeCount = changedGroups.localHarness.length
+
+  if (briefMode && changedGroups.feature.length === 0 && changedGroups.harnessScripts.length === 0 && changedGroups.other.length === 0) {
+    return
+  }
 
   if (sourceChangeCount === 0 && localHarnessChangeCount === 0) {
     return
@@ -590,25 +609,35 @@ function runImpact() {
   }
 
   if (policyTriggered.length > 0) {
-    console.log('Policy document changes require source review:')
+    if (briefMode && !verboseMode) {
+      console.log(`Policy document changes require source review: ${policyTriggered.length}개 기준 영향`)
+      console.log('')
+    } else {
+      console.log('Policy document changes require source review:')
 
-    for (const item of policyTriggered) {
-      console.log(`- ${item.title}`)
-      console.log(baselineOnly && !showBaseline ? formatFileSummary(item.files) : formatFileList(item.files))
+      for (const item of policyTriggered) {
+        console.log(`- ${item.title}`)
+        console.log(baselineOnly && !showBaseline ? formatFileSummary(item.files) : formatFileList(item.files))
+      }
+
+      console.log('')
     }
-
-    console.log('')
   }
 
   if (codeTriggered.length > 0) {
-    console.log('Source changes require policy review:')
+    if (briefMode && !verboseMode) {
+      console.log(`Source changes require policy review: ${codeTriggered.length}개 기준 영향`)
+      console.log('')
+    } else {
+      console.log('Source changes require policy review:')
 
-    for (const item of codeTriggered) {
-      console.log(`- ${item.title}`)
-      console.log(baselineOnly && !showBaseline ? formatFileSummary(item.documents) : formatFileList(item.documents))
+      for (const item of codeTriggered) {
+        console.log(`- ${item.title}`)
+        console.log(baselineOnly && !showBaseline ? formatFileSummary(item.documents) : formatFileList(item.documents))
+      }
+
+      console.log('')
     }
-
-    console.log('')
   }
 
   if (policyTriggered.length === 0 && codeTriggered.length === 0) {
@@ -624,13 +653,18 @@ function runImpact() {
         ? 'SYNC GAP error (strict 모드에서는 기준-코드 불일치를 실패로 봅니다):'
         : 'SYNC GAP warning (한쪽만 변경되어 기준-코드 동기화가 무너질 수 있음):')
 
-    for (const gap of syncGaps) {
-      const sideLabel = gap.side === 'document-only' ? '문서만 변경됨' : '소스만 변경됨'
-      console.log(`- [${gap.id}] ${gap.title} — ${sideLabel}`)
-      console.log('  documents:')
-      console.log(informational && !showBaseline ? formatFileSummary(gap.documents) : formatFileList(gap.documents))
-      console.log('  ownedAreas:')
-      console.log(informational && !showBaseline ? formatFileSummary(gap.ownedAreas) : formatFileList(gap.ownedAreas))
+    if (briefMode && !verboseMode) {
+      console.log(`- ${syncGaps.length}개 기준에서 한쪽 변경이 감지되었습니다.`)
+      console.log('- 상세 기준과 파일 목록은 npm run harness:impact 또는 npm run harness:check -- --verbose 로 확인하세요.')
+    } else {
+      for (const gap of syncGaps) {
+        const sideLabel = gap.side === 'document-only' ? '문서만 변경됨' : '소스만 변경됨'
+        console.log(`- [${gap.id}] ${gap.title} — ${sideLabel}`)
+        console.log('  documents:')
+        console.log(informational && !showBaseline ? formatFileSummary(gap.documents) : formatFileList(gap.documents))
+        console.log('  ownedAreas:')
+        console.log(informational && !showBaseline ? formatFileSummary(gap.ownedAreas) : formatFileList(gap.ownedAreas))
+      }
     }
 
     console.log('')

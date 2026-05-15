@@ -133,3 +133,10 @@
 - 두 결함 모두 수정: marker는 `.gitignore`로, root `package.json`/`package-lock.json`은 항상 슬림 상태(stack:reset 후)로만 커밋합니다.
 - CI 검증에 `node .harness/bin/apply-stack.mjs` 단계와 `npm install` 호출을 추가해, 슬림 root에서도 머지된 의존성으로 검증하도록 했습니다.
 - `.gitignore`에 `.harness-backup/`도 미리 추가해 향후 흡수/백업 기능 도입을 위한 자리만 비워뒀습니다.
+
+## 2026-05-15 - 소비자 설치 UX 정리
+- 스택 하네스가 공통 하네스를 내부 호출할 때 중간 안내가 두 번 보이지 않도록 `init --embedded` 옵션을 추가합니다.
+- 최종 안내는 스택 하네스가 한 번에 정리하고, 소비자 개발자는 `harness:guide`, `harness:check` 또는 CLI의 `ai guide`, `ai check`로 이어가도록 안내합니다.
+- 하네스가 생성한 `AGENTS.md`처럼 이미 `CLAUDE.md`와 `.harness/`를 가리키는 엔트리포인트는 bridge 후보로 다시 제안하지 않습니다.
+- 설치 직후 자동 검사는 상세 감사 리포트보다 성공/실패 판정이 우선이므로 `--brief` 출력으로 낮추고, 상세 영향도는 개발자가 필요할 때 `harness:impact` 또는 `harness:check -- --verbose`로 확인하게 합니다.
+- `--brief` 검증에서는 lint/test/build 성공 로그를 `OK` 한 줄로 요약하고, 실패했을 때만 원문 출력과 원인 후보를 보여줍니다.

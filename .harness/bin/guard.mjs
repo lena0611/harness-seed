@@ -7,6 +7,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '..', '..')
 const forwardedArgs = process.argv.slice(2)
+const briefMode = forwardedArgs.includes('--brief')
 const harnessRoot = fs.existsSync(path.join(repoRoot, '.harness'))
   ? path.join(repoRoot, '.harness')
   : path.join(repoRoot, '.github')
@@ -112,10 +113,10 @@ function runNpmScript(scriptName) {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
-  if (result.stdout) process.stdout.write(result.stdout)
-  if (result.stderr) process.stderr.write(result.stderr)
-
   if (result.status !== 0) {
+    if (result.stdout) process.stdout.write(result.stdout)
+    if (result.stderr) process.stderr.write(result.stderr)
+
     if (scriptName === 'lint') {
       printEslintHarnessHint(`${result.stdout ?? ''}\n${result.stderr ?? ''}`)
     } else {
@@ -126,6 +127,14 @@ function runNpmScript(scriptName) {
 
     process.exit(result.status ?? 1)
   }
+
+  if (briefMode) {
+    console.log(`OK: npm run ${scriptName} 통과`)
+    return
+  }
+
+  if (result.stdout) process.stdout.write(result.stdout)
+  if (result.stderr) process.stderr.write(result.stderr)
 }
 
 function readJson(absPath, fallback = null) {

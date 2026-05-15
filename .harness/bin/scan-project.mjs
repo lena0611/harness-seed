@@ -520,7 +520,9 @@ function detectBridgeCandidates() {
   return listExisting(['CLAUDE.md', 'AGENTS.md'])
     .filter((rel) => {
       const content = fs.readFileSync(path.join(repoRoot, rel), 'utf8')
-      return !content.includes('.harness/project/local-methodology.md')
+      const readsLocalMethodology = content.includes('.harness/project/local-methodology.md')
+      const delegatesToHarnessEntrypoint = content.includes('CLAUDE.md') && content.includes('.harness/')
+      return !readsLocalMethodology && !delegatesToHarnessEntrypoint
     })
 }
 
