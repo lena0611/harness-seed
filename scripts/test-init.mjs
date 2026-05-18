@@ -313,9 +313,26 @@ function forceOverwritesProjectOwnedFiles() {
   runInit(target)
 
   fs.writeFileSync(path.join(target, '.harness/project/project-charter.md'), 'FORCE SHOULD REPLACE\n')
-  runInit(target, '--force')
+  runInit(target, '--force', '--confirm-overwrite-project-files')
 
   assert(!read(target, '.harness/project/project-charter.md').includes('FORCE SHOULD REPLACE'), '--force should overwrite project-owned files')
+}
+
+function forceRequiresOverwriteConfirmation() {
+  const target = makeTarget()
+  runInit(target)
+  fs.writeFileSync(path.join(target, '.harness/project/project-charter.md'), 'FORCE SHOULD STOP\n')
+
+  let failed = false
+  try {
+    runInit(target, '--force')
+  } catch (error) {
+    failed = error.status === 1
+    assert(String(error.stderr).includes('--confirm-overwrite-project-files'), '--force failure should explain confirmation flag')
+  }
+
+  assert(failed, '--force without overwrite confirmation should fail')
+  assert(read(target, '.harness/project/project-charter.md') === 'FORCE SHOULD STOP\n', '--force without confirmation should preserve project-owned files')
 }
 
 function dryRunDoesNotWriteFiles() {
@@ -847,6 +864,7 @@ const tests = [
   reinstallPreservesEditedConsumerSessionState,
   reinstallMigratesManagedRootScriptsIntoHarnessBin,
   forceOverwritesProjectOwnedFiles,
+  forceRequiresOverwriteConfirmation,
   dryRunDoesNotWriteFiles,
   noBackupRequiresForce,
   unsupportedProjectNvmrcRequiresExplicitOverride,

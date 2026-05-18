@@ -23,6 +23,8 @@ Options:
   --ref <ref>               git branch/tag/sha를 직접 지정합니다.
   --base-only               스택 하네스 없이 공통 하네스만 업데이트합니다.
   --force                   하네스 설치 시 프로젝트 소유 파일까지 덮어씁니다.
+  --confirm-overwrite-project-files
+                            --force 덮어쓰기 위험을 인지했음을 명시합니다.
   --force-stack             다른 스택 기준이 적용되어 있어도 reset 후 적용합니다.
   --allow-mismatch          스택 호환성 불일치를 명시적으로 허용합니다.
   --migration-mode          --allow-mismatch alias입니다.
@@ -81,6 +83,8 @@ function parseArgs(argv) {
         break
       case '--force':
       case '--force-stack':
+      case '--confirm-overwrite-project-files':
+      case '--confirm-overwrite-project-state':
       case '--allow-mismatch':
       case '--migration-mode':
       case '--no-backup':
@@ -96,6 +100,25 @@ function parseArgs(argv) {
   }
 
   return opts
+}
+
+function assertForceConfirmation(opts) {
+  if (
+    opts.dryRun ||
+    !opts.forwarded.includes('--force') ||
+    opts.forwarded.includes('--confirm-overwrite-project-files') ||
+    opts.forwarded.includes('--confirm-overwrite-project-state') ||
+    process.env.AI_STANDARD_CONFIRM_OVERWRITE_PROJECT_FILES === '1'
+  ) {
+    return
+  }
+
+  console.error('harness:update --force는 프로젝트 소유 문서를 덮어쓸 수 있어 중단합니다.')
+  console.error('진행하려면 위험을 인지했다는 뜻으로 다음 옵션을 함께 사용하세요:')
+  console.error('  npm run harness:update -- --force --confirm-overwrite-project-files')
+  console.error('먼저 명령만 보려면:')
+  console.error('  npm run harness:update -- --dry-run --force')
+  process.exit(1)
 }
 
 function requireValue(args, index, flag) {
@@ -217,6 +240,7 @@ function run(command, args) {
 
 function main() {
   const opts = parseArgs(process.argv)
+  assertForceConfirmation(opts)
   const lock = readJson(lockPath)
 
   if (!lock) {

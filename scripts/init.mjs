@@ -204,6 +204,8 @@ function printUsageAndExit(code = 0) {
 Options:
   --dry-run              변경 없이 설치 계획만 출력합니다.
   --force                프로젝트 소유 파일까지 덮어씁니다.
+  --confirm-overwrite-project-files
+                         --force로 프로젝트 소유/출처 미확인 파일을 덮어쓰는 위험을 인지했음을 명시합니다.
   --no-backup            백업을 만들지 않습니다. 기존 항목이 있으면 --force가 필요합니다.
   --no-scan              설치 후 프로젝트 스캔 리포트를 자동 생성하지 않습니다.
   --no-handoff           설치/업데이트 인수인계 요약을 자동 생성하지 않습니다.
@@ -227,6 +229,7 @@ function parseArgs(argv) {
     command: argv[2],
     dryRun: false,
     force: false,
+    confirmOverwriteProjectFiles: process.env.AI_STANDARD_CONFIRM_OVERWRITE_PROJECT_FILES === '1',
     noBackup: false,
     noScan: false,
     noHandoff: false,
@@ -253,6 +256,10 @@ function parseArgs(argv) {
         break;
       case '--force':
         opts.force = true;
+        break;
+      case '--confirm-overwrite-project-files':
+      case '--confirm-overwrite-project-state':
+        opts.confirmOverwriteProjectFiles = true;
         break;
       case '--no-backup':
         opts.noBackup = true;
@@ -722,6 +729,42 @@ function writeConsumerProjectStateFiles(target, opts, manifest, sourcePkg) {
   return result;
 }
 
+function collectForceOverwriteTargets(target, files, manifest) {
+  return [...new Set([...files, ...CONSUMER_PROJECT_STATE_PATHS])]
+    .filter((rel) => existsSync(join(target, rel)))
+    .filter((rel) => (
+      CONSUMER_PROJECT_STATE_PATHS.includes(rel) ||
+      isProjectOwned(rel) ||
+      !isManagedByManifest(manifest, rel)
+    ))
+    .sort();
+}
+
+function assertForceOverwriteConfirmed(opts, targets) {
+  if (!opts.force || opts.dryRun || targets.length === 0 || opts.confirmOverwriteProjectFiles) {
+    return;
+  }
+
+  console.error('--force는 프로젝트 소유 파일 또는 출처를 확인할 수 없는 기존 파일을 덮어쓸 수 있어 중단합니다.');
+  console.error('');
+  console.error('덮어쓰기 위험 대상 예시:');
+  for (const rel of targets.slice(0, 20)) {
+    console.error(`  - ${rel}`);
+  }
+  if (targets.length > 20) {
+    console.error(`  ... 외 ${targets.length - 20}건`);
+  }
+  console.error('');
+  console.error('먼저 변경 계획만 보려면:');
+  console.error('  init --dry-run --force');
+  console.error('');
+  console.error('정말 덮어쓰려면 다음 옵션을 함께 사용하세요:');
+  console.error('  --force --confirm-overwrite-project-files');
+  console.error('');
+  console.error('자동화 환경에서는 AI_STANDARD_CONFIRM_OVERWRITE_PROJECT_FILES=1 을 사용할 수 있습니다.');
+  process.exit(1);
+}
+
 function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
   const seedPkg = readJson(join(sourceRoot, 'package.json'), {})
   const managedFiles = {}
@@ -1157,11 +1200,26 @@ function main() {
     const recognizedManifest = existingManifest && existingManifest.tool === 'harness-seed' ? existingManifest : null;
     const legacyManagedRootScripts = collectLegacyManagedRootScripts(TARGET, recognizedManifest);
     const externalHarnessMode = !recognizedManifest && hasHarnessLikeFiles(TARGET);
+    const forceOverwriteTargets = collectForceOverwriteTargets(TARGET, files, recognizedManifest);
 
     if (externalHarnessMode) {
       console.log('기존 하네스가 있지만 harness-seed install manifest는 없습니다.');
       console.log('전용 하네스일 수 있어 기존 파일은 기본적으로 보존합니다. 덮어쓰려면 --force를 사용하세요.');
       console.log('');
+    }
+
+    assertForceOverwriteConfirmed(opts, forceOverwriteTargets);
+
+    if (opts.force && opts.confirmOverwriteProjectFiles && forceOverwriteTargets.length > 0) {
+      console.warn('force overwrite confirmed: 프로젝트 소유/출처 미확인 파일 덮어쓰기를 명시적으로 허용했습니다.');
+      console.warn(`force overwrite targets: ${forceOverwriteTargets.length}개`);
+      for (const rel of forceOverwriteTargets.slice(0, 15)) {
+        console.warn(`  - ${rel}`);
+      }
+      if (forceOverwriteTargets.length > 15) {
+        console.warn(`  ... 외 ${forceOverwriteTargets.length - 15}건`);
+      }
+      console.warn('');
     }
 
     if (!opts.noBackup) {

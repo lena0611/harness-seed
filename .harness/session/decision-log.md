@@ -1,5 +1,12 @@
 # 결정 로그
 
+## 2026-05-18 - force 덮어쓰기 확인 절차 추가
+- 소비자 프로젝트의 `decision-log.md`, `project-memory.md`, 프로젝트 룰 문서는 하네스 업데이트 중에도 프로젝트 소유 산출물로 보존되어야 합니다.
+- `--force`는 이 보존 원칙을 깨고 프로젝트 소유/출처 미확인 파일까지 덮어쓸 수 있으므로 단독 실행을 중단합니다.
+- 실제 덮어쓰기는 `--force --confirm-overwrite-project-files`로 위험 인지를 명시한 경우에만 허용합니다.
+- 자동화 환경에서는 `AI_STANDARD_CONFIRM_OVERWRITE_PROJECT_FILES=1`을 사용할 수 있지만, 이 경우에도 백업 생성 여부와 덮어쓰기 대상 목록을 확인해야 합니다.
+- 본체 개발 레포는 소비자 프로젝트와 달리 개발용 `.nvmrc`를 보유하고, npm/버전/lockfile 작업 전 `nvm use`를 먼저 적용합니다.
+
 ## 2026-05-14 - scan/handoff 공개 명령 정리
 - 정식 공개 전 공개 명령을 `harness:scan`, `harness:handoff`, `harness:impact`, `harness:check` 중심으로 정리합니다.
 - `harness:scan`은 프로젝트 구조, 스타일 출처, 기준 계층, 충돌 후보를 `.harness/session/project-scan-report.md`에 남깁니다.

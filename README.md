@@ -178,7 +178,10 @@ npm run harness:update -- --dry-run
 npm run harness:update -- --strategy locked
 npm run harness:update -- --strategy latest
 npm run harness:update -- --range ^1.0.0
+npm run harness:update -- --force --confirm-overwrite-project-files
 ```
+
+`harness:update -- --force`도 프로젝트 소유 문서를 덮어쓸 수 있으므로 단독 실행은 중단됩니다. 실제 덮어쓰기는 `--confirm-overwrite-project-files`를 함께 지정해야 합니다.
 
 `harness:outdated`는 원격 tag를 조회해 업데이트 후보가 있는지만 확인하고 프로젝트 파일은 수정하지 않습니다. 향후 `ai-standard-cli`에서 여러 프로젝트에 업데이트 MR을 만들 때도 이 명령을 먼저 호출하는 방식으로 확장합니다.
 
@@ -500,12 +503,14 @@ ai-standard
 
 ```bash
 npx -y git+<seed-repo-url>#vX.Y.Z init --dry-run
-npx -y git+<seed-repo-url>#vX.Y.Z init --force
+npx -y git+<seed-repo-url>#vX.Y.Z init --force --confirm-overwrite-project-files
 npx -y git+<seed-repo-url>#vX.Y.Z init --no-scan --no-handoff --no-check
 npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 ```
 
 `--no-scan`은 설치 직후 프로젝트 스캔 리포트 자동 생성을 끕니다. `--no-handoff`는 설치/업데이트 인수인계 요약 자동 생성을 끕니다. `--no-check`는 설치 직후 하네스 기본 검사 자동 실행을 끕니다.
+
+`--force`는 프로젝트 소유 문서와 출처를 알 수 없는 기존 하네스 파일까지 덮어쓸 수 있으므로 단독으로는 실행되지 않습니다. 실제 덮어쓰기는 `--confirm-overwrite-project-files`를 함께 지정해야 하며, 실행 전 덮어쓰기 위험 대상과 백업 여부를 확인합니다. 먼저 `--dry-run --force`로 계획만 확인할 수 있습니다.
 
 보존 대상 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/session/active-context.md`, `.harness/session/decision-log.md`, `.harness/session/project-memory.md`, `.harness/session/developer-input-queue.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
 
@@ -523,6 +528,7 @@ npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 
 - 하네스 실행 최소 버전은 Node `20.19.0`입니다. 하네스 스크립트는 이 버전에서 동작하도록 유지합니다.
 - `package.json`에는 `>=20.19.0`로 기록합니다.
+- 본체 개발 레포에는 개발용 `.nvmrc`를 두며, npm/버전/lockfile 작업 전 반드시 `nvm use`를 먼저 실행합니다.
 - 하네스 패키지는 소비자 프로젝트에 `.nvmrc`를 주입하지 않습니다.
 - 기존 프로젝트의 `.nvmrc`는 프로젝트/Jenkins 빌드 계약으로 보고 자동 덮어쓰기하지 않습니다.
 - 기존 `.nvmrc`가 Node 20.19 이상이면 그대로 사용합니다. 더 낮은 버전이면 설치 전에 중단하고 안내하며, 의도적이면 `--allow-node-mismatch`로 진행할 수 있습니다.
