@@ -41,6 +41,14 @@ const MIN_NODE_MESSAGE = 'harness-seed requires Node.js >=20.19.0.';
 const MANIFEST_PATH = '.harness/install-manifest.json';
 const LOCK_PATH = '.harness/harness-lock.json';
 
+const CONSUMER_PROJECT_STATE_PATHS = [
+  '.harness/session/active-context.md',
+  '.harness/session/decision-log.md',
+  '.harness/session/developer-input-queue.md',
+  '.harness/session/next-session-reminder.md',
+  '.harness/session/project-memory.md',
+];
+
 const INSTALL_ITEMS = [
   '.harness',
   '.claude',
@@ -397,6 +405,7 @@ function shouldIncludeInstallFile(relPath) {
     rel.startsWith('.harness/generated/') ||
     rel.startsWith('.harness/stacks/.applied/') ||
     rel.startsWith('.harness/templates/.applied/') ||
+    CONSUMER_PROJECT_STATE_PATHS.includes(rel) ||
     [
       '.harness/session/project-scan-report.md',
       '.harness/session/handoff.md',
@@ -483,6 +492,10 @@ function sha256(absPath) {
   return createHash('sha256').update(readFileSync(absPath)).digest('hex');
 }
 
+function sha256Text(content) {
+  return createHash('sha256').update(content).digest('hex');
+}
+
 function isoStamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
 }
@@ -544,10 +557,178 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
   return { ...stats, skippedFiles, copiedFiles };
 }
 
+function consumerProjectStateTemplate(rel, context) {
+  const generatedAt = context.generatedAt;
+  const packageVersion = context.packageVersion;
+
+  switch (rel) {
+    case '.harness/session/active-context.md':
+      return `# 현재 컨텍스트
+
+이 문서는 이 프로젝트에서 최근 작업 상태와 다음 작업을 짧게 이어받기 위한 소비자 프로젝트 전용 문서입니다.
+
+> 하네스 본체의 개발 기록이 아닙니다. 설치된 프로젝트의 현재 작업 맥락만 기록합니다.
+
+## 현재 상태
+- generatedAt: ${generatedAt}
+- baseHarness: ${packageVersion}
+- activeStack: \`.harness/policy/profile.json\` 참고
+- harnessMode: \`.harness/policy/profile.json\` 참고
+
+## 최근 작업
+- 하네스가 설치되었거나 업데이트되었습니다.
+- 프로젝트 구조 분석 결과는 \`.harness/session/project-scan-report.md\`를 확인합니다.
+- 설치/업데이트 직후 요약은 \`.harness/session/handoff.md\`를 확인합니다.
+
+## 다음 작업 후보
+- \`.harness/project/project-charter.md\`의 TBD 항목을 프로젝트 상황에 맞게 채웁니다.
+- 작업을 시작하기 전에 \`npm run harness:context -- "<작업 설명>"\`으로 읽을 기준을 좁힙니다.
+- 작업 후 \`npm run harness:check\`로 기준, 링크, 검증 상태를 확인합니다.
+`;
+
+    case '.harness/session/decision-log.md':
+      return `# 결정 로그
+
+이 문서는 이 프로젝트에서 내린 중요한 판단과 선택 이유를 남기는 소비자 프로젝트 전용 로그입니다.
+
+> 하네스 본체의 변경 이력이나 릴리스 노트가 아닙니다. 하네스 본체 변경 기록은 하네스 저장소의 \`CHANGELOG.md\` 또는 릴리스 태그를 확인합니다.
+
+## 기록 원칙
+- 프로젝트 기준, 스택 기준, 템플릿 계약, 개인 기준이 충돌할 때 선택 이유를 남깁니다.
+- 테스트 전략, 예외 허용, 아키텍처 경계, 운영 절차처럼 이후 작업에 영향을 주는 판단을 남깁니다.
+- 단순 작업 로그나 일회성 구현 세부사항은 남기지 않습니다.
+- 임시 예외는 가능하면 \`.harness/policy/waivers.json\`에 범위와 만료 조건을 함께 남깁니다.
+
+## ${generatedAt.slice(0, 10)} - 하네스 초기 설치 또는 업데이트
+- baseHarness: ${packageVersion}
+- 이 프로젝트의 구체적인 판단은 아직 기록되지 않았습니다.
+- 설치 직후 분석은 \`.harness/session/project-scan-report.md\`와 \`.harness/session/handoff.md\`를 확인합니다.
+`;
+
+    case '.harness/session/developer-input-queue.md':
+      return `# 개발자 입력 큐
+
+개발자 정보 부족 때문에 확정하지 못한 질문을 관리합니다.
+
+## 상태 정의
+- \`open\`: 다음 작업 전에 다시 확인해야 함
+- \`deferred\`: 개발자가 이번 세션에서 답변을 유보함
+- \`answered\`: 답변을 받아 반영함
+- \`obsolete\`: 더 이상 필요하지 않음
+
+## 현재 오픈 항목
+| id | status | 질문 | 왜 필요한가 | 개발자 선택 |
+| --- | --- | --- | --- | --- |
+| charter-status | open | 이 프로젝트는 신규 구축, 유지보수, 마이그레이션, 운영 개선 중 어디에 가까운가? | 프로젝트 헌장 질문을 상황에 맞게 줄이기 위해 필요 | 미정 |
+| charter-scope | open | 이 저장소가 현재 책임지는 범위와 책임지지 않는 범위는 무엇인가? | 프로젝트 하네스가 과도한 규칙을 만들지 않기 위해 필요 | 미정 |
+| charter-success | open | 현재 가장 중요한 성공 기준은 무엇인가? | 완료 판단과 범위 통제를 위해 필요 | 미정 |
+| charter-risk | open | 변경하면 특히 위험한 영역이나 반복 회귀 지점은 무엇인가? | 유지보수와 에이전트 작업의 검증 기준을 정하기 위해 필요 | 미정 |
+
+## 운영 원칙
+- 답변을 받으면 관련 문서(\`project-charter.md\`, \`active-context.md\`, \`decision-log.md\`)를 함께 갱신합니다.
+- 유보된 질문은 삭제하지 않고 \`deferred\`로 남깁니다.
+`;
+
+    case '.harness/session/next-session-reminder.md':
+      return `# 다음 세션 리마인더
+
+새 세션에서 바로 이어받기 위한 소비자 프로젝트 전용 메모입니다.
+
+## 먼저 확인할 것
+1. \`git --no-pager status --short\`
+2. \`.harness/session/handoff.md\`
+3. \`.harness/session/project-scan-report.md\`
+4. \`.harness/session/developer-input-queue.md\`
+
+## 다음 작업
+- 프로젝트 헌장 TBD 항목을 확인합니다.
+- 이번 작업 설명이 있으면 \`npm run harness:context -- "<작업 설명>"\`으로 읽을 기준을 좁힙니다.
+- 작업 후 \`npm run harness:check\`를 실행합니다.
+`;
+
+    case '.harness/session/project-memory.md':
+      return `# 프로젝트 메모리
+
+세션이 바뀌어도 유지되는 이 프로젝트의 안정적인 사실을 기록합니다.
+
+> 하네스 본체 저장소의 설계 메모리가 아닙니다. 이 프로젝트의 도메인, 운영 방식, 반복되는 검증 기준만 남깁니다.
+
+## 프로젝트 성격
+- 프로젝트/서비스 이름: \`TBD\`
+- 소유 팀 또는 담당 주체: \`TBD\`
+- 주된 작업 유형: \`TBD\`
+- 활성 스택: \`.harness/policy/profile.json\` 참고
+
+## 반복해서 참고할 사실
+- 아직 기록된 프로젝트 고유 사실이 없습니다.
+
+## 기록 원칙
+- 한 번뿐인 구현 세부사항은 기록하지 않습니다.
+- 반복되는 도메인 규칙, 아키텍처 경계, 검증 기준만 남깁니다.
+- 오래된 사실을 바꿀 때는 \`decision-log.md\`에 변경 이유를 남깁니다.
+`;
+
+    default:
+      throw new Error(`Unknown consumer project state template: ${rel}`);
+  }
+}
+
+function isUnchangedManagedProjectState(target, rel, manifest) {
+  const abs = join(target, rel);
+  if (!existsSync(abs) || !manifest?.managedFiles?.[rel]?.sha256) {
+    return false;
+  }
+
+  return sha256(abs) === manifest.managedFiles[rel].sha256;
+}
+
+function writeConsumerProjectStateFiles(target, opts, manifest, sourcePkg) {
+  const result = { added: 0, updated: 0, preserved: 0, planned: 0, files: [] };
+  const context = {
+    generatedAt: new Date().toISOString(),
+    packageVersion: sourcePkg.version || '0.0.0',
+  };
+
+  for (const rel of CONSUMER_PROJECT_STATE_PATHS) {
+    const abs = join(target, rel);
+    const exists = existsSync(abs);
+    const template = consumerProjectStateTemplate(rel, context);
+    const unchangedManaged = isUnchangedManagedProjectState(target, rel, manifest);
+    const shouldWrite = !exists || opts.force || unchangedManaged;
+
+    if (opts.dryRun) {
+      if (shouldWrite) {
+        console.log(`[dry-run] ${!exists ? 'add' : 'replace'} consumer project state ${rel}`);
+        result.planned++;
+      }
+      continue;
+    }
+
+    if (!shouldWrite) {
+      result.preserved++;
+      continue;
+    }
+
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, template);
+    result.files.push(rel);
+    if (exists) {
+      result.updated++;
+    } else {
+      result.added++;
+    }
+  }
+
+  return result;
+}
+
 function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
   const seedPkg = readJson(join(sourceRoot, 'package.json'), {})
   const managedFiles = {}
-  const projectOwnedFiles = files.filter((rel) => isProjectOwned(rel)).sort()
+  const projectOwnedFiles = [...new Set([
+    ...files.filter((rel) => isProjectOwned(rel)),
+    ...CONSUMER_PROJECT_STATE_PATHS,
+  ])].sort()
   const source = buildSourceMetadata(sourceRoot, opts, seedPkg)
 
   for (const rel of copiedFiles) {
@@ -971,6 +1152,7 @@ function main() {
     console.log('');
 
     const files = collectInstallFiles(sourceRoot);
+    const sourcePkg = readJson(join(sourceRoot, 'package.json'), {});
     const existingManifest = readJson(join(TARGET, MANIFEST_PATH), null);
     const recognizedManifest = existingManifest && existingManifest.tool === 'harness-seed' ? existingManifest : null;
     const legacyManagedRootScripts = collectLegacyManagedRootScripts(TARGET, recognizedManifest);
@@ -983,7 +1165,7 @@ function main() {
     }
 
     if (!opts.noBackup) {
-      const backup = backupExisting(TARGET, [...files, ...legacyManagedRootScripts], opts.dryRun);
+      const backup = backupExisting(TARGET, [...files, ...CONSUMER_PROJECT_STATE_PATHS, ...legacyManagedRootScripts], opts.dryRun);
       if (backup.count > 0) {
         console.log(`backup: ${backup.dir} (${backup.count}개 기존 파일)`);
       } else {
@@ -993,6 +1175,7 @@ function main() {
     }
 
     const installed = installFiles(sourceRoot, TARGET, files, opts, recognizedManifest);
+    const projectState = writeConsumerProjectStateFiles(TARGET, opts, recognizedManifest, sourcePkg);
     const migration = removeLegacyManagedRootScripts(TARGET, legacyManagedRootScripts, opts);
     const pkg = mergePackageJson(sourceRoot, TARGET, opts);
     const gitignoreAdded = mergeGitignore(TARGET, opts);
@@ -1004,6 +1187,9 @@ function main() {
 
     console.log('');
     console.log(`files: ${installed.added}개 추가, ${installed.updated}개 갱신, ${installed.skipped}개 보존`);
+    console.log(
+      `project state: ${opts.dryRun ? `${projectState.planned}개 생성/교체 예정` : `${projectState.added}개 추가, ${projectState.updated}개 교체, ${projectState.preserved}개 보존`}`,
+    );
     console.log(
       `package.json: ${pkg.created ? '신규 생성, ' : ''}scripts ${pkg.added}개 추가` +
         (pkg.skipped.length ? `, 기존 scripts 보존 ${pkg.skipped.length}개 (${pkg.skipped.join(', ')})` : ''),

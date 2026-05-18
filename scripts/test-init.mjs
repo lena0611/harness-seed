@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -39,6 +40,10 @@ function writeJson(target, rel, value) {
   fs.writeFileSync(path.join(target, rel), `${JSON.stringify(value, null, 2)}\n`)
 }
 
+function sha256Text(content) {
+  return createHash('sha256').update(content).digest('hex')
+}
+
 function makeTarget() {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-init-test-'))
   run('git', ['init', '--quiet'], { cwd: target })
@@ -73,6 +78,19 @@ function cleanInstallCreatesExpectedFiles() {
   assert(exists(target, '.harness/session/project-scan-report.md'), 'clean install should auto-create scan report')
   assert(exists(target, '.harness/session/handoff.md'), 'clean install should auto-create handoff report')
   assert(exists(target, '.claude/hooks/enforce-check.sh'), 'clean install should copy agent completion check hook')
+  assert(exists(target, '.harness/session/decision-log.md'), 'clean install should create consumer decision log')
+  assert(exists(target, '.harness/session/active-context.md'), 'clean install should create consumer active context')
+  assert(exists(target, '.harness/session/project-memory.md'), 'clean install should create consumer project memory')
+
+  const decisionLog = read(target, '.harness/session/decision-log.md')
+  assert(decisionLog.includes('소비자 프로젝트 전용 로그'), 'consumer decision log should explain project scope')
+  assert(decisionLog.includes('하네스 초기 설치 또는 업데이트'), 'consumer decision log should include install entry')
+  assert(!decisionLog.includes('정식 공개 전 공개 명령 정리'), 'consumer decision log should not include seed development history')
+  assert(!decisionLog.includes('시드 하네스 저장소 분리'), 'consumer decision log should not include seed repository history')
+
+  const activeContext = read(target, '.harness/session/active-context.md')
+  assert(activeContext.includes('소비자 프로젝트 전용 문서'), 'consumer active context should explain project scope')
+  assert(!activeContext.includes('일반화 하네스 + 외부 스택 기준 런타임'), 'consumer active context should not include seed current state')
 
   const pkg = JSON.parse(read(target, 'package.json'))
   assert(pkg.scripts['harness:scan'], 'clean install should merge harness scan script')
@@ -101,6 +119,8 @@ function cleanInstallCreatesExpectedFiles() {
   assert(manifest.managedFiles['.harness/bin/guard.mjs'], 'install manifest should record managed files')
   assert(manifest.managedFiles['.harness/bin/harness-guide.mjs'], 'install manifest should record harness guide script')
   assert(manifest.managedFiles['.harness/bin/sync-context.mjs'], 'install manifest should record sync context script')
+  assert(!manifest.managedFiles['.harness/session/decision-log.md'], 'consumer decision log should not be managed as seed file')
+  assert(manifest.projectOwnedFiles.includes('.harness/session/decision-log.md'), 'install manifest should list decision log as project-owned')
 
   const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
   assert(lock.baseHarness.version === packageVersion, 'harness lock should record base harness version')
@@ -221,6 +241,48 @@ function reinstallPreservesProjectOwnedFiles() {
   assert(read(target, '.harness/project/local-methodology.md') === sentinel, 'reinstall should preserve local methodology')
   assert(read(target, '.harness/policy/profile.json').includes('"custom"'), 'reinstall should preserve profile')
   assert(exists(target, '.harness-backup'), 'reinstall should create backup directory')
+}
+
+function reinstallMigratesUnchangedSeedSessionStateToConsumerTemplates() {
+  const target = makeTarget()
+  runInit(target)
+
+  const seedDecisionLog = fs.readFileSync(path.join(repoRoot, '.harness/session/decision-log.md'), 'utf8')
+  const seedActiveContext = fs.readFileSync(path.join(repoRoot, '.harness/session/active-context.md'), 'utf8')
+  fs.writeFileSync(path.join(target, '.harness/session/decision-log.md'), seedDecisionLog)
+  fs.writeFileSync(path.join(target, '.harness/session/active-context.md'), seedActiveContext)
+
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  manifest.managedFiles['.harness/session/decision-log.md'] = {
+    sha256: sha256Text(seedDecisionLog),
+  }
+  manifest.managedFiles['.harness/session/active-context.md'] = {
+    sha256: sha256Text(seedActiveContext),
+  }
+  writeJson(target, '.harness/install-manifest.json', manifest)
+
+  const output = runInit(target, '--no-scan', '--no-check')
+  const migratedDecisionLog = read(target, '.harness/session/decision-log.md')
+  const migratedActiveContext = read(target, '.harness/session/active-context.md')
+  const nextManifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+
+  assert(output.includes('project state:'), 'reinstall should report project state migration')
+  assert(migratedDecisionLog.includes('소비자 프로젝트 전용 로그'), 'unchanged seed decision log should migrate to consumer template')
+  assert(!migratedDecisionLog.includes('정식 공개 전 공개 명령 정리'), 'migrated decision log should remove seed development history')
+  assert(migratedActiveContext.includes('소비자 프로젝트 전용 문서'), 'unchanged seed active context should migrate to consumer template')
+  assert(!nextManifest.managedFiles['.harness/session/decision-log.md'], 'migrated consumer decision log should not remain managed')
+}
+
+function reinstallPreservesEditedConsumerSessionState() {
+  const target = makeTarget()
+  runInit(target)
+
+  const customDecision = '# 결정 로그\n\n프로젝트에서 직접 쓴 판단입니다.\n'
+  fs.writeFileSync(path.join(target, '.harness/session/decision-log.md'), customDecision)
+
+  runInit(target, '--no-scan', '--no-check')
+
+  assert(read(target, '.harness/session/decision-log.md') === customDecision, 'reinstall should preserve edited consumer decision log')
 }
 
 function reinstallMigratesManagedRootScriptsIntoHarnessBin() {
@@ -781,6 +843,8 @@ const tests = [
   initPatchesEslintConfigForHarnessFiles,
   initAddsHarnessBackupIgnoreWhenNodeOverrideExists,
   reinstallPreservesProjectOwnedFiles,
+  reinstallMigratesUnchangedSeedSessionStateToConsumerTemplates,
+  reinstallPreservesEditedConsumerSessionState,
   reinstallMigratesManagedRootScriptsIntoHarnessBin,
   forceOverwritesProjectOwnedFiles,
   dryRunDoesNotWriteFiles,

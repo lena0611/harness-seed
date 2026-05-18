@@ -202,6 +202,22 @@ npm run harness:update -- --range ^1.0.0
 
 중요한 점은 업무 코드 자체를 대신 작성하는 것이 아니라, 작업 기준과 검증 경로를 프로젝트 안에 고정한다는 점입니다.
 
+## 본체 개발 자료와 소비자 프로젝트 자료
+
+하네스 본체 저장소에서 쓰는 개발 기록과, 적용 대상 프로젝트에 제공되는 운영 문서는 구분합니다.
+
+| 구분 | 본체 저장소 | 소비자 프로젝트 |
+| --- | --- | --- |
+| 변경 이력 | `CHANGELOG.md`, 릴리스 태그 | 해당 없음 |
+| 본체 설계 판단 | 본체의 `.harness/session/decision-log.md` | 복사하지 않음 |
+| 프로젝트 판단 | 해당 없음 | 소비자용 `.harness/session/decision-log.md` 템플릿 생성 |
+| 현재 작업 맥락 | 본체의 `.harness/session/active-context.md` | 소비자용 `active-context.md` 템플릿 생성 |
+| 장기 메모리 | 본체의 `.harness/session/project-memory.md` | 소비자용 `project-memory.md` 템플릿 생성 |
+
+즉, `decision-log.md`는 릴리스 노트나 체인지 로그가 아닙니다. 설치된 프로젝트에서는 그 프로젝트의 기준 충돌, 예외, 아키텍처 선택 이유를 남기는 곳입니다. 하네스 본체의 변경 요약은 `CHANGELOG.md`와 Git 태그로 관리합니다.
+
+최초 설치 시 `active-context.md`, `decision-log.md`, `developer-input-queue.md`, `next-session-reminder.md`, `project-memory.md`는 본체 파일을 그대로 복사하지 않고 소비자 프로젝트용 템플릿으로 생성합니다. 업데이트 시에는 기존 프로젝트 내용이 보존되며, 과거 버전에서 본체 문서가 그대로 복사된 상태이고 사용자가 수정하지 않은 경우에만 소비자용 템플릿으로 교체합니다.
+
 ## 강제되는 것과 강제되지 않는 것
 
 하네스시드는 모든 규칙을 처음부터 강제하지 않습니다. 규칙의 성격에 따라 단계가 다릅니다.
@@ -491,7 +507,7 @@ npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 
 `--no-scan`은 설치 직후 프로젝트 스캔 리포트 자동 생성을 끕니다. `--no-handoff`는 설치/업데이트 인수인계 요약 자동 생성을 끕니다. `--no-check`는 설치 직후 하네스 기본 검사 자동 실행을 끕니다.
 
-보존 대상 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/session/active-context.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
+보존 대상 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/session/active-context.md`, `.harness/session/decision-log.md`, `.harness/session/project-memory.md`, `.harness/session/developer-input-queue.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
 
 ## Claude Code 어댑터
 
