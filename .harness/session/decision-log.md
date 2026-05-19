@@ -27,6 +27,11 @@
 - `policy:check`는 공통 정책 레지스트리 v3 필수 필드와 enum을 검사합니다.
 - 스택 하네스 외부 `policies.json`는 기존 호환을 위해 기본 필드만 검사하고, v3 강제는 공통 레지스트리부터 적용합니다.
 
+## 2026-05-19 - 검증 명령 사용 위치 표기
+- `harness:check`, `harness:impact`, `harness:scan`, `harness:handoff`, `hooks:install`은 소비자 프로젝트에서도 쓰는 공개 명령입니다.
+- `policy:check`, `docs:check:strict`, `scripts/test-init.mjs`, `npm pack --dry-run`은 주로 하네스 본체 개발과 배포 검증에서 쓰는 명령입니다.
+- 스택 하네스와 CLI 저장소의 downstream 검증은 소비자 프로젝트가 아니라 해당 본체 저장소의 릴리스 안전성을 확인하는 용도입니다.
+
 ## 2026-05-18 - 공통 하네스만 설치된 상태의 다음 선택 안내
 - 러버덕 테스트에서 공통시드만 설치한 개발자가 다음 행동을 알기 어렵다는 문제가 확인되었습니다.
 - 공통 하네스 단독 설치는 실패나 미완료가 아니라 정상 선택 가능한 상태입니다.

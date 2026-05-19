@@ -44,6 +44,21 @@ npm run harness:context -- "작업 설명"
 npm run docs:check
 ```
 
+## 검증 명령 구분
+
+| 검증 | 본체 개발 | 소비자 프로젝트 | 역할 |
+| --- | --- | --- | --- |
+| `npm run harness:check` | 사용 | 사용 | 표준 통합 검사입니다. |
+| `npm run harness:impact` | 사용 | 사용 | 변경 파일과 기준의 연결을 확인합니다. |
+| `npm run harness:scan` | 사용 | 사용 | 프로젝트 구조와 기준 후보를 스캔합니다. |
+| `npm run harness:handoff` | 사용 | 사용 | 설치/업데이트 후 확인할 일과 현재 상태를 요약합니다. |
+| `npm run hooks:install` | 사용 | 사용 | commit/push 전 `harness:check` 자동 실행을 연결합니다. |
+| `npm run policy:check` | 주로 사용 | 기본 script 아님 | 정책 레지스트리 자체를 직접 검사합니다. |
+| `npm run docs:check:strict` | 사용 | 기본 script 아님 | 하네스 문서 레지스트리와 링크를 엄격히 검사합니다. |
+| `node scripts/test-init.mjs` | 사용 | 사용 안 함 | 설치기 smoke test입니다. |
+| `npm pack --dry-run` | 사용 | 사용 안 함 | 패키지 배포물 구성을 확인합니다. |
+| downstream `check` / `test:init` / `test` | 스택/CLI 본체 개발 | 사용 안 함 | 스택 하네스와 CLI 저장소 자체를 검증합니다. |
+
 ## 구성 요소
 - `policy-registry.json`: 개발 기준 문서와 코드 영역의 연결 정보. v3부터 DB화 전 필수 메타데이터를 포함합니다.
 - `policy-db-readiness.md`: 정책을 DB로 옮기기 전 원자 정책 단위, 필수 필드, weak point 기준

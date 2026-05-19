@@ -38,8 +38,7 @@
       },
       "documents": [
         ".harness/policy/policy-registry.json",
-        ".harness/policy/policy-db-readiness.md",
-        ".harness/policy/README.md"
+        ".harness/policy/policy-db-readiness.md"
       ],
       "ownedAreas": [
         ".harness/policy/policy-registry.json",
@@ -75,8 +74,7 @@
       "ownedAreas": [
         ".harness/policy/ai-standard-guiding-policy.md",
         ".harness/policy/context-protocol.md",
-        ".harness/project/standards-layers.md",
-        "README.md"
+        ".harness/project/standards-layers.md"
       ],
       "checks": [
         "npm run harness:impact",

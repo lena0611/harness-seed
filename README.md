@@ -448,6 +448,25 @@ npm run harness:check -- --verbose
 
 정책을 DB화하기 전에는 `.harness/policy/policy-db-readiness.md`와 `policy-registry.json` v3를 기준으로 정책 항목이 원자 단위인지, 소유자/출처/강제 강도/예외 가능 여부/검증 명령을 갖는지 먼저 확인합니다.
 
+### 검증 명령의 사용 위치
+
+검증 명령은 본체 개발용과 소비자 프로젝트용이 섞여 있습니다. 일반 프로젝트 개발자는 보통 공개 `harness:*` 명령을 쓰고, 하네스 본체/스택/CLI 개발자는 내부 검사와 패키징 검사를 추가로 실행합니다.
+
+| 검증 | 본체 개발 | 소비자 프로젝트 | 역할 |
+| --- | --- | --- | --- |
+| `npm run harness:check` | 사용 | 사용 | 표준 통합 검사입니다. 작업 완료 전 또는 hook 설치 후 commit/push 전에 실행됩니다. |
+| `npm run harness:impact` | 사용 | 사용 | 변경 파일이 어떤 기준과 연결되는지 확인합니다. |
+| `npm run harness:scan` | 사용 | 사용 | 현재 프로젝트 구조, 스택, 기존 룰 후보를 스캔합니다. |
+| `npm run harness:handoff` | 사용 | 사용 | 설치/업데이트 후 확인할 일과 현재 상태를 요약합니다. |
+| `npm run hooks:install` | 사용 | 사용 | commit/push 전에 `harness:check`가 자동 실행되도록 git hook을 연결합니다. |
+| `npm run policy:check` | 주로 사용 | 기본 script 아님 | 정책 레지스트리 자체를 직접 검사합니다. 소비자 프로젝트는 보통 `harness:check` 안에서 간접 확인합니다. |
+| `npm run docs:check:strict` | 사용 | 기본 script 아님 | 하네스 문서 레지스트리와 링크를 엄격히 검사합니다. |
+| `node scripts/test-init.mjs` | 사용 | 사용 안 함 | 설치기 자체가 소비자 프로젝트에 안전하게 주입되는지 smoke test합니다. |
+| `npm pack --dry-run` | 사용 | 사용 안 함 | 배포 패키지에 포함될 파일과 버전을 확인합니다. |
+| downstream `check` | 스택/CLI 본체 개발 | 사용 안 함 | 스택 하네스 또는 CLI 저장소 자체의 구조 검증입니다. |
+| downstream `test:init` | 스택 하네스 본체 개발 | 사용 안 함 | 스택 하네스 init 흐름을 검증합니다. |
+| downstream `test` | CLI 본체 개발 | 사용 안 함 | CLI 명령 라우팅을 검증합니다. |
+
 ## 스택 기준과 템플릿
 
 공통 하네스 본체는 특정 프레임워크를 전제로 하지 않습니다. 프로젝트에서는 회사 공통 기준을 직접 고르는 대신, 보통 회사 공통 기준을 기반으로 한 스택 하네스를 선택합니다.
