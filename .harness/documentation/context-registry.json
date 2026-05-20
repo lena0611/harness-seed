@@ -72,6 +72,15 @@
       "priority": "high",
       "appliesTo": [".harness/session/task-context.md", ".harness/generated/**"],
       "keywords": ["컨텍스트", "context", "decision", "판단", "합성"]
+    },
+    {
+      "id": "skill-registry",
+      "file": ".harness/skills/README.md",
+      "category": "skill",
+      "taskTypes": ["feature", "bugfix", "refactor", "docs", "review", "maintenance"],
+      "priority": "medium",
+      "appliesTo": [".harness/skills/registry.json", ".harness/session/task-context.md"],
+      "keywords": ["스킬", "skill", "작업 절차", "읽을거리", "선택", "context"]
     }
   ]
 }

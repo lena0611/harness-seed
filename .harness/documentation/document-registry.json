@@ -93,6 +93,13 @@
       ]
     },
     {
+      "id": "skill-harness",
+      "index": ".harness/skills/README.md",
+      "children": [
+        ".harness/skills/registry.json"
+      ]
+    },
+    {
       "id": "style-harness",
       "index": ".harness/style/README.md",
       "children": [

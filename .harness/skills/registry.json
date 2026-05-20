@@ -1,0 +1,352 @@
+{
+  "version": 1,
+  "description": "Agent-facing harness skill registry. Skills narrow the reading set, commands, and durable records for a user request.",
+  "skills": [
+    {
+      "id": "harness.request-triage",
+      "title": "요청 분류 흐름",
+      "purpose": "요청의 목표, 범위, 완료 조건, 충돌 가능성을 먼저 나눈다.",
+      "audience": ["consumer", "harness-maintainer", "stack-author", "template-author"],
+      "taskTypes": ["unknown", "feature", "bugfix", "refactor", "docs", "review", "maintenance", "verification"],
+      "priority": "critical",
+      "triggers": ["요청", "작업", "구현", "수정", "검토", "업데이트", "배포", "request"],
+      "read": [
+        "CLAUDE.md",
+        ".harness/policy/ai-standard-guiding-policy.md",
+        ".harness/session/session-start-alert.md",
+        ".harness/session/active-context.md"
+      ],
+      "commands": [
+        "npm run harness:context -- \"<작업 설명>\"",
+        "npm run harness:impact"
+      ],
+      "outputs": [
+        "작업 목표/범위/완료 조건",
+        "읽을 문서 후보",
+        "충돌 또는 질문 후보"
+      ],
+      "records": [
+        ".harness/session/developer-input-queue.md",
+        ".harness/session/decision-log.md"
+      ]
+    },
+    {
+      "id": "harness.session-start",
+      "title": "세션 시작 흐름",
+      "purpose": "새 에이전트 세션에서 이전 맥락, 미결 질문, 장기 기억을 짧게 복구한다.",
+      "audience": ["consumer", "harness-maintainer"],
+      "taskTypes": ["unknown", "maintenance"],
+      "priority": "high",
+      "triggers": ["새 세션", "시작", "이어", "재개", "컨텍스트", "reminder", "memory"],
+      "read": [
+        ".harness/session/session-start-alert.md",
+        ".harness/session/next-session-reminder.md",
+        ".harness/session/project-memory.md",
+        ".harness/session/active-context.md",
+        ".harness/session/developer-input-queue.md"
+      ],
+      "commands": [
+        "npm run harness:impact"
+      ],
+      "outputs": [
+        "이전 세션 요약",
+        "미결 질문",
+        "이번 세션 시작 전 확인할 기준"
+      ],
+      "records": [
+        ".harness/session/active-context.md",
+        ".harness/session/developer-input-queue.md"
+      ]
+    },
+    {
+      "id": "harness.bugfix-flow",
+      "title": "버그 수정 흐름",
+      "purpose": "버그 수정 요청에서 원인, 영향 범위, 재발 방지 검증을 연결한다.",
+      "audience": ["consumer"],
+      "taskTypes": ["bugfix"],
+      "priority": "high",
+      "triggers": ["버그", "오류", "에러", "실패", "안됨", "깨짐", "fix", "bug"],
+      "read": [
+        ".harness/project/domain-rules.md",
+        ".harness/project/architecture-rules.md",
+        ".harness/project/workflow-rules.md",
+        ".harness/session/decision-log.md"
+      ],
+      "commands": [
+        "npm run harness:impact",
+        "npm run harness:check"
+      ],
+      "outputs": [
+        "원인 후보와 실제 원인",
+        "수정 범위",
+        "재발 방지 검증",
+        "로컬룰 승격 후보"
+      ],
+      "records": [
+        ".harness/session/decision-log.md",
+        ".harness/project/workflow-rules.md"
+      ]
+    },
+    {
+      "id": "harness.feature-flow",
+      "title": "기능 개발 흐름",
+      "purpose": "신규 기능 요청에서 도메인 규칙, 구조 경계, 검증 기준을 함께 설계한다.",
+      "audience": ["consumer"],
+      "taskTypes": ["feature"],
+      "priority": "high",
+      "triggers": ["추가", "생성", "구현", "기능", "신규", "만들", "feature", "add"],
+      "read": [
+        ".harness/project/project-charter.md",
+        ".harness/project/scope-contract.md",
+        ".harness/project/domain-rules.md",
+        ".harness/project/architecture-rules.md",
+        ".harness/project/workflow-rules.md"
+      ],
+      "commands": [
+        "npm run harness:impact",
+        "npm run harness:check"
+      ],
+      "outputs": [
+        "기능 범위",
+        "구현 계획",
+        "검증 계획",
+        "도메인/구조/워크플로우 룰 승격 후보"
+      ],
+      "records": [
+        ".harness/project/domain-rules.md",
+        ".harness/project/architecture-rules.md",
+        ".harness/session/decision-log.md"
+      ]
+    },
+    {
+      "id": "harness.refactor-flow",
+      "title": "리팩토링 흐름",
+      "purpose": "구조 개선 요청에서 기존 동작 보존과 경계 변경 기록을 분리한다.",
+      "audience": ["consumer"],
+      "taskTypes": ["refactor"],
+      "priority": "high",
+      "triggers": ["리팩터", "리팩토", "정리", "구조 개선", "분리", "refactor"],
+      "read": [
+        ".harness/project/architecture-rules.md",
+        ".harness/project/workflow-rules.md",
+        ".harness/project/standards-layers.md",
+        ".harness/session/decision-log.md"
+      ],
+      "commands": [
+        "npm run harness:impact",
+        "npm run harness:check"
+      ],
+      "outputs": [
+        "보존할 동작",
+        "변경할 경계",
+        "마이그레이션 위험",
+        "검증 결과"
+      ],
+      "records": [
+        ".harness/session/decision-log.md",
+        ".harness/project/architecture-rules.md"
+      ]
+    },
+    {
+      "id": "harness.docs-flow",
+      "title": "문서 변경 흐름",
+      "purpose": "문서 변경 요청에서 원본 기준, 링크 무결성, 코드 동기화 여부를 확인한다.",
+      "audience": ["consumer", "harness-maintainer", "stack-author", "template-author"],
+      "taskTypes": ["docs"],
+      "priority": "medium",
+      "triggers": ["문서", "README", "가이드", "설명", "docs"],
+      "read": [
+        ".harness/documentation/README.md",
+        ".harness/documentation/indexing-rules.md",
+        ".harness/documentation/document-registry.json",
+        ".harness/policy/sync-protocol.md"
+      ],
+      "commands": [
+        "npm run harness:impact",
+        "npm run docs:check:strict",
+        "npm run harness:check"
+      ],
+      "outputs": [
+        "문서 원본/파생 구분",
+        "링크 검증 결과",
+        "문서-코드 동기화 판단"
+      ],
+      "records": [
+        ".harness/session/decision-log.md"
+      ]
+    },
+    {
+      "id": "harness.conflict-resolution",
+      "title": "기준 충돌 해결 흐름",
+      "purpose": "회사 공통, 스택, 템플릿, 프로젝트, 개인 기준이 충돌할 때 우선순위와 예외를 결정한다.",
+      "audience": ["consumer", "harness-maintainer", "stack-author", "template-author"],
+      "taskTypes": ["feature", "bugfix", "refactor", "docs", "review", "maintenance", "verification"],
+      "priority": "high",
+      "triggers": ["충돌", "우선순위", "예외", "waiver", "공통", "스택", "템플릿", "프로젝트", "개인"],
+      "read": [
+        ".harness/project/standards-layers.md",
+        ".harness/policy/enforcement-ladder.md",
+        ".harness/policy/waiver-guidelines.md",
+        ".harness/policy/context-protocol.md"
+      ],
+      "commands": [
+        "npm run harness:impact",
+        "npm run harness:check"
+      ],
+      "outputs": [
+        "충돌 출처",
+        "선택한 기준",
+        "예외 허용 여부",
+        "기록 위치"
+      ],
+      "records": [
+        ".harness/session/decision-log.md",
+        ".harness/policy/waivers.json",
+        ".harness/session/developer-input-queue.md"
+      ]
+    },
+    {
+      "id": "harness.rule-promotion",
+      "title": "로컬룰 승격 흐름",
+      "purpose": "반복되는 도메인, 구조, 검증 지식을 프로젝트 룰로 승격할지 판단한다.",
+      "audience": ["consumer"],
+      "taskTypes": ["feature", "bugfix", "refactor", "review"],
+      "priority": "medium",
+      "triggers": ["반복", "규칙", "룰", "승격", "도메인", "아키텍처", "워크플로우"],
+      "read": [
+        ".harness/project/project-harness-guide.md",
+        ".harness/project/domain-rules.md",
+        ".harness/project/architecture-rules.md",
+        ".harness/project/workflow-rules.md",
+        ".harness/policy/context-protocol.md"
+      ],
+      "commands": [
+        "npm run harness:context -- \"<작업 설명>\"",
+        "npm run harness:check"
+      ],
+      "outputs": [
+        "승격 후보",
+        "아직 기록하지 않을 일회성 사실",
+        "기록 대상 파일"
+      ],
+      "records": [
+        ".harness/project/domain-rules.md",
+        ".harness/project/architecture-rules.md",
+        ".harness/project/workflow-rules.md",
+        ".harness/session/decision-log.md"
+      ]
+    },
+    {
+      "id": "harness.stack-selection",
+      "title": "스택 선택 흐름",
+      "purpose": "공통 하네스만 설치된 프로젝트에서 맞는 스택 하네스를 고르거나 공통 기준 단독 운영 사유를 남긴다.",
+      "audience": ["consumer"],
+      "taskTypes": ["maintenance", "review", "unknown"],
+      "priority": "medium",
+      "triggers": ["스택", "프리셋", "공통만", "기준만", "설치", "선택", "stack", "preset"],
+      "read": [
+        ".harness/policy/profile.json",
+        ".harness/session/project-scan-report.md",
+        ".harness/project/standards-layers.md",
+        ".harness/project/bootstrap.md"
+      ],
+      "commands": [
+        "npm run harness:scan",
+        "npm run standards:list",
+        "npm run stack:status"
+      ],
+      "outputs": [
+        "감지된 프로젝트 스택",
+        "추천 스택 하네스 또는 공통 기준 단독 운영 사유",
+        "다음 적용 명령"
+      ],
+      "records": [
+        ".harness/policy/profile.json",
+        ".harness/session/decision-log.md"
+      ]
+    },
+    {
+      "id": "harness.direct-edit-reconcile",
+      "title": "개발자 직접 수정 반영 흐름",
+      "purpose": "에이전트 초안 이후 개발자가 직접 수정한 내용을 사용자 소유 변경으로 보고 기준과 검증을 다시 맞춘다.",
+      "audience": ["consumer"],
+      "taskTypes": ["feature", "bugfix", "refactor", "review"],
+      "priority": "medium",
+      "triggers": ["직접 수정", "수동 수정", "내가 고쳤", "diff", "재검토", "반영"],
+      "read": [
+        ".harness/project/standards-layers.md",
+        ".harness/policy/context-protocol.md",
+        ".harness/session/decision-log.md"
+      ],
+      "commands": [
+        "npm run harness:impact",
+        "npm run harness:check"
+      ],
+      "outputs": [
+        "개발자 수정분 요약",
+        "기존 초안과의 충돌 여부",
+        "기준 문서 반영 필요 여부"
+      ],
+      "records": [
+        ".harness/session/decision-log.md",
+        ".harness/session/active-context.md"
+      ]
+    },
+    {
+      "id": "harness.precommit-verification",
+      "title": "커밋 전 검증 흐름",
+      "purpose": "커밋 전 최종 diff, 문서-코드 동기화, 로컬룰 승격 후보, 자동 검증 결과를 확인한다.",
+      "audience": ["consumer"],
+      "taskTypes": ["feature", "bugfix", "refactor", "docs", "maintenance", "verification"],
+      "priority": "high",
+      "triggers": ["커밋", "검증", "마무리", "완료", "commit", "check", "lint", "build", "test"],
+      "read": [
+        ".harness/project/workflow-rules.md",
+        ".harness/policy/sync-protocol.md",
+        ".github/commit-template.txt"
+      ],
+      "commands": [
+        "npm run harness:impact",
+        "npm run harness:check"
+      ],
+      "outputs": [
+        "최종 diff 요약",
+        "검증 결과",
+        "커밋 메시지 후보",
+        "실행하지 못한 검증과 사유"
+      ],
+      "records": [
+        ".harness/session/decision-log.md",
+        ".harness/session/next-session-reminder.md"
+      ]
+    },
+    {
+      "id": "harness.handoff-flow",
+      "title": "작업 인계 흐름",
+      "purpose": "설치, 업데이트, 큰 작업 종료 후 다음 사람이 바로 이어받을 요약을 만든다.",
+      "audience": ["consumer", "harness-maintainer"],
+      "taskTypes": ["maintenance", "verification", "feature", "bugfix", "refactor"],
+      "priority": "medium",
+      "triggers": ["인계", "마무리", "세션종료", "handoff", "다음", "이어"],
+      "read": [
+        ".harness/session/active-context.md",
+        ".harness/session/decision-log.md",
+        ".harness/session/project-memory.md",
+        ".harness/session/developer-input-queue.md"
+      ],
+      "commands": [
+        "npm run harness:handoff",
+        "npm run harness:check"
+      ],
+      "outputs": [
+        "이번 작업 요약",
+        "남은 위험",
+        "다음 세션 시작점"
+      ],
+      "records": [
+        ".harness/session/next-session-reminder.md",
+        ".harness/session/active-context.md"
+      ]
+    }
+  ]
+}

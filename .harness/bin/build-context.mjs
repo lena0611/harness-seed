@@ -10,6 +10,7 @@ const repoRoot = path.resolve(__dirname, '..', '..')
 const harnessRoot = path.join(repoRoot, '.harness')
 const registryPath = path.join(harnessRoot, 'documentation', 'document-registry.json')
 const contextRegistryPath = path.join(harnessRoot, 'documentation', 'context-registry.json')
+const skillRegistryPath = path.join(harnessRoot, 'skills', 'registry.json')
 const outputPath = path.join(harnessRoot, 'session', 'task-context.md')
 
 const args = process.argv.slice(2)
@@ -43,6 +44,7 @@ const generatedFiles = [
 const taskTypeRules = [
   { type: 'bugfix', keywords: ['버그', '오류', '에러', '실패', '깨짐', '안됨', '수정', '고쳐', 'fix', 'bug'] },
   { type: 'feature', keywords: ['추가', '생성', '구현', '기능', '신규', '만들', 'feature', 'add'] },
+  { type: 'verification', keywords: ['커밋', '검증', '마무리', '완료', '메시지', 'commit', 'check', 'lint', 'build', 'test'] },
   { type: 'refactor', keywords: ['리팩터', '리팩토', '정리', '구조 개선', '개선', '분리', 'refactor'] },
   { type: 'docs', keywords: ['문서', 'readme', '가이드', '설명', 'docs'] },
   { type: 'review', keywords: ['검토', '리뷰', '살펴', '비교', '확인', 'review'] },
@@ -102,6 +104,14 @@ function readContextRegistry() {
   }
 
   return JSON.parse(fs.readFileSync(contextRegistryPath, 'utf8'))
+}
+
+function readSkillRegistry() {
+  if (!exists('.harness/skills/registry.json')) {
+    return { skills: [] }
+  }
+
+  return JSON.parse(fs.readFileSync(skillRegistryPath, 'utf8'))
 }
 
 function tokenize(value) {
@@ -199,6 +209,48 @@ function scoreContextEntry(entry, tokens, taskType) {
   return { score, matched: [...new Set(matched)] }
 }
 
+function scoreSkillEntry(entry, tokens, taskType) {
+  const text = [
+    entry.id,
+    entry.title,
+    entry.purpose,
+    ...(entry.audience ?? []),
+    ...(entry.triggers ?? []),
+    ...(entry.read ?? []),
+    ...(entry.commands ?? []),
+    ...(entry.outputs ?? []),
+  ].join(' ').toLowerCase()
+  let score = 0
+  const matched = []
+
+  if ((entry.taskTypes ?? []).includes(taskType.type)) {
+    score += 10
+    matched.push(`task:${taskType.type}`)
+  }
+
+  if ((entry.taskTypes ?? []).includes('unknown') && taskType.type === 'unknown') {
+    score += 4
+    matched.push('task:unknown')
+  }
+
+  for (const token of tokens) {
+    if (text.includes(token)) {
+      score += 3
+      matched.push(token)
+    }
+  }
+
+  if (entry.priority === 'critical') score += 6
+  else if (entry.priority === 'high') score += 4
+  else if (entry.priority === 'medium') score += 2
+
+  if (matched.length === 0 && entry.priority !== 'critical') {
+    return { score: 0, matched: [] }
+  }
+
+  return { score, matched: [...new Set(matched)] }
+}
+
 function selectContextEntries(tokens, taskType) {
   const registry = readContextRegistry()
   return (registry.contexts ?? [])
@@ -206,6 +258,15 @@ function selectContextEntries(tokens, taskType) {
     .map((entry) => ({ ...entry, ...scoreContextEntry(entry, tokens, taskType) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || String(a.file).localeCompare(String(b.file)))
+}
+
+function selectSkillEntries(tokens, taskType) {
+  const registry = readSkillRegistry()
+  return (registry.skills ?? [])
+    .map((entry) => ({ ...entry, ...scoreSkillEntry(entry, tokens, taskType) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || String(a.id).localeCompare(String(b.id)))
+    .slice(0, 4)
 }
 
 function uniqueByFile(items) {
@@ -227,6 +288,7 @@ function renderContext() {
   const registryFiles = readRegistryFiles()
   const always = alwaysRead.filter(exists)
   const contextEntries = selectContextEntries(tokens, taskType)
+  const skillEntries = selectSkillEntries(tokens, taskType)
   const keywordCandidates = registryFiles
     .filter((file) => !always.includes(file))
     .map((file) => ({ file, ...scoreFile(file, tokens) }))
@@ -284,6 +346,38 @@ function renderContext() {
   lines.push('- 프로젝트 기준이 스택/템플릿 기준보다 구체적이면 프로젝트 기준을 우선합니다.')
   lines.push('- 생성 컨텍스트는 기준이 아니며 원본 문서와 실제 코드가 우선합니다.')
   lines.push('- 불명확한 기준 충돌은 `decision-log.md`, `developer-input-queue.md`, `waivers.json` 중 맞는 곳에 기록합니다.')
+  lines.push('')
+  lines.push('## Selected Skills')
+  lines.push('')
+  if (skillEntries.length === 0) {
+    lines.push('- 작업 설명과 직접 매칭되는 하네스 스킬을 찾지 못했습니다. `harness.request-triage` 관점으로 범위와 기준을 먼저 확인하세요.')
+  } else {
+    for (const skill of skillEntries) {
+      const meta = [
+        skill.audience?.length > 0 ? `audience: ${skill.audience.join('/')}` : null,
+        skill.priority ? `priority: ${skill.priority}` : null,
+        skill.matched?.length > 0 ? `matched: ${skill.matched.join(', ')}` : null,
+      ].filter(Boolean).join(', ')
+      lines.push(`### ${skill.title ?? skill.id} (${skill.id})${meta ? ` — ${meta}` : ''}`)
+      lines.push(`- purpose: ${skill.purpose}`)
+      if (skill.read?.length > 0) {
+        lines.push('- read:')
+        for (const item of skill.read) lines.push(`  - ${item}`)
+      }
+      if (skill.commands?.length > 0) {
+        lines.push('- commands:')
+        for (const item of skill.commands) lines.push(`  - ${item}`)
+      }
+      if (skill.outputs?.length > 0) {
+        lines.push('- outputs:')
+        for (const item of skill.outputs) lines.push(`  - ${item}`)
+      }
+      if (skill.records?.length > 0) {
+        lines.push('- records:')
+        for (const item of skill.records) lines.push(`  - ${item}`)
+      }
+    }
+  }
   lines.push('')
   lines.push('## Impact Candidates')
   lines.push('')

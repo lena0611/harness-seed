@@ -34,6 +34,10 @@
 
 개발자가 하네스 문서를 모두 읽고 시작할 필요는 없습니다. 설치된 프로젝트에서는 `npm run harness:guide`로 현재 상태 대시보드와 클릭형 가이드를 열고, 필요한 단계의 명령과 파일만 좁혀 봅니다.
 
+에이전트도 모든 문서를 매번 읽지 않습니다. 큰 작업이나 낯선 요청은 `npm run harness:context -- "<작업 설명>"`로 작업 유형, 관련 문서, 선택된 하네스 스킬을 먼저 좁힌 뒤 진행합니다. 여기서 스킬은 Claude command나 외부 Codex skill이 아니라, 요청별로 읽을거리와 실행 명령, 기록 위치를 고르는 공통 하네스 내부 작업 절차입니다.
+
+스킬의 내부 ID는 자동화를 위해 영어로 유지하지만, 개발자에게 보이는 이름과 설명은 한국어로 제공합니다. 예를 들어 `harness.bugfix-flow`는 `버그 수정 흐름`으로 표시됩니다.
+
 ## 목적
 
 - AI 에이전트와 사람이 같은 개발 기준을 읽고 작업하게 합니다.
@@ -210,6 +214,7 @@ npm run harness:update -- --force --confirm-overwrite-project-files
 | `.harness/` | 회사 공통 기준 참조, 프로젝트 기준, 검증 기준, 세션 문맥을 담는 본체 |
 | `.harness/project/local-methodology.md` | 프로젝트 고유 개발방법론의 진입점 |
 | `.harness/project/stack-preset-rules.md` | 선택한 스택 기준이 프로젝트 로컬룰로 정착되는 문서 |
+| `.harness/skills/` | 요청 유형별로 읽을 문서, 실행 명령, 기록 위치를 고르는 에이전트 작업 절차 |
 | `CLAUDE.md` | AI 에이전트가 가장 먼저 읽는 기준 진입점 |
 | `AGENTS.md` | Claude가 아닌 에이전트도 같은 기준을 읽게 하는 보조 진입점 |
 | `.claude/` | Claude Code용 명령, hook, 보조 에이전트 연결 |

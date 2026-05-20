@@ -11,3 +11,5 @@ Codex나 Copilot 계열 에이전트는 Claude Code의 `SessionStart` hook과 sl
 - 리마인더: `.harness/session/next-session-reminder.md`
 - 장기 메모리: `.harness/session/project-memory.md`
 - 결정 로그: `.harness/session/decision-log.md`
+
+큰 작업이나 낯선 요청은 `npm run harness:context -- "<작업 설명>"` 결과의 Selected Skills를 보고 읽을 문서, 실행할 명령, 기록 위치를 좁힙니다.

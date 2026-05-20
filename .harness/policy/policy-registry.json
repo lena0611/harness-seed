@@ -271,7 +271,8 @@
       },
       "documents": [
         ".harness/project/portability-guide.md",
-        "README.md"
+        ".harness/project/config-contract.md",
+        "CHANGELOG.md"
       ],
       "ownedAreas": [
         ".harness/bin/check-node-version.mjs",
@@ -408,7 +409,7 @@
       "documents": [
         ".harness/project/standards-layers.md",
         ".harness/project/workflow-rules.md",
-        "README.md"
+        "CHANGELOG.md"
       ],
       "ownedAreas": [
         ".githooks/**",
@@ -423,6 +424,43 @@
       "conflictsWith": [],
       "supersedes": [],
       "tags": ["hook", "commit", "push"]
+    },
+    {
+      "id": "common.agent.skill-selection",
+      "title": "Agent requests must select focused harness skills and reading sets",
+      "layer": "common",
+      "category": "agent",
+      "status": "active",
+      "severity": "warning",
+      "enforcement": "trigger",
+      "waiverAllowed": true,
+      "owner": "ai-standard/harness-seed",
+      "source": {
+        "type": "local",
+        "path": ".harness/skills/README.md"
+      },
+      "documents": [
+        ".harness/skills/README.md",
+        ".harness/skills/registry.json",
+        ".harness/policy/context-protocol.md",
+        "CLAUDE.md",
+        "AGENTS.md"
+      ],
+      "ownedAreas": [
+        ".harness/skills/**",
+        ".harness/bin/build-context.mjs",
+        ".harness/documentation/context-registry.json",
+        ".harness/documentation/document-registry.json",
+        "CLAUDE.md",
+        "AGENTS.md"
+      ],
+      "checks": [
+        "npm run harness:context -- \"작업 설명\"",
+        "npm run harness:check"
+      ],
+      "conflictsWith": [],
+      "supersedes": [],
+      "tags": ["agent", "skill", "context", "reading-set"]
     },
     {
       "id": "common.local-rule.promotion",
