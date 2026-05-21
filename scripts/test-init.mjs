@@ -83,14 +83,27 @@ function cleanInstallCreatesExpectedFiles() {
   assert(exists(target, '.harness/session/active-context.md'), 'clean install should create consumer active context')
   assert(exists(target, '.harness/session/project-memory.md'), 'clean install should create consumer project memory')
 
+  const claudeInstructions = read(target, 'CLAUDE.md')
+  assert(claudeInstructions.includes('하네스 자동 인식 의무'), 'CLAUDE.md should require automatic harness detection')
+  assert(claudeInstructions.includes('사용자가 "하네스"를 언급하지 않아도'), 'CLAUDE.md should not depend on explicit harness mention')
+
+  const agentInstructions = read(target, 'AGENTS.md')
+  assert(agentInstructions.includes('비-Claude 에이전트 필수 동작'), 'AGENTS.md should include non-Claude required behavior')
+  assert(agentInstructions.includes('하네스 작업 프로토콜을 자동으로 적용'), 'AGENTS.md should require automatic protocol application')
+
+  const sessionStartAlert = read(target, '.harness/session/session-start-alert.md')
+  assert(sessionStartAlert.includes('사용자가 하네스를 언급하지 않는 것은 하네스를 비활성화한다는 뜻이 아닙니다'), 'session start alert should keep harness active without explicit mention')
+
   const decisionLog = read(target, '.harness/session/decision-log.md')
   assert(decisionLog.includes('소비자 프로젝트 전용 로그'), 'consumer decision log should explain project scope')
+  assert(decisionLog.includes('사용자가 하네스를 직접 언급하지 않았더라도'), 'consumer decision log should mention implicit harness decisions')
   assert(decisionLog.includes('하네스 초기 설치 또는 업데이트'), 'consumer decision log should include install entry')
   assert(!decisionLog.includes('정식 공개 전 공개 명령 정리'), 'consumer decision log should not include seed development history')
   assert(!decisionLog.includes('시드 하네스 저장소 분리'), 'consumer decision log should not include seed repository history')
 
   const activeContext = read(target, '.harness/session/active-context.md')
   assert(activeContext.includes('소비자 프로젝트 전용 문서'), 'consumer active context should explain project scope')
+  assert(activeContext.includes('사용자가 "하네스"를 언급하지 않아도'), 'consumer active context should remind agents to auto-detect harness')
   assert(!activeContext.includes('일반화 하네스 + 외부 스택 기준 런타임'), 'consumer active context should not include seed current state')
 
   const pkg = JSON.parse(read(target, 'package.json'))

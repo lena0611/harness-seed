@@ -576,6 +576,7 @@ function consumerProjectStateTemplate(rel, context) {
 - 설치/업데이트 직후 요약은 \`.harness/session/handoff.md\`를 확인합니다.
 
 ## 확인할 일
+- 에이전트는 사용자가 "하네스"를 언급하지 않아도 루트의 \`.harness/\`를 감지하면 하네스 작업 프로토콜을 적용해야 합니다.
 - \`.harness/project/project-charter.md\`의 TBD 항목을 프로젝트 상황에 맞게 채웁니다.
 - 큰 작업이나 낯선 영역이면 에이전트가 \`npm run harness:context -- "<작업 설명>"\`으로 판단 컨텍스트를 만듭니다.
 - 작업 후 \`npm run harness:check\`로 기준, 링크, 검증 상태를 확인합니다.
@@ -592,6 +593,7 @@ function consumerProjectStateTemplate(rel, context) {
 - 프로젝트 기준, 스택 기준, 템플릿 계약, 개인 기준이 충돌할 때 선택 이유를 남깁니다.
 - 테스트 전략, 예외 허용, 아키텍처 경계, 운영 절차처럼 이후 작업에 영향을 주는 판단을 남깁니다.
 - 단순 작업 로그나 일회성 구현 세부사항은 남기지 않습니다.
+- 사용자가 하네스를 직접 언급하지 않았더라도, 하네스 설치 후 반복 규칙으로 굳어진 결정은 이 문서와 \`.harness/project/*\`에 남깁니다.
 - 임시 예외는 가능하면 \`.harness/policy/waivers.json\`에 범위와 만료 조건을 함께 남깁니다.
 
 ## ${generatedAt.slice(0, 10)} - 하네스 초기 설치 또는 업데이트
@@ -622,6 +624,7 @@ function consumerProjectStateTemplate(rel, context) {
 ## 운영 원칙
 - 답변을 받으면 관련 문서(\`project-charter.md\`, \`active-context.md\`, \`decision-log.md\`)를 함께 갱신합니다.
 - 유보된 질문은 삭제하지 않고 \`deferred\`로 남깁니다.
+- 에이전트는 구현 중 추측이 필요한 반복 규칙을 만나면 사용자에게 인터뷰하거나 이 큐에 \`open\` 항목을 추가합니다.
 `;
 
     case '.harness/session/next-session-reminder.md':
@@ -634,6 +637,7 @@ function consumerProjectStateTemplate(rel, context) {
 2. \`.harness/session/handoff.md\`
 3. \`.harness/session/project-scan-report.md\`
 4. \`.harness/session/developer-input-queue.md\`
+5. 사용자가 하네스를 언급하지 않아도 \`.harness/\`가 있으면 하네스 작업 프로토콜을 적용할 것
 
 ## 다음 작업
 - 프로젝트 헌장 TBD 항목을 확인합니다.

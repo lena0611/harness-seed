@@ -4,6 +4,8 @@ GitHub Copilot용 shim입니다. 기준 진입점은 루트의 `CLAUDE.md`입니
 
 먼저 [CLAUDE.md](../CLAUDE.md)를 읽고, 필요한 세부 문서는 아래 목차를 사용합니다.
 
+루트에 `.harness/`가 있으면 사용자가 하네스를 언급하지 않아도 하네스 프로젝트로 간주합니다. 코드나 문서를 변경하기 전에는 `CLAUDE.md`의 "하네스 자동 인식 의무"를 따르고, 반복 규칙은 `.harness/project/*`로 승격하며, 불확실한 항목은 `.harness/session/developer-input-queue.md`에 남깁니다.
+
 Copilot은 Claude Code의 `SessionStart` hook이나 slash command를 강제 실행하지 않습니다. 새 작업을 시작할 때는 `CLAUDE.md`의 읽기 순서를 수동 기준으로 삼고, 리마인더/메모리/결정 기록은 아래 파일을 기준으로 갱신합니다.
 
 - `.harness/session/next-session-reminder.md`

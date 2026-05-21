@@ -2,6 +2,14 @@
 
 이 파일이 모든 에이전트의 기준 진입점입니다. 사내 표준 에이전트는 Claude입니다.
 
+## 하네스 자동 인식 의무
+- 작업 루트에서 `.harness/`, `AGENTS.md`, `CLAUDE.md` 중 하나라도 발견하면 사용자가 "하네스"를 언급하지 않아도 하네스 프로젝트로 간주합니다.
+- 하네스 프로젝트에서는 기능 구현이나 파일 수정 전에 아래 "항상 읽는 최소 기준"을 먼저 읽습니다.
+- 사용자가 단순 질문이 아니라 코드/문서/설정 변경을 요청하면, 변경 전에 반복 규칙으로 승격할 내용이 있는지 판단합니다.
+- 반복되는 도메인 규칙, 아키텍처 경계, 검증 흐름은 `.harness/session/*`에만 두지 말고 `.harness/project/*` 문서로 승격합니다.
+- 판단이 불확실하면 구현을 추측으로 고정하지 말고 `.harness/session/developer-input-queue.md`에 질문을 남기거나 사용자에게 인터뷰합니다.
+- 작업 종료 전에는 프로젝트의 검증 명령을 실행하고, 최소 기준은 `npm run harness:check`입니다. 실행하지 못하면 이유를 최종 응답에 남깁니다.
+
 ## 항상 읽는 최소 기준
 1. `.harness/policy/ai-standard-guiding-policy.md`
 2. `.harness/session/session-start-alert.md`

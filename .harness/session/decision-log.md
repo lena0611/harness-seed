@@ -1,5 +1,12 @@
 # 결정 로그
 
+## 2026-05-21 - 하네스 자동 인식 실패 회귀 반영
+- RunContext 소비자 프로젝트 검증 중, 하네스가 설치되어 있었지만 에이전트가 사용자의 명시적 "하네스" 언급 전까지 `.harness` 기준을 자동으로 적용하지 않는 문제가 드러났습니다.
+- 기존 문서는 읽기 순서를 안내했지만, Codex/Copilot 같은 비-Claude 에이전트에게 "루트에 `.harness/`가 있으면 자동으로 하네스 프로젝트로 인식한다"는 의무가 충분히 강하지 않았습니다.
+- `CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`, `session-start-alert.md`에 자동 인식 의무와 반복 규칙 승격, 불확실성 인터뷰, 완료 전 `harness:check` 원칙을 더 직접적으로 추가합니다.
+- 설치 템플릿의 `active-context.md`, `decision-log.md`, `developer-input-queue.md`, `next-session-reminder.md`에도 사용자가 하네스를 말하지 않아도 하네스 프로토콜을 적용해야 한다는 문구를 남깁니다.
+- `scripts/test-init.mjs`에 자동 인식 문구가 소비자 프로젝트에 실제 주입되는지 검증하는 회귀 테스트를 추가합니다.
+
 ## 2026-05-20 - 하네스 스킬 레지스트리 도입
 - 에이전트가 요청을 받았을 때 모든 문서를 읽는 방식은 토큰과 판단 품질 측면에서 비효율적입니다.
 - 공통 하네스 내부에 `.harness/skills/registry.json`을 두고, 요청 유형별 읽을 문서, 실행 명령, 산출물, 기록 위치를 선택하게 합니다.
