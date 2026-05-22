@@ -82,6 +82,11 @@ function cleanInstallCreatesExpectedFiles() {
   assert(exists(target, '.harness/session/decision-log.md'), 'clean install should create consumer decision log')
   assert(exists(target, '.harness/session/active-context.md'), 'clean install should create consumer active context')
   assert(exists(target, '.harness/session/project-memory.md'), 'clean install should create consumer project memory')
+  assert(exists(target, '.harness/maintenance/README.md'), 'clean install should create maintenance history guide')
+  const currentYear = String(new Date().getFullYear())
+  assert(exists(target, `.harness/maintenance/work-history/${currentYear}/.gitkeep`), 'clean install should create year-based work history folder for git tracking')
+  assert(exists(target, '.claude/commands/운영업무.md'), 'clean install should copy operational work slash command')
+  assert(exists(target, '.claude/commands/업무요약.md'), 'clean install should copy work summary slash command')
 
   const claudeInstructions = read(target, 'CLAUDE.md')
   assert(claudeInstructions.includes('하네스 자동 인식 의무'), 'CLAUDE.md should require automatic harness detection')

@@ -35,6 +35,9 @@ Claude Code의 slash command나 Codex의 외부 skill 시스템과 같은 실행
 | `버그 수정 흐름` | 오류, 실패, 깨짐을 수정할 때 |
 | `기능 개발 흐름` | 새 기능이나 화면, API 흐름을 만들 때 |
 | `리팩토링 흐름` | 구조를 바꾸되 기존 동작을 보존해야 할 때 |
+| `기존 기능 개선 흐름` | 기존 기능의 동작을 보존하면서 사용성, 성능, 예외 처리를 개선할 때 |
+| `운영 업무 접수 흐름` | JIRA로 들어온 운영 업무를 유형별 개발 흐름에 연결할 때 |
+| `업무 요약 흐름` | 운영 업무 완료 후보를 사용자가 승인한 뒤 유지보수 히스토리를 남길 때 |
 | `기준 충돌 해결 흐름` | 회사/스택/템플릿/프로젝트/개인 기준이 충돌할 때 |
 | `로컬룰 승격 흐름` | 반복되는 지식을 프로젝트 룰로 남길지 판단할 때 |
 | `스택 선택 흐름` | 공통 하네스만 설치된 상태에서 맞는 스택 기준을 찾을 때 |
@@ -50,6 +53,7 @@ Claude Code의 slash command나 Codex의 외부 skill 시스템과 같은 실행
 | `.harness/documentation/context-registry.json` | 작업 설명과 문서 후보 매칭 |
 | `npm run harness:context -- "<작업 설명>"` | 요청에 맞는 문서와 스킬을 선택해 `task-context.md` 생성 |
 | `.claude/commands/*` | Claude Code에서 명시적으로 호출하는 slash command 어댑터 |
+| `.harness/maintenance/work-history/<연도>/*` | 팀이 공유하는 운영 업무별 요약 히스토리 |
 | `.harness/bin/*` | 실제 검사, 스캔, 컨텍스트 생성 스크립트 |
 
 ## 운영 원칙

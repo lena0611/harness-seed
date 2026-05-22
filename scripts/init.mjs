@@ -100,6 +100,7 @@ const PROJECT_OWNED_PATHS = new Set([
 ]);
 
 const PROJECT_OWNED_PREFIXES = [
+  '.harness/maintenance/work-history/',
   '.harness/session/memory/',
   '.harness/session/evolved/',
   '.claude/rules/project/',
@@ -721,6 +722,25 @@ function writeConsumerProjectStateFiles(target, opts, manifest, sourcePkg) {
   return result;
 }
 
+function ensureCurrentWorkHistoryYear(target, opts) {
+  const year = String(new Date().getFullYear());
+  const rel = `.harness/maintenance/work-history/${year}/.gitkeep`;
+  const abs = join(target, rel);
+
+  if (opts.dryRun) {
+    console.log(`[dry-run] ensure work history year folder ${rel}`);
+    return { rel, created: !existsSync(abs) };
+  }
+
+  if (!existsSync(abs)) {
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, '');
+    return { rel, created: true };
+  }
+
+  return { rel, created: false };
+}
+
 function collectForceOverwriteTargets(target, files, manifest) {
   return [...new Set([...files, ...CONSUMER_PROJECT_STATE_PATHS])]
     .filter((rel) => existsSync(join(target, rel)))
@@ -1226,6 +1246,7 @@ function main() {
 
     const installed = installFiles(sourceRoot, TARGET, files, opts, recognizedManifest);
     const projectState = writeConsumerProjectStateFiles(TARGET, opts, recognizedManifest, sourcePkg);
+    const workHistoryYear = ensureCurrentWorkHistoryYear(TARGET, opts);
     const migration = removeLegacyManagedRootScripts(TARGET, legacyManagedRootScripts, opts);
     const pkg = mergePackageJson(sourceRoot, TARGET, opts);
     const gitignoreAdded = mergeGitignore(TARGET, opts);
@@ -1247,6 +1268,7 @@ function main() {
     console.log(`.gitignore: harness entry ${gitignoreAdded}개 추가`);
     console.log(`eslint config: ${eslintPatch.message}`);
     console.log(`legacy root scripts: ${opts.dryRun ? `${legacyManagedRootScripts.length}개 제거 예정` : `${migration.removed}개 제거`}`);
+    console.log(`work history: ${workHistoryYear.rel}${workHistoryYear.created ? ' 생성' : ' 준비됨'}`);
     console.log(`install manifest: ${opts.dryRun ? 'dry-run' : `${Object.keys(writtenManifest.managedFiles).length}개 managed file 기록`}`);
     console.log(`harness lock: ${opts.dryRun ? 'dry-run' : `${writtenLock.baseHarness.version} (${writtenLock.baseHarness.ref ?? writtenLock.baseHarness.source.type})`}`);
     console.log(`scan: ${diagnostics.scan}`);

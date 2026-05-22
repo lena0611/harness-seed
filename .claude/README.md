@@ -10,6 +10,8 @@
 ## 구성
 - `settings.json`: Claude Code 권한, hook, status line 설정
 - `commands/harness-scan.md`: 프로젝트 스캔 절차
+- `commands/운영업무.md`: JIRA 운영 업무 접수와 업무 유형별 하네스 스킬 연결
+- `commands/업무요약.md`: 운영 업무 완료 후 유지보수 히스토리 기록
 - `agents/code-reviewer.md`: 변경 리뷰
 - `agents/debug-detective.md`: 실패 원인 분석
 - `agents/test-writer.md`: 테스트 작성

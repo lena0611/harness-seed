@@ -148,6 +148,74 @@
       ]
     },
     {
+      "id": "harness.enhancement-flow",
+      "title": "기존 기능 개선 흐름",
+      "purpose": "기존 기능의 동작 의도를 보존하면서 사용성, 성능, 구조, 예외 처리를 개선한다.",
+      "audience": ["consumer"],
+      "taskTypes": ["feature", "refactor", "maintenance"],
+      "priority": "high",
+      "triggers": ["개선", "고도화", "기존 기능", "사용성", "성능", "enhance", "improve"],
+      "read": [
+        ".harness/project/domain-rules.md",
+        ".harness/project/architecture-rules.md",
+        ".harness/project/workflow-rules.md",
+        ".harness/session/decision-log.md",
+        ".harness/session/project-memory.md"
+      ],
+      "commands": [
+        "npm run harness:impact",
+        "npm run harness:check"
+      ],
+      "outputs": [
+        "보존할 기존 동작",
+        "개선할 사용자/운영 관점",
+        "변경 영향 범위",
+        "회귀 검증 결과",
+        "로컬룰 승격 후보"
+      ],
+      "records": [
+        ".harness/session/decision-log.md",
+        ".harness/project/domain-rules.md",
+        ".harness/project/architecture-rules.md",
+        ".harness/project/workflow-rules.md"
+      ]
+    },
+    {
+      "id": "harness.operational-work-intake",
+      "title": "운영 업무 접수 흐름",
+      "purpose": "JIRA로 들어온 운영 업무를 업무 유형과 출처 기준으로 접수하고 맞는 개발 스킬로 연결한다.",
+      "audience": ["consumer"],
+      "taskTypes": ["bugfix", "feature", "refactor", "maintenance"],
+      "priority": "critical",
+      "triggers": ["운영업무", "운영 업무", "JIRA", "지라", "유지보수", "업무요청"],
+      "read": [
+        "CLAUDE.md",
+        ".harness/session/session-start-alert.md",
+        ".harness/skills/README.md",
+        ".harness/skills/registry.json",
+        ".harness/maintenance/README.md"
+      ],
+      "commands": [
+        "npm run harness:context -- \"<업무 유형> <JIRA URL 또는 요청 개요>\"",
+        "npm run harness:impact"
+      ],
+      "outputs": [
+        "업무 유형",
+        "JIRA URL",
+        "요청 개요",
+        "선택된 업무 스킬",
+        "질문 또는 확인 필요 항목",
+        "개발 완료 후보",
+        "업무 히스토리 기록 승인 여부"
+      ],
+      "records": [
+        ".harness/session/developer-input-queue.md",
+        ".harness/session/active-context.md",
+        ".harness/session/next-session-reminder.md",
+        ".harness/maintenance/work-history/YYYY/"
+      ]
+    },
+    {
       "id": "harness.docs-flow",
       "title": "문서 변경 흐름",
       "purpose": "문서 변경 요청에서 원본 기준, 링크 무결성, 코드 동기화 여부를 확인한다.",
@@ -318,6 +386,44 @@
       "records": [
         ".harness/session/decision-log.md",
         ".harness/session/next-session-reminder.md"
+      ]
+    },
+    {
+      "id": "harness.work-summary",
+      "title": "업무 요약 흐름",
+      "purpose": "운영 업무 완료 후보에 대해 사용자 승인을 받은 뒤 JIRA, 요청 개요, 핵심 변경, 검증, 잠재 이슈를 연도별 유지보수 히스토리로 남기고 결정로그 또는 프로젝트 룰 승격 여부를 판단한다.",
+      "audience": ["consumer"],
+      "taskTypes": ["bugfix", "feature", "refactor", "maintenance", "verification"],
+      "priority": "high",
+      "triggers": ["업무요약", "업무 요약", "유지보수 히스토리", "작업 요약", "JIRA"],
+      "read": [
+        ".harness/maintenance/README.md",
+        ".harness/session/active-context.md",
+        ".harness/session/decision-log.md",
+        ".harness/session/project-memory.md"
+      ],
+      "commands": [
+        "npm run harness:impact",
+        "npm run harness:check"
+      ],
+      "outputs": [
+        "요청 JIRA URL",
+        "요청 개요",
+        "핵심 개발 내용",
+        "검증 결과",
+        "사용자 완료 승인 여부",
+        "잠재 이슈 또는 TODO",
+        "decision-log 기록 필요 여부",
+        "project rule 승격 필요 여부"
+      ],
+      "records": [
+        ".harness/maintenance/work-history/YYYY/",
+        ".harness/session/next-session-reminder.md",
+        ".harness/session/decision-log.md",
+        ".harness/session/project-memory.md",
+        ".harness/project/domain-rules.md",
+        ".harness/project/architecture-rules.md",
+        ".harness/project/workflow-rules.md"
       ]
     },
     {
