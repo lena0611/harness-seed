@@ -238,6 +238,28 @@ function run(command, args) {
   }
 }
 
+function printConsumerCommandGuide() {
+  console.log(`
+업데이트 후 유용한 소비자 명령:
+  - 현재 상태 가이드 열기
+       npm run harness:guide -- --open
+  - 프로젝트 구조와 로컬룰 후보 다시 스캔
+       npm run harness:scan
+  - 업데이트 인수인계 요약 다시 생성
+       npm run harness:handoff
+  - 큰 작업 전 읽을 문서와 스킬 좁히기
+       npm run harness:context -- "<작업 설명>"
+  - 운영 업무 시작(Claude Code)
+       /운영업무
+  - 작업 완료 전 검증
+       npm run harness:check
+  - 다음 업데이트 후보 확인
+       npm run harness:outdated
+  - git commit/push 전 자동 검증 연결
+       npm run hooks:install
+`)
+}
+
 function main() {
   const opts = parseArgs(process.argv)
   assertForceConfirmation(opts)
@@ -263,6 +285,7 @@ function main() {
   }
 
   run(plan.command, plan.args)
+  printConsumerCommandGuide()
 }
 
 main()

@@ -442,6 +442,8 @@ npm run harness:check -- --verbose
 | `npm run template:apply` | 선택한 scaffold 템플릿을 적용하고 `template-contract.md` 브리지 생성 |
 | `npm run template:reset` | 적용된 scaffold 템플릿 산출물과 계약 브리지 되돌림 |
 
+설치와 업데이트가 끝나면 위 명령 중 소비자 프로젝트에서 자주 쓰는 가이드, 스캔, 인수인계, 작업 컨텍스트, 운영 업무, 검증, 업데이트, hook 연결 명령을 빠른 안내로 다시 출력합니다.
+
 하네스 본체 저장소에서는 세부 검사만 따로 볼 때 아래 내부 명령을 사용합니다. 이 내부 명령은 일반 소비자 프로젝트에는 기본 npm script로 병합하지 않습니다.
 
 | 명령 | 역할 |
