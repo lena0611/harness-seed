@@ -47,6 +47,24 @@
       "keywords": ["검증", "테스트", "빌드", "리뷰", "릴리스", "배포"]
     },
     {
+      "id": "critical-paths",
+      "file": ".harness/project/critical-paths.md",
+      "category": "risk",
+      "taskTypes": ["feature", "bugfix", "refactor", "review", "maintenance", "ui", "supabase", "native", "coaching"],
+      "priority": "high",
+      "appliesTo": ["supabase/functions/**", "src/shared/ui/**", "ios/**", "android/**", "critical"],
+      "keywords": ["중요", "critical", "위험", "supabase", "edge", "ui", "ios", "android", "healthkit", "coaching"]
+    },
+    {
+      "id": "manual-actions",
+      "file": ".harness/session/manual-actions.md",
+      "category": "manual-action",
+      "taskTypes": ["feature", "bugfix", "maintenance", "supabase", "native"],
+      "priority": "high",
+      "appliesTo": ["secret", "pages", "capability", "console", "external-setting"],
+      "keywords": ["수동", "manual", "secret", "pages", "capability", "콘솔", "권한", "설정"]
+    },
+    {
       "id": "stack-preset-rules",
       "file": ".harness/project/stack-preset-rules.md",
       "category": "stack",

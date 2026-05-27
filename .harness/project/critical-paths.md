@@ -9,6 +9,8 @@
 | path | 왜 중요한가 | 권장 검증 |
 | --- | --- | --- |
 | `supabase/functions/**` | Supabase Edge Function은 서버 사이드 핵심 로직입니다. | `deno check` 또는 프로젝트 지정 검증 |
+| `src/shared/ui/**` | 공통 UI 컴포넌트 변경은 여러 화면 회귀로 번질 수 있습니다. | 라이트/다크, 모바일 viewport, 스냅샷 또는 E2E |
+| `src/features/infer-run-type/**` | 도메인 추론 로직은 잘못되면 사용자 기록 분류를 오염시킬 수 있습니다. | 회귀 단위 테스트 |
 | `src/domain/**` | 도메인 규칙 변경이 사용자 동작에 직접 영향을 줍니다. | 관련 테스트, decision-log |
 | `ios/**` | 네이티브 capability나 권한 설정이 앱 실행에 영향을 줍니다. | 로컬 빌드, 수동 확인 |
 

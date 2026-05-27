@@ -17,6 +17,7 @@ const harnessRoot = fs.existsSync(path.join(repoRoot, '.harness'))
 const markerPath = path.join(harnessRoot, '.stack-applied.json')
 const lockPath = path.join(harnessRoot, 'harness-lock.json')
 const checkCachePath = path.join(harnessRoot, 'generated/check-cache.json')
+const impactSummaryPath = path.join(harnessRoot, 'generated/policy-impact-summary.json')
 const profilePath = path.join(harnessRoot, harnessRoot.endsWith('.harness') ? 'policy/profile.json' : 'policy-harness/profile.json')
 const stackApplied = fs.existsSync(markerPath)
 const strictMode = forwardedArgs.includes('--strict') || (() => {
@@ -217,11 +218,12 @@ function runNpmScript(scriptName) {
 
   if (briefMode) {
     console.log(`OK: npm run ${scriptName} 통과`)
-    return
+    return { scriptName, status: 'passed' }
   }
 
   if (result.stdout) process.stdout.write(result.stdout)
   if (result.stderr) process.stderr.write(result.stderr)
+  return { scriptName, status: 'passed' }
 }
 
 function commandExists(command) {
@@ -233,7 +235,7 @@ function commandExists(command) {
 
 function runProjectVerifier(scriptName) {
   console.log(`Supabase Edge Function verifier: npm run ${scriptName}`)
-  runNpmScript(scriptName)
+  return runNpmScript(scriptName)
 }
 
 function runSupabaseEdgeFunctionChecks(scripts) {
@@ -241,7 +243,7 @@ function runSupabaseEdgeFunctionChecks(scripts) {
   const edgeFiles = changed.filter((filePath) => /^supabase\/functions\/.+\.(ts|tsx|js|mjs)$/.test(filePath))
 
   if (edgeFiles.length === 0) {
-    return
+    return { changed: false, files: [], status: 'not-applicable', recommendation: null }
   }
 
   console.log('')
@@ -257,8 +259,8 @@ function runSupabaseEdgeFunctionChecks(scripts) {
   ].find((scriptName) => scripts[scriptName])
 
   if (verifier) {
-    runProjectVerifier(verifier)
-    return
+    const result = runProjectVerifier(verifier)
+    return { changed: true, files: edgeFiles, status: 'passed', verifier, result }
   }
 
   const denoCheckTargets = edgeFiles.filter((filePath) => filePath.endsWith('.ts') || filePath.endsWith('.tsx'))
@@ -274,7 +276,7 @@ function runSupabaseEdgeFunctionChecks(scripts) {
       process.exit(result.status ?? 1)
     }
 
-    return
+    return { changed: true, files: edgeFiles, status: 'passed', verifier: 'deno check' }
   }
 
   const message = 'Supabase Edge Function 변경이 감지되었지만 deno 또는 프로젝트 지정 검증 명령을 찾지 못했습니다.'
@@ -284,6 +286,12 @@ function runSupabaseEdgeFunctionChecks(scripts) {
 
   console.warn(`WARNING: ${message}`)
   console.warn('권장: package.json에 supabase:functions:check, edge:functions:check, functions:check 중 하나를 추가하세요.')
+  return {
+    changed: true,
+    files: edgeFiles,
+    status: 'warning',
+    recommendation: 'package.json에 supabase:functions:check, edge:functions:check, functions:check 중 하나를 추가하세요.',
+  }
 }
 
 function readCriticalPaths() {
@@ -294,9 +302,25 @@ function readCriticalPaths() {
   }
 
   const content = fs.readFileSync(abs, 'utf8')
+  const tableRows = content
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('|') && !line.includes('---') && !line.includes('path |'))
+    .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
+    .filter((cells) => cells.length >= 3)
+    .map(([rawPath, why, verification]) => ({
+      glob: rawPath.replaceAll('`', '').trim(),
+      why,
+      verification,
+    }))
+    .filter((entry) => entry.glob)
+
+  if (tableRows.length > 0) {
+    return tableRows
+  }
+
   return [...content.matchAll(/`([^`\n]+)`/g)]
-    .map((match) => match[1])
-    .filter((value) => /[*?/]|\/$|^[\w.-]+\//.test(value))
+    .map((match) => ({ glob: match[1], why: '', verification: defaultCriticalPathRecommendation(match[1]) }))
+    .filter((entry) => /[*?/]|\/$|^[\w.-]+\//.test(entry.glob))
 }
 
 function globToRegExp(glob) {
@@ -311,22 +335,110 @@ function globToRegExp(glob) {
 function printCriticalPathReview() {
   const paths = readCriticalPaths()
   if (paths.length === 0) {
-    return
+    return { matches: [], recommendations: [] }
   }
 
   const changed = getChangedFiles()
-  const matches = changed.filter((filePath) => paths.some((glob) => globToRegExp(glob).test(filePath)))
+  const matches = []
+  for (const filePath of changed) {
+    for (const entry of paths) {
+      if (globToRegExp(entry.glob).test(filePath)) {
+        matches.push({ filePath, ...entry })
+      }
+    }
+  }
+
   if (matches.length === 0) {
-    return
+    return { matches: [], recommendations: [] }
   }
 
   console.log('')
   console.log('Critical path review suggested')
   console.log('프로젝트가 중요 경로로 선언한 파일이 변경되었습니다.')
-  for (const filePath of matches) {
-    console.log(`  - ${filePath}`)
+  for (const match of matches) {
+    console.log(`  - ${match.filePath}`)
+    if (match.verification) {
+      console.log(`    recommended verification: ${match.verification}`)
+    }
   }
   console.log('필요한 조치: 검증 결과와 수동 조치 여부를 decision-log, 업무 히스토리, manual-actions 중 알맞은 곳에 남기세요.')
+
+  return {
+    matches,
+    recommendations: [...new Set(matches.map((match) => match.verification || defaultCriticalPathRecommendation(match.glob)).filter(Boolean))],
+  }
+}
+
+function defaultCriticalPathRecommendation(glob) {
+  if (glob.startsWith('supabase/functions/')) return 'Edge Function check, secret 노출 점검'
+  if (glob.startsWith('src/shared/ui/')) return '라이트/다크, 모바일 viewport, 공통 컴포넌트 회귀 확인'
+  if (glob.includes('infer') || glob.includes('run-type')) return '회귀 단위 테스트'
+  if (glob.startsWith('ios/')) return 'Xcode 수동 빌드, capability/manual action 확인'
+  if (glob.startsWith('android/')) return 'Android 로컬 빌드, 권한/manual action 확인'
+  return '변경 이유와 검증 결과를 decision-log 또는 업무 히스토리에 기록'
+}
+
+function countOpenManualActions() {
+  const abs = path.join(harnessRoot, 'session/manual-actions.md')
+  if (!fs.existsSync(abs)) {
+    return 0
+  }
+
+  const content = fs.readFileSync(abs, 'utf8')
+  return content
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('|') && !line.includes('---') && !line.includes('상태 | 항목'))
+    .filter((line) => !/\|\s*TBD\s*\|\s*예:/i.test(line))
+    .filter((line) => !/\|\s*(done|closed|resolved)\s*\|/i.test(line))
+    .length
+}
+
+function readImpactSummary() {
+  return readJson(impactSummaryPath, {
+    syncGaps: 0,
+    syncGapLevels: {},
+    policyTriggered: 0,
+    codeTriggered: 0,
+  })
+}
+
+function printConsumerSummary({ validationResults, edgeResult, criticalResult, cacheHit = false, stackSkipped = false }) {
+  const impact = readImpactSummary()
+  const levels = impact.syncGapLevels ?? {}
+  const requiredCount = (levels.blocking ?? 0) + (levels['action required'] ?? 0)
+  const suggestedCount = levels['review suggested'] ?? 0
+  const infoCount = levels.info ?? 0
+  const openManualActions = countOpenManualActions()
+  const passedValidations = validationResults.filter((item) => item.status === 'passed').map((item) => item.scriptName)
+  const recommendedActions = []
+
+  if (suggestedCount > 0) {
+    recommendedActions.push(`SYNC GAP review suggested ${suggestedCount}건 검토`)
+  }
+  if (criticalResult.recommendations.length > 0) {
+    recommendedActions.push(`중요 경로 추천 검증 ${criticalResult.recommendations.length}건 확인`)
+  }
+  if (edgeResult.status === 'warning') {
+    recommendedActions.push('Supabase Edge Function 검증 명령 추가')
+  }
+  if (infoCount > 0) {
+    recommendedActions.push(`정보성 기준 갭 ${infoCount}건 참고`)
+  }
+
+  console.log('')
+  console.log('Harness check summary')
+  console.log(`결과: ${requiredCount === 0 ? '통과' : '조치 필요'}`)
+  console.log(`필수 조치: ${requiredCount === 0 ? '없음' : `${requiredCount}건`}`)
+  console.log(`주의: ${suggestedCount === 0 ? '없음' : `SYNC GAP review suggested ${suggestedCount}건`}`)
+  console.log(`수동 조치: ${openManualActions === 0 ? '없음' : `${openManualActions}건 (.harness/session/manual-actions.md 확인)`}`)
+  console.log(`추천 조치: ${recommendedActions.length === 0 ? '없음' : recommendedActions.join(', ')}`)
+  console.log(`검증: ${cacheHit ? '캐시 재사용' : passedValidations.length > 0 ? `${passedValidations.join(', ')} 통과` : stackSkipped ? '스택 미적용으로 lint/test/build 스킵' : '실행된 프로젝트 검증 없음'}`)
+  if (criticalResult.recommendations.length > 0) {
+    console.log('중요 경로 추천 검증:')
+    for (const recommendation of criticalResult.recommendations) {
+      console.log(`  - ${recommendation}`)
+    }
+  }
 }
 
 function readJson(absPath, fallback = null) {
@@ -422,10 +534,11 @@ function checkHarnessVersionLock() {
 
 const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'))
 const scripts = pkg.scripts || {}
+const validationResults = []
 
 run('node', ['.harness/bin/policy-harness.mjs', 'guard', ...forwardedArgs])
-runSupabaseEdgeFunctionChecks(scripts)
-printCriticalPathReview()
+const edgeResult = runSupabaseEdgeFunctionChecks(scripts)
+const criticalResult = printCriticalPathReview()
 run('node', ['.harness/bin/doc-link-check.mjs', ...forwardedArgs])
 checkHarnessVersionLock()
 
@@ -437,6 +550,7 @@ if (!stackApplied) {
   console.log('')
   console.log(`Stack not applied (${path.relative(repoRoot, markerPath)} 없음). lint/test/build 단계는 건너뜁니다.`)
   console.log('스택 기준을 적용하려면: npm run stack:apply')
+  printConsumerSummary({ validationResults, edgeResult, criticalResult, stackSkipped: true })
   process.exit(0)
 }
 
@@ -452,11 +566,12 @@ if (!noCache && cache?.key === cacheKey && scriptPlan.length > 0) {
   console.log('')
   console.log(`Validation cache hit: ${fastMode ? 'fast' : 'full'} check already passed for this git tree.`)
   console.log(`passedAt: ${cache.passedAt}`)
+  printConsumerSummary({ validationResults, edgeResult, criticalResult, cacheHit: true })
   process.exit(0)
 }
 
 if (scripts.lint) {
-  runNpmScript('lint')
+  validationResults.push(runNpmScript('lint'))
 }
 
 if (fastMode && (scripts.test || scripts.build)) {
@@ -465,13 +580,15 @@ if (fastMode && (scripts.test || scripts.build)) {
 }
 
 if (!fastMode && scripts.test) {
-  runNpmScript('test')
+  validationResults.push(runNpmScript('test'))
 }
 
 if (!fastMode && scripts.build) {
-  runNpmScript('build')
+  validationResults.push(runNpmScript('build'))
 }
 
 if (scriptPlan.length > 0) {
   writeCheckCache(cacheKey, scriptPlan)
 }
+
+printConsumerSummary({ validationResults, edgeResult, criticalResult })

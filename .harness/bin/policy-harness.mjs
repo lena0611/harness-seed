@@ -11,6 +11,7 @@ const harnessRootRel = fs.existsSync(path.join(repoRoot, '.harness')) ? '.harnes
 const harnessRoot = path.join(repoRoot, harnessRootRel)
 const registryPath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'policy' : 'policy-harness', 'policy-registry.json')
 const profilePath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'policy' : 'policy-harness', 'profile.json')
+const impactSummaryPath = path.join(harnessRoot, 'generated', 'policy-impact-summary.json')
 const stacksRoot = path.join(harnessRoot, 'stacks')
 
 const args = process.argv.slice(2)
@@ -680,6 +681,18 @@ function isInformationalSyncGap(changedGroups, harnessMode) {
   )
 }
 
+function writeImpactSummary(summary) {
+  try {
+    fs.mkdirSync(path.dirname(impactSummaryPath), { recursive: true })
+    fs.writeFileSync(impactSummaryPath, JSON.stringify({
+      ...summary,
+      generatedAt: new Date().toISOString(),
+    }, null, 2))
+  } catch {
+    // Summary output must never make the main policy check fail.
+  }
+}
+
 function policyActionLevel(policy, informational) {
   if (informational || policy.severity === 'info' || policy.enforcement === 'inform') {
     return 'info'
@@ -768,6 +781,12 @@ function runImpact() {
   const policyTriggered = []
   const codeTriggered = []
   const syncGaps = []
+  const syncGapLevels = {
+    blocking: 0,
+    'action required': 0,
+    'review suggested': 0,
+    info: 0,
+  }
 
   for (const policy of registry.policies) {
     const documents = policy.documents ?? []
@@ -865,9 +884,24 @@ function runImpact() {
     console.log('등록된 정책-코드 매핑에 걸리는 변경은 없습니다.')
   }
 
+  const informational = !strictMode && isInformationalSyncGap(changedGroups, harnessMode)
+  for (const gap of syncGaps) {
+    syncGapLevels[policyActionLevel(gap, informational)]++
+  }
+
+  writeImpactSummary({
+    harnessMode,
+    strictMode,
+    changedFiles: changedFiles.length,
+    changedGroups: Object.fromEntries(Object.entries(changedGroups).map(([key, value]) => [key, value.length])),
+    policyTriggered: policyTriggered.length,
+    codeTriggered: codeTriggered.length,
+    syncGaps: syncGaps.length,
+    syncGapLevels,
+  })
+
   if (syncGaps.length > 0) {
     console.log('')
-    const informational = !strictMode && isInformationalSyncGap(changedGroups, harnessMode)
     console.log(informational
       ? 'SYNC GAP info (초기 설치/스택 적용 직후라면 정상일 수 있음):'
       : strictMode
@@ -878,16 +912,10 @@ function runImpact() {
       console.log(`- ${syncGaps.length}개 기준에서 한쪽 변경이 감지되었습니다.`)
       console.log('- 상세 기준과 파일 목록은 npm run harness:impact 또는 npm run harness:check -- --verbose 로 확인하세요.')
     } else {
-      const gapsByLevel = syncGaps.reduce((acc, gap) => {
-        const level = policyActionLevel(gap, informational)
-        acc[level] = (acc[level] ?? 0) + 1
-        return acc
-      }, {})
-
       console.log('  severity summary:')
       for (const level of ['blocking', 'action required', 'review suggested', 'info']) {
-        if (gapsByLevel[level]) {
-          console.log(`  - ${level}: ${gapsByLevel[level]}`)
+        if (syncGapLevels[level]) {
+          console.log(`  - ${level}: ${syncGapLevels[level]}`)
         }
       }
 

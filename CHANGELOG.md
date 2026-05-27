@@ -4,6 +4,13 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## Unreleased
+
+- RunContext 소비자 리뷰를 `consumer-reviews/`로 이동해 본체 개선 입력으로 보존합니다.
+- `harness:check` 마지막에 소비자용 요약을 출력해 필수 조치, 추천 조치, 수동 조치, 검증 결과를 빠르게 확인할 수 있게 했습니다.
+- 중요 경로별 추천 검증을 `critical-paths.md` 표에서 읽어 변경 파일과 함께 안내합니다.
+- 요청 시작 컨텍스트 축소를 위해 UI, Supabase, native, coaching 작업 유형과 관련 문서/스킬 매핑을 보강했습니다.
+
 ## 0.2.43 - 2026-05-27
 
 - SYNC GAP 출력에 `trigger files`, `matched rules`, `needed action`, `can ignore when`을 추가해 경고 근거와 조치 여부를 명확히 했습니다.
