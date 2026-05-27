@@ -4,6 +4,15 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.43 - 2026-05-27
+
+- SYNC GAP 출력에 `trigger files`, `matched rules`, `needed action`, `can ignore when`을 추가해 경고 근거와 조치 여부를 명확히 했습니다.
+- 정책 레지스트리에 `triggerPaths`를 도입해 설치/업데이트 보존 정책처럼 넓은 검토 범위를 가진 정책의 노이즈를 줄였습니다.
+- `blocking`, `action required`, `review suggested`, `info` 등급으로 경고를 나눠 출력합니다.
+- 같은 git tree에서 이미 통과한 검증은 `.harness/generated/check-cache.json`으로 재사용하고, pre-push는 `--fast` 모드로 test/build 반복을 줄입니다.
+- `supabase/functions/**` 변경 시 Deno 또는 프로젝트 지정 Edge Function 검증 명령을 찾도록 했습니다.
+- 프로젝트 중요 경로 선언 파일과 사용자 수동 조치 목록을 추가했습니다.
+
 ## 0.2.42 - 2026-05-22
 
 - 설치 완료와 `harness:update` 완료 후 소비자 프로젝트에서 바로 쓸 수 있는 주요 `npm run harness:*` 명령을 안내합니다.

@@ -45,6 +45,7 @@ const CONSUMER_PROJECT_STATE_PATHS = [
   '.harness/session/active-context.md',
   '.harness/session/decision-log.md',
   '.harness/session/developer-input-queue.md',
+  '.harness/session/manual-actions.md',
   '.harness/session/next-session-reminder.md',
   '.harness/session/project-memory.md',
 ];
@@ -89,9 +90,11 @@ const PROJECT_OWNED_PATHS = new Set([
   '.harness/project/domain-rules.md',
   '.harness/project/architecture-rules.md',
   '.harness/project/workflow-rules.md',
+  '.harness/project/critical-paths.md',
   '.harness/session/active-context.md',
   '.harness/session/decision-log.md',
   '.harness/session/developer-input-queue.md',
+  '.harness/session/manual-actions.md',
   '.harness/session/next-session-reminder.md',
   '.harness/session/project-memory.md',
   '.claude/settings.local.json',
@@ -626,6 +629,26 @@ function consumerProjectStateTemplate(rel, context) {
 - 답변을 받으면 관련 문서(\`project-charter.md\`, \`active-context.md\`, \`decision-log.md\`)를 함께 갱신합니다.
 - 유보된 질문은 삭제하지 않고 \`deferred\`로 남깁니다.
 - 에이전트는 구현 중 추측이 필요한 반복 규칙을 만나면 사용자에게 인터뷰하거나 이 큐에 \`open\` 항목을 추가합니다.
+`;
+
+    case '.harness/session/manual-actions.md':
+      return `# Manual Actions
+
+에이전트나 하네스가 직접 처리할 수 없어 사용자가 직접 확인해야 하는 작업 목록입니다.
+
+> 하네스 본체의 운영 목록이 아닙니다. 이 프로젝트의 외부 콘솔, secret, capability, Pages/배포 설정 같은 수동 조치만 남깁니다.
+
+## Open
+
+| 상태 | 항목 | 필요한 사용자 조치 | 관련 작업 |
+| --- | --- | --- | --- |
+| TBD | 예: 외부 서비스 secret 등록 | 콘솔에서 값을 등록하고 결과를 알려주세요. | TBD |
+
+## 작성 기준
+
+- Supabase secret, GitHub/GitLab Pages 설정, Apple capability, 인증서, 스토어/클라우드 콘솔 설정처럼 로컬 코드 수정만으로 끝나지 않는 일을 기록합니다.
+- 완료되면 상태를 \`done\`으로 바꾸고, 확인한 날짜와 근거를 관련 작업 칸에 남깁니다.
+- 수동 조치가 구현 방향에 영향을 주면 \`decision-log.md\`에도 결정 근거를 남깁니다.
 `;
 
     case '.harness/session/next-session-reminder.md':

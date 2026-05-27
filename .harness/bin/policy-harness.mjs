@@ -155,6 +155,18 @@ function matchesAnyGlob(filePath, globs) {
   return globs.some((glob) => matchesGlob(filePath, glob))
 }
 
+function matchingGlobs(filePath, globs) {
+  return globs.filter((glob) => matchesGlob(filePath, glob))
+}
+
+function matchedFiles(files, globs) {
+  return files.filter((filePath) => matchesAnyGlob(filePath, globs))
+}
+
+function matchedRules(files, globs) {
+  return unique(files.flatMap((filePath) => matchingGlobs(filePath, globs)))
+}
+
 function walkDirectory(directoryPath) {
   if (!fs.existsSync(directoryPath)) {
     return []
@@ -200,6 +212,11 @@ function runGit(argsToRun) {
 
 function getAllTrackedFiles() {
   return walkDirectory(path.join(repoRoot, 'src')).concat(
+    walkDirectory(path.join(repoRoot, 'app')),
+    walkDirectory(path.join(repoRoot, 'lib')),
+    walkDirectory(path.join(repoRoot, 'supabase')),
+    walkDirectory(path.join(repoRoot, 'ios')),
+    walkDirectory(path.join(repoRoot, 'android')),
     walkDirectory(path.join(repoRoot, '.github')),
     walkDirectory(path.join(repoRoot, '.harness/bin')),
     walkDirectory(path.join(repoRoot, 'scripts')),
@@ -343,6 +360,14 @@ function validatePolicyRegistry(registry) {
         rule: 'policy-registry-schema',
         file: `${harnessRootRel}/policy/policy-registry.json`,
         message: `policy '${policy.id ?? '(unknown)'}' ownedAreas must be a non-empty array`,
+      })
+    }
+
+    if (policy.triggerPaths !== undefined && (!Array.isArray(policy.triggerPaths) || policy.triggerPaths.length === 0)) {
+      violations.push({
+        rule: 'policy-registry-v3-schema',
+        file: `${harnessRootRel}/policy/policy-registry.json`,
+        message: `policy '${policy.id ?? '(unknown)'}' triggerPaths must be a non-empty array when provided`,
       })
     }
 
@@ -536,7 +561,7 @@ function isConfigFile(filePath) {
 }
 
 function isFeatureSourceFile(filePath) {
-  return /^(src|app|lib|packages|apps|pkg|internal|test|tests|spec|__tests__)\//.test(filePath)
+  return /^(src|app|lib|packages|apps|pkg|internal|test|tests|spec|__tests__|supabase\/functions|ios|android)\//.test(filePath)
 }
 
 function isHarnessScriptFile(filePath) {
@@ -655,6 +680,52 @@ function isInformationalSyncGap(changedGroups, harnessMode) {
   )
 }
 
+function policyActionLevel(policy, informational) {
+  if (informational || policy.severity === 'info' || policy.enforcement === 'inform') {
+    return 'info'
+  }
+
+  if (strictMode || policy.severity === 'blocker' || policy.enforcement === 'block') {
+    return 'blocking'
+  }
+
+  if (policy.severity === 'error' || policy.enforcement === 'hook') {
+    return 'action required'
+  }
+
+  return 'review suggested'
+}
+
+function actionMessage(level, side) {
+  if (level === 'blocking') {
+    return '반대편 변경을 함께 반영하거나, 허용된 경우 waiver/decision-log에 예외 근거를 남겨야 합니다.'
+  }
+
+  if (level === 'action required') {
+    return '관련 기준 또는 구현 변경을 확인하고, 누락이면 함께 수정하세요.'
+  }
+
+  if (level === 'review suggested') {
+    return side === 'document-only'
+      ? '문서 기준만 바뀐 의도적 변경인지 확인하세요. 구현이 필요 없으면 decision-log에 이유를 남기면 됩니다.'
+      : '구현만 바뀐 의도적 변경인지 확인하세요. 반복 규칙이면 project rule 또는 decision-log에 남기면 됩니다.'
+  }
+
+  return '초기 설치, rules-only 스택 적용, 생성 파일 갱신처럼 기준만 추가되는 상황이면 참고용입니다.'
+}
+
+function ignoreMessage(policy, side) {
+  if (side === 'document-only') {
+    return '새 기준을 기록했지만 이번 커밋에서 구현 변경이 필요 없고, 그 이유가 decision-log 또는 문서 본문에 남아 있을 때'
+  }
+
+  if (policy.waiverAllowed) {
+    return '단발성 구현 변경이거나 별도 검증으로 대체했고 waiver/decision-log에 근거를 남겼을 때'
+  }
+
+  return '이 정책은 waiver를 허용하지 않습니다. 매칭이 잘못되었다면 정책의 triggerPaths/documents를 좁혀야 합니다.'
+}
+
 function printProjectRuleCandidateReminder(changedGroups) {
   const sourceChangeCount = changedGroups.feature.length + changedGroups.harnessScripts.length + changedGroups.config.length + changedGroups.other.length
   const localHarnessChangeCount = changedGroups.localHarness.length
@@ -701,22 +772,31 @@ function runImpact() {
   for (const policy of registry.policies) {
     const documents = policy.documents ?? []
     const ownedAreas = policy.ownedAreas ?? []
-    const documentChanged = changedFiles.some((filePath) => matchesAnyGlob(filePath, documents))
-    const sourceChanged = changedFiles.some((filePath) => matchesAnyGlob(filePath, ownedAreas))
+    const triggerPaths = policy.triggerPaths ?? ownedAreas
+    const changedDocuments = matchedFiles(changedFiles, documents)
+    const changedSources = matchedFiles(changedFiles, triggerPaths)
+    const documentChanged = changedDocuments.length > 0
+    const sourceChanged = changedSources.length > 0
     const hasOwnedFiles = trackedFiles.some((filePath) => matchesAnyGlob(filePath, ownedAreas))
 
     if (documentChanged) {
       const impactedFiles = trackedFiles.filter((filePath) => matchesAnyGlob(filePath, ownedAreas))
       policyTriggered.push({
+        id: policy.id,
         title: policy.title,
         files: impactedFiles,
+        triggeredFiles: changedDocuments,
+        matchedRules: matchedRules(changedDocuments, documents),
       })
     }
 
     if (sourceChanged) {
       codeTriggered.push({
+        id: policy.id,
         title: policy.title,
         documents,
+        triggeredFiles: changedSources,
+        matchedRules: matchedRules(changedSources, triggerPaths),
       })
     }
 
@@ -724,9 +804,17 @@ function runImpact() {
       syncGaps.push({
         id: policy.id,
         title: policy.title,
+        severity: policy.severity ?? 'warning',
+        enforcement: policy.enforcement ?? 'trigger',
+        waiverAllowed: Boolean(policy.waiverAllowed),
         side: documentChanged ? 'document-only' : 'source-only',
         documents,
         ownedAreas,
+        triggerPaths,
+        triggeredFiles: documentChanged ? changedDocuments : changedSources,
+        matchedRules: documentChanged
+          ? matchedRules(changedDocuments, documents)
+          : matchedRules(changedSources, triggerPaths),
       })
     }
   }
@@ -739,7 +827,12 @@ function runImpact() {
       console.log('Policy document changes require source review:')
 
       for (const item of policyTriggered) {
-        console.log(`- ${item.title}`)
+        console.log(`- [${item.id}] ${item.title}`)
+        console.log('  trigger files:')
+        console.log(formatFileList(item.triggeredFiles))
+        console.log('  matched rules:')
+        console.log(formatFileList(item.matchedRules))
+        console.log('  review scope:')
         console.log(baselineOnly && !showBaseline ? formatFileSummary(item.files) : formatFileList(item.files))
       }
 
@@ -755,7 +848,12 @@ function runImpact() {
       console.log('Source changes require policy review:')
 
       for (const item of codeTriggered) {
-        console.log(`- ${item.title}`)
+        console.log(`- [${item.id}] ${item.title}`)
+        console.log('  trigger files:')
+        console.log(formatFileList(item.triggeredFiles))
+        console.log('  matched rules:')
+        console.log(formatFileList(item.matchedRules))
+        console.log('  related documents:')
         console.log(baselineOnly && !showBaseline ? formatFileSummary(item.documents) : formatFileList(item.documents))
       }
 
@@ -771,22 +869,43 @@ function runImpact() {
     console.log('')
     const informational = !strictMode && isInformationalSyncGap(changedGroups, harnessMode)
     console.log(informational
-      ? 'SYNC GAP notice (초기 설치/스택 적용 직후라면 정상일 수 있음):'
+      ? 'SYNC GAP info (초기 설치/스택 적용 직후라면 정상일 수 있음):'
       : strictMode
-        ? 'SYNC GAP error (strict 모드에서는 기준-코드 불일치를 실패로 봅니다):'
-        : 'SYNC GAP warning (한쪽만 변경되어 기준-코드 동기화가 무너질 수 있음):')
+        ? 'SYNC GAP blocking summary (strict 모드에서는 기준-코드 불일치를 실패로 봅니다):'
+        : 'SYNC GAP review summary (조치 필요와 참고용을 구분해 확인하세요):')
 
     if (briefMode && !verboseMode) {
       console.log(`- ${syncGaps.length}개 기준에서 한쪽 변경이 감지되었습니다.`)
       console.log('- 상세 기준과 파일 목록은 npm run harness:impact 또는 npm run harness:check -- --verbose 로 확인하세요.')
     } else {
+      const gapsByLevel = syncGaps.reduce((acc, gap) => {
+        const level = policyActionLevel(gap, informational)
+        acc[level] = (acc[level] ?? 0) + 1
+        return acc
+      }, {})
+
+      console.log('  severity summary:')
+      for (const level of ['blocking', 'action required', 'review suggested', 'info']) {
+        if (gapsByLevel[level]) {
+          console.log(`  - ${level}: ${gapsByLevel[level]}`)
+        }
+      }
+
       for (const gap of syncGaps) {
         const sideLabel = gap.side === 'document-only' ? '문서만 변경됨' : '소스만 변경됨'
-        console.log(`- [${gap.id}] ${gap.title} — ${sideLabel}`)
-        console.log('  documents:')
+        const level = policyActionLevel(gap, informational)
+        console.log(`- [${level}] [${gap.id}] ${gap.title} — ${sideLabel}`)
+        console.log(`  policy: severity=${gap.severity}, enforcement=${gap.enforcement}, waiverAllowed=${gap.waiverAllowed}`)
+        console.log('  trigger files:')
+        console.log(formatFileList(gap.triggeredFiles))
+        console.log('  matched rules:')
+        console.log(formatFileList(gap.matchedRules))
+        console.log('  related documents:')
         console.log(informational && !showBaseline ? formatFileSummary(gap.documents) : formatFileList(gap.documents))
-        console.log('  ownedAreas:')
+        console.log('  review scope:')
         console.log(informational && !showBaseline ? formatFileSummary(gap.ownedAreas) : formatFileList(gap.ownedAreas))
+        console.log(`  needed action: ${actionMessage(level, gap.side)}`)
+        console.log(`  can ignore when: ${ignoreMessage(gap, gap.side)}`)
       }
     }
 

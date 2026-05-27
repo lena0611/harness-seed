@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,11 +9,14 @@ const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '..', '..')
 const forwardedArgs = process.argv.slice(2)
 const briefMode = forwardedArgs.includes('--brief')
+const fastMode = forwardedArgs.includes('--fast')
+const noCache = forwardedArgs.includes('--no-cache')
 const harnessRoot = fs.existsSync(path.join(repoRoot, '.harness'))
   ? path.join(repoRoot, '.harness')
   : path.join(repoRoot, '.github')
 const markerPath = path.join(harnessRoot, '.stack-applied.json')
 const lockPath = path.join(harnessRoot, 'harness-lock.json')
+const checkCachePath = path.join(harnessRoot, 'generated/check-cache.json')
 const profilePath = path.join(harnessRoot, harnessRoot.endsWith('.harness') ? 'policy/profile.json' : 'policy-harness/profile.json')
 const stackApplied = fs.existsSync(markerPath)
 const strictMode = forwardedArgs.includes('--strict') || (() => {
@@ -28,6 +32,89 @@ function run(command, args) {
     cwd: repoRoot,
     stdio: 'inherit',
   })
+}
+
+function runGit(argsToRun) {
+  try {
+    return execFileSync('git', argsToRun, {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+  } catch {
+    return ''
+  }
+}
+
+function getChangedFiles() {
+  const changed = []
+  const output = runGit(['status', '--porcelain=v1'])
+  if (output) {
+    changed.push(...output
+      .split(/\r?\n/)
+      .map((line) => line.slice(3).trim())
+      .filter(Boolean)
+      .map((filePath) => filePath.includes(' -> ') ? filePath.split(' -> ').at(-1) : filePath))
+  }
+
+  const untracked = runGit(['ls-files', '--others', '--exclude-standard'])
+  if (untracked) {
+    changed.push(...untracked.split(/\r?\n/).filter(Boolean))
+  }
+
+  return [...new Set(changed)]
+}
+
+function hashFileIfExists(filePath) {
+  const absPath = path.join(repoRoot, filePath)
+  if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) {
+    return 'missing'
+  }
+
+  return crypto.createHash('sha256').update(fs.readFileSync(absPath)).digest('hex')
+}
+
+function validationCacheKey(scriptNames) {
+  const hash = crypto.createHash('sha256')
+  hash.update(`mode:${strictMode ? 'strict' : 'default'}:${fastMode ? 'fast' : 'full'}\n`)
+  hash.update(`head:${runGit(['rev-parse', 'HEAD']) || 'no-head'}\n`)
+
+  for (const filePath of getChangedFiles().sort()) {
+    hash.update(`${filePath}:${hashFileIfExists(filePath)}\n`)
+  }
+
+  for (const filePath of ['package.json', 'package-lock.json', '.harness/harness-lock.json', '.harness/.stack-applied.json']) {
+    hash.update(`${filePath}:${hashFileIfExists(filePath)}\n`)
+  }
+
+  hash.update(`scripts:${scriptNames.join(',')}\n`)
+  return hash.digest('hex')
+}
+
+function readCheckCache() {
+  if (!fs.existsSync(checkCachePath)) {
+    return null
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(checkCachePath, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function writeCheckCache(key, scriptNames) {
+  if (noCache) {
+    return
+  }
+
+  fs.mkdirSync(path.dirname(checkCachePath), { recursive: true })
+  fs.writeFileSync(checkCachePath, JSON.stringify({
+    key,
+    mode: fastMode ? 'fast' : 'full',
+    scripts: scriptNames,
+    passedAt: new Date().toISOString(),
+  }, null, 2))
 }
 
 function findExisting(paths) {
@@ -137,6 +224,111 @@ function runNpmScript(scriptName) {
   if (result.stderr) process.stderr.write(result.stderr)
 }
 
+function commandExists(command) {
+  const result = spawnSync('sh', ['-c', `command -v ${command}`], {
+    stdio: 'ignore',
+  })
+  return result.status === 0
+}
+
+function runProjectVerifier(scriptName) {
+  console.log(`Supabase Edge Function verifier: npm run ${scriptName}`)
+  runNpmScript(scriptName)
+}
+
+function runSupabaseEdgeFunctionChecks(scripts) {
+  const changed = getChangedFiles()
+  const edgeFiles = changed.filter((filePath) => /^supabase\/functions\/.+\.(ts|tsx|js|mjs)$/.test(filePath))
+
+  if (edgeFiles.length === 0) {
+    return
+  }
+
+  console.log('')
+  console.log('Supabase Edge Function changes detected')
+  for (const filePath of edgeFiles) {
+    console.log(`  - ${filePath}`)
+  }
+
+  const verifier = [
+    'supabase:functions:check',
+    'edge:functions:check',
+    'functions:check',
+  ].find((scriptName) => scripts[scriptName])
+
+  if (verifier) {
+    runProjectVerifier(verifier)
+    return
+  }
+
+  const denoCheckTargets = edgeFiles.filter((filePath) => filePath.endsWith('.ts') || filePath.endsWith('.tsx'))
+  if (denoCheckTargets.length > 0 && commandExists('deno')) {
+    console.log('Supabase Edge Function verifier: deno check')
+    const result = spawnSync('deno', ['check', ...denoCheckTargets], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: 'inherit',
+    })
+
+    if (result.status !== 0) {
+      process.exit(result.status ?? 1)
+    }
+
+    return
+  }
+
+  const message = 'Supabase Edge Function 변경이 감지되었지만 deno 또는 프로젝트 지정 검증 명령을 찾지 못했습니다.'
+  if (strictMode) {
+    throw new Error(message)
+  }
+
+  console.warn(`WARNING: ${message}`)
+  console.warn('권장: package.json에 supabase:functions:check, edge:functions:check, functions:check 중 하나를 추가하세요.')
+}
+
+function readCriticalPaths() {
+  const rel = '.harness/project/critical-paths.md'
+  const abs = path.join(repoRoot, rel)
+  if (!fs.existsSync(abs)) {
+    return []
+  }
+
+  const content = fs.readFileSync(abs, 'utf8')
+  return [...content.matchAll(/`([^`\n]+)`/g)]
+    .map((match) => match[1])
+    .filter((value) => /[*?/]|\/$|^[\w.-]+\//.test(value))
+}
+
+function globToRegExp(glob) {
+  const escaped = glob
+    .replace(/[|\\{}()[\]^$+?.]/g, '\\$&')
+    .replaceAll('**', '::DOUBLE_STAR::')
+    .replaceAll('*', '[^/]*')
+    .replaceAll('::DOUBLE_STAR::', '.*')
+  return new RegExp(`^${escaped}$`)
+}
+
+function printCriticalPathReview() {
+  const paths = readCriticalPaths()
+  if (paths.length === 0) {
+    return
+  }
+
+  const changed = getChangedFiles()
+  const matches = changed.filter((filePath) => paths.some((glob) => globToRegExp(glob).test(filePath)))
+  if (matches.length === 0) {
+    return
+  }
+
+  console.log('')
+  console.log('Critical path review suggested')
+  console.log('프로젝트가 중요 경로로 선언한 파일이 변경되었습니다.')
+  for (const filePath of matches) {
+    console.log(`  - ${filePath}`)
+  }
+  console.log('필요한 조치: 검증 결과와 수동 조치 여부를 decision-log, 업무 히스토리, manual-actions 중 알맞은 곳에 남기세요.')
+}
+
 function readJson(absPath, fallback = null) {
   if (!fs.existsSync(absPath)) {
     return fallback
@@ -228,7 +420,12 @@ function checkHarnessVersionLock() {
   console.log(`Harness versions OK: base=${installedBase.version}${installedBase.ref ? ` (${installedBase.ref})` : ''}, stack=${lock.stackHarness?.version ?? profile.activeStack}`)
 }
 
+const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'))
+const scripts = pkg.scripts || {}
+
 run('node', ['.harness/bin/policy-harness.mjs', 'guard', ...forwardedArgs])
+runSupabaseEdgeFunctionChecks(scripts)
+printCriticalPathReview()
 run('node', ['.harness/bin/doc-link-check.mjs', ...forwardedArgs])
 checkHarnessVersionLock()
 
@@ -243,17 +440,38 @@ if (!stackApplied) {
   process.exit(0)
 }
 
-const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'))
-const scripts = pkg.scripts || {}
+const scriptPlan = [
+  scripts.lint ? 'lint' : null,
+  !fastMode && scripts.test ? 'test' : null,
+  !fastMode && scripts.build ? 'build' : null,
+].filter(Boolean)
+const cacheKey = validationCacheKey(scriptPlan)
+const cache = readCheckCache()
+
+if (!noCache && cache?.key === cacheKey && scriptPlan.length > 0) {
+  console.log('')
+  console.log(`Validation cache hit: ${fastMode ? 'fast' : 'full'} check already passed for this git tree.`)
+  console.log(`passedAt: ${cache.passedAt}`)
+  process.exit(0)
+}
 
 if (scripts.lint) {
   runNpmScript('lint')
 }
 
-if (scripts.test) {
+if (fastMode && (scripts.test || scripts.build)) {
+  console.log('')
+  console.log('Fast check mode: test/build 단계는 건너뜁니다. 전체 검증은 npm run harness:check 로 실행하세요.')
+}
+
+if (!fastMode && scripts.test) {
   runNpmScript('test')
 }
 
-if (scripts.build) {
+if (!fastMode && scripts.build) {
   runNpmScript('build')
+}
+
+if (scriptPlan.length > 0) {
+  writeCheckCache(cacheKey, scriptPlan)
 }

@@ -40,7 +40,8 @@
         ".harness/session/project-memory.md",
         ".harness/session/active-context.md",
         ".harness/session/decision-log.md",
-        ".harness/session/developer-input-queue.md"
+        ".harness/session/developer-input-queue.md",
+        ".harness/session/manual-actions.md"
       ]
     },
     {
@@ -60,6 +61,7 @@
         ".harness/project/domain-rules.md",
         ".harness/project/architecture-rules.md",
         ".harness/project/workflow-rules.md",
+        ".harness/project/critical-paths.md",
         ".harness/project/portability-guide.md",
         ".harness/project/bootstrap.md"
       ]

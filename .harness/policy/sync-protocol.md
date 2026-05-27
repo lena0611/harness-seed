@@ -16,15 +16,34 @@
 하네스 본체 저장소에서 세부 원인 분석이 필요하면 `policy:impact`, `policy:check`, `docs:check` 같은 내부 npm script를 별도로 사용할 수 있습니다.
 
 ## SYNC GAP 처리
-- `harness:impact` 또는 `policy:impact` 출력에 `SYNC GAP detected` 블록이 보이면 한쪽(문서 또는 소스)만 변경된 상태라는 뜻입니다.
-- 기본 동작: 갭은 경고 수준이며 로컬 `harness:check`는 실패시키지 않습니다.
-- CI에서는 `--strict`를 사용하므로 갭이 남아 있으면 실패합니다.
+- `harness:impact` 또는 `policy:impact` 출력에 `SYNC GAP` 블록이 보이면 한쪽(문서 또는 소스)만 변경된 상태라는 뜻입니다.
+- 출력은 `trigger files`, `matched rules`, `needed action`, `can ignore when`을 함께 보여줘야 합니다.
+- 등급은 `blocking`, `action required`, `review suggested`, `info`로 나눕니다.
+- 기본 동작: `review suggested`와 `info`는 로컬 `harness:check`를 실패시키지 않습니다.
+- CI나 `strict` 모드에서는 남아 있는 갭을 실패 기준으로 봅니다.
 - `.harness/policy/profile.json`의 `harnessMode`가 `bootstrap`이면 초기 설치나 스택 기준 추가에서 생긴 갭은 정보성 안내로 낮춰 볼 수 있습니다.
 - `harnessMode`가 `strict`이면 `harness:check`도 strict 검증처럼 해석합니다.
 - 해결 옵션:
   1. 반대편을 같이 갱신해 갭을 닫는다.
   2. 의도된 단방향 변경이면 `decision-log.md`에 사유를 남기고 필요 시 `waivers.json`에 등록한다.
-  3. 기준 매핑이 잘못된 경우 `policy-registry.json`의 `documents`/`ownedAreas`를 수정한다.
+  3. 기준 매핑이 잘못된 경우 `policy-registry.json`의 `documents`/`triggerPaths`를 수정한다.
+
+## 정책 매칭 범위
+- `documents`는 정책을 설명하는 기준 문서입니다.
+- `ownedAreas`는 정책이 검토 대상으로 삼는 전체 파일 영역입니다.
+- `triggerPaths`는 실제 변경이 있을 때 그 정책을 깨우는 좁은 경로입니다. 없으면 `ownedAreas`를 사용합니다.
+- 넓은 프로젝트 문서 전체를 `ownedAreas`에 넣더라도, 노이즈가 커지는 정책은 반드시 `triggerPaths`를 따로 둡니다.
+- 예: 설치/업데이트 보존 정책은 프로젝트 소유 문서를 검토 범위로 알 수는 있지만, `domain-rules.md` 변경만으로 설치 정책을 깨우면 안 됩니다.
+
+## 중요 경로와 수동 조치
+- 프로젝트 핵심 파일은 `.harness/project/critical-paths.md`에 선언합니다.
+- `supabase/functions/**`가 바뀌면 `harness:check`는 `deno check` 또는 프로젝트 지정 검증 명령(`supabase:functions:check`, `edge:functions:check`, `functions:check`)을 찾습니다.
+- 에이전트가 직접 처리할 수 없는 외부 콘솔, secret, capability, Pages 설정은 `.harness/session/manual-actions.md`에 남깁니다.
+
+## 반복 검증 완화
+- `harness:check`는 같은 git tree와 같은 검증 계획이 이미 통과했으면 `.harness/generated/check-cache.json`을 사용해 lint/test/build 반복을 줄일 수 있습니다.
+- `pre-commit`은 전체 `harness:check`를 실행합니다.
+- `pre-push`는 `npm run harness:check -- --fast`를 실행해 정책, 문서, 버전, lint 중심으로 빠르게 확인하고 test/build 반복을 줄입니다.
 
 ## 세션 트리거
 - 새 세션 시작 시 `session-boot.md`를 읽은 직후 이 프로토콜을 확인합니다.
@@ -50,7 +69,7 @@
 - `init`은 하네스 소유 파일을 갱신하고 프로젝트 소유 파일을 보존해야 합니다.
 - `init`은 `.harness/install-manifest.json`으로 공통 하네스 설치기가 관리하는 파일을 식별해야 합니다.
 - manifest가 없는 기존 `.harness/`, `.claude/`, `CLAUDE.md`는 전용 하네스일 수 있으므로 기본 보존하고 `--force`일 때만 덮어씁니다.
-- 프로젝트 소유 파일 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/session/active-context.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
+- 프로젝트 소유 파일 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/project/critical-paths.md`, `.harness/session/active-context.md`, `.harness/session/manual-actions.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
 - `stack:apply`는 활성 스택 instructions를 `.harness/project/stack-preset-rules.md`에 로컬룰로 반영해야 합니다.
 - 외부 프리셋은 `profile.json`의 `stackManifest` 또는 `stack:apply -- --preset-path <dir>`로 연결하며, manifest 상대 경로는 manifest 위치 기준으로 해석합니다.
 - 원격 템플릿 후보 조회는 `.harness/bin/list-templates.mjs`가 담당하며, 기본 대상은 사내 GitLab의 `ai-standard/stacks` 그룹입니다.

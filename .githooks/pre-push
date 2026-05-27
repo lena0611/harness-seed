@@ -14,4 +14,4 @@ fi
 # 기존 프로젝트 pre-push hook이 있으면 먼저 실행
 node .harness/bin/run-previous-hook.mjs pre-push "$@"
 
-npm run harness:check
+npm run harness:check -- --fast

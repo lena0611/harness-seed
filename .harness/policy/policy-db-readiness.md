@@ -27,6 +27,7 @@
 | `source` | 원본 문서/저장소/경로 |
 | `documents` | 정책을 설명하는 문서 glob |
 | `ownedAreas` | 정책 변경 시 같이 봐야 할 코드/설정/문서 glob |
+| `triggerPaths` | 실제 변경 시 정책을 깨우는 좁은 경로 glob. 없으면 `ownedAreas`를 사용 |
 | `checks` | 검증 또는 확인 명령 |
 
 ## DB화 전 weak point 체크
@@ -36,7 +37,7 @@
 1. 정책이 너무 큰 묶음이 아니라 하나의 판단 단위인가?
 2. 같은 `id`가 다른 의미로 재사용되지 않는가?
 3. `source`로 원본 문서와 저장소를 추적할 수 있는가?
-4. `documents`와 `ownedAreas`가 양방향 검토를 만들 수 있는가?
+4. `documents`, `ownedAreas`, `triggerPaths`가 양방향 검토를 만들되 과도한 경고를 만들지 않는가?
 5. 자동 검사 가능 여부가 `checks`에 명시되어 있는가?
 6. `enforcement`와 `severity`가 분리되어 있는가?
 7. 예외를 허용한다면 `waiverAllowed`가 true이고 `waivers.json`에 기록할 수 있는가?

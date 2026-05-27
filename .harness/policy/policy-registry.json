@@ -217,6 +217,14 @@
         ".harness/policy/profile.json",
         ".harness/policy/waivers.json"
       ],
+      "triggerPaths": [
+        "scripts/init.mjs",
+        "scripts/test-init.mjs",
+        ".harness/bin/update-harness.mjs",
+        ".harness/bin/apply-stack.mjs",
+        ".harness/policy/profile.json",
+        ".harness/policy/waivers.json"
+      ],
       "checks": [
         "node scripts/test-init.mjs",
         "npm run harness:check"
@@ -495,6 +503,44 @@
       "conflictsWith": [],
       "supersedes": [],
       "tags": ["local-rule", "learning", "promotion"]
+    },
+    {
+      "id": "project.critical-paths.review",
+      "title": "Project critical paths must trigger stronger review",
+      "layer": "project",
+      "category": "project-risk",
+      "status": "active",
+      "severity": "warning",
+      "enforcement": "trigger",
+      "waiverAllowed": true,
+      "owner": "project",
+      "source": {
+        "type": "local",
+        "path": ".harness/project/critical-paths.md"
+      },
+      "documents": [
+        ".harness/project/critical-paths.md",
+        ".harness/project/workflow-rules.md",
+        ".harness/session/developer-input-queue.md"
+      ],
+      "ownedAreas": [
+        ".harness/project/critical-paths.md",
+        "supabase/functions/**",
+        "src/**",
+        "app/**",
+        "lib/**",
+        "ios/**",
+        "android/**"
+      ],
+      "triggerPaths": [
+        ".harness/project/critical-paths.md"
+      ],
+      "checks": [
+        "npm run harness:check"
+      ],
+      "conflictsWith": [],
+      "supersedes": [],
+      "tags": ["critical-path", "project-risk", "manual-review"]
     }
   ]
 }
