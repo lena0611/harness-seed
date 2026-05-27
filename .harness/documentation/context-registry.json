@@ -50,10 +50,10 @@
       "id": "critical-paths",
       "file": ".harness/project/critical-paths.md",
       "category": "risk",
-      "taskTypes": ["feature", "bugfix", "refactor", "review", "maintenance", "ui", "supabase", "native", "coaching"],
+      "taskTypes": ["feature", "bugfix", "refactor", "review", "maintenance", "ui", "supabase", "native", "domain-logic"],
       "priority": "high",
-      "appliesTo": ["supabase/functions/**", "src/shared/ui/**", "ios/**", "android/**", "critical"],
-      "keywords": ["중요", "critical", "위험", "supabase", "edge", "ui", "ios", "android", "healthkit", "coaching"]
+      "appliesTo": ["src/domain/**", "src/core/**", "src/integrations/**", "src/security/**", "ios/**", "android/**", "critical"],
+      "keywords": ["중요", "critical", "위험", "domain", "integration", "security", "ui", "ios", "android"]
     },
     {
       "id": "manual-actions",

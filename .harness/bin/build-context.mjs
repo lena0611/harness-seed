@@ -49,10 +49,10 @@ const taskTypeRules = [
   { type: 'docs', keywords: ['문서', 'readme', '가이드', '설명', 'docs'] },
   { type: 'review', keywords: ['검토', '리뷰', '살펴', '비교', '확인', 'review'] },
   { type: 'maintenance', keywords: ['업데이트', '배포', '버전', '태그', '릴리스', '갱신', 'update', 'deploy'] },
-  { type: 'ui', keywords: ['ui', '화면', '디자인', '컴포넌트', '버튼', '바텀시트', 'safe area', 'theme', '테마', '모바일'] },
+  { type: 'ui', keywords: ['ui', '화면', '디자인', '컴포넌트', '버튼', '레이아웃', 'safe area', 'theme', '테마', '모바일'] },
   { type: 'supabase', keywords: ['supabase', 'edge function', 'edge', 'rls', 'secret', 'api key'] },
-  { type: 'native', keywords: ['ios', 'android', 'native', '네이티브', 'capability', 'healthkit', '권한'] },
-  { type: 'coaching', keywords: ['코칭', '러닝', 'running', 'run', 'training', '훈련', 'pace', '페이스'] },
+  { type: 'native', keywords: ['ios', 'android', 'native', '네이티브', 'capability', '권한'] },
+  { type: 'domain-logic', keywords: ['도메인', '알고리즘', '추론', '분류', '계산', '규칙', 'rule', 'policy'] },
 ]
 
 const conflictOrder = [

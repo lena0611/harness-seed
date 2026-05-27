@@ -429,11 +429,11 @@
     {
       "id": "harness.ui-change-guard",
       "title": "UI 변경 가드 흐름",
-      "purpose": "UI 변경 요청에서 공통 컴포넌트 재사용, 디자인 토큰, 테마, 모바일 safe area를 먼저 확인한다.",
+      "purpose": "UI 변경 요청에서 공통 컴포넌트 재사용, 디자인 토큰, 테마, 모바일 레이아웃 제약을 먼저 확인한다.",
       "audience": ["consumer"],
       "taskTypes": ["ui", "feature", "bugfix", "refactor"],
       "priority": "high",
-      "triggers": ["UI", "화면", "디자인", "컴포넌트", "바텀시트", "safe area", "테마", "모바일"],
+      "triggers": ["UI", "화면", "디자인", "컴포넌트", "레이아웃", "safe area", "테마", "모바일"],
       "read": [
         ".harness/project/architecture-rules.md",
         ".harness/project/workflow-rules.md",
@@ -448,7 +448,7 @@
       "outputs": [
         "기존 공통 컴포넌트 재사용 가능 여부",
         "새 컴포넌트의 공통 승격 필요 여부",
-        "디자인 토큰/테마/safe area/키보드/WebView 고려 여부",
+        "디자인 토큰/테마/모바일 레이아웃/키보드/WebView 고려 여부",
         "UI 회귀 검증 필요 여부"
       ],
       "records": [
@@ -462,9 +462,9 @@
       "title": "테스트 선택 가드 흐름",
       "purpose": "기능 개발이나 버그 수정 후 단위, 통합, E2E, 수동 검증 중 어떤 검증이 필요한지 판단한다.",
       "audience": ["consumer"],
-      "taskTypes": ["feature", "bugfix", "refactor", "verification", "supabase", "native", "coaching"],
+      "taskTypes": ["feature", "bugfix", "refactor", "verification", "supabase", "native", "domain-logic"],
       "priority": "high",
-      "triggers": ["테스트", "검증", "회귀", "라우트", "추론", "Edge Function", "HealthKit", "E2E"],
+      "triggers": ["테스트", "검증", "회귀", "라우트", "추론", "Edge Function", "외부 연동", "E2E"],
       "read": [
         ".harness/project/workflow-rules.md",
         ".harness/project/critical-paths.md",

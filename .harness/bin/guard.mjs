@@ -372,7 +372,7 @@ function printCriticalPathReview() {
 function defaultCriticalPathRecommendation(glob) {
   if (glob.startsWith('supabase/functions/')) return 'Edge Function check, secret 노출 점검'
   if (glob.startsWith('src/shared/ui/')) return '라이트/다크, 모바일 viewport, 공통 컴포넌트 회귀 확인'
-  if (glob.includes('infer') || glob.includes('run-type')) return '회귀 단위 테스트'
+  if (glob.includes('domain') || glob.includes('algorithm')) return '도메인 회귀 테스트'
   if (glob.startsWith('ios/')) return 'Xcode 수동 빌드, capability/manual action 확인'
   if (glob.startsWith('android/')) return 'Android 로컬 빌드, 권한/manual action 확인'
   return '변경 이유와 검증 결과를 decision-log 또는 업무 히스토리에 기록'
