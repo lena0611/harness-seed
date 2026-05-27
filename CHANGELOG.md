@@ -4,7 +4,7 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
-## Unreleased
+## 0.2.44 - 2026-05-27
 
 - RunContext 소비자 리뷰를 `consumer-reviews/`로 이동해 본체 개선 입력으로 보존합니다.
 - `harness:check` 마지막에 소비자용 요약을 출력해 필수 조치, 추천 조치, 수동 조치, 검증 결과를 빠르게 확인할 수 있게 했습니다.
