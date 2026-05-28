@@ -125,7 +125,7 @@ npm run templates:list
 npm run template:apply -- --preset-git <template-repo-url> --ref <tag-or-branch>
 ```
 
-템플릿의 전체 개발 가이드는 템플릿 저장소가 소유하고, 적용 프로젝트에는 `.harness/project/template-contract.md` 브리지만 생성됩니다. 프로젝트별 예외나 추가 규칙은 `domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`에 남깁니다.
+템플릿의 전체 개발 가이드는 템플릿 저장소가 소유하고, 적용 프로젝트에는 `.harness/project/template-contract.md` 브리지만 생성됩니다. 프로젝트별 예외나 추가 규칙은 `domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`에 남깁니다. commit/push hook 자체의 운영 기준은 `commit-push-rules.md`에 따로 둡니다.
 
 ### 5. 완료 승인 뒤 검증과 커밋 차단 연결
 
@@ -303,7 +303,7 @@ npm run harness:update -- --force --confirm-overwrite-project-files
 
 스택 하네스만 설치된 초기 프로젝트에는 프로젝트 고유의 도메인 규칙이 거의 없을 수 있습니다. 이 상태에서 AI 에이전트가 버그 수정을 맡으면, 하네스는 완성된 답을 주기보다 기존 코드에서 반복 패턴을 찾고 로컬 룰 후보를 남기게 합니다.
 
-프로젝트 하네스를 의도적으로 만들거나 보강해야 한다면 `.harness/project/project-harness-guide.md`를 기준으로 삼습니다. 이 문서는 공통 하네스, 스택 하네스, 프로젝트 로컬룰, 개인룰의 역할을 나누고, 어떤 내용을 `domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`로 승격할지 안내합니다.
+프로젝트 하네스를 의도적으로 만들거나 보강해야 한다면 `.harness/project/project-harness-guide.md`를 기준으로 삼습니다. 이 문서는 공통 하네스, 스택 하네스, 프로젝트 로컬룰, 개인룰의 역할을 나누고, 어떤 내용을 `domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`, `commit-push-rules.md`로 승격할지 안내합니다.
 
 예를 들어 "외부 시스템 동기화 작업에서 같은 이벤트를 재처리하면 중복 결과가 생긴다"는 버그가 들어왔다고 가정합니다.
 
@@ -590,7 +590,7 @@ npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 
 `--force`는 프로젝트 소유 문서와 출처를 알 수 없는 기존 하네스 파일까지 덮어쓸 수 있으므로 단독으로는 실행되지 않습니다. 실제 덮어쓰기는 `--confirm-overwrite-project-files`를 함께 지정해야 하며, 실행 전 덮어쓰기 위험 대상과 백업 여부를 확인합니다. 먼저 `--dry-run --force`로 계획만 확인할 수 있습니다.
 
-보존 대상 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/session/active-context.md`, `.harness/session/decision-log.md`, `.harness/session/project-memory.md`, `.harness/session/developer-input-queue.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
+보존 대상 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/project/commit-push-rules.md`, `.harness/session/active-context.md`, `.harness/session/decision-log.md`, `.harness/session/project-memory.md`, `.harness/session/developer-input-queue.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
 
 ## Claude Code 어댑터
 

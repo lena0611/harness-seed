@@ -409,11 +409,11 @@
       "owner": "ai-standard/harness-seed",
       "source": {
         "type": "local",
-        "path": ".harness/project/standards-layers.md"
+        "path": ".harness/project/commit-push-rules.md"
       },
       "documents": [
-        ".harness/project/standards-layers.md",
-        ".harness/project/workflow-rules.md"
+        ".harness/project/commit-push-rules.md",
+        ".harness/project/standards-layers.md"
       ],
       "ownedAreas": [
         ".githooks/**",

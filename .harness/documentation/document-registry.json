@@ -61,6 +61,7 @@
         ".harness/project/domain-rules.md",
         ".harness/project/architecture-rules.md",
         ".harness/project/workflow-rules.md",
+        ".harness/project/commit-push-rules.md",
         ".harness/project/critical-paths.md",
         ".harness/project/portability-guide.md",
         ".harness/project/bootstrap.md"

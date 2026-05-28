@@ -805,9 +805,10 @@ ${formatList(bridgeCandidates)}
 4. \`.harness/project/domain-rules.md\`
 5. \`.harness/project/architecture-rules.md\`
 6. \`.harness/project/workflow-rules.md\`
-7. \`.harness/policy/ai-standard-guiding-policy.md\`
-8. \`.harness/policy/README.md\`
-9. \`.harness/session/active-context.md\`
+7. \`.harness/project/commit-push-rules.md\`
+8. \`.harness/policy/ai-standard-guiding-policy.md\`
+9. \`.harness/policy/README.md\`
+10. \`.harness/session/active-context.md\`
 \`\`\`
 
 ## Harness Update Targets
@@ -819,6 +820,7 @@ ${formatList(bridgeCandidates)}
 - .harness/project/domain-rules.md
 - .harness/project/architecture-rules.md
 - .harness/project/workflow-rules.md
+- .harness/project/commit-push-rules.md
 - .harness/policy/profile.json
 - .harness/session/active-context.md
 - .harness/session/decision-log.md

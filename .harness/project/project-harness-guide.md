@@ -50,6 +50,7 @@
 | `domain-rules.md` | 업무 용어, 핵심 엔티티, 도메인 불변식, 외부 시스템 계약 |
 | `architecture-rules.md` | 모듈 경계, 의존 방향, 데이터 흐름, 공개 API 경계 |
 | `workflow-rules.md` | 개발, 리뷰, 릴리스, 장애 대응, 검증 명령 |
+| `commit-push-rules.md` | commit/push 승인 이후 실행되는 git hook, 커밋 템플릿, 최종 안전 검사 |
 | `config-contract.md` | 환경변수, 설정 파일, secret, 런타임 설정 계약 |
 | `decision-log.md` | 기준 충돌, 예외, 아키텍처 변경의 선택 이유 |
 | `developer-input-queue.md` | 확인이 필요한 질문과 보류된 판단 |

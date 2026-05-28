@@ -11,6 +11,7 @@
 4. [도메인 규칙](./domain-rules.md)
 5. [아키텍처 규칙](./architecture-rules.md)
 6. [작업 흐름 규칙](./workflow-rules.md)
+7. [커밋/푸시 안전장치 규칙](./commit-push-rules.md)
 
 ## 충돌 해석 우선순위
 

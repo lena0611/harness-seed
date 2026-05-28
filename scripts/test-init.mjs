@@ -130,6 +130,7 @@ function cleanInstallCreatesExpectedFiles() {
   assert(pkg.scripts['harness:check'].startsWith('node .harness/bin/check-node-version.mjs &&'), 'consumer harness scripts should not depend on node:check npm script')
   assert(pkg.scripts['template:apply'], 'clean install should merge template apply script')
   assert(exists(target, '.harness/project/template-contract.md'), 'clean install should copy template contract bridge')
+  assert(exists(target, '.harness/project/commit-push-rules.md'), 'clean install should copy commit/push rules')
 
   const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
   assert(manifest.tool === 'harness-seed', 'install manifest should identify harness-seed')
@@ -140,6 +141,7 @@ function cleanInstallCreatesExpectedFiles() {
   assert(manifest.managedFiles['.harness/bin/sync-context.mjs'], 'install manifest should record sync context script')
   assert(!manifest.managedFiles['.harness/session/decision-log.md'], 'consumer decision log should not be managed as seed file')
   assert(manifest.projectOwnedFiles.includes('.harness/session/decision-log.md'), 'install manifest should list decision log as project-owned')
+  assert(manifest.projectOwnedFiles.includes('.harness/project/commit-push-rules.md'), 'install manifest should list commit/push rules as project-owned')
 
   const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
   assert(lock.baseHarness.version === packageVersion, 'harness lock should record base harness version')
@@ -872,6 +874,41 @@ insert_final_newline = true
   assert(!report.includes('## Style Preset Candidates'), 'scan report should not suggest presets when style sources exist')
 }
 
+function workflowWorkstreamChangeDoesNotTriggerCommitPushHookPolicy() {
+  const target = makeTarget()
+
+  runInit(target)
+  run('git', ['add', '.'], { cwd: target })
+  run('git', [
+    '-c',
+    'user.name=Harness Test',
+    '-c',
+    'user.email=harness-test@example.invalid',
+    'commit',
+    '--quiet',
+    '-m',
+    'baseline',
+  ], { cwd: target })
+
+  fs.appendFileSync(path.join(target, '.harness/project/workflow-rules.md'), `
+
+## Workstream 운영
+- 긴 대화창은 업무 흐름별로 분리합니다.
+`)
+
+  const workflowImpact = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'impact'], { cwd: target })
+  assert(!workflowImpact.includes('common.hooks.commit-push-check'), 'workflow workstream-only change should not trigger commit/push hook policy')
+
+  fs.appendFileSync(path.join(target, '.harness/project/commit-push-rules.md'), `
+
+## 프로젝트 예외
+- 커밋 전 검증은 팀 기준에 맞게 조정할 수 있습니다.
+`)
+
+  const hookImpact = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'impact'], { cwd: target })
+  assert(hookImpact.includes('common.hooks.commit-push-check'), 'commit/push rules change should trigger commit/push hook policy')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   initPatchesEslintConfigForHarnessFiles,
@@ -898,6 +935,7 @@ const tests = [
   templateApplyStopsWhenRequiredStackDoesNotMatch,
   scanReportSuggestsStylePresetsWhenStyleSourceMissing,
   scanReportDraftsStyleRulesFromConfigFiles,
+  workflowWorkstreamChangeDoesNotTriggerCommitPushHookPolicy,
 ]
 
 console.log('Init smoke tests')

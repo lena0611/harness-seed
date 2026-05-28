@@ -47,6 +47,15 @@
       "keywords": ["검증", "테스트", "빌드", "리뷰", "릴리스", "배포"]
     },
     {
+      "id": "commit-push-rules",
+      "file": ".harness/project/commit-push-rules.md",
+      "category": "workflow",
+      "taskTypes": ["maintenance", "review"],
+      "priority": "medium",
+      "appliesTo": [".githooks/**", ".harness/bin/install-hooks.mjs", ".harness/bin/run-previous-hook.mjs", ".github/commit-template.txt"],
+      "keywords": ["커밋", "푸시", "hook", "pre-commit", "pre-push", "commit-template"]
+    },
+    {
       "id": "critical-paths",
       "file": ".harness/project/critical-paths.md",
       "category": "risk",

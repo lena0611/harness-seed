@@ -1,5 +1,11 @@
 # 결정 로그
 
+## 2026-05-28 - commit/push hook 정책 문서 범위 축소
+- 소비자 프로젝트에서 `workflow-rules.md`의 workstream 운영 문구만 수정해도 `common.hooks.commit-push-check`가 action required로 뜨는 false positive가 확인되었습니다.
+- 1차 개선으로 commit/push hook 기준을 `.harness/project/commit-push-rules.md`로 분리하고, 해당 정책의 `documents`를 이 전용 문서와 `standards-layers.md`로 좁혔습니다.
+- `workflow-rules.md`는 일반 개발 흐름, 검증 흐름, 완료 승인 게이트 중심으로 유지하고, hook 구현/체인/커밋 템플릿 기준은 `commit-push-rules.md`가 소유합니다.
+- 향후 개선 후보로 문서 heading/section 단위 매칭과 decision-log 기반 documented exception 완화를 남깁니다. 다만 근본 완화는 정책별 documents 범위 축소를 우선합니다.
+
 ## 2026-05-28 - Workstream 대화창 분리 가이드 1차 반영
 - 소비자 프로젝트에서 긴 대화창에 여러 업무가 누적되면 컨텍스트가 비대해지고 에이전트가 현재 작업 범위를 흐리게 인식하는 문제가 확인되었습니다.
 - 1차 반영은 강제 기능이 아니라 `.harness/documentation/workstream-chat-splitting-guide.md` 공통 가이드와 `.harness/documentation/templates/workstreams/` 아래 복사용 예시 템플릿으로 제한합니다.

@@ -90,6 +90,7 @@ const PROJECT_OWNED_PATHS = new Set([
   '.harness/project/domain-rules.md',
   '.harness/project/architecture-rules.md',
   '.harness/project/workflow-rules.md',
+  '.harness/project/commit-push-rules.md',
   '.harness/project/critical-paths.md',
   '.harness/session/active-context.md',
   '.harness/session/decision-log.md',

@@ -28,6 +28,7 @@
 - `.harness/project/domain-rules.md`
 - `.harness/project/architecture-rules.md`
 - `.harness/project/workflow-rules.md`
+- `.harness/project/commit-push-rules.md`
 - `.harness/project/stack-preset-rules.md`
 - `.harness/project/template-contract.md`
 - `.harness/project/bootstrap.md`
