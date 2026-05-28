@@ -127,13 +127,15 @@ npm run template:apply -- --preset-git <template-repo-url> --ref <tag-or-branch>
 
 템플릿의 전체 개발 가이드는 템플릿 저장소가 소유하고, 적용 프로젝트에는 `.harness/project/template-contract.md` 브리지만 생성됩니다. 프로젝트별 예외나 추가 규칙은 `domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`에 남깁니다.
 
-### 5. 검증과 커밋 차단 연결
+### 5. 완료 승인 뒤 검증과 커밋 차단 연결
 
-개발 중에는 다음 명령으로 현재 기준과 프로젝트 상태를 확인합니다.
+개발 중에는 다음 명령으로 현재 기준과 프로젝트 상태를 확인할 수 있습니다. 다만 에이전트가 사용자의 일반 작업 지시만 받고 임의로 최종 검증까지 진행해서는 안 됩니다.
 
 ```bash
 npm run harness:check
 ```
+
+사용자가 `완료`, `최종 검증`, `커밋`, `푸시`, `PR 생성`처럼 명시적으로 최종화 의사를 밝히기 전에는 `build`, `test`, `harness:check`, 배포, commit, push, PR 생성을 실행하지 않습니다. 필요해 보이는 검증은 먼저 `검증 후보`로 보고하고 승인을 받습니다.
 
 사람이 직접 커밋하는 흐름에서도 같은 검증을 강제하고 싶으면 git hook을 설치합니다.
 
@@ -141,7 +143,7 @@ npm run harness:check
 npm run hooks:install
 ```
 
-이 명령은 `.githooks/`와 함께 `.github/commit-template.txt`를 git commit template로 연결합니다. 커밋 메시지는 아래 형식을 기준으로 씁니다.
+이 명령은 `.githooks/`와 함께 `.github/commit-template.txt`를 git commit template로 연결합니다. hook은 작업 완료 시점을 결정하지 않고, 사용자가 commit/push를 승인한 뒤 실행되는 최종 안전장치입니다. 커밋 메시지는 아래 형식을 기준으로 씁니다.
 
 `hooks:install`은 기존 `.git/hooks/*` 파일을 삭제하거나 덮어쓰지 않습니다. 기존 `.git/hooks/pre-commit`, `.git/hooks/pre-push` 또는 기존 `core.hooksPath`의 hook이 있으면 그 경로를 `harness.previousHooksPath`에 저장하고, `.githooks/pre-commit`/`.githooks/pre-push`가 기존 hook을 먼저 실행한 뒤 하네스 검사를 실행합니다.
 
@@ -157,7 +159,7 @@ npm run hooks:install
 
 첫 줄은 현재 커밋할 내용의 간략 정보를 한글로 적고, 세부사항은 하이픈 목록으로 정리합니다. 실행하지 못한 검증은 생략하지 말고 사유를 남깁니다.
 
-AI 에이전트 작업에서는 hook 선택 여부와 별개로 하네스 검증 기준을 따라야 합니다.
+AI 에이전트 작업에서는 hook 선택 여부와 별개로 하네스 기준을 따라야 합니다. 단, 완료 승인 전에는 무거운 검증과 side effect 있는 작업을 실행하지 않고 최종화 승인 뒤에 실행합니다.
 
 ### 공통 하네스 직접 설치
 
@@ -443,11 +445,11 @@ npm run harness:check -- --verbose
 | `npm run harness:scan` | 현재 프로젝트 스캔 리포트 생성 |
 | `npm run harness:handoff` | 설치/업데이트 후 확인할 일, 현재 변경 상태, 권장 조치 요약 생성 |
 | `npm run harness:impact` | 변경 파일이 어떤 기준과 연결되는지 가볍게 확인 |
-| `npm run harness:check` | 작업 완료 전 Node, 기준 영향도, 문서 링크, 버전, seed test, lint/test/build를 순서대로 실행하는 통합 검사 |
+| `npm run harness:check` | 최종화 승인 후 Node, 기준 영향도, 문서 링크, 버전, seed test, lint/test/build를 순서대로 실행하는 통합 검사 |
 | `npm run harness:check:strict` | CI/릴리스용 엄격 검사 |
 | `npm run harness:sync` | 프로젝트 맵, import 맵, 감지 패턴을 `.harness/generated/**`로 재생성 |
 | `npm run harness:context -- "<작업>"` | 에이전트가 작업 설명을 기준으로 `.harness/session/task-context.md`에 판단 컨텍스트 생성 |
-| `npm run hooks:install` | 로컬 git hook과 커밋 템플릿 등록. 이후 `git commit` 전에는 전체 `harness:check`, `git push` 전에는 `harness:check -- --fast` 자동 실행 |
+| `npm run hooks:install` | 로컬 git hook과 커밋 템플릿 등록. 이후 사용자가 승인한 `git commit` 전에는 전체 `harness:check`, 승인한 `git push` 전에는 `harness:check -- --fast` 자동 실행 |
 | `npm run harness:outdated` | lock 기준으로 같은 major 범위의 업데이트 후보 조회. 파일 수정 없음 |
 | `npm run harness:update` | lock에 기록된 스택 하네스를 다시 실행해 같은 major 범위의 최신 기준으로 업데이트 |
 | `npm run standards:list` | 원격 스택 하네스 후보 조회 |
@@ -480,7 +482,7 @@ npm run harness:check -- --verbose
 
 | 검증 | 본체 개발 | 소비자 프로젝트 | 역할 |
 | --- | --- | --- | --- |
-| `npm run harness:check` | 사용 | 사용 | 표준 통합 검사입니다. 작업 완료 전 또는 hook 설치 후 commit/push 전에 실행됩니다. |
+| `npm run harness:check` | 사용 | 사용 | 표준 통합 검사입니다. 사용자 최종화 승인 후 또는 hook 설치 후 commit/push 직전에 실행됩니다. |
 | `npm run harness:impact` | 사용 | 사용 | 변경 파일이 어떤 기준과 연결되는지 확인합니다. |
 | `npm run harness:scan` | 사용 | 사용 | 현재 프로젝트 구조, 스택, 기존 룰 후보를 스캔합니다. |
 | `npm run harness:handoff` | 사용 | 사용 | 설치/업데이트 후 확인할 일과 현재 상태를 요약합니다. |

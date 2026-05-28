@@ -561,7 +561,7 @@
       },
       verify: {
         title: '검증 실행',
-        summary: '하네스 검사와 프로젝트 검증 명령을 실행합니다.',
+        summary: '사용자 최종화 승인 뒤 하네스 검사와 프로젝트 검증 명령을 실행합니다.',
         developer: ['실패 메시지가 설치 실패인지, 프로젝트 환경 충돌인지 구분합니다.'],
         agent: ['harness:check 결과를 코드, 기준, 환경 문제로 분류합니다.', 'lint/test/build가 없으면 검증 전략 후보를 제안합니다.'],
         commands: ['npm run harness:check', 'npm run harness:check:strict'],
@@ -571,8 +571,8 @@
       commit: {
         title: '커밋 확정',
         summary: '검증된 후보를 기록 가능한 상태로 닫고 요청 라이프사이클을 종료합니다.',
-        developer: ['최종 커밋 여부를 확정합니다.', '첫 줄은 한글 요약, 본문은 하이픈 상세, 검증은 실행한 명령과 미실행 사유로 확인합니다.'],
-        agent: ['커밋 요약, 세부 변경, 검증 결과, 남은 리스크를 커밋 양식에 맞춰 정리합니다.'],
+        developer: ['최종 커밋 여부를 명시적으로 확정합니다.', '첫 줄은 한글 요약, 본문은 하이픈 상세, 검증은 실행한 명령과 미실행 사유로 확인합니다.'],
+        agent: ['사용자 승인 전에는 커밋하지 않고, 승인 뒤 커밋 요약, 세부 변경, 검증 결과, 남은 리스크를 커밋 양식에 맞춰 정리합니다.'],
         commands: ['git status --short', 'npm run hooks:install', 'git commit'],
         files: ['.github/commit-template.txt', '.harness/session/decision-log.md', '.harness/session/active-context.md', '.harness/session/project-memory.md'],
         fallback: ['커밋 전 미해결 질문이 있으면 developer-input-queue에 남깁니다.']

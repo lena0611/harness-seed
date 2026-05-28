@@ -222,8 +222,8 @@ ${readManualActionsSummary()}
 1. 새 터미널이면 프로젝트 루트에서 \`nvm use\`를 실행합니다.
 2. \`npm run harness:guide -- --open\`으로 현재 상태와 클릭형 가이드를 확인합니다.
 3. 큰 작업이나 낯선 영역이면 에이전트가 \`npm run harness:context -- "<이번 작업>"\`으로 판단 컨텍스트를 만듭니다.
-4. \`npm run hooks:install\`을 실행하면 이후 \`git commit\`/\`git push\` 전에 \`harness:check\`가 자동 실행됩니다.
-5. hook을 설치하지 않았거나 커밋 전 미리 보고 싶으면 \`npm run harness:check\`로 직접 검증합니다.
+4. \`npm run hooks:install\`을 실행하면 이후 사용자가 승인한 \`git commit\`/\`git push\` 직전에 \`harness:check\`가 자동 실행됩니다.
+5. hook을 설치하지 않았거나 커밋 전 미리 보고 싶으면 사용자가 최종 검증을 승인한 뒤 \`npm run harness:check\`로 직접 검증합니다.
 `
 }
 

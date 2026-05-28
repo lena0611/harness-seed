@@ -251,11 +251,11 @@ function printConsumerCommandGuide() {
        npm run harness:context -- "<작업 설명>"
   - 운영 업무 시작(Claude Code)
        /운영업무
-  - 작업 완료 전 검증
+  - 최종화 승인 후 검증
        npm run harness:check
   - 다음 업데이트 후보 확인
        npm run harness:outdated
-  - git commit/push 전 자동 검증 연결
+  - 승인한 git commit/push 전 자동 검증 연결
        npm run hooks:install
 `)
 }

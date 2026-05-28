@@ -50,15 +50,16 @@
 ```bash
 git --no-pager status --short
 npm run harness:impact
-npm run harness:check
+# 최종화 승인 후:
+# HARNESS_AGENT_CHECK_APPROVED=1 npm run harness:check
 ```
 
 ## 7. 작업 재개 원칙
 - 현재 진행 상태는 `active-context.md`를 우선 신뢰합니다.
 - 장기 규칙은 `project-memory.md`와 `CLAUDE.md`를 우선 신뢰합니다.
 - 둘이 충돌하면 `active-context.md`에 충돌 사실을 기록하고 최신 코드 기준으로 다시 정리합니다.
-- 기준 문서나 업무 코드를 건드리는 작업이면 시작 전 `harness:impact`, 종료 전 `harness:check`를 실행 대상으로 취급합니다.
-- 에이전트 작업에서는 로컬 git hook 설치 여부와 무관하게 기준 계층을 읽고 완료 전 `npm run harness:check`를 실행 대상으로 취급합니다.
+- 기준 문서나 업무 코드를 건드리는 작업이면 시작 전 `harness:impact`를 실행 대상으로 취급합니다.
+- 에이전트 작업에서는 로컬 git hook 설치 여부와 무관하게 기준 계층을 읽습니다. 사용자 완료 승인 전에는 `harness:check`, build/test, commit/push/PR을 실행하지 않고 검증 후보로 보고합니다.
 - 프로젝트 상태나 책임 범위가 `TBD`인 상태라면 새 작업 설계 전에 `project-charter.md` 재계획 여부를 먼저 판단합니다.
 - 사용자가 "새 프로젝트 시작" 또는 "기존 프로젝트 하네스 정리" 의사를 보이면 `../project/bootstrap.md`의 절차(프로젝트 상태 확인 + 스택 선택)를 먼저 수행합니다.
 - 개발자 입력이 필요한 항목은 묻지 않고 넘기지 말고, 최소한 `지금 답변 / 이번 세션 유보 / 나중에 다시 묻기` 중 하나로 상태를 남깁니다.

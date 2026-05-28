@@ -10,7 +10,7 @@ Claude Code에서는 `SessionStart` hook이 `next-session-reminder.md`를 자동
 0. 루트에 `.harness/`, `AGENTS.md`, `CLAUDE.md` 중 하나라도 있으면 사용자가 하네스를 언급하지 않아도 하네스 프로젝트로 자동 인식합니다.
 1. 모든 작업은 `.harness/policy/ai-standard-guiding-policy.md`의 위배 여부를 먼저 확인합니다.
 2. 프로젝트 목적은 아직 `TBD`입니다. 새 기능 전에 `.harness/project/project-charter.md`를 먼저 확인합니다.
-3. `src/`, 기준 문서, 하네스 문서를 손대면 시작 전에는 `npm run harness:impact`, 종료 전에는 `npm run harness:check`를 실행합니다.
+3. `src/`, 기준 문서, 하네스 문서를 손대면 시작 전에는 `npm run harness:impact`로 영향 범위를 확인합니다. `npm run harness:check`는 사용자가 최종 검증을 승인한 뒤 실행합니다.
 4. 자동 검사가 통과해도 수동 검토 항목은 `.harness/policy/automation-coverage.md`를 보고 다시 판단합니다.
 5. `.harness/session/developer-input-queue.md`의 `open`/`deferred` 항목은 새 세션에서 다시 확인합니다.
 6. 문서를 키워야 한다면 먼저 `.harness/documentation/indexing-rules.md`에 맞게 인덱스/세부 문서 분리를 판단합니다.
@@ -18,7 +18,7 @@ Claude Code에서는 `SessionStart` hook이 `next-session-reminder.md`를 자동
 8. 강제 강도와 예외 허용 범위가 애매하면 `.harness/policy/enforcement-ladder.md`를 보고 사용자에게 묻습니다.
 9. 코드 변경 시 스타일 검증도 구조 검증과 함께 보며, `npm run lint` 또는 `npm run harness:check`를 기준으로 판단합니다.
 10. 새 환경을 준비한 뒤에는 `npm run hooks:install`로 로컬 훅과 커밋 템플릿을 연결합니다.
-11. 에이전트 작업은 hook 설치 여부와 무관하게 기준 계층을 읽고 완료 전 `npm run harness:check`를 실행 대상으로 둡니다.
+11. 에이전트 작업은 hook 설치 여부와 무관하게 기준 계층을 읽습니다. 다만 사용자 완료 승인 전에는 `build`, `test`, `harness:check`, commit, push, PR 생성을 실행하지 않고 검증 후보로 보고합니다.
 12. 스타일이 반복 패턴으로 굳어지기 시작하면 `.harness/style/style-evolution.md` 기준으로 규칙 승격 후보를 확인합니다.
 13. 코드 변경 후에는 도메인, 아키텍처, 워크플로우 로컬룰로 승격할 후보가 있는지 확인하고, 확신이 없으면 `.harness/session/developer-input-queue.md`에 질문으로 남깁니다.
 14. 큰 작업이나 생소한 영역은 `npm run harness:sync`와 `npm run harness:context -- "<작업 설명>"`로 에이전트 판단 컨텍스트를 먼저 만듭니다.
@@ -55,5 +55,6 @@ Claude Code에서는 `SessionStart` hook이 `next-session-reminder.md`를 자동
 git --no-pager status --short
 npm run hooks:install
 npm run harness:impact
-npm run harness:check
+# 최종화 승인 후에만 실행:
+# HARNESS_AGENT_CHECK_APPROVED=1 npm run harness:check
 ```

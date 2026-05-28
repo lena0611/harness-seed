@@ -777,7 +777,7 @@ function printConsumerCommandGuide() {
        npm run harness:context -- "<작업 설명>"
   - 운영 업무 시작(Claude Code)
        /운영업무
-  - 작업 완료 전 검증
+  - 최종화 승인 후 검증
        npm run harness:check
   - 업데이트 후보 확인 및 적용
        npm run harness:outdated
@@ -1384,8 +1384,8 @@ function main() {
        npm run template:apply -- --preset-git <repo-url> --ref <tag-or-branch>
   7) git hook 활성화
        npm run hooks:install
-       이후 git commit/push 전에 npm run harness:check가 자동 실행됩니다.
-  8) 작업 완료 전 직접 검증
+       이후 사용자가 승인한 git commit/push 전에 npm run harness:check가 자동 실행됩니다.
+  8) 최종화 승인 후 직접 검증
        npm run harness:check
 
 문서:
