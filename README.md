@@ -359,6 +359,8 @@ npm run harness:context -- "예약 버그 원인 분석과 수정"
 
 이 산출물은 원본이 아닙니다. 진실 출처는 실제 코드, 설정 파일, `.harness/project/*.md`, `.harness/policy/*.md`입니다. 생성 컨텍스트와 원본이 충돌하면 원본을 우선하고, 기준 충돌이나 예외는 `decision-log.md` 또는 `waivers.json`에 남깁니다.
 
+긴 대화창에서 여러 업무가 섞여 에이전트의 현재 범위 인식이 흐려지면 [Workstream 대화창 분리 가이드](.harness/documentation/workstream-chat-splitting-guide.md)를 참고합니다. 이 방식은 선택형이며, 프로젝트가 session workstreams README를 만들었을 때만 매 요청 시작 시 workstream을 식별합니다.
+
 ## 설치 후 먼저 볼 것
 
 `init`은 설치가 끝나면 기본적으로 현재 프로젝트를 스캔하고, 설치/업데이트 인수인계 요약을 만들고, 하네스 설치 상태를 검사합니다. 그래서 일반적인 설치에서는 아래 명령을 따로 실행하지 않아도 됩니다. 프로젝트 상태를 다시 확인하고 싶을 때 같은 명령을 다시 실행합니다.

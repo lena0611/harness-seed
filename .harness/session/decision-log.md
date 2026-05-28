@@ -1,5 +1,11 @@
 # 결정 로그
 
+## 2026-05-28 - Workstream 대화창 분리 가이드 1차 반영
+- 소비자 프로젝트에서 긴 대화창에 여러 업무가 누적되면 컨텍스트가 비대해지고 에이전트가 현재 작업 범위를 흐리게 인식하는 문제가 확인되었습니다.
+- 1차 반영은 강제 기능이 아니라 `.harness/documentation/workstream-chat-splitting-guide.md` 공통 가이드와 `.harness/documentation/templates/workstreams/` 아래 복사용 예시 템플릿으로 제한합니다.
+- 프로젝트가 session workstreams README를 만들어 opt-in 한 경우에만 에이전트가 매 요청 시작 시 현재 workstream과 선행/후행 workstream 필요 여부를 식별합니다.
+- 자동화는 아직 도입하지 않습니다. 향후 후보는 `harness:workstream:init`, `harness:workstream:status`, `harness:handoff` 연동, `harness:context`의 workstream 추천, 어댑터 visible trace 표시입니다.
+
 ## 2026-05-22 - 운영 업무 접수와 업무 요약 흐름 추가
 - 운영 업무는 JIRA 출처와 업무 유형이 명확해야 하므로 Claude slash command `/운영업무`를 추가해 `버그픽스`, `신규 기능`, `단순 리팩토링`, `기존 기능 개선` 중 하나를 먼저 확인하도록 합니다.
 - 업무 유형별 기존 스킬을 연결하되, 기존 기능 개선은 별도 흐름이 필요해 `harness.enhancement-flow`를 추가합니다.

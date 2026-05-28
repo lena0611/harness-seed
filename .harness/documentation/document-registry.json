@@ -89,6 +89,9 @@
       "children": [
         ".harness/documentation/concept-map.md",
         ".harness/documentation/decision-flow.md",
+        ".harness/documentation/workstream-chat-splitting-guide.md",
+        ".harness/documentation/templates/workstreams/README.md",
+        ".harness/documentation/templates/workstreams/workstream.md",
         ".harness/documentation/guide/index.html",
         ".harness/documentation/context-registry.json",
         ".harness/documentation/indexing-rules.md",

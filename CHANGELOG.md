@@ -4,6 +4,10 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.47 - 2026-05-28
+
+- 긴 대화창 컨텍스트 비대화를 줄이기 위한 Workstream 대화창 분리 가이드와 선택형 템플릿을 추가했습니다.
+
 ## 0.2.46 - 2026-05-28
 
 - 사용자 최종화 승인 전에는 build/test/harness:check/commit/push/PR 생성을 실행하지 않는 완료 승인 게이트를 문서와 Claude Stop hook에 반영했습니다.

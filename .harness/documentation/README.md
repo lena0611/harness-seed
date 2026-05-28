@@ -12,8 +12,9 @@
 2. [문서 분리 기준](./split-thresholds.md)
 3. [개념 비교 맵](./concept-map.md)
 4. [결과물 생성 흐름](./decision-flow.md)
-5. [클릭형 하네스 가이드](./guide/index.html)
-6. `document-registry.json`
+5. [Workstream 대화창 분리 가이드](./workstream-chat-splitting-guide.md)
+6. [클릭형 하네스 가이드](./guide/index.html)
+7. `document-registry.json`
 
 ## 핵심 원칙
 - 진입 문서는 **목차와 짧은 요약**만 담당합니다.
@@ -30,3 +31,4 @@
 - 클릭형 가이드는 요구 수신, 기준 탐색, 영향 판단, 구현, 검토, 검증, 커밋 확정의 각 단계에서 관련 명령과 파일만 보여줍니다.
 - `npm run harness:guide -- --open`을 사용하면 생성된 대시보드를 브라우저로 열 수 있습니다.
 - `harness:context`는 일반 개발자가 매 요청마다 실행하는 명령이 아니라, 에이전트가 큰 작업 전에 `Agent Decision Context`를 만들 때 사용하는 보조 명령입니다.
+- 긴 대화창으로 작업 범위가 흐려지면 `workstream-chat-splitting-guide.md`를 참고해 프로젝트가 opt-in으로 대화창 분리 운영을 도입할 수 있습니다.
