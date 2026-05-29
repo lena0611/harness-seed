@@ -12,3 +12,10 @@
 - 이 파일의 관리 섹션은 `stack:apply`와 `stack:reset`이 갱신합니다.
 - 관리 섹션 밖에는 프로젝트 고유 보충 규칙을 적을 수 있습니다.
 - 기존 로컬 방법론과 충돌하면 `.harness/project/local-methodology.md`의 우선순위 기준을 따릅니다.
+
+## 스택 업데이트 기준
+- `harness:outdated`는 공통 하네스와 스택 하네스의 업데이트 후보를 함께 보여줘야 합니다.
+- `harness:update` 기본 동작은 현재 적용된 스택 하네스를 갱신하는 것입니다. 공통 하네스만 갱신할 때는 `npm run harness:update -- --base-only`를 사용합니다.
+- 스택 manifest의 `baseHarness.minVersion`은 최소 요구 버전이고, `baseHarness.ref`는 검증된 기준 ref입니다.
+- 이미 설치된 공통 하네스가 `minVersion` 이상이면 스택 업데이트가 더 낮은 `baseHarness.ref`로 자동 downgrade하지 않습니다.
+- 정확한 공통 하네스 ref 고정이 필요한 스택만 `baseHarness.exactRefRequired: true`를 명시합니다.

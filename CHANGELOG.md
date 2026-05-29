@@ -4,6 +4,13 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.50 - 2026-05-29
+
+- `harness:outdated` 기본 동작을 공통 하네스와 스택 하네스를 함께 검사하도록 변경했습니다.
+- `--base-only`, `--stack-only`, `--fail-on-outdated`가 복합 상태에서 명확히 동작하도록 정리하고 target별 update command를 출력합니다.
+- `harness:update`는 기존처럼 스택 중심 기본 동작을 유지하되, 공통 하네스 업데이트는 `--base-only`로 안내하고 lock/source metadata 복구 범위를 보강했습니다.
+- 스택이 요구하는 `baseHarness.ref`는 기본적으로 검증된 기준 ref로 해석하고, `minVersion`을 만족하는 상위 공통 하네스는 downgrade하지 않는 기준을 문서화했습니다. exact pin이 필요한 경우에만 `exactRefRequired: true`를 사용합니다.
+
 ## 0.2.49 - 2026-05-29
 
 - `커밋/푸시` 요청에서는 설치된 git hook 검증을 신뢰하고 commit 직전 수동 `harness:check`를 중복 실행하지 않도록 에이전트 기준과 hook 안내를 정리했습니다.

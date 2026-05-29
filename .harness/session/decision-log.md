@@ -1,5 +1,13 @@
 # 결정 로그
 
+## 2026-05-29 - harness:outdated 공통/스택 복합 검사
+- 소비자 프로젝트에서 스택 하네스가 최신이면 공통 하네스가 오래되어도 `npm run harness:outdated`가 `up-to-date`처럼 보이는 문제가 확인되었습니다.
+- `harness:outdated` 기본 동작은 `baseHarness`와 `stackHarness`를 모두 검사하고, 둘 중 하나라도 업데이트 후보가 있으면 전체 상태를 `outdated`로 표시합니다.
+- `--base-only`, `--stack-only`는 단일 대상 점검용으로 유지하고, `--fail-on-outdated`는 공통 또는 스택 중 하나라도 outdated면 실패합니다.
+- `harness:update` 기본 동작은 안전하게 스택 중심으로 유지합니다. 공통 하네스만 업데이트할 때는 `npm run harness:update -- --base-only`를 출력에서 명확히 안내합니다.
+- base metadata가 lock에 부족한 경우 lock source 또는 install manifest source에서 repo/ref/version을 복구해 조회할 수 있게 합니다.
+- 스택 manifest의 `baseHarness.ref`는 기본적으로 검증된 기준 ref로 취급하고 exact pin으로 보지 않습니다. 설치된 공통 하네스가 `minVersion` 이상이면 상위 base를 보존해야 하며, 정확한 ref 고정이 필요한 경우에만 `exactRefRequired: true`를 별도 필드로 명시합니다.
+
 ## 2026-05-29 - commit/push 승인 시 중복 검증 방지
 - 소비자 프로젝트에서 에이전트가 커밋 직전 `npm run harness:check`를 수동 실행한 뒤, pre-commit hook에서 같은 검증을 다시 실행해 작업 시간이 늘어나는 문제가 확인되었습니다.
 - `최종 검증만` 요청은 에이전트가 직접 `npm run harness:check`를 실행하고, `커밋/푸시` 요청은 설치된 pre-commit/pre-push hook 검증에 맡기는 기준으로 분리합니다.

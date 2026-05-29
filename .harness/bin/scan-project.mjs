@@ -493,14 +493,14 @@ function buildHarnessVersionStatus(profile) {
     const installedVersion = lock?.baseHarness?.version ?? installManifest?.version
     const installedRef = lock?.baseHarness?.ref ?? installManifest?.source?.ref
     const minVersion = requiredBase.minVersion ?? requiredBase.ref
-    lines.push(`required base by stack: ${requiredBase.repo ?? 'harness-seed'} ${requiredBase.ref ?? '(ref unspecified)'} / min ${minVersion ?? '(none)'}`)
+    lines.push(`required base by stack: ${requiredBase.repo ?? 'harness-seed'} ${requiredBase.ref ?? '(ref unspecified)'} / min ${minVersion ?? '(none)'}${requiredBase.exactRefRequired ? ' / exact ref required' : ''}`)
 
     const compare = compareSemver(installedVersion, minVersion)
     if (compare !== null && compare < 0) {
       conflicts.push(`공통 하네스 버전이 낮습니다. required >= ${minVersion}, installed ${installedVersion}. 스택 하네스 init을 다시 실행하세요.`)
     }
 
-    if (requiredBase.ref && installedRef && requiredBase.ref !== installedRef) {
+    if (requiredBase.exactRefRequired && requiredBase.ref && installedRef && requiredBase.ref !== installedRef) {
       conflicts.push(`공통 하네스 ref가 스택 요구사항과 다릅니다. required ${requiredBase.ref}, installed ${installedRef}. 스택 하네스 init으로 업데이트하세요.`)
     }
   }

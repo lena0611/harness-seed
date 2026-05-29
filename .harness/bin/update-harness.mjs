@@ -11,6 +11,7 @@ const harnessRoot = fs.existsSync(path.join(repoRoot, '.harness'))
   ? path.join(repoRoot, '.harness')
   : path.join(repoRoot, '.github')
 const lockPath = path.join(harnessRoot, 'harness-lock.json')
+const installManifestPath = path.join(harnessRoot, 'install-manifest.json')
 
 function printUsageAndExit(code = 0) {
   console.log(`Usage:
@@ -22,6 +23,7 @@ Options:
   --range <semver-range>    SemVer range를 직접 지정합니다. 예: ^1.0.0
   --ref <ref>               git branch/tag/sha를 직접 지정합니다.
   --base-only               스택 하네스 없이 공통 하네스만 업데이트합니다.
+  --stack-only              스택 하네스만 업데이트합니다. 기본 동작과 같지만 의도를 명확히 합니다.
   --force                   하네스 설치 시 프로젝트 소유 파일까지 덮어씁니다.
   --confirm-overwrite-project-files
                             --force 덮어쓰기 위험을 인지했음을 명시합니다.
@@ -35,6 +37,7 @@ Options:
   -h, --help                도움말을 출력합니다.
 
 기본 동작은 현재 lock에 기록된 스택 하네스를 같은 major 범위 안에서 최신으로 다시 실행합니다.
+공통 하네스만 업데이트하려면 npm run harness:update -- --base-only 를 사용합니다.
 `)
   process.exit(code)
 }
@@ -46,6 +49,7 @@ function parseArgs(argv) {
     range: null,
     ref: null,
     baseOnly: false,
+    stackOnly: false,
     forwarded: [],
   }
 
@@ -81,6 +85,9 @@ function parseArgs(argv) {
       case '--base-only':
         opts.baseOnly = true
         break
+      case '--stack-only':
+        opts.stackOnly = true
+        break
       case '--force':
       case '--force-stack':
       case '--confirm-overwrite-project-files':
@@ -97,6 +104,11 @@ function parseArgs(argv) {
         console.error(`알 수 없는 옵션: ${arg}`)
         printUsageAndExit(1)
     }
+  }
+
+  if (opts.baseOnly && opts.stackOnly) {
+    console.error('--base-only와 --stack-only는 함께 사용할 수 없습니다.')
+    process.exit(1)
   }
 
   return opts
@@ -155,6 +167,18 @@ function ensureGitPackageSpec(repo) {
   return `git+${repo}`
 }
 
+function parseSourceSpec(spec) {
+  if (!spec || spec === 'bundled') {
+    return {}
+  }
+
+  const [repo, ref] = String(spec).split('#')
+  return {
+    repo: repo || null,
+    ref: ref || null,
+  }
+}
+
 function appendRef(spec, ref) {
   if (!ref) {
     return spec
@@ -199,6 +223,21 @@ function selectGitRef(harness, opts) {
   return harness?.ref ?? harness?.source?.ref ?? null
 }
 
+function hydrateHarness(harness, fallbackSource = {}) {
+  const source = {
+    ...fallbackSource,
+    ...(harness?.source ?? {}),
+  }
+  const parsed = parseSourceSpec(source.spec)
+
+  return {
+    ...(harness ?? {}),
+    repo: harness?.repo ?? source.repo ?? parsed.repo ?? null,
+    ref: harness?.ref ?? source.ref ?? parsed.ref ?? null,
+    source,
+  }
+}
+
 function buildPackageSpec(harness, opts) {
   const repo = harness?.repo ?? harness?.source?.repo
   if (!repo) {
@@ -208,15 +247,23 @@ function buildPackageSpec(harness, opts) {
   return appendRef(ensureGitPackageSpec(repo), selectGitRef(harness, opts))
 }
 
-function buildCommand(lock, opts) {
-  const selected = opts.baseOnly || !lock.stackHarness
-    ? lock.baseHarness
-    : lock.stackHarness
+function buildCommand(lock, opts, installManifest) {
+  if (opts.stackOnly && !lock.stackHarness) {
+    throw new Error('stackHarness 정보가 lock에 없습니다. 스택 하네스 init을 먼저 실행하세요.')
+  }
+
+  const label = opts.baseOnly || !lock.stackHarness ? '공통 하네스' : '스택 하네스'
+  const fallbackSource = label === '공통 하네스' ? installManifest?.source ?? {} : {}
+  const selected = hydrateHarness(
+    opts.baseOnly || !lock.stackHarness
+      ? lock.baseHarness
+      : lock.stackHarness,
+    fallbackSource,
+  )
   const packageSpec = buildPackageSpec(selected, opts)
 
   if (!packageSpec) {
-    const target = opts.baseOnly || !lock.stackHarness ? '공통 하네스' : '스택 하네스'
-    throw new Error(`${target} 저장소 정보가 lock에 없습니다. 스택 하네스 init을 다시 실행해 repo/ref/version을 기록하세요.`)
+    throw new Error(`${label} 저장소 정보가 lock/install-manifest에 없습니다. init을 다시 실행해 repo/ref/version을 기록하세요.`)
   }
 
   return {
@@ -264,6 +311,7 @@ function main() {
   const opts = parseArgs(process.argv)
   assertForceConfirmation(opts)
   const lock = readJson(lockPath)
+  const installManifest = readJson(installManifestPath, {})
 
   if (!lock) {
     console.error(`harness lock을 찾을 수 없습니다: ${path.relative(repoRoot, lockPath)}`)
@@ -271,7 +319,7 @@ function main() {
     process.exit(1)
   }
 
-  const plan = buildCommand(lock, opts)
+  const plan = buildCommand(lock, opts, installManifest)
   const label = opts.baseOnly || !lock.stackHarness ? '공통 하네스' : '스택 하네스'
 
   console.log('Harness update')

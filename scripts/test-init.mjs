@@ -682,26 +682,43 @@ function stackApplySupportsExternalPresetPath() {
   assert(updatePlan.includes('npx -y git+https://example.test/external-demo.git#semver:^9.8.7 init'), 'harness update dry-run should target compatible stack range')
 }
 
-function harnessOutdatedDetectsCompatibleStackUpdate() {
+function harnessOutdatedDetectsBaseAndStackUpdates() {
   const target = makeTarget()
-  const taggedRepo = makeTaggedHarnessRepo(['v1.0.0', 'v1.0.1', 'v2.0.0'])
+  const baseRepo = makeTaggedHarnessRepo(['v0.2.48', 'v0.2.49', 'v0.3.0'])
+  const stackRepo = makeTaggedHarnessRepo(['v1.0.0', 'v1.0.1', 'v2.0.0'])
 
   runInit(target, '--no-scan', '--no-check')
   const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
+  lock.baseHarness = {
+    id: 'harness-seed',
+    version: '0.2.48',
+    repo: baseRepo,
+    ref: 'v0.2.48',
+  }
   lock.stackHarness = {
     id: 'demo-stack',
     title: 'Demo Stack',
-    version: '1.0.0',
-    repo: taggedRepo,
-    ref: 'v1.0.0',
+    version: '1.0.1',
+    repo: stackRepo,
+    ref: 'v1.0.1',
   }
   writeJson(target, '.harness/harness-lock.json', lock)
 
   const output = run('npm', ['run', '--silent', 'harness:outdated', '--', '--json'], { cwd: target })
   const status = JSON.parse(output)
-  assert(status.outdated === true, 'harness outdated should report update candidate')
-  assert(status.latestVersion === '1.0.1', 'harness outdated should stay inside compatible major range')
-  assert(status.latestRef === 'v1.0.1', 'harness outdated should report latest compatible tag')
+  assert(status.overall === 'outdated', 'harness outdated should report overall outdated when base is outdated')
+  assert(status.targets.baseHarness.outdated === true, 'harness outdated should check base harness by default')
+  assert(status.targets.baseHarness.latestVersion === '0.2.49', 'base outdated should stay inside compatible minor range')
+  assert(status.targets.baseHarness.updateCommand === 'npm run harness:update -- --base-only', 'base outdated should print base update command')
+  assert(status.targets.stackHarness.outdated === false, 'harness outdated should also check stack harness by default')
+  assert(status.targets.stackHarness.updateCommand === null, 'up-to-date stack should not require update command')
+
+  const baseOnly = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json', '--base-only'], { cwd: target }))
+  assert(baseOnly.checkedTargets.length === 1 && baseOnly.checkedTargets[0] === 'baseHarness', '--base-only should only check base harness')
+
+  const stackOnly = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json', '--stack-only'], { cwd: target }))
+  assert(stackOnly.checkedTargets.length === 1 && stackOnly.checkedTargets[0] === 'stackHarness', '--stack-only should only check stack harness')
+  assert(stackOnly.overall === 'up-to-date', '--stack-only should report up-to-date when stack has no update')
 
   let failed = false
   try {
@@ -709,7 +726,36 @@ function harnessOutdatedDetectsCompatibleStackUpdate() {
   } catch (error) {
     failed = error.status === 1
   }
-  assert(failed, 'harness outdated --fail-on-outdated should exit 1 when update is available')
+  assert(failed, 'harness outdated --fail-on-outdated should exit 1 when base or stack update is available')
+
+  lock.baseHarness.version = '0.2.49'
+  lock.baseHarness.ref = 'v0.2.49'
+  lock.stackHarness.version = '1.0.0'
+  lock.stackHarness.ref = 'v1.0.0'
+  writeJson(target, '.harness/harness-lock.json', lock)
+
+  const stackUpdate = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json'], { cwd: target }))
+  assert(stackUpdate.overall === 'outdated', 'harness outdated should report overall outdated when stack is outdated')
+  assert(stackUpdate.targets.baseHarness.outdated === false, 'base should be up-to-date after lock update')
+  assert(stackUpdate.targets.stackHarness.outdated === true, 'stack outdated should be detected by default')
+  assert(stackUpdate.targets.stackHarness.latestVersion === '1.0.1', 'stack outdated should stay inside compatible major range')
+  assert(stackUpdate.targets.stackHarness.updateCommand === 'npm run harness:update', 'stack outdated should print stack update command')
+
+  lock.baseHarness.repo = null
+  lock.baseHarness.ref = null
+  lock.baseHarness.version = '0.2.48'
+  lock.baseHarness.source = {
+    type: 'git',
+    repo: baseRepo,
+    ref: 'v0.2.48',
+    packageVersion: '0.2.48',
+    spec: `${baseRepo}#v0.2.48`,
+  }
+  lock.stackHarness = null
+  writeJson(target, '.harness/harness-lock.json', lock)
+
+  const recoveredBase = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json', '--base-only'], { cwd: target }))
+  assert(recoveredBase.targets.baseHarness.outdated === true, 'base outdated should recover repo/ref from lock source metadata')
 }
 
 function stackApplySupportsExternalPresetGit() {
@@ -944,7 +990,7 @@ const tests = [
   scanReportSuggestsBridgeCandidates,
   stackApplyMaterializesPresetAsLocalRules,
   stackApplySupportsExternalPresetPath,
-  harnessOutdatedDetectsCompatibleStackUpdate,
+  harnessOutdatedDetectsBaseAndStackUpdates,
   stackApplySupportsExternalPresetGit,
   stackApplySupportsRulesOnlyPreset,
   templateApplyCreatesBridgeWithoutReplacingActiveStack,

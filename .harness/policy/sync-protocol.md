@@ -69,6 +69,11 @@
 - `init`은 하네스 소유 파일을 갱신하고 프로젝트 소유 파일을 보존해야 합니다.
 - `init`은 `.harness/install-manifest.json`으로 공통 하네스 설치기가 관리하는 파일을 식별해야 합니다.
 - manifest가 없는 기존 `.harness/`, `.claude/`, `CLAUDE.md`는 전용 하네스일 수 있으므로 기본 보존하고 `--force`일 때만 덮어씁니다.
+- `harness:outdated`는 공통 하네스와 스택 하네스를 함께 검사하고, 둘 중 하나라도 업데이트 후보가 있으면 전체 상태를 `outdated`로 표시합니다. 공통만 보려면 `--base-only`, 스택만 보려면 `--stack-only`를 사용합니다.
+- `harness:update` 기본 동작은 스택 하네스 업데이트입니다. 공통 하네스만 업데이트할 때는 `--base-only`를 명시합니다.
+- lock에 repo/ref/version 정보가 부족하면 lock source metadata와 install manifest source metadata에서 복구해 조회합니다.
+- `harness:update -- --force`는 프로젝트 소유 파일을 덮어쓸 수 있으므로 `--confirm-overwrite-project-files` 없이는 중단해야 합니다.
+- 업데이트 스크립트가 target 선택, source metadata 복구, force 확인 흐름을 바꾸면 `scripts/test-init.mjs`의 설치/업데이트/force 테스트와 README의 업데이트 명령 설명을 함께 갱신합니다.
 - 프로젝트 소유 파일 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/project/critical-paths.md`, `.harness/session/active-context.md`, `.harness/session/manual-actions.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
 - `stack:apply`는 활성 스택 instructions를 `.harness/project/stack-preset-rules.md`에 로컬룰로 반영해야 합니다.
 - 외부 프리셋은 `profile.json`의 `stackManifest` 또는 `stack:apply -- --preset-path <dir>`로 연결하며, manifest 상대 경로는 manifest 위치 기준으로 해석합니다.

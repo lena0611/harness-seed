@@ -11,6 +11,7 @@ const harnessRoot = fs.existsSync(path.join(repoRoot, '.harness'))
   ? path.join(repoRoot, '.harness')
   : path.join(repoRoot, '.github')
 const lockPath = path.join(harnessRoot, 'harness-lock.json')
+const installManifestPath = path.join(harnessRoot, 'install-manifest.json')
 
 function printUsageAndExit(code = 0) {
   console.log(`Usage:
@@ -19,11 +20,12 @@ function printUsageAndExit(code = 0) {
 Options:
   --json                  JSON으로 출력합니다.
   --fail-on-outdated      업데이트 후보가 있으면 exit code 1로 종료합니다.
-  --base-only             스택 하네스 대신 공통 하네스를 검사합니다.
+  --base-only             공통 하네스만 검사합니다.
+  --stack-only            스택 하네스만 검사합니다.
   --range <semver-range>  검사할 SemVer range를 직접 지정합니다. 예: ^1.0.0
   -h, --help              도움말을 출력합니다.
 
-기본 동작은 lock에 기록된 스택 하네스의 현재 버전을 기준으로 같은 SemVer caret 범위의 최신 tag를 조회합니다.
+기본 동작은 lock에 기록된 공통 하네스와 스택 하네스를 모두 검사합니다.
 프로젝트 파일은 수정하지 않습니다. 실제 반영은 npm run harness:update로 수행합니다.
 `)
   process.exit(code)
@@ -34,6 +36,7 @@ function parseArgs(argv) {
     json: false,
     failOnOutdated: false,
     baseOnly: false,
+    stackOnly: false,
     range: null,
   }
 
@@ -54,6 +57,9 @@ function parseArgs(argv) {
       case '--base-only':
         opts.baseOnly = true
         break
+      case '--stack-only':
+        opts.stackOnly = true
+        break
       case '--range':
         opts.range = requireValue(args, i, arg)
         i += 1
@@ -62,6 +68,11 @@ function parseArgs(argv) {
         console.error(`알 수 없는 옵션: ${arg}`)
         printUsageAndExit(1)
     }
+  }
+
+  if (opts.baseOnly && opts.stackOnly) {
+    console.error('--base-only와 --stack-only는 함께 사용할 수 없습니다.')
+    process.exit(1)
   }
 
   return opts
@@ -90,6 +101,18 @@ function readJson(absPath, fallback = null) {
 
 function stripGitPrefix(repo) {
   return repo?.startsWith('git+') ? repo.slice(4) : repo
+}
+
+function parseSourceSpec(spec) {
+  if (!spec || spec === 'bundled') {
+    return {}
+  }
+
+  const [repo, ref] = String(spec).split('#')
+  return {
+    repo: repo || null,
+    ref: ref || null,
+  }
 }
 
 function parseSemver(value) {
@@ -194,40 +217,96 @@ function listRemoteTags(repo) {
   return tags
 }
 
-function selectTarget(lock, opts) {
-  if (opts.baseOnly || !lock.stackHarness) {
-    return {
-      label: 'baseHarness',
-      harness: lock.baseHarness,
-    }
+function selectTargets(lock, opts) {
+  if (opts.baseOnly) {
+    return [{ label: 'baseHarness', harness: lock.baseHarness }]
   }
 
+  if (opts.stackOnly) {
+    return [{ label: 'stackHarness', harness: lock.stackHarness }]
+  }
+
+  return [
+    { label: 'baseHarness', harness: lock.baseHarness },
+    ...(lock.stackHarness ? [{ label: 'stackHarness', harness: lock.stackHarness }] : []),
+  ]
+}
+
+function sourceForTarget(target, installManifest) {
+  if (target.label === 'baseHarness') {
+    return installManifest?.source ?? {}
+  }
+
+  return target.harness?.source ?? {}
+}
+
+function resolveHarnessMetadata(target, installManifest) {
+  const harness = target.harness
+  const source = sourceForTarget(target, installManifest)
+  const spec = parseSourceSpec(harness?.source?.spec ?? source?.spec)
+
   return {
-    label: 'stackHarness',
-    harness: lock.stackHarness,
+    repo: harness?.repo ?? harness?.source?.repo ?? source?.repo ?? spec.repo ?? null,
+    ref: harness?.ref ?? harness?.source?.ref ?? source?.ref ?? spec.ref ?? null,
+    currentVersion: cleanVersion(harness?.version ?? harness?.source?.packageVersion ?? source?.packageVersion ?? harness?.ref ?? source?.ref ?? spec.ref),
+    range: harness?.range ?? harness?.source?.range ?? source?.range ?? null,
   }
 }
 
-function buildStatus(lock, opts) {
-  const target = selectTarget(lock, opts)
+function updateCommandForTarget(label) {
+  return label === 'baseHarness'
+    ? 'npm run harness:update -- --base-only'
+    : 'npm run harness:update'
+}
+
+function unavailableTargetStatus(target, harness, message) {
+  return {
+    target: target.label,
+    id: harness?.id ?? null,
+    repo: null,
+    currentVersion: null,
+    currentRef: null,
+    range: null,
+    latestVersion: null,
+    latestRef: null,
+    outdated: false,
+    status: 'unavailable',
+    updateCommand: null,
+    message,
+    recovery: target.label === 'baseHarness'
+      ? '공통 하네스 repo/ref/version을 복구하려면 공통 하네스를 git source로 다시 init/update 하거나 install-manifest source metadata를 확인하세요.'
+      : '스택 하네스 repo/ref/version을 복구하려면 스택 하네스 init을 다시 실행해 lock metadata를 갱신하세요.',
+  }
+}
+
+function buildTargetStatus(target, opts, installManifest) {
   const harness = target.harness
-  const repo = harness?.repo ?? harness?.source?.repo
-  const currentVersion = cleanVersion(harness?.version ?? harness?.source?.packageVersion ?? harness?.ref)
-  const range = opts.range ?? harness?.range ?? harness?.source?.range ?? compatibleRange(harness)
+  const metadata = resolveHarnessMetadata(target, installManifest)
+  const repo = metadata.repo
+  const currentVersion = metadata.currentVersion
+  const range = opts.range ?? metadata.range ?? compatibleRange({
+    ...harness,
+    version: currentVersion ?? harness?.version,
+  })
 
   if (!repo) {
-    throw new Error(`${target.label} 저장소 정보가 lock에 없습니다.`)
+    return unavailableTargetStatus(target, harness, `${target.label} 저장소 정보가 lock/install-manifest에 없습니다.`)
   }
   if (!currentVersion) {
-    throw new Error(`${target.label} 현재 버전을 SemVer로 해석할 수 없습니다.`)
+    return unavailableTargetStatus(target, harness, `${target.label} 현재 버전을 SemVer로 해석할 수 없습니다.`)
   }
   if (!range) {
-    throw new Error(`${target.label} 검사 range를 만들 수 없습니다.`)
+    return unavailableTargetStatus(target, harness, `${target.label} 검사 range를 만들 수 없습니다.`)
   }
 
-  const candidates = listRemoteTags(repo)
+  let candidates
+  try {
+    candidates = listRemoteTags(repo)
     .filter(({ semver }) => satisfiesRange(semver, range))
     .sort((a, b) => compareSemver(a.semver, b.semver))
+  } catch (error) {
+    return unavailableTargetStatus(target, harness, error.message)
+  }
 
   const latest = candidates.at(-1) ?? null
   const current = parseSemver(currentVersion)
@@ -238,42 +317,74 @@ function buildStatus(lock, opts) {
     id: harness?.id ?? null,
     repo,
     currentVersion,
-    currentRef: harness?.ref ?? harness?.source?.ref ?? null,
+    currentRef: metadata.ref,
     range,
     latestVersion: latest?.semver.version ?? null,
     latestRef: latest?.tag ?? null,
     outdated,
-    updateCommand: 'npm run harness:update',
+    status: outdated ? 'outdated' : 'up-to-date',
+    updateCommand: outdated ? updateCommandForTarget(target.label) : null,
   }
 }
 
-function printText(status) {
-  console.log('Harness outdated check')
-  console.log(`  target: ${status.target}`)
+function buildStatus(lock, opts, installManifest) {
+  const targets = selectTargets(lock, opts)
+  if (targets.length === 0 || targets.some((target) => !target.harness)) {
+    const targetName = opts.stackOnly ? 'stackHarness' : 'baseHarness'
+    throw new Error(`${targetName} 정보가 lock에 없습니다.`)
+  }
+
+  const results = targets.map((target) => buildTargetStatus(target, opts, installManifest))
+  const targetMap = Object.fromEntries(results.map((status) => [status.target, status]))
+  const outdated = results.some((status) => status.outdated)
+  const unavailable = results.some((status) => status.status === 'unavailable')
+
+  return {
+    overall: outdated ? 'outdated' : unavailable ? 'unavailable' : 'up-to-date',
+    outdated,
+    checkedTargets: results.map((status) => status.target),
+    targets: targetMap,
+  }
+}
+
+function printTarget(status) {
+  console.log('')
+  console.log(status.target)
   console.log(`  id: ${status.id ?? 'unknown'}`)
+  console.log(`  status: ${status.status}`)
+  if (status.status === 'unavailable') {
+    console.log(`  reason: ${status.message}`)
+    console.log(`  recovery: ${status.recovery}`)
+    return
+  }
+
   console.log(`  repo: ${status.repo}`)
   console.log(`  current: ${status.currentVersion}${status.currentRef ? ` (${status.currentRef})` : ''}`)
   console.log(`  range: ${status.range}`)
   console.log(`  latest: ${status.latestVersion ? `${status.latestVersion} (${status.latestRef})` : 'not found'}`)
-  console.log(`  status: ${status.outdated ? 'outdated' : 'up-to-date'}`)
+  console.log(`  update: ${status.updateCommand ?? 'not needed'}`)
+}
 
-  if (status.outdated) {
-    console.log('')
-    console.log('업데이트 적용:')
-    console.log(`  ${status.updateCommand}`)
+function printText(status) {
+  console.log('Harness outdated check')
+  console.log(`  overall: ${status.overall}`)
+
+  for (const target of status.checkedTargets) {
+    printTarget(status.targets[target])
   }
 }
 
 function main() {
   const opts = parseArgs(process.argv)
   const lock = readJson(lockPath)
+  const installManifest = readJson(installManifestPath, {})
 
   if (!lock) {
     console.error(`harness lock을 찾을 수 없습니다: ${path.relative(repoRoot, lockPath)}`)
     process.exit(1)
   }
 
-  const status = buildStatus(lock, opts)
+  const status = buildStatus(lock, opts, installManifest)
 
   if (opts.json) {
     console.log(JSON.stringify(status, null, 2))

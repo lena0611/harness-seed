@@ -521,7 +521,7 @@ function checkHarnessVersionLock() {
     throw new Error(`공통 하네스 버전이 낮습니다. required >= ${minVersion}, installed ${installedBase.version}. 스택 하네스 init을 다시 실행하세요.`)
   }
 
-  if (requiredBase.ref && installedBase.ref && requiredBase.ref !== installedBase.ref) {
+  if (requiredBase.exactRefRequired && requiredBase.ref && installedBase.ref && requiredBase.ref !== installedBase.ref) {
     const message = `공통 하네스 ref가 스택 요구사항과 다릅니다. required ${requiredBase.ref}, installed ${installedBase.ref}.`
     if (strictMode) {
       throw new Error(message)

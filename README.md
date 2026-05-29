@@ -193,7 +193,7 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2
 | `.harness/install-manifest.json` | 공통 하네스가 어떤 파일을 설치/갱신했는지 추적하는 설치 manifest |
 | `.harness/harness-lock.json` | 현재 프로젝트에 설치된 공통 하네스와 스택 하네스의 repo, ref, version을 기록하는 잠금 파일 |
 
-스택 하네스의 `manifest.json`은 자신이 요구하는 공통 하네스를 `baseHarness`로 명시합니다. 예를 들어 스택 하네스 `v0.1.10`이 공통 하네스 `v0.2.27` 이상을 요구하면, 스택 하네스 `init`은 해당 공통 하네스를 먼저 설치하거나 업데이트합니다.
+스택 하네스의 `manifest.json`은 자신이 요구하는 공통 하네스를 `baseHarness`로 명시합니다. `minVersion`은 최소 요구 버전이고, `ref`는 검증된 기준 ref입니다. 기본적으로 `ref`는 exact pin이 아니므로 이미 설치된 공통 하네스가 `minVersion` 이상이면 더 낮은 ref로 자동 downgrade하지 않아야 합니다. 정확한 ref 고정이 필요한 스택만 `exactRefRequired: true`를 명시합니다.
 
 업데이트는 보통 다음처럼 진행합니다.
 
@@ -204,12 +204,18 @@ npm run harness:scan
 npm run harness:check
 ```
 
-`harness:update`는 `.harness/harness-lock.json`을 읽고 현재 적용된 스택 하네스를 다시 실행합니다. 기본 전략은 `compatible`이며, 현재 설치된 버전의 SemVer caret 범위 안에서 최신 태그를 선택합니다. 예를 들어 `1.0.0`이 설치되어 있으면 `^1.0.0` 범위의 최신 패치/마이너를 받습니다.
+`harness:outdated`는 `.harness/harness-lock.json`을 읽고 공통 하네스와 스택 하네스를 모두 확인합니다. 둘 중 하나라도 업데이트 후보가 있으면 전체 상태를 `outdated`로 표시합니다.
+
+`harness:update`는 안전을 위해 기존처럼 현재 적용된 스택 하네스를 다시 실행합니다. 공통 하네스만 업데이트하려면 `--base-only`를 명시합니다. 기본 전략은 `compatible`이며, 현재 설치된 버전의 SemVer caret 범위 안에서 최신 태그를 선택합니다. 예를 들어 `1.0.0`이 설치되어 있으면 `^1.0.0` 범위의 최신 패치/마이너를 받습니다. 스택 업데이트 중 공통 하네스 요구사항을 볼 때는 `baseHarness.minVersion`을 우선하며, 설치된 공통 하네스가 이미 최소 버전 이상이면 `baseHarness.ref`가 더 낮아도 자동 downgrade하지 않습니다.
 
 ```bash
 npm run harness:outdated -- --json
 npm run harness:outdated -- --fail-on-outdated
+npm run harness:outdated -- --base-only
+npm run harness:outdated -- --stack-only
 npm run harness:update -- --dry-run
+npm run harness:update -- --base-only
+npm run harness:update -- --stack-only
 npm run harness:update -- --strategy locked
 npm run harness:update -- --strategy latest
 npm run harness:update -- --range ^1.0.0
@@ -218,9 +224,9 @@ npm run harness:update -- --force --confirm-overwrite-project-files
 
 `harness:update -- --force`도 프로젝트 소유 문서를 덮어쓸 수 있으므로 단독 실행은 중단됩니다. 실제 덮어쓰기는 `--confirm-overwrite-project-files`를 함께 지정해야 합니다.
 
-`harness:outdated`는 원격 tag를 조회해 업데이트 후보가 있는지만 확인하고 프로젝트 파일은 수정하지 않습니다. 향후 `ai-standard-cli`에서 여러 프로젝트에 업데이트 MR을 만들 때도 이 명령을 먼저 호출하는 방식으로 확장합니다.
+`harness:outdated`는 원격 tag를 조회해 업데이트 후보가 있는지만 확인하고 프로젝트 파일은 수정하지 않습니다. 출력에는 `baseHarness`, `stackHarness`별 현재 버전, 최신 버전, 상태, 실제 업데이트 명령이 분리되어 표시됩니다. 향후 `ai-standard-cli`에서 여러 프로젝트에 업데이트 MR을 만들 때도 이 명령을 먼저 호출하는 방식으로 확장합니다.
 
-같은 스택 하네스를 새 버전으로 다시 실행하면 공통 하네스 관리 파일은 업데이트되고, 스택 기준은 기존 적용분을 reset한 뒤 다시 적용됩니다. 프로젝트 소유 문서와 기존 업무 코드는 보존됩니다. 적용 후 `stack:status`와 `harness:scan`에서 공통/스택 하네스 버전 상태를 확인할 수 있습니다.
+같은 스택 하네스를 새 버전으로 다시 실행하면 스택 기준은 기존 적용분을 reset한 뒤 다시 적용됩니다. 공통 하네스는 스택의 최소 요구 버전을 만족하지 못할 때만 업데이트 대상이 됩니다. 프로젝트 소유 문서와 기존 업무 코드는 보존됩니다. 적용 후 `stack:status`와 `harness:scan`에서 공통/스택 하네스 버전 상태를 확인할 수 있습니다.
 
 ## 공통 하네스가 하는 일
 
@@ -465,8 +471,8 @@ npm run harness:check -- --verbose
 | `npm run harness:sync` | 프로젝트 맵, import 맵, 감지 패턴을 `.harness/generated/**`로 재생성 |
 | `npm run harness:context -- "<작업>"` | 에이전트가 작업 설명을 기준으로 `.harness/session/task-context.md`에 판단 컨텍스트 생성 |
 | `npm run hooks:install` | 로컬 git hook과 커밋 템플릿 등록. 이후 사용자가 승인한 `git commit` 전에는 전체 `harness:check`, 승인한 `git push` 전에는 `harness:check -- --fast` 자동 실행. 에이전트는 이 경우 commit 직전 수동 `harness:check`를 중복 실행하지 않음 |
-| `npm run harness:outdated` | lock 기준으로 같은 major 범위의 업데이트 후보 조회. 파일 수정 없음 |
-| `npm run harness:update` | lock에 기록된 스택 하네스를 다시 실행해 같은 major 범위의 최신 기준으로 업데이트 |
+| `npm run harness:outdated` | lock 기준으로 공통/스택 하네스의 업데이트 후보를 함께 조회. 파일 수정 없음 |
+| `npm run harness:update` | lock에 기록된 스택 하네스를 다시 실행해 같은 major 범위의 최신 기준으로 업데이트. 공통 하네스만 올릴 때는 `--base-only` 사용 |
 | `npm run standards:list` | 원격 스택 하네스 후보 조회 |
 | `npm run templates:list` | 원격 템플릿 후보 조회 |
 | `npm run stack:status` | 활성 스택, 적용 상태, 공통/스택 하네스 버전 확인 |
