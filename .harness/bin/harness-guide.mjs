@@ -364,6 +364,7 @@ function main() {
   console.log('')
   console.log('Commit / push guard:')
   console.log('  npm run hooks:install 을 실행하면 사용자가 승인한 git commit/push 직전에 harness:check가 자동 실행됩니다.')
+  console.log('  hook 설치 후 커밋/푸시 요청을 처리할 때는 commit 직전 수동 harness:check를 중복 실행하지 않습니다.')
   console.log('')
   console.log('Agent decision context:')
   console.log('  일반 개발자가 매번 실행할 필요는 없습니다.')

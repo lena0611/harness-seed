@@ -9,7 +9,7 @@
 | **Harness** | 방향, 읽기 순서, 운영 레일을 잡음 | 프로젝트/세션/기준/문서 체계를 만들 때 | 중간 | `session-harness`, `policy-harness`, `project-harness`, `documentation-harness` | `.harness/session/`, `.harness/policy/`, `.harness/project/`, `.harness/documentation/` |
 | **Trigger** | 특정 상황에서 무엇을 다시 떠올릴지 알려줌 | 파일 변경, 새 세션 시작, 문서 확장, 기준 수정 시 | 강함 | `session-start-alert.md`, `sync-protocol.md` | `.harness/session/session-start-alert.md`, `.harness/policy/sync-protocol.md` |
 | **Hook** | 실제 실행 시점에서 검사를 자동 실행하거나 통과를 막음 | push, PR, 배포, 로컬 실행 전 검증 | 가장 강함 | `npm run harness:check`, CI 검증 | `.harness/bin/`, `package.json`, CI 설정 |
-| **Skill** | 특정 작업을 더 잘 수행하게 돕는 전문 능력/절차 | 이미 준비된 전문 기능을 사용할 때 | 낮음 | 현재 저장소 내부 전용 skill은 없음 | 저장소 폴더가 아니라 도구/플랫폼 기능에 가까움 |
+| **Skill** | 요청 유형별로 읽을 문서, 실행 명령, 기록 위치를 좁힘 | 버그 수정, 기능 개발, 최종 검증, 커밋/푸시 최종화처럼 반복 절차가 있을 때 | 낮음 | `harness.commit-push-finalization`, `harness.precommit-verification` | `.harness/skills/registry.json` |
 
 ## 쉽게 비유하면
 
@@ -38,9 +38,10 @@
 - 로컬에서는 `npm run harness:check`가 기준 동기화 검사, 문서 검사, 적용된 프리셋 검사를 연속 실행
 
 ### 4. Skill
-- 현재 저장소 안에 `.skill/` 폴더를 두고 쓰는 구조는 아님
-- skill은 보통 플랫폼이나 도구가 제공하는 전문 실행 단위에 가까움
-- 이 저장소에서는 장기 방향 유지 장치를 주로 harness/trigger/hook로 설계함
+- 하네스 내부 스킬은 플랫폼별 slash command가 아니라 작업 판단 레지스트리입니다.
+- `.harness/skills/registry.json`에서 요청 유형별 읽을 문서, 실행 명령, 산출물, 기록 위치를 정의합니다.
+- 예를 들어 `커밋/푸시 최종화 흐름`은 `최종 검증만`, `커밋`, `커밋하고 푸시` 요청을 구분하고 hook 설치 시 수동 `harness:check` 중복 실행을 피하게 합니다.
+- Claude slash command, Codex skill, Copilot command는 이 레지스트리를 호출하거나 참고하는 어댑터가 될 수 있습니다.
 
 ## 가장 중요한 판단 기준
 

@@ -255,6 +255,10 @@
         "scripts/test-init.mjs",
         ".harness/bin/update-harness.mjs"
       ],
+      "triggerPaths": [
+        "scripts/init.mjs",
+        ".harness/bin/update-harness.mjs"
+      ],
       "checks": [
         "node scripts/test-init.mjs",
         "npm run harness:check"
@@ -285,6 +289,10 @@
         ".harness/bin/check-node-version.mjs",
         "scripts/init.mjs",
         "scripts/test-init.mjs"
+      ],
+      "triggerPaths": [
+        ".harness/bin/check-node-version.mjs",
+        "scripts/init.mjs"
       ],
       "checks": [
         "npm run node:check",

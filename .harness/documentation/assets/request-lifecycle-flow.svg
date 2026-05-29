@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1800 1220" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:100%;max-width:100%;max-height:100vh;" role="img" aria-labelledby="title desc">
   <title id="title">하네스 설치 프로젝트의 요구사항 라이프사이클</title>
-  <desc id="desc">개발 요청 수신부터 코딩 전 사고 흐름, 초안 구현, 개발자 검토 루프, 직접 수정 반영, 커밋 전 검증, 커밋 확정까지의 전체 흐름</desc>
+  <desc id="desc">개발 요청 수신부터 코딩 전 사고 흐름, 초안 구현, 개발자 검토 루프, 직접 수정 반영, 최종화 검증, 커밋 확정까지의 전체 흐름</desc>
   <defs>
     <style>
       .bg { fill: #f8fafc; }
@@ -67,7 +67,7 @@
     <rect class="panel-purple" x="1092" y="158" width="240" height="58" rx="16" />
     <text class="phase" x="1122" y="193">5. 개발자 검토</text>
     <rect class="panel-amber" x="1350" y="158" width="240" height="58" rx="16" />
-    <text class="phase" x="1380" y="193">6. 커밋 전 검증</text>
+    <text class="phase" x="1380" y="193">6. 최종화 검증</text>
     <rect class="panel-green" x="1608" y="158" width="132" height="58" rx="16" />
     <text class="phase" x="1632" y="193">7. 확정</text>
   </g>

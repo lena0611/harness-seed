@@ -12,7 +12,7 @@
 1. `npm run stack:status`로 현재 적용 상태 확인
 2. 스택 기준이 필요하면 `npm run standards:list` 후 `npm run stack:apply`
 3. 새 환경이면 `npm run hooks:install`
-4. 작업 전 `npm run harness:check`
+4. 작업 전에는 `npm run harness:impact`로 영향 범위를 확인하고, `npm run harness:check`는 사용자가 최종 검증을 승인한 뒤 실행
 
 ## 아직 비어 있는 중요한 것
 - 프로젝트가 해결하려는 핵심 문제

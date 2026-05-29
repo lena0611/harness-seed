@@ -332,7 +332,7 @@
       <nav class="quick" aria-label="quick commands">
         <code>npm run harness:scan</code>
         <code>npm run harness:handoff</code>
-        <code>npm run harness:check</code>
+        <code>npm run harness:impact</code>
       </nav>
     </header>
 
@@ -344,7 +344,7 @@
           <div class="phase amber">영향 판단</div>
           <div class="phase blue">초안 구현</div>
           <div class="phase purple">개발자 검토</div>
-          <div class="phase amber">커밋 전 검증</div>
+          <div class="phase amber">최종화 검증</div>
           <div class="phase green">확정</div>
         </div>
 
@@ -483,7 +483,7 @@
         summary: '회사 필수 차단, 사용자 지시, 프로젝트 기준, 스택/템플릿 기준을 순서대로 해석합니다.',
         developer: ['프로젝트 기준이 회사 필수 차단 기준을 낮추는지 확인합니다.', '개인 취향은 팀 공유 기준과 분리합니다.'],
         agent: ['충돌 출처와 영향을 분리해 보고합니다.', '필수 차단 기준 위반이면 구현을 중단하고 대안을 제시합니다.'],
-        commands: ['npm run harness:impact', 'npm run harness:check'],
+        commands: ['npm run harness:impact'],
         files: ['.harness/policy/ai-standard-guiding-policy.md', '.harness/project/standards-layers.md', '.harness/project/personal-methodology.local.md'],
         fallback: ['충돌 해결이 팀 결정이면 developer-input-queue에 선택지를 남깁니다.']
       },
@@ -555,7 +555,7 @@
         summary: '기준만 바뀌었는지, 코드만 바뀌었는지 확인하고 필요한 반대편을 보강합니다.',
         developer: ['규칙을 바꿨다면 구현이나 예외 기록이 함께 있는지 확인합니다.'],
         agent: ['SYNC GAP을 상황별 severity로 해석합니다.', '의도적이면 decision-log 또는 waiver에 근거를 남깁니다.'],
-        commands: ['npm run harness:impact', 'npm run harness:check'],
+        commands: ['npm run harness:impact', 'npm run harness:check  # 최종 검증만 요청했거나 hook 미설치/우회 시'],
         files: ['.harness/project/*.md', '.harness/session/decision-log.md', '.harness/policy/waivers.json'],
         fallback: ['초기 설치나 스택 적용 직후의 문서 추가는 정보성으로 해석합니다.']
       },
@@ -563,18 +563,18 @@
         title: '검증 실행',
         summary: '사용자 최종화 승인 뒤 하네스 검사와 프로젝트 검증 명령을 실행합니다.',
         developer: ['실패 메시지가 설치 실패인지, 프로젝트 환경 충돌인지 구분합니다.'],
-        agent: ['harness:check 결과를 코드, 기준, 환경 문제로 분류합니다.', 'lint/test/build가 없으면 검증 전략 후보를 제안합니다.'],
-        commands: ['npm run harness:check', 'npm run harness:check:strict'],
-        files: ['.harness/session/project-scan-report.md', '.harness/project/workflow-rules.md'],
+        agent: ['최종 검증만 요청받으면 harness:check를 직접 실행합니다.', '커밋/푸시 요청이고 hook이 설치되어 있으면 hook 검증에 맡겨 중복 실행을 피합니다.', 'lint/test/build가 없으면 검증 전략 후보를 제안합니다.'],
+        commands: ['npm run harness:check  # 최종 검증만 또는 hook 미설치/우회 시', 'git commit  # hook 설치 시 pre-commit이 harness:check 실행', 'git push  # hook 설치 시 pre-push가 fast check 실행'],
+        files: ['.harness/session/project-scan-report.md', '.harness/project/workflow-rules.md', '.harness/project/commit-push-rules.md', '.harness/skills/registry.json'],
         fallback: ['검증 실패 시 원인 분류 후 개발자 검토 루프로 되돌아갑니다.']
       },
       commit: {
         title: '커밋 확정',
         summary: '검증된 후보를 기록 가능한 상태로 닫고 요청 라이프사이클을 종료합니다.',
         developer: ['최종 커밋 여부를 명시적으로 확정합니다.', '첫 줄은 한글 요약, 본문은 하이픈 상세, 검증은 실행한 명령과 미실행 사유로 확인합니다.'],
-        agent: ['사용자 승인 전에는 커밋하지 않고, 승인 뒤 커밋 요약, 세부 변경, 검증 결과, 남은 리스크를 커밋 양식에 맞춰 정리합니다.'],
-        commands: ['git status --short', 'npm run hooks:install', 'git commit'],
-        files: ['.github/commit-template.txt', '.harness/session/decision-log.md', '.harness/session/active-context.md', '.harness/session/project-memory.md'],
+        agent: ['사용자 승인 전에는 커밋하지 않습니다.', 'hook이 설치되어 있으면 commit 직전 수동 harness:check를 생략하고 pre-commit hook 검증에 맡깁니다.', '승인 뒤 커밋 요약, 세부 변경, 검증 결과, 남은 리스크를 커밋 양식에 맞춰 정리합니다.'],
+        commands: ['git status --short', 'git config --get core.hooksPath', 'npm run hooks:install', 'git commit'],
+        files: ['.github/commit-template.txt', '.harness/project/commit-push-rules.md', '.harness/session/decision-log.md', '.harness/session/active-context.md', '.harness/session/project-memory.md'],
         fallback: ['커밋 전 미해결 질문이 있으면 developer-input-queue에 남깁니다.']
       }
     };

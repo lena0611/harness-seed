@@ -9,17 +9,26 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 - 사용자가 `커밋`, `푸시`, `배포`, `PR 생성`, `최종 검증`처럼 명시적으로 최종화 의사를 밝힌 뒤에만 commit/push 단계로 이동합니다.
 - git hook은 작업 완료 시점을 결정하지 않고, 사용자가 승인한 commit/push 직전에 실행되는 안전장치입니다.
 
+## 요청별 검증 경로
+- 사용자가 `최종 검증만 해줘`처럼 검증만 요청하면 에이전트가 `npm run harness:check`를 직접 실행합니다.
+- 사용자가 `커밋해줘`라고 요청하면 에이전트는 선행 `npm run harness:check`를 별도로 실행하지 않고 `git commit`을 실행합니다. 설치된 pre-commit hook의 `npm run harness:check`가 최종 검증 역할을 합니다.
+- 사용자가 `커밋하고 푸시해줘`라고 요청하면 pre-commit의 전체 검사와 pre-push의 `npm run harness:check -- --fast`에 맡깁니다.
+- hook이 설치되어 있지 않거나 `--no-verify` 등으로 우회되는 환경이면 에이전트가 commit/push 전에 직접 `npm run harness:check`를 실행합니다.
+- 대형 변경에서 커밋 전에 빠른 실패 확인이 필요하면 수동 `npm run harness:check`를 실행할 수 있습니다. 이 경우 이후 commit hook에서 같은 검증이 다시 실행될 수 있음을 사용자에게 먼저 알립니다.
+
 ## hook 설치 기준
 - `npm run hooks:install`은 `core.hooksPath`를 `.githooks`로 설정합니다.
 - 기존 `.git/hooks/*` 또는 기존 `core.hooksPath`의 hook은 삭제하지 않습니다.
 - 기존 hook 경로는 `harness.previousHooksPath`에 저장하고, `.githooks/*`에서 먼저 체인 실행합니다.
 - `.github/commit-template.txt`를 git commit template로 연결합니다.
+- hook 설치 여부는 `git config core.hooksPath`가 `.githooks`이고 `.githooks/pre-commit`, `.githooks/pre-push`가 존재하는지로 판단합니다.
 
 ## pre-commit
 - 사용자가 커밋을 승인하고 실제 `git commit`이 실행될 때 동작합니다.
 - 기존 pre-commit hook이 있으면 먼저 실행합니다.
 - 하네스 seed-mode 확인 후 `npm run harness:check`를 실행합니다.
 - 이 단계는 전체 검증에 가깝기 때문에 사용자의 완료 승인 없이 에이전트가 임의로 유도하지 않습니다.
+- 에이전트는 pre-commit hook이 설치된 프로젝트에서 `커밋해줘` 요청을 받으면 중복 방지를 위해 commit 전 수동 `npm run harness:check`를 생략합니다.
 
 ## pre-push
 - 사용자가 push를 승인하고 실제 `git push`가 실행될 때 동작합니다.

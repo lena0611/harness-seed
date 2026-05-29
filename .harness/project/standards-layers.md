@@ -56,6 +56,7 @@
 ## 강제 장치
 
 - 수동 개발자는 `npm run hooks:install`로 로컬 git hook을 선택 설치할 수 있습니다.
-- 에이전트 작업은 hook 설치 여부와 무관하게 `CLAUDE.md`, 세션 boot, adapter hook을 통해 기준 확인과 `harness:check` 흐름을 따라야 합니다.
+- 에이전트 작업은 hook 설치 여부와 무관하게 `CLAUDE.md`, 세션 boot, adapter hook을 통해 기준 확인과 완료 승인 게이트를 따라야 합니다.
+- 사용자가 `최종 검증만` 승인하면 에이전트가 `npm run harness:check`를 직접 실행하고, `커밋/푸시`를 승인했으며 hook이 설치되어 있으면 pre-commit/pre-push hook 검증에 맡겨 중복 실행을 피합니다.
 - 로컬 hook을 설치하면 `pre-commit`은 전체 `harness:check`, `pre-push`는 반복 검증을 줄이는 `harness:check -- --fast`를 실행합니다.
 - CI나 보호 브랜치에서는 `npm run harness:check:strict`를 기준으로 차단합니다.

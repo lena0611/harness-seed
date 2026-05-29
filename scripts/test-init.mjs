@@ -91,13 +91,30 @@ function cleanInstallCreatesExpectedFiles() {
   const claudeInstructions = read(target, 'CLAUDE.md')
   assert(claudeInstructions.includes('하네스 자동 인식 의무'), 'CLAUDE.md should require automatic harness detection')
   assert(claudeInstructions.includes('사용자가 "하네스"를 언급하지 않아도'), 'CLAUDE.md should not depend on explicit harness mention')
+  assert(claudeInstructions.includes('사용자가 `커밋` 또는 `커밋하고 푸시`를 요청했고 git hook이 설치되어 있으면 별도 선행 `harness:check`를 돌리지 않고'), 'CLAUDE.md should avoid duplicate manual check before hooked commit')
 
   const agentInstructions = read(target, 'AGENTS.md')
   assert(agentInstructions.includes('비-Claude 에이전트 필수 동작'), 'AGENTS.md should include non-Claude required behavior')
   assert(agentInstructions.includes('하네스 작업 프로토콜을 자동으로 적용'), 'AGENTS.md should require automatic protocol application')
+  assert(agentInstructions.includes('hook이 설치되어 있으면 선행 `harness:check`를 중복 실행하지 않고'), 'AGENTS.md should avoid duplicate manual check before hooked commit')
 
   const sessionStartAlert = read(target, '.harness/session/session-start-alert.md')
   assert(sessionStartAlert.includes('사용자가 하네스를 언급하지 않는 것은 하네스를 비활성화한다는 뜻이 아닙니다'), 'session start alert should keep harness active without explicit mention')
+  assert(sessionStartAlert.includes('선행 `harness:check`를 중복 실행하지 않습니다'), 'session start alert should mention duplicate check avoidance')
+
+  const commitPushRules = read(target, '.harness/project/commit-push-rules.md')
+  assert(commitPushRules.includes('## 요청별 검증 경로'), 'commit/push rules should explain request-specific verification paths')
+  assert(commitPushRules.includes('hook 설치 여부는 `git config core.hooksPath`가 `.githooks`'), 'commit/push rules should explain hook installation detection')
+  assert(commitPushRules.includes('commit hook에서 같은 검증이 다시 실행될 수 있음'), 'commit/push rules should warn about intentional manual check duplication')
+
+  const skillRegistry = JSON.parse(read(target, '.harness/skills/registry.json'))
+  const commitPushSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.commit-push-finalization')
+  assert(commitPushSkill, 'consumer skill registry should include commit/push finalization skill')
+  assert(commitPushSkill.audience.includes('consumer'), 'commit/push finalization skill should be consumer-facing')
+  assert(commitPushSkill.read.includes('.harness/project/commit-push-rules.md'), 'commit/push finalization skill should read commit/push rules')
+  assert(commitPushSkill.triggers.includes('커밋하고 푸시'), 'commit/push finalization skill should trigger on combined commit and push requests')
+  assert(commitPushSkill.commands.some((command) => command.includes('git config --get core.hooksPath')), 'commit/push finalization skill should check hook installation')
+  assert(commitPushSkill.outputs.includes('중복 검증 생략 여부'), 'commit/push finalization skill should report duplicate check avoidance')
 
   const decisionLog = read(target, '.harness/session/decision-log.md')
   assert(decisionLog.includes('소비자 프로젝트 전용 로그'), 'consumer decision log should explain project scope')

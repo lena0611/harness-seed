@@ -1,5 +1,13 @@
 # 결정 로그
 
+## 2026-05-29 - commit/push 승인 시 중복 검증 방지
+- 소비자 프로젝트에서 에이전트가 커밋 직전 `npm run harness:check`를 수동 실행한 뒤, pre-commit hook에서 같은 검증을 다시 실행해 작업 시간이 늘어나는 문제가 확인되었습니다.
+- `최종 검증만` 요청은 에이전트가 직접 `npm run harness:check`를 실행하고, `커밋/푸시` 요청은 설치된 pre-commit/pre-push hook 검증에 맡기는 기준으로 분리합니다.
+- hook이 설치되어 있지 않거나 `--no-verify` 등으로 우회되는 환경에서는 에이전트가 직접 `npm run harness:check`를 실행합니다.
+- 대형 변경에서 커밋 전 빠른 실패 확인이 필요하면 수동 check를 허용하되, 이후 hook에서 같은 검증이 다시 실행될 수 있음을 사용자에게 먼저 알립니다.
+- 이 기준을 소비자용 `커밋/푸시 최종화 흐름` 스킬로도 등록해 에이전트가 커밋/푸시 요청을 받았을 때 별도 선행 검증을 생략할지 판단할 수 있게 합니다.
+- 스킬 smoke test를 `scripts/test-init.mjs`에 추가해도 force overwrite와 Node 런타임 정책이 파일 단위로 과도하게 blocking 되지 않도록, 두 정책의 `triggerPaths`는 실제 구현 파일 중심으로 좁힙니다.
+
 ## 2026-05-28 - commit/push hook 정책 문서 범위 축소
 - 소비자 프로젝트에서 `workflow-rules.md`의 workstream 운영 문구만 수정해도 `common.hooks.commit-push-check`가 action required로 뜨는 false positive가 확인되었습니다.
 - 1차 개선으로 commit/push hook 기준을 `.harness/project/commit-push-rules.md`로 분리하고, 해당 정책의 `documents`를 이 전용 문서와 `standards-layers.md`로 좁혔습니다.

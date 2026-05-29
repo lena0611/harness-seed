@@ -8,4 +8,4 @@
 - 주요 변경 2
 
 검증
-- npm run harness:check
+- pre-commit hook: npm run harness:check

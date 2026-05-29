@@ -362,12 +362,12 @@
     },
     {
       "id": "harness.precommit-verification",
-      "title": "커밋 전 검증 흐름",
-      "purpose": "커밋 전 최종 diff, 문서-코드 동기화, 로컬룰 승격 후보, 자동 검증 결과를 확인한다.",
+      "title": "최종 검증 흐름",
+      "purpose": "사용자가 최종 검증만 요청했거나 커밋 전 후보 정리가 필요할 때 최종 diff, 문서-코드 동기화, 로컬룰 승격 후보, 자동 검증 결과를 확인한다.",
       "audience": ["consumer"],
       "taskTypes": ["feature", "bugfix", "refactor", "docs", "maintenance", "verification"],
       "priority": "high",
-      "triggers": ["커밋", "검증", "마무리", "완료", "commit", "check", "lint", "build", "test"],
+      "triggers": ["최종 검증", "검증만", "검증", "마무리", "완료", "check", "lint", "build", "test"],
       "read": [
         ".harness/project/workflow-rules.md",
         ".harness/policy/sync-protocol.md",
@@ -386,6 +386,41 @@
       "records": [
         ".harness/session/decision-log.md",
         ".harness/session/next-session-reminder.md"
+      ]
+    },
+    {
+      "id": "harness.commit-push-finalization",
+      "title": "커밋/푸시 최종화 흐름",
+      "purpose": "사용자가 커밋 또는 푸시를 승인했을 때 hook 설치 여부를 확인하고, 설치된 hook이 실행할 검증을 신뢰해 commit 직전 수동 harness:check 중복 실행을 피한다.",
+      "audience": ["consumer"],
+      "taskTypes": ["feature", "bugfix", "refactor", "docs", "maintenance", "verification"],
+      "priority": "critical",
+      "triggers": ["커밋", "푸시", "커밋해줘", "푸시해줘", "커밋하고 푸시", "commit", "push", "pre-commit", "pre-push", "no-verify"],
+      "read": [
+        ".harness/project/commit-push-rules.md",
+        ".harness/project/workflow-rules.md",
+        ".github/commit-template.txt",
+        ".harness/session/decision-log.md"
+      ],
+      "commands": [
+        "git config --get core.hooksPath",
+        "test -x .githooks/pre-commit && test -x .githooks/pre-push",
+        "npm run harness:impact",
+        "npm run harness:check  # 최종 검증만 요청했거나 hook 미설치/우회 환경일 때",
+        "git commit  # hook 설치 시 pre-commit이 npm run harness:check 실행",
+        "git push  # hook 설치 시 pre-push가 npm run harness:check -- --fast 실행"
+      ],
+      "outputs": [
+        "사용자 요청 유형: 최종 검증만 / 커밋 / 커밋하고 푸시",
+        "git hook 설치 여부와 판단 근거",
+        "중복 검증 생략 여부",
+        "직접 실행한 검증 또는 hook이 실행할 검증",
+        "커밋 메시지 후보",
+        "hook 미설치 또는 우회 시 직접 실행한 harness:check 결과"
+      ],
+      "records": [
+        ".harness/session/decision-log.md",
+        ".harness/session/manual-actions.md"
       ]
     },
     {

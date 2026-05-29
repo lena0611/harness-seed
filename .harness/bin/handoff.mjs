@@ -207,7 +207,7 @@ ${readManualActionsSummary()}
 - 주요 변경 2
 
 검증
-- npm run harness:check
+- pre-commit hook: npm run harness:check
 \`\`\`
 
 첫 줄은 한글 요약, 본문은 하이픈 상세, 검증은 실행한 명령과 미실행 사유를 남깁니다.
@@ -223,7 +223,8 @@ ${readManualActionsSummary()}
 2. \`npm run harness:guide -- --open\`으로 현재 상태와 클릭형 가이드를 확인합니다.
 3. 큰 작업이나 낯선 영역이면 에이전트가 \`npm run harness:context -- "<이번 작업>"\`으로 판단 컨텍스트를 만듭니다.
 4. \`npm run hooks:install\`을 실행하면 이후 사용자가 승인한 \`git commit\`/\`git push\` 직전에 \`harness:check\`가 자동 실행됩니다.
-5. hook을 설치하지 않았거나 커밋 전 미리 보고 싶으면 사용자가 최종 검증을 승인한 뒤 \`npm run harness:check\`로 직접 검증합니다.
+5. 사용자가 \`커밋해줘\`라고 요청했고 hook이 설치되어 있으면 에이전트는 선행 \`harness:check\`를 중복 실행하지 않고 commit hook 검증에 맡깁니다.
+6. hook을 설치하지 않았거나 커밋 전 미리 보고 싶으면 사용자가 최종 검증을 승인한 뒤 \`npm run harness:check\`로 직접 검증합니다.
 `
 }
 

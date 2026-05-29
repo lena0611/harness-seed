@@ -22,7 +22,7 @@
 - 사용자가 `완료`, `최종 검증`, `커밋`, `푸시`, `PR 생성`처럼 명시적으로 최종화 의사를 밝히기 전까지는 완료 승인 전으로 봅니다.
 - 완료 승인 전에는 `npm run build`, `npm run test`, `npm run test:run`, `npm run e2e`, `npm run harness:check`, 배포, commit, push, PR 생성을 실행하지 않습니다.
 - 무거운 검증이 필요해 보이면 실행하지 말고 `검증 후보`와 이유를 보고합니다.
-- 완료 승인 뒤에만 변경 성격에 맞는 테스트, build, `harness:check`, commit, push를 실행합니다.
+- 완료 승인 뒤에만 변경 성격에 맞는 테스트, build, `harness:check`, commit, push를 실행합니다. 단, `커밋/푸시` 요청은 설치된 git hook 검증과 중복되지 않게 [`commit-push-rules.md`](./commit-push-rules.md)의 검증 경로를 따릅니다.
 - commit/push 단계의 git hook 세부 기준은 [`commit-push-rules.md`](./commit-push-rules.md)에 둡니다.
 
 ## 테스트 전략 선택지

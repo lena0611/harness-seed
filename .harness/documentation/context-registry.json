@@ -50,10 +50,10 @@
       "id": "commit-push-rules",
       "file": ".harness/project/commit-push-rules.md",
       "category": "workflow",
-      "taskTypes": ["maintenance", "review"],
+      "taskTypes": ["feature", "bugfix", "refactor", "docs", "maintenance", "review", "verification"],
       "priority": "medium",
       "appliesTo": [".githooks/**", ".harness/bin/install-hooks.mjs", ".harness/bin/run-previous-hook.mjs", ".github/commit-template.txt"],
-      "keywords": ["커밋", "푸시", "hook", "pre-commit", "pre-push", "commit-template"]
+      "keywords": ["커밋", "푸시", "최종화", "중복 검증", "hook", "pre-commit", "pre-push", "commit-template"]
     },
     {
       "id": "critical-paths",

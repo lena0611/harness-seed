@@ -19,11 +19,12 @@ Claude Code에서는 `SessionStart` hook이 `next-session-reminder.md`를 자동
 9. 코드 변경 시 스타일 검증도 구조 검증과 함께 보며, `npm run lint` 또는 `npm run harness:check`를 기준으로 판단합니다.
 10. 새 환경을 준비한 뒤에는 `npm run hooks:install`로 로컬 훅과 커밋 템플릿을 연결합니다.
 11. 에이전트 작업은 hook 설치 여부와 무관하게 기준 계층을 읽습니다. 다만 사용자 완료 승인 전에는 `build`, `test`, `harness:check`, commit, push, PR 생성을 실행하지 않고 검증 후보로 보고합니다.
-12. 스타일이 반복 패턴으로 굳어지기 시작하면 `.harness/style/style-evolution.md` 기준으로 규칙 승격 후보를 확인합니다.
-13. 코드 변경 후에는 도메인, 아키텍처, 워크플로우 로컬룰로 승격할 후보가 있는지 확인하고, 확신이 없으면 `.harness/session/developer-input-queue.md`에 질문으로 남깁니다.
-14. 큰 작업이나 생소한 영역은 `npm run harness:sync`와 `npm run harness:context -- "<작업 설명>"`로 에이전트 판단 컨텍스트를 먼저 만듭니다.
-15. 개발자에게 진행 상황을 보일 때는 원시 내부 추론이 아니라 `[harness] request/context/impact/action/decision/verify` 형태의 visible trace로 요약합니다.
-16. 사용자가 하네스를 언급하지 않는 것은 하네스를 비활성화한다는 뜻이 아닙니다. 하네스 설치 프로젝트에서는 항상 이 문서의 절차를 적용합니다.
+12. 사용자가 `최종 검증만` 요청하면 `npm run harness:check`를 직접 실행합니다. 사용자가 `커밋/푸시`를 요청했고 hook이 설치되어 있으면 pre-commit/pre-push 검증을 신뢰하고 선행 `harness:check`를 중복 실행하지 않습니다.
+13. 스타일이 반복 패턴으로 굳어지기 시작하면 `.harness/style/style-evolution.md` 기준으로 규칙 승격 후보를 확인합니다.
+14. 코드 변경 후에는 도메인, 아키텍처, 워크플로우 로컬룰로 승격할 후보가 있는지 확인하고, 확신이 없으면 `.harness/session/developer-input-queue.md`에 질문으로 남깁니다.
+15. 큰 작업이나 생소한 영역은 `npm run harness:sync`와 `npm run harness:context -- "<작업 설명>"`로 에이전트 판단 컨텍스트를 먼저 만듭니다.
+16. 개발자에게 진행 상황을 보일 때는 원시 내부 추론이 아니라 `[harness] request/context/impact/action/decision/verify` 형태의 visible trace로 요약합니다.
+17. 사용자가 하네스를 언급하지 않는 것은 하네스를 비활성화한다는 뜻이 아닙니다. 하네스 설치 프로젝트에서는 항상 이 문서의 절차를 적용합니다.
 
 ## 방향 유지 장치 원칙
 - **Harness**는 방향과 작업 레일을 정합니다.

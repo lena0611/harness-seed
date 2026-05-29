@@ -50,7 +50,7 @@
 ## 핵심 검증 명령
 - `npm run harness:scan`: 현재 프로젝트 스캔 리포트 생성
 - `npm run harness:handoff`: 설치/업데이트 직후 인수인계 요약 생성
-- `npm run harness:check`: 통합 검사. policy + docs + (스택 적용 시) lint+test+build
+- `npm run harness:check`: 통합 검사. policy + docs + (스택 적용 시) lint+test+build. `최종 검증만` 요청에는 직접 실행하고, hook 설치 후 `커밋/푸시` 요청에는 pre-commit/pre-push hook이 실행합니다.
 - `npm run harness:check:strict`: CI/릴리스용 엄격 검사
 - `npm run harness:outdated`: 현재 적용된 스택 하네스 업데이트 후보 확인
 - `npm run harness:update`: 현재 적용된 스택 하네스 기준 업데이트

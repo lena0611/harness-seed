@@ -4,6 +4,13 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.49 - 2026-05-29
+
+- `커밋/푸시` 요청에서는 설치된 git hook 검증을 신뢰하고 commit 직전 수동 `harness:check`를 중복 실행하지 않도록 에이전트 기준과 hook 안내를 정리했습니다.
+- 같은 기준을 소비자용 `커밋/푸시 최종화 흐름` 스킬로 추가해 요청 유형, hook 설치 여부, 중복 검증 생략 여부를 스킬 레지스트리에서도 판단할 수 있게 했습니다.
+- 정책/세션/개념맵/인터랙티브 가이드 문서의 검증 안내를 `최종 검증만`과 `커밋/푸시 hook 검증`으로 나눠 정리했습니다.
+- `scripts/test-init.mjs`의 다른 smoke test 보강이 force overwrite와 Node 런타임 정책을 불필요하게 blocking으로 깨우지 않도록 해당 정책의 `triggerPaths`를 구현 파일 중심으로 좁혔습니다.
+
 ## 0.2.48 - 2026-05-29
 
 - commit/push hook 기준을 `commit-push-rules.md`로 분리해 `workflow-rules.md`의 workstream 운영 문구 변경이 `common.hooks.commit-push-check`를 불필요하게 트리거하지 않도록 했습니다.

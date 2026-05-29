@@ -48,11 +48,11 @@ npm run docs:check
 
 | 검증 | 본체 개발 | 소비자 프로젝트 | 역할 |
 | --- | --- | --- | --- |
-| `npm run harness:check` | 사용 | 사용 | 표준 통합 검사입니다. |
+| `npm run harness:check` | 사용 | 사용 | 표준 통합 검사입니다. 소비자 프로젝트에서는 `최종 검증만` 요청 또는 hook 미설치/우회 환경에서 직접 실행하고, hook 설치 후 commit/push 요청에는 hook이 실행합니다. |
 | `npm run harness:impact` | 사용 | 사용 | 변경 파일과 기준의 연결을 확인합니다. |
 | `npm run harness:scan` | 사용 | 사용 | 프로젝트 구조와 기준 후보를 스캔합니다. |
 | `npm run harness:handoff` | 사용 | 사용 | 설치/업데이트 후 확인할 일과 현재 상태를 요약합니다. |
-| `npm run hooks:install` | 사용 | 사용 | commit/push 전 `harness:check` 자동 실행을 연결합니다. |
+| `npm run hooks:install` | 사용 | 사용 | commit/push 전 `harness:check` 자동 실행을 연결합니다. 설치 후 에이전트는 commit 직전 수동 `harness:check`를 중복 실행하지 않습니다. |
 | `npm run policy:check` | 주로 사용 | 기본 script 아님 | 정책 레지스트리 자체를 직접 검사합니다. |
 | `npm run docs:check:strict` | 사용 | 기본 script 아님 | 하네스 문서 레지스트리와 링크를 엄격히 검사합니다. |
 | `node scripts/test-init.mjs` | 사용 | 사용 안 함 | 설치기 smoke test입니다. |
