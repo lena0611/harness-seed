@@ -672,6 +672,34 @@ function printChangedFileGroups(changedFiles) {
   return groups
 }
 
+function policyRelevantChangedFiles(changedFiles, changedGroups) {
+  const baselineFiles = new Set([
+    ...changedGroups.baseline,
+    ...changedGroups.generated,
+  ])
+
+  return changedFiles.filter((filePath) => !baselineFiles.has(filePath))
+}
+
+function printHarnessBaselineNotice(changedGroups) {
+  const baselineCount = changedGroups.baseline.length + changedGroups.generated.length
+  if (baselineCount === 0) {
+    return
+  }
+
+  console.log('Harness baseline update notice:')
+  console.log('- install manifest 기준으로 본체가 관리하는 baseline/generated 파일 변경입니다.')
+  console.log('- 소비자 프로젝트가 직접 고친 로컬룰이 아니므로 정책 sync gap 계산에서는 제외합니다.')
+  console.log('- 같은 파일을 의도적으로 프로젝트 규칙으로 수정했다면 manifest 해시와 달라져 Local harness updates로 분류됩니다.')
+
+  if (showBaseline || verboseMode) {
+    console.log('  baseline/generated files:')
+    console.log(formatFileList([...changedGroups.baseline, ...changedGroups.generated]))
+  }
+
+  console.log('')
+}
+
 function isInformationalSyncGap(changedGroups, harnessMode) {
   const sourceChangeCount = changedGroups.feature.length + changedGroups.harnessScripts.length + changedGroups.other.length
   return sourceChangeCount === 0 && (
@@ -776,6 +804,8 @@ function runImpact() {
 
   const changedGroups = printChangedFileGroups(changedFiles)
   printProjectRuleCandidateReminder(changedGroups)
+  printHarnessBaselineNotice(changedGroups)
+  const changedFilesForPolicy = policyRelevantChangedFiles(changedFiles, changedGroups)
   const baselineOnly = changedGroups.feature.length + changedGroups.harnessScripts.length + changedGroups.other.length === 0 && (changedGroups.baseline.length > 0 || changedGroups.generated.length > 0)
 
   const policyTriggered = []
@@ -792,8 +822,8 @@ function runImpact() {
     const documents = policy.documents ?? []
     const ownedAreas = policy.ownedAreas ?? []
     const triggerPaths = policy.triggerPaths ?? ownedAreas
-    const changedDocuments = matchedFiles(changedFiles, documents)
-    const changedSources = matchedFiles(changedFiles, triggerPaths)
+    const changedDocuments = matchedFiles(changedFilesForPolicy, documents)
+    const changedSources = matchedFiles(changedFilesForPolicy, triggerPaths)
     const documentChanged = changedDocuments.length > 0
     const sourceChanged = changedSources.length > 0
     const hasOwnedFiles = trackedFiles.some((filePath) => matchesAnyGlob(filePath, ownedAreas))
@@ -893,6 +923,7 @@ function runImpact() {
     harnessMode,
     strictMode,
     changedFiles: changedFiles.length,
+    policyRelevantChangedFiles: changedFilesForPolicy.length,
     changedGroups: Object.fromEntries(Object.entries(changedGroups).map(([key, value]) => [key, value.length])),
     policyTriggered: policyTriggered.length,
     codeTriggered: codeTriggered.length,

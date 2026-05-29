@@ -4,6 +4,11 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.52 - 2026-05-29
+
+- `harness:update`로 들어온 본체 baseline 문서 변경이 소비자 프로젝트의 로컬룰 변경처럼 SYNC GAP을 발생시키지 않도록, install manifest 해시와 일치하는 baseline/generated 파일을 정책 매칭에서 제외했습니다.
+- baseline 파일 변경은 `Harness baseline update notice`로 별도 안내하고, 같은 파일을 소비자 프로젝트가 직접 수정해 manifest 해시와 달라진 경우에는 기존처럼 로컬 하네스 변경으로 검토합니다.
+
 ## 0.2.51 - 2026-05-29
 
 - `harness:update -- --base-only`가 공통 하네스 init에 `--source-repo`, `--source-ref`를 전달해 git source metadata를 lock/install manifest에 보존하도록 수정했습니다.

@@ -19,6 +19,8 @@
 - `harness:impact` 또는 `policy:impact` 출력에 `SYNC GAP` 블록이 보이면 한쪽(문서 또는 소스)만 변경된 상태라는 뜻입니다.
 - 출력은 `trigger files`, `matched rules`, `needed action`, `can ignore when`을 함께 보여줘야 합니다.
 - 등급은 `blocking`, `action required`, `review suggested`, `info`로 나눕니다.
+- `.harness/install-manifest.json`의 managed hash와 일치하는 하네스 baseline/generated 파일은 본체 업데이트 산출물로 분류하고 정책 sync gap 계산에서 제외합니다.
+- 같은 문서를 소비자 프로젝트가 직접 수정해 manifest hash와 달라진 경우에는 로컬 하네스 변경으로 보고 기존처럼 정책 매칭과 sync gap 검토를 수행합니다.
 - 기본 동작: `review suggested`와 `info`는 로컬 `harness:check`를 실패시키지 않습니다.
 - CI나 `strict` 모드에서는 남아 있는 갭을 실패 기준으로 봅니다.
 - `.harness/policy/profile.json`의 `harnessMode`가 `bootstrap`이면 초기 설치나 스택 기준 추가에서 생긴 갭은 정보성 안내로 낮춰 볼 수 있습니다.

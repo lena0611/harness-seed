@@ -44,6 +44,10 @@ function sha256Text(content) {
   return createHash('sha256').update(content).digest('hex')
 }
 
+function sha256File(absPath) {
+  return createHash('sha256').update(fs.readFileSync(absPath)).digest('hex')
+}
+
 function makeTarget() {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-init-test-'))
   run('git', ['init', '--quiet'], { cwd: target })
@@ -1047,6 +1051,43 @@ function workflowWorkstreamChangeDoesNotTriggerCommitPushHookPolicy() {
   assert(hookImpact.includes('common.hooks.commit-push-check'), 'commit/push rules change should trigger commit/push hook policy')
 }
 
+function harnessBaselineDocUpdateDoesNotTriggerSyncGap() {
+  const target = makeTarget()
+
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run('git', ['add', '.'], { cwd: target })
+  run('git', [
+    '-c',
+    'user.name=Harness Test',
+    '-c',
+    'user.email=harness-test@example.invalid',
+    'commit',
+    '--quiet',
+    '-m',
+    'baseline',
+  ], { cwd: target })
+
+  const baselineDoc = '.harness/project/portability-guide.md'
+  const baselinePath = path.join(target, baselineDoc)
+  const manifestPath = path.join(target, '.harness/install-manifest.json')
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  assert(manifest.managedFiles[baselineDoc], 'portability guide should be a managed baseline document')
+
+  fs.appendFileSync(baselinePath, '\n## Baseline update smoke\n- 본체 baseline 문서 갱신 시뮬레이션입니다.\n')
+  manifest.managedFiles[baselineDoc].sha256 = sha256File(baselinePath)
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  const baselineImpact = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'impact', '--verbose'], { cwd: target })
+  assert(baselineImpact.includes('Harness baseline update notice'), 'baseline update should be announced as baseline notice')
+  assert(!baselineImpact.includes('SYNC GAP review summary'), 'managed baseline doc update should not trigger sync gap summary')
+  assert(!baselineImpact.includes('common.runtime.minimum-node'), 'managed baseline doc update should not trigger runtime policy review')
+
+  fs.appendFileSync(baselinePath, '\n## Local project edit\n- 프로젝트가 직접 수정한 런타임 기준입니다.\n')
+  const localImpact = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'impact', '--verbose'], { cwd: target })
+  assert(localImpact.includes('common.runtime.minimum-node'), 'local edit to same document should still trigger runtime policy review')
+  assert(localImpact.includes('SYNC GAP'), 'local edit to same document should still be reviewed for sync gaps')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   initPatchesEslintConfigForHarnessFiles,
@@ -1076,6 +1117,7 @@ const tests = [
   scanReportSuggestsStylePresetsWhenStyleSourceMissing,
   scanReportDraftsStyleRulesFromConfigFiles,
   workflowWorkstreamChangeDoesNotTriggerCommitPushHookPolicy,
+  harnessBaselineDocUpdateDoesNotTriggerSyncGap,
 ]
 
 console.log('Init smoke tests')
