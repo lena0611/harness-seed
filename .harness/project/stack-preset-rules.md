@@ -19,3 +19,4 @@
 - 스택 manifest의 `baseHarness.minVersion`은 최소 요구 버전이고, `baseHarness.ref`는 검증된 기준 ref입니다.
 - 이미 설치된 공통 하네스가 `minVersion` 이상이면 스택 업데이트가 더 낮은 `baseHarness.ref`로 자동 downgrade하지 않습니다.
 - 정확한 공통 하네스 ref 고정이 필요한 스택만 `baseHarness.exactRefRequired: true`를 명시합니다.
+- 스택 lock의 `requiredBaseHarness.repo`는 base source metadata가 누락된 소비자 프로젝트에서 `harness:outdated`가 공통 하네스 원격 저장소를 복구하는 fallback으로도 사용됩니다.

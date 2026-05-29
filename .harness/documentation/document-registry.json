@@ -21,6 +21,7 @@
         ".claude/commands/harness-scan.md",
         ".claude/commands/memory.md",
         ".claude/commands/reminder.md",
+        ".claude/commands/하네스업데이트.md",
         ".claude/commands/운영업무.md",
         ".claude/commands/업무요약.md",
         ".claude/agents/code-reviewer.md",

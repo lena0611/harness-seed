@@ -47,6 +47,9 @@
 - 스택 하네스의 `manifest.json`은 내부에서 사용할 공통 하네스의 `baseHarness.ref`를 고정합니다.
 - 적용 프로젝트는 `.harness/harness-lock.json`으로 실제 설치된 일반/스택 하네스 ref와 version을 기록합니다.
 - 적용 후 패치나 마이너 업데이트 후보는 `npm run harness:outdated`로 확인하고, 반영하려면 `npm run harness:update`를 실행합니다. 기본 전략은 현재 설치 버전의 SemVer caret 범위 안에서 최신 태그를 다시 선택하는 방식입니다.
+- 공통 하네스만 업데이트할 때는 `npm run harness:update -- --base-only`를 사용합니다. 이 경로는 다음 업데이트 감지를 위해 `.harness/harness-lock.json`과 `.harness/install-manifest.json`에 공통 하네스의 git repo/ref/version을 남겨야 합니다.
+- update 경로에서 선택 ref가 `semver:*`이면 lock/manifest에는 실제 설치된 package version tag(`vX.Y.Z`)를 기록합니다. 그래야 다음 `harness:outdated`가 움직이는 range가 아니라 현재 설치된 기준을 명확히 비교합니다.
+- 과거 설치물에 base source가 `bundled`로 남아 있어도 스택 lock의 `requiredBaseHarness.repo`와 현재 base version으로 repo/ref를 복구할 수 있어야 합니다.
 - 여러 소비 프로젝트에 업데이트 MR을 만드는 자동화는 향후 `ai-standard-cli`가 담당합니다. 이식 대상 프로젝트 안에서는 outdated 확인과 update 실행까지만 다룹니다.
 - 사내 GitLab처럼 방화벽 내부 저장소를 쓰는 환경에서는 `git+https://git.example.com/group/my-stack-harness.git#vX.Y.Z` 형식이 가장 명시적입니다.
 - npm publish로 전환할 때는 현재 `bin.harness-seed`, `files`, `engines` 구조를 그대로 사용할 수 있습니다. publish 전에는 패키지명을 확정하고 `npm pack --dry-run`으로 포함 파일을 확인합니다.

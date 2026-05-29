@@ -167,6 +167,10 @@ function ensureGitPackageSpec(repo) {
   return `git+${repo}`
 }
 
+function stripGitPrefix(repo) {
+  return repo?.startsWith('git+') ? repo.slice(4) : repo
+}
+
 function parseSourceSpec(spec) {
   if (!spec || spec === 'bundled') {
     return {}
@@ -247,15 +251,35 @@ function buildPackageSpec(harness, opts) {
   return appendRef(ensureGitPackageSpec(repo), selectGitRef(harness, opts))
 }
 
+function buildSourceMetadataArgs(harness, opts, targetKind) {
+  if (targetKind !== 'base') {
+    return []
+  }
+
+  const repo = harness?.repo ?? harness?.source?.repo
+  if (!repo) {
+    return []
+  }
+
+  const sourceArgs = ['--source-repo', stripGitPrefix(repo)]
+  const ref = selectGitRef(harness, opts)
+  if (ref) {
+    sourceArgs.push('--source-ref', ref)
+  }
+
+  return sourceArgs
+}
+
 function buildCommand(lock, opts, installManifest) {
   if (opts.stackOnly && !lock.stackHarness) {
     throw new Error('stackHarness 정보가 lock에 없습니다. 스택 하네스 init을 먼저 실행하세요.')
   }
 
-  const label = opts.baseOnly || !lock.stackHarness ? '공통 하네스' : '스택 하네스'
+  const targetKind = opts.baseOnly || !lock.stackHarness ? 'base' : 'stack'
+  const label = targetKind === 'base' ? '공통 하네스' : '스택 하네스'
   const fallbackSource = label === '공통 하네스' ? installManifest?.source ?? {} : {}
   const selected = hydrateHarness(
-    opts.baseOnly || !lock.stackHarness
+    targetKind === 'base'
       ? lock.baseHarness
       : lock.stackHarness,
     fallbackSource,
@@ -269,7 +293,7 @@ function buildCommand(lock, opts, installManifest) {
   return {
     selected,
     command: 'npx',
-    args: ['-y', packageSpec, 'init', ...opts.forwarded],
+    args: ['-y', packageSpec, 'init', ...buildSourceMetadataArgs(selected, opts, targetKind), ...opts.forwarded],
   }
 }
 

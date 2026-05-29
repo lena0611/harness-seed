@@ -4,6 +4,13 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.51 - 2026-05-29
+
+- `harness:update -- --base-only`가 공통 하네스 init에 `--source-repo`, `--source-ref`를 전달해 git source metadata를 lock/install manifest에 보존하도록 수정했습니다.
+- init이 `semver:*` source ref로 실행된 경우 실제 설치된 package version tag(`vX.Y.Z`)로 source ref를 정규화합니다.
+- 기존 소비자 프로젝트에 base source가 `bundled`로 남아 있어도, stack의 `requiredBaseHarness.repo`와 설치된 base version으로 `harness:outdated`가 repo/ref를 복구해 `unavailable`을 피하도록 보강했습니다.
+- 사용자-facing `/하네스업데이트` command와 `하네스 업데이트 흐름` 스킬을 추가했습니다.
+
 ## 0.2.50 - 2026-05-29
 
 - `harness:outdated` 기본 동작을 공통 하네스와 스택 하네스를 함께 검사하도록 변경했습니다.

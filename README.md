@@ -208,6 +208,8 @@ npm run harness:check
 
 `harness:update`는 안전을 위해 기존처럼 현재 적용된 스택 하네스를 다시 실행합니다. 공통 하네스만 업데이트하려면 `--base-only`를 명시합니다. 기본 전략은 `compatible`이며, 현재 설치된 버전의 SemVer caret 범위 안에서 최신 태그를 선택합니다. 예를 들어 `1.0.0`이 설치되어 있으면 `^1.0.0` 범위의 최신 패치/마이너를 받습니다. 스택 업데이트 중 공통 하네스 요구사항을 볼 때는 `baseHarness.minVersion`을 우선하며, 설치된 공통 하네스가 이미 최소 버전 이상이면 `baseHarness.ref`가 더 낮아도 자동 downgrade하지 않습니다.
 
+공통 하네스만 업데이트하는 `npm run harness:update -- --base-only`는 다음 업데이트 감지를 위해 공통 하네스의 git repo/ref/version을 lock과 install manifest에 남깁니다. update가 `semver:*` range로 실행되더라도 기록되는 ref는 실제 설치된 package version tag(`vX.Y.Z`)입니다. 과거 업데이트로 base source가 `bundled`로 남은 프로젝트도 스택의 `requiredBaseHarness.repo`와 현재 base version으로 `harness:outdated`가 repo/ref를 복구합니다.
+
 ```bash
 npm run harness:outdated -- --json
 npm run harness:outdated -- --fail-on-outdated

@@ -334,6 +334,42 @@
       ]
     },
     {
+      "id": "harness.update-flow",
+      "title": "하네스 업데이트 흐름",
+      "purpose": "공통 하네스와 스택 하네스의 업데이트 후보를 분리해 확인하고, downgrade 없이 안전한 업데이트 명령을 선택한다.",
+      "audience": ["consumer", "harness-maintainer"],
+      "taskTypes": ["maintenance", "verification"],
+      "priority": "high",
+      "triggers": ["하네스 업데이트", "업데이트 후보", "outdated", "harness:update", "harness:outdated", "baseHarness", "stackHarness", "공통 하네스 업데이트", "스택 하네스 업데이트"],
+      "read": [
+        ".harness/harness-lock.json",
+        ".harness/project/stack-preset-rules.md",
+        ".harness/policy/sync-protocol.md",
+        ".harness/session/decision-log.md"
+      ],
+      "commands": [
+        "npm run harness:outdated",
+        "npm run harness:outdated -- --base-only",
+        "npm run harness:outdated -- --stack-only",
+        "npm run harness:update -- --base-only",
+        "npm run harness:update",
+        "npm run stack:status",
+        "npm run harness:scan",
+        "npm run harness:check"
+      ],
+      "outputs": [
+        "baseHarness 업데이트 필요 여부",
+        "stackHarness 업데이트 필요 여부",
+        "선택한 업데이트 명령",
+        "공통 하네스 downgrade 방지 확인",
+        "업데이트 후 검증 결과"
+      ],
+      "records": [
+        ".harness/session/decision-log.md",
+        ".harness/session/manual-actions.md"
+      ]
+    },
+    {
       "id": "harness.direct-edit-reconcile",
       "title": "개발자 직접 수정 반영 흐름",
       "purpose": "에이전트 초안 이후 개발자가 직접 수정한 내용을 사용자 소유 변경으로 보고 기준과 검증을 다시 맞춘다.",

@@ -87,6 +87,7 @@ function cleanInstallCreatesExpectedFiles() {
   assert(exists(target, `.harness/maintenance/work-history/${currentYear}/.gitkeep`), 'clean install should create year-based work history folder for git tracking')
   assert(exists(target, '.claude/commands/운영업무.md'), 'clean install should copy operational work slash command')
   assert(exists(target, '.claude/commands/업무요약.md'), 'clean install should copy work summary slash command')
+  assert(exists(target, '.claude/commands/하네스업데이트.md'), 'clean install should copy harness update slash command')
 
   const claudeInstructions = read(target, 'CLAUDE.md')
   assert(claudeInstructions.includes('하네스 자동 인식 의무'), 'CLAUDE.md should require automatic harness detection')
@@ -109,12 +110,17 @@ function cleanInstallCreatesExpectedFiles() {
 
   const skillRegistry = JSON.parse(read(target, '.harness/skills/registry.json'))
   const commitPushSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.commit-push-finalization')
+  const updateSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.update-flow')
   assert(commitPushSkill, 'consumer skill registry should include commit/push finalization skill')
   assert(commitPushSkill.audience.includes('consumer'), 'commit/push finalization skill should be consumer-facing')
   assert(commitPushSkill.read.includes('.harness/project/commit-push-rules.md'), 'commit/push finalization skill should read commit/push rules')
   assert(commitPushSkill.triggers.includes('커밋하고 푸시'), 'commit/push finalization skill should trigger on combined commit and push requests')
   assert(commitPushSkill.commands.some((command) => command.includes('git config --get core.hooksPath')), 'commit/push finalization skill should check hook installation')
   assert(commitPushSkill.outputs.includes('중복 검증 생략 여부'), 'commit/push finalization skill should report duplicate check avoidance')
+  assert(updateSkill, 'consumer skill registry should include harness update flow')
+  assert(updateSkill.audience.includes('consumer'), 'harness update flow should be consumer-facing')
+  assert(updateSkill.commands.includes('npm run harness:outdated'), 'harness update flow should check outdated state')
+  assert(updateSkill.commands.includes('npm run harness:update -- --base-only'), 'harness update flow should document base-only update')
 
   const decisionLog = read(target, '.harness/session/decision-log.md')
   assert(decisionLog.includes('소비자 프로젝트 전용 로그'), 'consumer decision log should explain project scope')
@@ -756,6 +762,75 @@ function harnessOutdatedDetectsBaseAndStackUpdates() {
 
   const recoveredBase = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json', '--base-only'], { cwd: target }))
   assert(recoveredBase.targets.baseHarness.outdated === true, 'base outdated should recover repo/ref from lock source metadata')
+
+  lock.baseHarness.repo = null
+  lock.baseHarness.ref = null
+  lock.baseHarness.version = '0.2.49'
+  lock.baseHarness.source = {
+    type: 'bundled',
+    repo: null,
+    ref: null,
+    packageVersion: '0.2.49',
+    spec: 'bundled',
+  }
+  lock.stackHarness = {
+    id: 'demo-stack',
+    version: '1.0.1',
+    repo: stackRepo,
+    ref: 'v1.0.1',
+    requiredBaseHarness: {
+      repo: baseRepo,
+      ref: 'v0.2.48',
+      minVersion: '0.2.48',
+    },
+  }
+  writeJson(target, '.harness/harness-lock.json', lock)
+  writeJson(target, '.harness/install-manifest.json', {
+    tool: 'harness-seed',
+    version: '0.2.49',
+    source: {
+      type: 'bundled',
+      repo: null,
+      ref: null,
+      packageVersion: '0.2.49',
+      spec: 'bundled',
+    },
+    managedFiles: {},
+  })
+
+  const recoveredFromStackRequirement = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json'], { cwd: target }))
+  assert(recoveredFromStackRequirement.overall === 'up-to-date', 'bundled base metadata should recover repo from stack requiredBaseHarness')
+  assert(recoveredFromStackRequirement.targets.baseHarness.status === 'up-to-date', 'recovered bundled base should not be unavailable')
+  assert(recoveredFromStackRequirement.targets.baseHarness.repo === baseRepo, 'recovered bundled base should use required base repo')
+  assert(recoveredFromStackRequirement.targets.baseHarness.currentRef === 'v0.2.49', 'recovered bundled base should infer current ref from installed version')
+}
+
+function sourceMetadataNormalizesSemverSourceRef() {
+  const target = makeTarget()
+  const sourceRepo = 'https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git'
+
+  runInit(target, '--source-repo', sourceRepo, '--source-ref', `semver:^${packageVersion}`, '--no-scan', '--no-handoff', '--no-check')
+
+  const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+
+  assert(lock.baseHarness.repo === sourceRepo, 'base lock should keep git source repo')
+  assert(lock.baseHarness.ref === packageRef, 'base lock should normalize semver source ref to installed package tag')
+  assert(lock.baseHarness.source.type === 'git', 'base lock source should be git when source repo is passed')
+  assert(lock.baseHarness.source.spec === `${sourceRepo}#${packageRef}`, 'base lock source spec should point to installed package tag')
+  assert(manifest.source.type === 'git', 'install manifest source should be git when source repo is passed')
+  assert(manifest.source.ref === packageRef, 'install manifest should normalize semver source ref to installed package tag')
+}
+
+function baseOnlyUpdateDryRunPassesSourceMetadata() {
+  const target = makeTarget()
+  const baseRepo = 'https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git'
+
+  runInit(target, '--source-repo', baseRepo, '--source-ref', 'v0.2.49', '--no-scan', '--no-handoff', '--no-check')
+
+  const output = run('npm', ['run', '--silent', 'harness:update', '--', '--base-only', '--dry-run'], { cwd: target })
+  assert(output.includes(`--source-repo ${baseRepo}`), 'base-only update should pass source repo into init')
+  assert(output.includes(`--source-ref semver:^${packageVersion}`), 'base-only update should pass selected semver ref into init')
 }
 
 function stackApplySupportsExternalPresetGit() {
@@ -991,6 +1066,8 @@ const tests = [
   stackApplyMaterializesPresetAsLocalRules,
   stackApplySupportsExternalPresetPath,
   harnessOutdatedDetectsBaseAndStackUpdates,
+  sourceMetadataNormalizesSemverSourceRef,
+  baseOnlyUpdateDryRunPassesSourceMetadata,
   stackApplySupportsExternalPresetGit,
   stackApplySupportsRulesOnlyPreset,
   templateApplyCreatesBridgeWithoutReplacingActiveStack,

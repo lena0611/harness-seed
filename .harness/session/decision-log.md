@@ -1,5 +1,12 @@
 # 결정 로그
 
+## 2026-05-29 - base-only update source metadata 보존
+- 소비자 프로젝트에서 `npm run harness:update -- --base-only` 후 공통 하네스는 `0.2.50`으로 업데이트되었지만 `.harness/harness-lock.json`과 `.harness/install-manifest.json`의 base source metadata가 `bundled`로 남는 문제가 확인되었습니다.
+- 이후 `npm run harness:outdated`가 공통 하네스 repo/ref를 찾지 못해 baseHarness를 `unavailable`로 표시했습니다.
+- 업데이트 wrapper가 공통 하네스 init을 실행할 때 `--source-repo`, `--source-ref`를 전달하도록 수정합니다.
+- init은 `semver:*` source ref를 그대로 기록하지 않고 실제 설치된 package version tag(`vX.Y.Z`)로 정규화합니다.
+- 이미 `bundled` metadata가 남아 있는 소비자 프로젝트도 stack의 `requiredBaseHarness.repo`와 현재 base version으로 repo/ref를 복구해 outdated 검사가 동작하도록 보강합니다.
+
 ## 2026-05-29 - harness:outdated 공통/스택 복합 검사
 - 소비자 프로젝트에서 스택 하네스가 최신이면 공통 하네스가 오래되어도 `npm run harness:outdated`가 `up-to-date`처럼 보이는 문제가 확인되었습니다.
 - `harness:outdated` 기본 동작은 `baseHarness`와 `stackHarness`를 모두 검사하고, 둘 중 하나라도 업데이트 후보가 있으면 전체 상태를 `outdated`로 표시합니다.

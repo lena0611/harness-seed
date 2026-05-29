@@ -240,15 +240,29 @@ function sourceForTarget(target, installManifest) {
   return target.harness?.source ?? {}
 }
 
-function resolveHarnessMetadata(target, installManifest) {
+function fallbackTagFromVersion(version) {
+  return version ? `v${version}` : null
+}
+
+function resolveHarnessMetadata(target, installManifest, lock) {
   const harness = target.harness
   const source = sourceForTarget(target, installManifest)
   const spec = parseSourceSpec(harness?.source?.spec ?? source?.spec)
+  const currentVersion = cleanVersion(harness?.version ?? harness?.source?.packageVersion ?? source?.packageVersion ?? harness?.ref ?? source?.ref ?? spec.ref)
+  const requiredBase = target.label === 'baseHarness'
+    ? lock?.stackHarness?.requiredBaseHarness ?? {}
+    : {}
+  const repo = harness?.repo ?? harness?.source?.repo ?? source?.repo ?? spec.repo ?? requiredBase.repo ?? null
+  const ref = harness?.ref
+    ?? harness?.source?.ref
+    ?? source?.ref
+    ?? spec.ref
+    ?? (repo ? fallbackTagFromVersion(currentVersion) : null)
 
   return {
-    repo: harness?.repo ?? harness?.source?.repo ?? source?.repo ?? spec.repo ?? null,
-    ref: harness?.ref ?? harness?.source?.ref ?? source?.ref ?? spec.ref ?? null,
-    currentVersion: cleanVersion(harness?.version ?? harness?.source?.packageVersion ?? source?.packageVersion ?? harness?.ref ?? source?.ref ?? spec.ref),
+    repo,
+    ref,
+    currentVersion,
     range: harness?.range ?? harness?.source?.range ?? source?.range ?? null,
   }
 }
@@ -279,9 +293,9 @@ function unavailableTargetStatus(target, harness, message) {
   }
 }
 
-function buildTargetStatus(target, opts, installManifest) {
+function buildTargetStatus(target, opts, installManifest, lock) {
   const harness = target.harness
-  const metadata = resolveHarnessMetadata(target, installManifest)
+  const metadata = resolveHarnessMetadata(target, installManifest, lock)
   const repo = metadata.repo
   const currentVersion = metadata.currentVersion
   const range = opts.range ?? metadata.range ?? compatibleRange({
@@ -334,7 +348,7 @@ function buildStatus(lock, opts, installManifest) {
     throw new Error(`${targetName} 정보가 lock에 없습니다.`)
   }
 
-  const results = targets.map((target) => buildTargetStatus(target, opts, installManifest))
+  const results = targets.map((target) => buildTargetStatus(target, opts, installManifest, lock))
   const targetMap = Object.fromEntries(results.map((status) => [status.target, status]))
   const outdated = results.some((status) => status.outdated)
   const unavailable = results.some((status) => status.status === 'unavailable')

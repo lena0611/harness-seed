@@ -867,9 +867,10 @@ function gitOutput(cwd, args) {
 
 function buildSourceMetadata(sourceRoot, opts, seedPkg) {
   const repo = opts.fromGit ?? opts.sourceRepo ?? null
-  const ref = opts.fromGit ? opts.ref : opts.sourceRef
+  const rawRef = opts.fromGit ? opts.ref : opts.sourceRef
   const commit = opts.sourceCommit ?? (opts.fromGit ? gitOutput(sourceRoot, ['rev-parse', 'HEAD']) : null)
   const packageVersion = seedPkg.version || '0.0.0'
+  const ref = normalizeSourceRef(rawRef, repo, packageVersion)
 
   return {
     type: repo ? 'git' : 'bundled',
@@ -879,6 +880,14 @@ function buildSourceMetadata(sourceRoot, opts, seedPkg) {
     packageVersion,
     spec: repo ? `${repo}${ref ? `#${ref}` : ''}` : 'bundled',
   }
+}
+
+function normalizeSourceRef(ref, repo, packageVersion) {
+  if (!repo) return null
+  if (!ref || String(ref).startsWith('semver:')) {
+    return packageVersion ? `v${packageVersion}` : null
+  }
+  return ref
 }
 
 function writeInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
