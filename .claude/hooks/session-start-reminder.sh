@@ -16,5 +16,5 @@ fi
 
 if [ -f "$QUEUE" ]; then
   printf '\n[harness] developer-input-queue check\n'
-  grep -nE 'status:[[:space:]]*(open|deferred)|open|deferred' "$QUEUE" | head -20 || true
+  grep -nE '^[[:space:]]*\|[^|]+\|[[:space:]]*(open|deferred)[[:space:]]*\|' "$QUEUE" | head -20 || true
 fi

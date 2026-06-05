@@ -111,6 +111,18 @@ function cleanInstallCreatesExpectedFiles() {
   assert(reminderCommand.includes('project/*'), 'reminder command should mention project rule pointer policy')
   assert(reminderCommand.includes('append-only로 계속 늘리지 않습니다'), 'reminder command should prevent append-only reminder growth')
 
+  const decisionCommand = read(target, '.claude/commands/decision.md')
+  assert(decisionCommand.includes('→ <대상 문서> 참조'), 'decision command should compact superseded decisions into pointers')
+  assert(decisionCommand.includes('append-only로만 늘리지 말고'), 'decision command should prevent append-only decision log growth')
+
+  const memoryCommand = read(target, '.claude/commands/memory.md')
+  assert(memoryCommand.includes('한 항목 한 줄'), 'memory command should keep memory index entries compact')
+  assert(memoryCommand.includes('supersede된 기억'), 'memory command should remove stale memory entries')
+
+  const sessionStartHook = read(target, '.claude/hooks/session-start-reminder.sh')
+  assert(sessionStartHook.includes('^[[:space:]]*\\|[^|]+\\|[[:space:]]*(open|deferred)[[:space:]]*\\|'), 'session start hook should only match actual open/deferred queue rows')
+  assert(!sessionStartHook.includes("status:[[:space:]]*(open|deferred)|open|deferred"), 'session start hook should not match queue status definitions')
+
   const commitPushRules = read(target, '.harness/project/commit-push-rules.md')
   assert(commitPushRules.includes('## 요청별 검증 경로'), 'commit/push rules should explain request-specific verification paths')
   assert(commitPushRules.includes('hook 설치 여부는 `git config core.hooksPath`가 `.githooks`'), 'commit/push rules should explain hook installation detection')
@@ -118,13 +130,19 @@ function cleanInstallCreatesExpectedFiles() {
 
   const skillRegistry = JSON.parse(read(target, '.harness/skills/registry.json'))
   const sessionStartSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.session-start')
+  const memoryHygieneSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.memory-hygiene')
   const handoffSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.handoff-flow')
   const commitPushSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.commit-push-finalization')
   const updateSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.update-flow')
   assert(sessionStartSkill, 'consumer skill registry should include session start skill')
+  assert(memoryHygieneSkill, 'consumer skill registry should include memory hygiene skill')
   assert(handoffSkill, 'consumer skill registry should include handoff skill')
   assert(sessionStartSkill.outputs.some((output) => output.includes('권위 문서 포인터')), 'session start skill should enforce pointer-based slim session files')
+  assert(sessionStartSkill.outputs.some((output) => output.includes('open/deferred')), 'session start skill should keep only actionable queue items loaded')
+  assert(memoryHygieneSkill.outputs.some((output) => output.includes('answered/obsolete')), 'memory hygiene skill should clean answered or obsolete queue items')
+  assert(memoryHygieneSkill.records.includes('.harness/session/developer-input-queue.md'), 'memory hygiene skill should record queue cleanup')
   assert(handoffSkill.outputs.some((output) => output.includes('슬림 유지')), 'handoff skill should report session file slimness')
+  assert(handoffSkill.outputs.some((output) => output.includes('기억 표면 정리')), 'handoff skill should report memory surface hygiene')
   assert(commitPushSkill, 'consumer skill registry should include commit/push finalization skill')
   assert(commitPushSkill.audience.includes('consumer'), 'commit/push finalization skill should be consumer-facing')
   assert(commitPushSkill.read.includes('.harness/project/commit-push-rules.md'), 'commit/push finalization skill should read commit/push rules')
@@ -139,9 +157,15 @@ function cleanInstallCreatesExpectedFiles() {
   const decisionLog = read(target, '.harness/session/decision-log.md')
   assert(decisionLog.includes('소비자 프로젝트 전용 로그'), 'consumer decision log should explain project scope')
   assert(decisionLog.includes('사용자가 하네스를 직접 언급하지 않았더라도'), 'consumer decision log should mention implicit harness decisions')
+  assert(decisionLog.includes('→ <대상 문서> 참조'), 'consumer decision log should describe pointer compaction')
+  assert(decisionLog.includes('append-only로만 늘리지 말고'), 'consumer decision log should describe memory hygiene')
   assert(decisionLog.includes('하네스 초기 설치 또는 업데이트'), 'consumer decision log should include install entry')
   assert(!decisionLog.includes('정식 공개 전 공개 명령 정리'), 'consumer decision log should not include seed development history')
   assert(!decisionLog.includes('시드 하네스 저장소 분리'), 'consumer decision log should not include seed repository history')
+
+  const developerInputQueue = read(target, '.harness/session/developer-input-queue.md')
+  assert(developerInputQueue.includes('상시 로드되는 큐에는 `open`과 `deferred` 항목만 유지'), 'consumer input queue should keep only open/deferred items loaded')
+  assert(developerInputQueue.includes('answered` 또는 `obsolete` 항목은 관련 문서 반영'), 'consumer input queue should remove answered or obsolete items after reflection')
 
   const activeContext = read(target, '.harness/session/active-context.md')
   assert(activeContext.includes('소비자 프로젝트 전용 문서'), 'consumer active context should explain project scope')
@@ -153,6 +177,10 @@ function cleanInstallCreatesExpectedFiles() {
   const reminder = read(target, '.harness/session/next-session-reminder.md')
   assert(reminder.includes('권위 문서 포인터'), 'consumer reminder should include authority document pointers')
   assert(reminder.includes('규칙 본문을 복사하지 않고'), 'consumer reminder should avoid copying project rule body')
+
+  const projectMemory = read(target, '.harness/session/project-memory.md')
+  assert(projectMemory.includes('한 항목은 한 줄로 유지'), 'consumer project memory should keep compact one-line entries')
+  assert(projectMemory.includes('supersede된 기억'), 'consumer project memory should remove stale facts')
 
   const pkg = JSON.parse(read(target, 'package.json'))
   assert(pkg.scripts['harness:scan'], 'clean install should merge harness scan script')

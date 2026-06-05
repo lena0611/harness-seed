@@ -52,7 +52,8 @@
         "이전 세션 요약",
         "미결 질문",
         "이번 세션 시작 전 확인할 기준",
-        "session 파일이 project 규칙 본문이 아니라 권위 문서 포인터를 유지하는지 확인"
+        "session 파일이 project 규칙 본문이 아니라 권위 문서 포인터를 유지하는지 확인",
+        "developer-input-queue가 open/deferred 항목만 상시 유지하는지 확인"
       ],
       "records": [
         ".harness/session/active-context.md",
@@ -560,6 +561,37 @@
       ]
     },
     {
+      "id": "harness.memory-hygiene",
+      "title": "기억 표면 정리 흐름",
+      "purpose": "재개 시 로드되는 decision-log, developer-input-queue, project-memory, MEMORY 인덱스가 무한 누적되지 않도록 축약, 아카이브, 제거 기준을 적용한다.",
+      "audience": ["consumer", "harness-maintainer"],
+      "taskTypes": ["maintenance", "docs", "verification"],
+      "priority": "high",
+      "triggers": ["decision", "memory", "기억", "결정", "메모리", "큐", "아카이브", "세션정리", "세션 정리"],
+      "read": [
+        ".harness/session/README.md",
+        ".harness/session/decision-log.md",
+        ".harness/session/developer-input-queue.md",
+        ".harness/session/project-memory.md",
+        ".harness/project/workflow-rules.md"
+      ],
+      "commands": [
+        "npm run harness:impact"
+      ],
+      "outputs": [
+        "supersede된 결정 항목 축약 여부",
+        "answered/obsolete 큐 항목 제거 또는 아카이브 여부",
+        "project-memory 또는 MEMORY 인덱스의 중복/오래된 사실 정리 여부",
+        "project/* 권위 문서 포인터"
+      ],
+      "records": [
+        ".harness/session/decision-log.md",
+        ".harness/session/developer-input-queue.md",
+        ".harness/session/project-memory.md",
+        ".harness/project/*"
+      ]
+    },
+    {
       "id": "harness.handoff-flow",
       "title": "작업 인계 흐름",
       "purpose": "설치, 업데이트, 큰 작업 종료 후 다음 사람이 바로 이어받을 요약을 만든다.",
@@ -581,7 +613,8 @@
         "이번 작업 요약",
         "남은 위험",
         "다음 세션 시작점",
-        "next-session-reminder/active-context 슬림 유지 여부"
+        "next-session-reminder/active-context 슬림 유지 여부",
+        "decision-log/developer-input-queue/project-memory 기억 표면 정리 여부"
       ],
       "records": [
         ".harness/session/next-session-reminder.md",

@@ -43,8 +43,9 @@ Claude Code에서는 `SessionStart` hook이 `next-session-reminder.md`를 자동
 - 프로젝트가 커지면 ownership map 또는 boundary map 추가 여부 재판단
 
 ## 개발자 입력 요청 원칙
-- 개발자 정보 부족 때문에 완료되지 못한 항목은 `developer-input-queue.md`에 유지합니다.
+- 개발자 정보 부족 때문에 완료되지 못한 `open`/`deferred` 항목은 `developer-input-queue.md`에 유지합니다.
 - 새 세션에서는 큐의 `open` 또는 `deferred` 항목을 개발자에게 다시 확인합니다.
+- `answered` 또는 `obsolete` 항목은 관련 문서 반영을 확인한 뒤 큐에서 제거하거나 아카이브합니다.
 - 개발자는 다음 중 하나를 선택할 수 있습니다.
   1. 지금 답변
   2. 이번 세션에서는 유보

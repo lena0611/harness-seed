@@ -31,4 +31,6 @@
 - `open` 또는 `deferred` 항목은 `session-start-alert.md`에서 반드시 언급합니다.
 - 개발자가 유보를 선택하면 해당 항목을 삭제하지 말고 `deferred`로 바꿉니다.
 - 답변을 받으면 관련 문서(`project-charter.md`, `active-context.md`, `decision-log.md`)를 함께 갱신합니다.
+- `answered` 또는 `obsolete` 항목은 관련 문서 반영을 확인한 뒤 큐에서 제거하거나 날짜별 아카이브로 옮깁니다.
+- 상시 로드되는 큐에는 `open`과 `deferred` 항목만 유지합니다.
 - 강제 강도나 예외 허용 범위가 애매한 항목도 이 큐 또는 직접 질의 대상으로 올립니다.

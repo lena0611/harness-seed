@@ -4,6 +4,13 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.55 - 2026-06-06
+
+- 세션 슬림 원칙을 `decision-log.md`, `developer-input-queue.md`, `project-memory.md`, `MEMORY.md`류 인덱스까지 확장하는 기억 표면 정리 기준을 추가했습니다.
+- `/decision`, `/memory`, session README, session boot, skill registry에 supersede된 결정 축약, answered/obsolete 큐 제거, 중복 기억 업데이트 원칙을 반영했습니다.
+- 신규 설치용 소비자 session 시드에 결정 로그 아카이브, 큐 open/deferred 유지, project memory 한 줄 인덱스 원칙을 추가했습니다.
+- SessionStart hook이 developer-input-queue의 상태 정의 줄을 오탐하지 않고 실제 `open`/`deferred` 테이블 행만 표시하도록 정규식을 좁혔습니다.
+
 ## 0.2.54 - 2026-06-05
 
 - `next-session-reminder.md`, `active-context.md`가 프로젝트 규칙 본문을 복사해 비대해지지 않도록 세션 파일 슬림 유지 원칙을 `/reminder`, session README, decision-flow, skill registry에 반영했습니다.

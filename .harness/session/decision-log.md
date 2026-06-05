@@ -1,5 +1,10 @@
 # 결정 로그
 
+## 2026-06-06 - 축적형 기억 표면 정리 기준 승격
+- v0.2.54의 세션 슬림 원칙은 `next-session-reminder.md`, `active-context.md` 중심이라 재개 시 로드되는 `decision-log.md`, `developer-input-queue.md`, `project-memory.md`, `MEMORY.md`류 인덱스의 무한 누적을 막기에는 부족했습니다.
+- 세션/기억 운영 기준은 회사 공통 기본 운영 기준으로 보고, 실제 소비자 내용은 project-owned로 보존하되 본체는 `/decision`, `/memory`, session README, skill registry, 신규 설치 시드에 정리 규율을 내립니다.
+- 원칙: supersede된 결정은 포인터로 축약하거나 날짜별 스냅샷으로 아카이브하고, 큐에는 `open`/`deferred`만 상시 유지하며, 장기 기억 인덱스는 같은 사실을 중복 추가하지 않고 기존 항목을 갱신합니다.
+
 ## 2026-05-29 - base-only update source metadata 보존
 - 소비자 프로젝트에서 `npm run harness:update -- --base-only` 후 공통 하네스는 `0.2.50`으로 업데이트되었지만 `.harness/harness-lock.json`과 `.harness/install-manifest.json`의 base source metadata가 `bundled`로 남는 문제가 확인되었습니다.
 - 이후 `npm run harness:outdated`가 공통 하네스 repo/ref를 찾지 못해 baseHarness를 `unavailable`로 표시했습니다.

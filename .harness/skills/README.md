@@ -45,6 +45,7 @@ Claude Code의 slash command나 Codex의 외부 skill 시스템과 같은 실행
 | `개발자 직접 수정 반영 흐름` | 에이전트 초안 뒤 개발자가 직접 고친 diff를 다시 해석할 때 |
 | `최종 검증 흐름` | 사용자가 최종 검증만 요청했거나 커밋 전 후보 정리가 필요할 때 |
 | `커밋/푸시 최종화 흐름` | 커밋/푸시 승인 뒤 hook 검증 경로를 고르고 중복 `harness:check`를 피할 때 |
+| `기억 표면 정리 흐름` | decision-log, developer-input-queue, project-memory가 무한 누적되지 않게 축약/아카이브/제거할 때 |
 | `작업 인계 흐름` | 세션 종료나 큰 작업 종료 시 다음 사람이 이어받게 할 때 |
 
 ## 관계

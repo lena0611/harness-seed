@@ -610,6 +610,9 @@ function consumerProjectStateTemplate(rel, context) {
 - 단순 작업 로그나 일회성 구현 세부사항은 남기지 않습니다.
 - 사용자가 하네스를 직접 언급하지 않았더라도, 하네스 설치 후 반복 규칙으로 굳어진 결정은 이 문서와 \`.harness/project/*\`에 남깁니다.
 - 임시 예외는 가능하면 \`.harness/policy/waivers.json\`에 범위와 만료 조건을 함께 남깁니다.
+- 결정이 \`.harness/project/*\` 규칙으로 굳으면 기존 항목 본문은 \`→ <대상 문서> 참조\` 포인터로 축약합니다.
+- 오래된 결정은 날짜별 \`decision-log-YYYYH1.md\`, \`decision-log-YYYYH2.md\`, \`thread-handoff-YYYY-MM-DD.md\` 같은 스냅샷으로 아카이브하고, 현재 파일은 최근/유효 결정만 유지합니다.
+- append-only로만 늘리지 말고 갱신 전 supersede된 항목을 먼저 정리합니다.
 
 ## ${generatedAt.slice(0, 10)} - 하네스 초기 설치 또는 업데이트
 - baseHarness: ${packageVersion}
@@ -639,6 +642,8 @@ function consumerProjectStateTemplate(rel, context) {
 ## 운영 원칙
 - 답변을 받으면 관련 문서(\`project-charter.md\`, \`active-context.md\`, \`decision-log.md\`)를 함께 갱신합니다.
 - 유보된 질문은 삭제하지 않고 \`deferred\`로 남깁니다.
+- \`answered\` 또는 \`obsolete\` 항목은 관련 문서 반영을 확인한 뒤 큐에서 제거하거나 날짜별 아카이브로 옮깁니다.
+- 상시 로드되는 큐에는 \`open\`과 \`deferred\` 항목만 유지합니다.
 - 에이전트는 구현 중 추측이 필요한 반복 규칙을 만나면 사용자에게 인터뷰하거나 이 큐에 \`open\` 항목을 추가합니다.
 `;
 
@@ -711,6 +716,8 @@ function consumerProjectStateTemplate(rel, context) {
 - 한 번뿐인 구현 세부사항은 기록하지 않습니다.
 - 반복되는 도메인 규칙, 아키텍처 경계, 검증 기준만 남깁니다.
 - 오래된 사실을 바꿀 때는 \`decision-log.md\`에 변경 이유를 남깁니다.
+- 한 항목은 한 줄로 유지하고, 같은 사실은 새 항목으로 추가하지 말고 기존 항목을 업데이트합니다.
+- 틀렸거나 supersede된 기억은 현재 파일에 남겨두지 말고 삭제하거나 유효한 사실로 교체합니다.
 `;
 
     default:
