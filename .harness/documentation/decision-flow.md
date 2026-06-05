@@ -92,6 +92,7 @@
 - 개발자 입력이 필요한 항목은 `developer-input-queue.md`에 남깁니다.
 - 문서가 길어지면 documentation harness 기준으로 분리합니다.
 - 사용자가 `세션종료`라고 말하면 `next-session-reminder.md`를 다음 세션용 요약으로 갱신합니다.
+- `next-session-reminder.md`와 `active-context.md`에는 project 규칙 본문을 복사하지 말고, `workflow-rules.md` 등 권위 문서 포인터로 축약합니다.
 
 ## 이 저장소에서의 실제 적용 예
 

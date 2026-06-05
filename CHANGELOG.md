@@ -4,6 +4,12 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.54 - 2026-06-05
+
+- `next-session-reminder.md`, `active-context.md`가 프로젝트 규칙 본문을 복사해 비대해지지 않도록 세션 파일 슬림 유지 원칙을 `/reminder`, session README, decision-flow, skill registry에 반영했습니다.
+- 신규 설치용 소비자 세션 템플릿을 체크리스트와 권위 문서 포인터 중심으로 정리했습니다.
+- 기존 소비자 프로젝트의 project-owned 세션 파일은 업데이트 시 덮어쓰지 않는 보존 동작을 유지합니다.
+
 ## 0.2.53 - 2026-06-05
 
 - `harness:check`가 ignored `.harness/.stack-applied.json` 마커만으로 스택 적용 여부를 판단하던 문제를 수정했습니다.

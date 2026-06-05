@@ -15,3 +15,6 @@ allowed-tools: Read, Write, Edit
 ## 기준
 - 이 파일은 다음 세션 시작 시 Claude Code `SessionStart` hook으로 표시됩니다.
 - 본체 릴리스 변경 이력은 `CHANGELOG.md`에 남기고, 프로젝트별 이어받을 맥락만 여기에 둡니다.
+- `next-session-reminder.md`는 부트스트랩 체크리스트, 현재 미결 항목, 권위 문서 포인터만 담습니다.
+- `project/*`, 특히 `workflow-rules.md`의 운영 규칙 본문을 복사하지 말고 링크나 파일 경로로 가리킵니다.
+- 갱신 전에 기존 내용 중 `project/*`와 중복되는 규칙 본문이 있으면 먼저 포인터로 축약하고, 그 뒤에 새 항목을 추가합니다. append-only로 계속 늘리지 않습니다.

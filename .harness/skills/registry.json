@@ -51,7 +51,8 @@
       "outputs": [
         "이전 세션 요약",
         "미결 질문",
-        "이번 세션 시작 전 확인할 기준"
+        "이번 세션 시작 전 확인할 기준",
+        "session 파일이 project 규칙 본문이 아니라 권위 문서 포인터를 유지하는지 확인"
       ],
       "records": [
         ".harness/session/active-context.md",
@@ -579,7 +580,8 @@
       "outputs": [
         "이번 작업 요약",
         "남은 위험",
-        "다음 세션 시작점"
+        "다음 세션 시작점",
+        "next-session-reminder/active-context 슬림 유지 여부"
       ],
       "records": [
         ".harness/session/next-session-reminder.md",

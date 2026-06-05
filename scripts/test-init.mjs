@@ -107,14 +107,24 @@ function cleanInstallCreatesExpectedFiles() {
   assert(sessionStartAlert.includes('사용자가 하네스를 언급하지 않는 것은 하네스를 비활성화한다는 뜻이 아닙니다'), 'session start alert should keep harness active without explicit mention')
   assert(sessionStartAlert.includes('선행 `harness:check`를 중복 실행하지 않습니다'), 'session start alert should mention duplicate check avoidance')
 
+  const reminderCommand = read(target, '.claude/commands/reminder.md')
+  assert(reminderCommand.includes('project/*'), 'reminder command should mention project rule pointer policy')
+  assert(reminderCommand.includes('append-only로 계속 늘리지 않습니다'), 'reminder command should prevent append-only reminder growth')
+
   const commitPushRules = read(target, '.harness/project/commit-push-rules.md')
   assert(commitPushRules.includes('## 요청별 검증 경로'), 'commit/push rules should explain request-specific verification paths')
   assert(commitPushRules.includes('hook 설치 여부는 `git config core.hooksPath`가 `.githooks`'), 'commit/push rules should explain hook installation detection')
   assert(commitPushRules.includes('commit hook에서 같은 검증이 다시 실행될 수 있음'), 'commit/push rules should warn about intentional manual check duplication')
 
   const skillRegistry = JSON.parse(read(target, '.harness/skills/registry.json'))
+  const sessionStartSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.session-start')
+  const handoffSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.handoff-flow')
   const commitPushSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.commit-push-finalization')
   const updateSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.update-flow')
+  assert(sessionStartSkill, 'consumer skill registry should include session start skill')
+  assert(handoffSkill, 'consumer skill registry should include handoff skill')
+  assert(sessionStartSkill.outputs.some((output) => output.includes('권위 문서 포인터')), 'session start skill should enforce pointer-based slim session files')
+  assert(handoffSkill.outputs.some((output) => output.includes('슬림 유지')), 'handoff skill should report session file slimness')
   assert(commitPushSkill, 'consumer skill registry should include commit/push finalization skill')
   assert(commitPushSkill.audience.includes('consumer'), 'commit/push finalization skill should be consumer-facing')
   assert(commitPushSkill.read.includes('.harness/project/commit-push-rules.md'), 'commit/push finalization skill should read commit/push rules')
@@ -136,7 +146,13 @@ function cleanInstallCreatesExpectedFiles() {
   const activeContext = read(target, '.harness/session/active-context.md')
   assert(activeContext.includes('소비자 프로젝트 전용 문서'), 'consumer active context should explain project scope')
   assert(activeContext.includes('사용자가 "하네스"를 언급하지 않아도'), 'consumer active context should remind agents to auto-detect harness')
+  assert(activeContext.includes('운영 규칙 본문은 복사하지 않고'), 'consumer active context should stay slim and point to project rules')
+  assert(activeContext.includes('.harness/project/workflow-rules.md'), 'consumer active context should point to workflow rules')
   assert(!activeContext.includes('일반화 하네스 + 외부 스택 기준 런타임'), 'consumer active context should not include seed current state')
+
+  const reminder = read(target, '.harness/session/next-session-reminder.md')
+  assert(reminder.includes('권위 문서 포인터'), 'consumer reminder should include authority document pointers')
+  assert(reminder.includes('규칙 본문을 복사하지 않고'), 'consumer reminder should avoid copying project rule body')
 
   const pkg = JSON.parse(read(target, 'package.json'))
   assert(pkg.scripts['harness:scan'], 'clean install should merge harness scan script')

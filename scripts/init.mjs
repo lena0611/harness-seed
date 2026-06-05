@@ -580,11 +580,21 @@ function consumerProjectStateTemplate(rel, context) {
 - 프로젝트 구조 분석 결과는 \`.harness/session/project-scan-report.md\`를 확인합니다.
 - 설치/업데이트 직후 요약은 \`.harness/session/handoff.md\`를 확인합니다.
 
+## 기준 포인터
+- 에이전트 진입과 항상 읽는 기준: \`CLAUDE.md\`
+- 개발/검증/운영 흐름 규칙: \`.harness/project/workflow-rules.md\`
+- 커밋/푸시 hook 운영 기준: \`.harness/project/commit-push-rules.md\`
+- 프로젝트 도메인/구조 규칙: \`.harness/project/domain-rules.md\`, \`.harness/project/architecture-rules.md\`
+
 ## 확인할 일
 - 에이전트는 사용자가 "하네스"를 언급하지 않아도 루트의 \`.harness/\`를 감지하면 하네스 작업 프로토콜을 적용해야 합니다.
 - \`.harness/project/project-charter.md\`의 TBD 항목을 프로젝트 상황에 맞게 채웁니다.
 - 큰 작업이나 낯선 영역이면 에이전트가 \`npm run harness:context -- "<작업 설명>"\`으로 판단 컨텍스트를 만듭니다.
 - 작업 후 \`npm run harness:check\`로 기준, 링크, 검증 상태를 확인합니다.
+
+## 슬림 유지 원칙
+- 이 문서는 프로젝트 고정 사실, 최신 작업 상태, 다음 핸드오프만 짧게 남깁니다.
+- 운영 규칙 본문은 복사하지 않고 \`.harness/project/*\`와 \`CLAUDE.md\`를 단일 출처로 가리킵니다.
 `;
 
     case '.harness/session/decision-log.md':
@@ -664,10 +674,21 @@ function consumerProjectStateTemplate(rel, context) {
 4. \`.harness/session/developer-input-queue.md\`
 5. 사용자가 하네스를 언급하지 않아도 \`.harness/\`가 있으면 하네스 작업 프로토콜을 적용할 것
 
+## 권위 문서 포인터
+- 항상 읽는 기준: \`CLAUDE.md\`
+- 작업 흐름/검증/완료 승인: \`.harness/project/workflow-rules.md\`
+- 커밋/푸시 기준: \`.harness/project/commit-push-rules.md\`
+- 도메인/구조 규칙: \`.harness/project/domain-rules.md\`, \`.harness/project/architecture-rules.md\`
+
 ## 다음 작업
 - 프로젝트 헌장 TBD 항목을 확인합니다.
 - 이번 작업 설명이 있으면 \`npm run harness:context -- "<작업 설명>"\`으로 읽을 기준을 좁힙니다.
 - 작업 후 \`npm run harness:check\`를 실행합니다.
+
+## 슬림 유지 원칙
+- 이 문서는 부트스트랩 체크리스트와 다음 세션 미결 항목만 남깁니다.
+- \`.harness/project/*\` 규칙 본문을 복사하지 않고 위 포인터로 가리킵니다.
+- 갱신할 때는 append-only로 늘리지 말고, 오래된 규칙 본문을 포인터로 축약한 뒤 새 항목을 추가합니다.
 `;
 
     case '.harness/session/project-memory.md':
