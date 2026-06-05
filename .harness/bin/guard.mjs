@@ -19,7 +19,6 @@ const lockPath = path.join(harnessRoot, 'harness-lock.json')
 const checkCachePath = path.join(harnessRoot, 'generated/check-cache.json')
 const impactSummaryPath = path.join(harnessRoot, 'generated/policy-impact-summary.json')
 const profilePath = path.join(harnessRoot, harnessRoot.endsWith('.harness') ? 'policy/profile.json' : 'policy-harness/profile.json')
-const stackApplied = fs.existsSync(markerPath)
 const strictMode = forwardedArgs.includes('--strict') || (() => {
   try {
     return JSON.parse(fs.readFileSync(profilePath, 'utf8'))?.harnessMode === 'strict'
@@ -84,8 +83,16 @@ function validationCacheKey(scriptNames) {
     hash.update(`${filePath}:${hashFileIfExists(filePath)}\n`)
   }
 
-  for (const filePath of ['package.json', 'package-lock.json', '.harness/harness-lock.json', '.harness/.stack-applied.json']) {
+  for (const filePath of ['package.json', 'package-lock.json', '.harness/harness-lock.json', '.harness/policy/profile.json']) {
     hash.update(`${filePath}:${hashFileIfExists(filePath)}\n`)
+  }
+
+  const stackState = resolveStackState()
+  if (stackState.manifestRelPath) {
+    hash.update(`${stackState.manifestRelPath}:${hashFileIfExists(stackState.manifestRelPath)}\n`)
+  }
+  if (stackState.marker?.manifestPath) {
+    hash.update(`${stackState.marker.manifestPath}:${hashFileIfExists(stackState.marker.manifestPath)}\n`)
   }
 
   hash.update(`scripts:${scriptNames.join(',')}\n`)
@@ -402,10 +409,10 @@ function readImpactSummary() {
   })
 }
 
-function printConsumerSummary({ validationResults, edgeResult, criticalResult, cacheHit = false, stackSkipped = false }) {
+function printConsumerSummary({ validationResults, edgeResult, criticalResult, cacheHit = false, stackSkipped = false, failedReason = null }) {
   const impact = readImpactSummary()
   const levels = impact.syncGapLevels ?? {}
-  const requiredCount = (levels.blocking ?? 0) + (levels['action required'] ?? 0)
+  const requiredCount = (levels.blocking ?? 0) + (levels['action required'] ?? 0) + (failedReason ? 1 : 0)
   const suggestedCount = levels['review suggested'] ?? 0
   const infoCount = levels.info ?? 0
   const openManualActions = countOpenManualActions()
@@ -427,12 +434,15 @@ function printConsumerSummary({ validationResults, edgeResult, criticalResult, c
 
   console.log('')
   console.log('Harness check summary')
-  console.log(`결과: ${requiredCount === 0 ? '통과' : '조치 필요'}`)
+  console.log(`결과: ${failedReason ? '실패' : requiredCount === 0 ? '통과' : '조치 필요'}`)
   console.log(`필수 조치: ${requiredCount === 0 ? '없음' : `${requiredCount}건`}`)
   console.log(`주의: ${suggestedCount === 0 ? '없음' : `SYNC GAP review suggested ${suggestedCount}건`}`)
   console.log(`수동 조치: ${openManualActions === 0 ? '없음' : `${openManualActions}건 (.harness/session/manual-actions.md 확인)`}`)
   console.log(`추천 조치: ${recommendedActions.length === 0 ? '없음' : recommendedActions.join(', ')}`)
   console.log(`검증: ${cacheHit ? '캐시 재사용' : passedValidations.length > 0 ? `${passedValidations.join(', ')} 통과` : stackSkipped ? '스택 미적용으로 lint/test/build 스킵' : '실행된 프로젝트 검증 없음'}`)
+  if (failedReason) {
+    console.log(`실패 사유: ${failedReason}`)
+  }
   if (criticalResult.recommendations.length > 0) {
     console.log('중요 경로 추천 검증:')
     for (const recommendation of criticalResult.recommendations) {
@@ -450,6 +460,60 @@ function readJson(absPath, fallback = null) {
     return JSON.parse(fs.readFileSync(absPath, 'utf8'))
   } catch {
     return fallback
+  }
+}
+
+function toRepoRelative(absPath) {
+  return path.relative(repoRoot, absPath).replaceAll(path.sep, '/')
+}
+
+function resolveStackState() {
+  const profile = readJson(profilePath, { activeStack: 'none' })
+  const marker = readJson(markerPath)
+  const lock = readJson(lockPath, { version: 1 })
+  const activeStack = profile.activeStack && profile.activeStack !== 'none'
+    ? profile.activeStack
+    : marker?.stackId ?? 'none'
+
+  if (!activeStack || activeStack === 'none') {
+    return {
+      applied: false,
+      activeStack: 'none',
+      marker,
+      reason: 'no-active-stack',
+    }
+  }
+
+  const manifestCandidates = [
+    profile.stackManifest,
+    lock.stackHarness?.manifestPath,
+    marker?.manifestPath,
+    `.harness/stacks/.applied/${activeStack}/manifest.json`,
+  ].filter(Boolean)
+
+  for (const candidate of manifestCandidates) {
+    const absPath = path.resolve(repoRoot, candidate)
+    if (fs.existsSync(absPath)) {
+      return {
+        applied: true,
+        activeStack,
+        marker,
+        manifestPath: absPath,
+        manifestRelPath: toRepoRelative(absPath),
+        derivedFrom: fs.existsSync(markerPath) && marker?.manifestPath === candidate
+          ? 'marker'
+          : 'tracked snapshot',
+        markerMissing: !fs.existsSync(markerPath),
+      }
+    }
+  }
+
+  return {
+    applied: false,
+    activeStack,
+    marker,
+    reason: 'missing-stack-snapshot',
+    expectedManifest: manifestCandidates[0] ?? `.harness/stacks/.applied/${activeStack}/manifest.json`,
   }
 }
 
@@ -546,12 +610,33 @@ if (fs.existsSync(path.join(repoRoot, '.harness-seed-mode')) && fs.existsSync(pa
   run('node', ['scripts/test-init.mjs'])
 }
 
-if (!stackApplied) {
+const stackState = resolveStackState()
+if (!stackState.applied) {
   console.log('')
-  console.log(`Stack not applied (${path.relative(repoRoot, markerPath)} 없음). lint/test/build 단계는 건너뜁니다.`)
-  console.log('스택 기준을 적용하려면: npm run stack:apply')
+  if (stackState.reason === 'missing-stack-snapshot') {
+    console.error(`Stack state is incomplete: activeStack=${stackState.activeStack} 이지만 추적 가능한 스택 스냅샷을 찾지 못했습니다.`)
+    console.error(`expected: ${stackState.expectedManifest}`)
+    console.error('fresh worktree/clone/CI에서도 검증되도록 스택 하네스 init 또는 npm run stack:apply를 다시 실행하고 .harness/stacks/.applied/<stack>/ 을 커밋하세요.')
+    printConsumerSummary({
+      validationResults,
+      edgeResult,
+      criticalResult,
+      stackSkipped: true,
+      failedReason: 'activeStack은 설정됐지만 추적 가능한 스택 스냅샷이 없어 프로젝트 검증을 신뢰할 수 없습니다.',
+    })
+    process.exit(1)
+  }
+
+  console.log('Stack not applied: activeStack=none. lint/test/build 단계는 건너뜁니다.')
+  console.log('스택 기준을 적용하려면: npm run standards:list 후 해당 스택 하네스 init을 실행하세요.')
   printConsumerSummary({ validationResults, edgeResult, criticalResult, stackSkipped: true })
   process.exit(0)
+}
+
+if (stackState.markerMissing) {
+  console.log('')
+  console.log(`Stack applied state derived from tracked snapshot: ${stackState.manifestRelPath}`)
+  console.log(`${path.relative(repoRoot, markerPath)} 마커는 없지만 추적된 스택 스냅샷이 있어 lint/test/build를 계속 실행합니다.`)
 }
 
 const scriptPlan = [

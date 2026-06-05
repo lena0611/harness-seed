@@ -1088,6 +1088,53 @@ function harnessBaselineDocUpdateDoesNotTriggerSyncGap() {
   assert(localImpact.includes('SYNC GAP'), 'local edit to same document should still be reviewed for sync gaps')
 }
 
+function guardDerivesAppliedStackFromTrackedSnapshotWhenMarkerMissing() {
+  const target = makeTarget()
+  const preset = makeRulesOnlyPreset()
+
+  writeJson(target, 'package.json', {
+    name: 'stack-derived-check-target',
+    private: true,
+    type: 'module',
+    scripts: {
+      lint: "node -e \"require('fs').writeFileSync('lint-ran.txt', 'yes')\"",
+    },
+  })
+
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
+  fs.rmSync(path.join(target, '.harness/.stack-applied.json'), { force: true })
+
+  const output = run('npm', ['run', 'harness:check', '--', '--no-cache', '--brief'], { cwd: target })
+  assert(output.includes('Stack applied state derived from tracked snapshot'), 'guard should derive stack state from tracked snapshot when marker is missing')
+  assert(!output.includes('Stack not applied'), 'guard should not silently skip project validations when tracked stack snapshot exists')
+  assert(exists(target, 'lint-ran.txt'), 'guard should run lint when stack snapshot exists without local marker')
+}
+
+function guardFailsWhenActiveStackHasNoTrackedSnapshot() {
+  const target = makeTarget()
+
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  writeJson(target, '.harness/policy/profile.json', {
+    activeStack: 'missing-stack',
+    stackManifest: '.harness/stacks/.applied/missing-stack/manifest.json',
+  })
+  fs.rmSync(path.join(target, '.harness/.stack-applied.json'), { force: true })
+
+  let output = ''
+  let failed = false
+  try {
+    run(nodeBin, [path.join(target, '.harness/bin/guard.mjs'), '--brief'], { cwd: target })
+  } catch (error) {
+    failed = true
+    output = `${error.stdout ?? ''}\n${error.stderr ?? ''}`
+  }
+
+  assert(failed, 'guard should fail when activeStack is set but no tracked stack snapshot exists')
+  assert(output.includes('Stack state is incomplete'), 'guard failure should explain incomplete stack state')
+  assert(output.includes('결과: 실패'), 'consumer summary should show failure instead of pass')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   initPatchesEslintConfigForHarnessFiles,
@@ -1118,6 +1165,8 @@ const tests = [
   scanReportDraftsStyleRulesFromConfigFiles,
   workflowWorkstreamChangeDoesNotTriggerCommitPushHookPolicy,
   harnessBaselineDocUpdateDoesNotTriggerSyncGap,
+  guardDerivesAppliedStackFromTrackedSnapshotWhenMarkerMissing,
+  guardFailsWhenActiveStackHasNoTrackedSnapshot,
 ]
 
 console.log('Init smoke tests')

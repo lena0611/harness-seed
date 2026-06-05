@@ -72,7 +72,9 @@ npm install
 npm run harness:check
 ```
 
-- 스택 미적용 상태에서도 `npm run harness:check`는 일반 인프라 검사(기준 동기화 + 문서)만 실행하고 lint/test/build는 건너뜁니다.
+- 스택 미적용 상태(`activeStack: none`)에서는 `npm run harness:check`가 일반 인프라 검사(기준 동기화 + 문서)만 실행하고 lint/test/build는 건너뜁니다.
+- 스택 적용 후에는 `.harness/stacks/.applied/<stack>/manifest.json` 스냅샷을 기준으로 fresh clone, worktree, CI에서도 적용 상태를 복원합니다. `.harness/.stack-applied.json` 마커가 없더라도 스냅샷이 있으면 lint/test/build가 실행됩니다.
+- `activeStack`이 설정됐지만 스택 스냅샷이 없으면 검증을 통과로 보지 않습니다. 이 경우 스택 하네스 init 또는 `npm run stack:apply`를 다시 실행합니다.
 - 일반 프로젝트 개발자에게는 스택 하네스의 `npx ... init` 흐름을 우선 안내합니다. 위 `stack:apply` 흐름은 이미 공통 하네스가 설치된 관리자/고급 흐름입니다.
 - `source.type=none`인 스택 기준은 파일 복사 없이 `.harness/project/stack-preset-rules.md`만 갱신합니다.
 - 스택을 바꾸고 싶으면 `npm run stack:reset` 으로 먼저 적용을 되돌린 뒤 `activeStack`을 바꾸고 다시 `stack:apply`를 실행합니다.

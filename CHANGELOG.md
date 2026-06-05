@@ -4,6 +4,12 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.53 - 2026-06-05
+
+- `harness:check`가 ignored `.harness/.stack-applied.json` 마커만으로 스택 적용 여부를 판단하던 문제를 수정했습니다.
+- 이제 fresh clone, git worktree, CI처럼 마커가 없는 환경에서도 `profile.activeStack`과 커밋된 `.harness/stacks/.applied/<stack>/manifest.json` 스냅샷으로 스택 적용 상태를 복원해 lint/test/build를 실행합니다.
+- `activeStack`은 설정됐지만 추적 가능한 스택 스냅샷이 없으면 검증을 조용히 통과시키지 않고 실패로 처리합니다.
+
 ## 0.2.52 - 2026-05-29
 
 - `harness:update`로 들어온 본체 baseline 문서 변경이 소비자 프로젝트의 로컬룰 변경처럼 SYNC GAP을 발생시키지 않도록, install manifest 해시와 일치하는 baseline/generated 파일을 정책 매칭에서 제외했습니다.

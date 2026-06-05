@@ -424,7 +424,7 @@ npm run harness:check
 | test | `package.json`에 `test` script가 있을 때 `npm run test` | 적용 프로젝트가 정의한 테스트를 실행합니다. script가 없으면 건너뜁니다. |
 | build | `package.json`에 `build` script가 있을 때 `npm run build` | 적용 프로젝트가 정의한 빌드 또는 패키징 검증을 실행합니다. script가 없으면 건너뜁니다. |
 
-lint/test/build는 스택이 적용되어 `.harness/.stack-applied.json`이 있을 때만 실행됩니다. 스택 미적용 상태에서는 공통 하네스 검사만 실행하고, 프로젝트 업무 코드 검증은 스택 선택 이후로 미룹니다.
+lint/test/build는 스택이 적용되어 추적 가능한 `.harness/stacks/.applied/<stack>/manifest.json` 스냅샷이 있을 때 실행됩니다. `.harness/.stack-applied.json`은 머신 로컬 마커이므로 fresh clone, worktree, CI에서 없을 수 있고, 이때도 `profile.json`의 `activeStack`과 커밋된 스택 스냅샷으로 적용 상태를 복원합니다. `activeStack`은 있는데 스냅샷을 찾지 못하면 검증을 조용히 건너뛰지 않고 실패로 처리합니다.
 
 변경 파일 출력은 기본적으로 feature/source, 로컬 하네스, 설정, 하네스 baseline으로 그룹화합니다. 설치 직후처럼 성공/실패만 빠르게 보고 싶을 때는 `--brief`를 씁니다. `--brief`에서는 lint/test/build가 성공하면 한 줄로 요약하고, 실패했을 때만 원문 로그와 원인 후보를 보여줍니다. 설치 baseline 파일 전체가 필요할 때만 상세 옵션을 사용합니다. 하네스 업데이트로 본체 baseline 문서만 갱신된 경우에는 `Harness baseline update notice`로 안내하고, 소비자 프로젝트가 앱 코드나 decision-log를 억지로 추가하지 않아도 되도록 정책 sync gap 후보에서 제외합니다.
 
