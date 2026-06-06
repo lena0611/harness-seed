@@ -1,5 +1,12 @@
 # 결정 로그
 
+## 2026-06-06 - visible trace 조건부 리마인더 본체 반영
+- visible trace는 실제 업무 진행 보고에 적용되는 런타임 보고 규약이며, 단순 질문 응답·잡담·메타 확인에는 강요하지 않습니다.
+- 긴 세션에서 규약이 풍화되지 않도록 Claude UserPromptSubmit hook, Codex inject-context hook, Copilot instructions에 같은 조건부 리마인더 문구를 둡니다.
+- 응답 형식은 정적 파일 검사로 안정적으로 판정할 수 없으므로 `harness:check` 차단 대상이 아니라 어댑터 주입과 진입점 문서 리마인더로 보강합니다.
+- `.harness/generated/**`나 task-context 같은 생성 컨텍스트를 진실 출처로 승격하지 않습니다. 이번 변경은 생성 산출물 처리 기준이 아니라 보고 형식 리마인더의 적용/면제 경계를 명시한 것입니다.
+- `portability-guide.md`의 플랫폼 어댑터 계약은 scaffold/template 계약을 바꾸지 않습니다. 템플릿은 계속 contract bridge를 통해 프로젝트 룰에 연결하고, 이번 변경은 `.codex/` 어댑터 설치 표면을 문서화하는 데 한정합니다.
+
 ## 2026-06-06 - Claude Code 어댑터 안전 hook 보강
 - Venom의 실제 hook 동작을 검토한 뒤, 그대로 memory를 누적하는 방식은 배제하고 Claude Code 실행 표면의 결핍만 보강합니다.
 - 도입 범위는 사용자 프롬프트 secret 패턴 감지, 위험 Bash 명령/secret 파일 읽기 우회 차단, 보호 경로 Write/Edit 차단, 최근 tool 실패/PermissionDenied capped 기록으로 제한합니다.

@@ -4,6 +4,13 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.56 - 2026-06-06
+
+- 실제 업무 진행 보고에만 visible trace를 적용하고, 단순 질문/잡담/메타 턴에는 강요하지 않는 조건부 경계를 명시했습니다.
+- Claude UserPromptSubmit hook, Codex context injection hook, Copilot instructions에 조건부 visible trace 리마인더를 추가했습니다.
+- Codex 어댑터 `.codex/hooks/inject-context.sh`를 설치 대상에 포함해 본체 업데이트로 소비자 프로젝트에 동기화되도록 했습니다.
+- visible trace 응답 형식은 정적 검사 차단 대상이 아니라 런타임 리마인더로 보강한다는 기준을 문서화했습니다.
+
 ## 0.2.55 - 2026-06-06
 
 - 세션 슬림 원칙을 `decision-log.md`, `developer-input-queue.md`, `project-memory.md`, `MEMORY.md`류 인덱스까지 확장하는 기억 표면 정리 기준을 추가했습니다.

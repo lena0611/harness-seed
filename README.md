@@ -243,6 +243,7 @@ npm run harness:update -- --force --confirm-overwrite-project-files
 | `CLAUDE.md` | AI 에이전트가 가장 먼저 읽는 기준 진입점 |
 | `AGENTS.md` | Claude가 아닌 에이전트도 같은 기준을 읽게 하는 보조 진입점 |
 | `.claude/` | Claude Code용 명령, hook, 보조 에이전트 연결 |
+| `.codex/` | Codex용 context injection hook과 조건부 업무 보고 리마인더 |
 | 플랫폼 어댑터 | 사용하는 코드 호스팅, CI, 에이전트 도구와 하네스를 연결하는 선택형 파일 |
 | `.harness/bin/` | 기준 동기화 검사, 문서 링크 검사, 프로젝트 분석, 스택 적용 명령 |
 | `.githooks/` | 커밋/푸시 직전 hook 검증 연결 |
@@ -611,7 +612,7 @@ npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 
 `--force`는 프로젝트 소유 문서와 출처를 알 수 없는 기존 하네스 파일까지 덮어쓸 수 있으므로 단독으로는 실행되지 않습니다. 실제 덮어쓰기는 `--confirm-overwrite-project-files`를 함께 지정해야 하며, 실행 전 덮어쓰기 위험 대상과 백업 여부를 확인합니다. 먼저 `--dry-run --force`로 계획만 확인할 수 있습니다.
 
-보존 대상 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/project/commit-push-rules.md`, `.harness/session/active-context.md`, `.harness/session/decision-log.md`, `.harness/session/project-memory.md`, `.harness/session/developer-input-queue.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
+보존 대상 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/project/commit-push-rules.md`, `.harness/session/active-context.md`, `.harness/session/decision-log.md`, `.harness/session/project-memory.md`, `.harness/session/developer-input-queue.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다. manifest가 없는 기존 `.harness/`, `.claude/`, `.codex/`, `CLAUDE.md`는 전용 하네스일 수 있으므로 기본 보존하고 `--force --confirm-overwrite-project-files`일 때만 덮어씁니다.
 
 ## Claude Code 어댑터
 
@@ -622,6 +623,14 @@ npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 - 기존 개인/전용 룰 파일이 보존된 경우 `harness:scan`이 브리지 섹션 추가 후보와 예시 문구를 제안합니다.
 - `code-reviewer`, `debug-detective`, `test-writer`, `security-auditor`: 하네스 기준을 먼저 읽는 Claude Code 서브에이전트입니다.
 - status line과 context hook: 브랜치, dirty 상태, active stack을 짧게 표시합니다.
+
+## Codex와 Copilot 어댑터
+
+`.codex/`와 `.github/copilot-instructions.md`는 Codex/Copilot 실행 표면을 하네스에 연결하는 선택형 어댑터입니다. 기준 문서와 검증 기준은 계속 `.harness/`에 있고, 어댑터는 세션마다 최소 진입점과 조건부 업무 보고 리마인더를 주입합니다.
+
+- 실제 업무 진행을 보고할 때는 `[harness] request/context/impact/action/decision/verify` visible trace로 요약합니다.
+- 단순 질문 응답, 잡담, 메타 확인처럼 업무 진행 보고가 아닌 턴에는 visible trace를 강요하지 않습니다.
+- 응답 형식은 런타임 행동이므로 `harness:check` 정적 검사 대상이 아니라 매 턴 context injection과 instructions로 보강합니다.
 
 ## Node 버전
 

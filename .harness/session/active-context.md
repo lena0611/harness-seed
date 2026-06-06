@@ -17,7 +17,7 @@
 - 외부 프리셋은 `--preset-path`, `--preset-git`, `stackManifest`로 연결합니다.
 - scaffold 템플릿은 `kind=scaffold-template` manifest로 구분하고, 적용 시 `.harness/project/template-contract.md`에 사용 계약 브리지를 남깁니다.
 - 공개 명령은 `harness:scan`, `harness:handoff`, `harness:impact`, `harness:check` 중심으로 정리합니다.
-- 에이전트 진행 설명은 원시 내부 추론이 아니라 visible trace 단계와 판단 결과로 요약합니다.
+- 에이전트의 실제 업무 진행 보고는 원시 내부 추론이 아니라 visible trace 단계와 판단 결과로 요약합니다. 단순 질문, 잡담, 메타 확인에는 trace 형식을 강요하지 않습니다.
 - 프로젝트 룰이 누적되면 항상 모두 읽지 않고 `harness:context -- "<작업 설명>"`으로 에이전트 판단 컨텍스트를 만듭니다.
 - 정책 DB화 전 단계로 `policy-registry.json` v3가 원자 정책 단위, 강제 강도, 예외 가능 여부, 소유자, 출처, 검증 명령을 기록합니다.
 

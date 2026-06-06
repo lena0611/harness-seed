@@ -389,12 +389,14 @@
         ".harness/policy/context-protocol.md",
         "CLAUDE.md",
         "AGENTS.md",
+        ".codex/hooks/inject-context.sh",
         ".github/copilot-instructions.md"
       ],
       "ownedAreas": [
         "CLAUDE.md",
         "AGENTS.md",
         ".claude/**",
+        ".codex/**",
         ".github/copilot-instructions.md",
         ".github/copilot-instructions/**"
       ],

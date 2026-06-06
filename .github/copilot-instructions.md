@@ -8,6 +8,8 @@ GitHub Copilot용 shim입니다. 기준 진입점은 루트의 `CLAUDE.md`입니
 
 Copilot은 Claude Code의 `SessionStart` hook이나 slash command를 강제 실행하지 않습니다. 새 작업을 시작할 때는 `CLAUDE.md`의 읽기 순서를 수동 기준으로 삼고, 리마인더/메모리/결정 기록은 아래 파일을 기준으로 갱신합니다.
 
+실제 업무 진행을 보고할 때는 `[harness] request/context/impact/action/decision/verify` visible trace 형식으로 요약합니다. 단순 질문 응답, 잡담, 메타 확인처럼 업무 진행 보고가 아닌 턴에는 이 형식을 강요하지 않습니다.
+
 - `.harness/session/next-session-reminder.md`
 - `.harness/session/project-memory.md`
 - `.harness/session/decision-log.md`

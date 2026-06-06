@@ -1,7 +1,7 @@
 # 동기화 프로토콜
 
 ## 언제 반드시 실행하는가
-- `.claude/**` 어댑터가 바뀔 때
+- `.claude/**`, `.codex/**`, `.github/copilot-instructions*` 어댑터가 바뀔 때
 - `.harness/policy/**`가 바뀔 때
 - 업무 코드가 바뀔 때
 - 구조, 데이터 흐름, 책임 경계에 영향을 줄 수 있는 리팩터링을 할 때
@@ -66,11 +66,11 @@
 - 생성 컨텍스트와 원본 문서가 충돌하면 원본 문서와 실제 코드를 우선합니다.
 
 ## 어댑터와 설치 스크립트
-- `.harness/`는 단일 진실 출처입니다. 도구별 어댑터는 하네스 본체 밖에 둡니다.
+- `.harness/`는 단일 진실 출처입니다. 도구별 어댑터(`.claude/`, `.codex/`, `.github/copilot-instructions*`)는 하네스 본체 밖에 둡니다.
 - 새 어댑터 문서를 추가하면 `document-registry.json`과 `.harness/bin/doc-link-check.mjs`의 탐색 범위를 함께 확인합니다.
 - `init`은 하네스 소유 파일을 갱신하고 프로젝트 소유 파일을 보존해야 합니다.
 - `init`은 `.harness/install-manifest.json`으로 공통 하네스 설치기가 관리하는 파일을 식별해야 합니다.
-- manifest가 없는 기존 `.harness/`, `.claude/`, `CLAUDE.md`는 전용 하네스일 수 있으므로 기본 보존하고 `--force`일 때만 덮어씁니다.
+- manifest가 없는 기존 `.harness/`, `.claude/`, `.codex/`, `CLAUDE.md`는 전용 하네스일 수 있으므로 기본 보존하고 `--force`일 때만 덮어씁니다.
 - `harness:outdated`는 공통 하네스와 스택 하네스를 함께 검사하고, 둘 중 하나라도 업데이트 후보가 있으면 전체 상태를 `outdated`로 표시합니다. 공통만 보려면 `--base-only`, 스택만 보려면 `--stack-only`를 사용합니다.
 - `harness:update` 기본 동작은 스택 하네스 업데이트입니다. 공통 하네스만 업데이트할 때는 `--base-only`를 명시합니다.
 - lock에 repo/ref/version 정보가 부족하면 lock source metadata와 install manifest source metadata에서 복구해 조회합니다.
@@ -85,6 +85,7 @@
 - 원격 템플릿 후보 조회는 `.harness/bin/list-templates.mjs`가 담당하며, 기본 대상은 사내 GitLab의 `ai-standard/stacks` 그룹입니다.
 - 세미콜론, quote, import 정렬 같은 구체 스타일 값은 공통 하네스가 아니라 로컬 방법론 또는 스택 프리셋 로컬 규칙에서 다룹니다.
 - 설치/업데이트 UX가 바뀌면 README의 init 사용법과 보존 기준 설명도 함께 갱신합니다.
+- 어댑터 설치 항목이 바뀌면 `scripts/init.mjs`, `scripts/test-init.mjs`, `package.json` files 목록, README의 어댑터 설명을 함께 갱신합니다.
 - 에이전트 진입 흐름, 기준 우선순위, 충돌 해석, 검증 절차, 요청 라이프사이클이 바뀌면 `.harness/documentation/assets/request-lifecycle-flow.svg`, `.harness/documentation/assets/agent-development-flow.png`, `ai-standard/docs`의 동일 이미지도 함께 갱신합니다.
 - `.harness/bin/scan-project.mjs`는 자동 감지 리포트까지만 생성하고, 프로젝트 기준 문서를 직접 덮어쓰지 않습니다.
 - `.harness/session/project-scan-report.md`는 런타임 산출물이므로 레지스트리 필수 문서로 보지 않습니다.

@@ -6,6 +6,7 @@
 - 일반 인프라(세션/문서/기준 동기화/스타일 하네스, doc-link 검증, SYNC GAP 검출)는 모든 프로젝트에서 그대로 재사용합니다.
 - 프레임워크-특화 검사는 프로파일로만 켜고 끕니다.
 - 스택 기준과 scaffold 템플릿은 본체 내부에 고정하지 않고 외부 `manifest.json`으로 연결합니다.
+- 플랫폼 어댑터(`.claude/`, `.codex/`, `.github/copilot-instructions*`)는 실행 도구별 진입 표면일 뿐이며 단일 진실 출처는 계속 `.harness/`입니다.
 
 ## 이식 절차
 1. 기존 프로젝트 루트에서 프로젝트에 맞는 스택 하네스의 `npx -y git+<stack-harness-repo-url>#<tag> init`을 실행합니다. 안정 재현을 위해 `main`/`master` 대신 릴리스 tag를 사용합니다.
@@ -21,6 +22,12 @@
 11. `policy-registry.json`은 일반 개발 기준만 유지합니다. 스택-특화 기준은 스택의 `policies.json`으로만 둡니다.
 12. `policy-harness.mjs`의 framework-specific 블록은 새 `checksKey`를 원할 때만 분기 확장합니다.
 13. `project-charter.md`, `scope-contract.md`를 새 도메인 정보로 채웁니다.
+
+## 플랫폼 어댑터 계약
+- `.claude/`, `.codex/`, `.github/copilot-instructions*`는 공통 하네스가 설치할 수 있는 어댑터입니다.
+- 어댑터는 context injection, tool hook, instructions처럼 실행 도구별 표면만 담당합니다.
+- 어댑터를 추가하거나 제거하면 `package.json` files 목록, `scripts/init.mjs`, `scripts/test-init.mjs`, README, sync protocol을 함께 갱신합니다.
+- 응답 형식 리마인더처럼 런타임 행동을 보강하는 항목은 정적 검사로 강제하지 않고, 어댑터 주입 문구와 진입점 문서로 유지합니다.
 
 ## Node 런타임 계약
 - 하네스 실행 최소 Node는 `20.19.0`입니다. 하네스 스크립트는 이 버전에서 동작하도록 유지합니다.

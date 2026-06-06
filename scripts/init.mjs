@@ -53,6 +53,7 @@ const CONSUMER_PROJECT_STATE_PATHS = [
 const INSTALL_ITEMS = [
   '.harness',
   '.claude',
+  '.codex',
   '.github/commit-template.txt',
   '.github/copilot-instructions.md',
   '.github/copilot-instructions',

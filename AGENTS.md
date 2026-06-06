@@ -17,12 +17,14 @@ Codex, Copilot, 기타 에이전트는 사용자가 "하네스"라고 말하지 
 6. 사용자가 `최종 검증만` 요청하면 `npm run harness:check`를 직접 실행합니다. 사용자가 `커밋` 또는 `커밋하고 푸시`를 요청했고 git hook이 설치되어 있으면 선행 `harness:check`를 중복 실행하지 않고 hook 검증에 맡깁니다.
 7. hook이 설치되어 있지 않거나 `--no-verify` 등으로 우회되는 환경이면 commit/push 전에 에이전트가 직접 `npm run harness:check`를 실행합니다.
 
-Codex나 Copilot 계열 에이전트는 Claude Code의 `SessionStart` hook과 slash command를 그대로 강제할 수 없습니다. 대신 새 작업을 시작할 때 `CLAUDE.md`의 읽기 순서를 따르고, 필요하면 아래 파일을 직접 갱신합니다.
+Codex나 Copilot 계열 에이전트는 Claude Code의 `SessionStart` hook과 slash command를 그대로 강제할 수 없습니다. 대신 새 작업을 시작할 때 `CLAUDE.md`의 읽기 순서를 따릅니다. Codex 표면은 `.codex/hooks/inject-context.sh`, Copilot 표면은 `.github/copilot-instructions.md`의 조건부 리마인더도 함께 사용합니다. 필요하면 아래 파일을 직접 갱신합니다.
 
 - 리마인더: `.harness/session/next-session-reminder.md`
 - 장기 메모리: `.harness/session/project-memory.md`
 - 결정 로그: `.harness/session/decision-log.md`
 
 큰 작업이나 낯선 요청은 `npm run harness:context -- "<작업 설명>"` 결과의 Selected Skills를 보고 읽을 문서, 실행할 명령, 기록 위치를 좁힙니다.
+
+실제 업무 진행을 보고할 때는 `[harness] request/context/impact/action/decision/verify` visible trace 형식으로 요약합니다. 단순 질문 응답, 잡담, 메타 확인처럼 업무 진행 보고가 아닌 턴에는 이 형식을 강요하지 않습니다.
 
 프로젝트가 session workstreams README를 만들어 workstream 운영을 선택했다면, 각 요청 시작 시 현재 요청의 workstream과 선행/후행 workstream 필요 여부를 먼저 식별합니다. workstream 운영이 없으면 강제하지 않습니다.
