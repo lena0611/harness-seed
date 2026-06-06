@@ -1,5 +1,11 @@
 # 결정 로그
 
+## 2026-06-06 - Claude Code 어댑터 안전 hook 보강
+- Venom의 실제 hook 동작을 검토한 뒤, 그대로 memory를 누적하는 방식은 배제하고 Claude Code 실행 표면의 결핍만 보강합니다.
+- 도입 범위는 사용자 프롬프트 secret 패턴 감지, 위험 Bash 명령/secret 파일 읽기 우회 차단, 보호 경로 Write/Edit 차단, 최근 tool 실패/PermissionDenied capped 기록으로 제한합니다.
+- 최근 실패 기록은 `.harness/generated/agent-events.ndjson`에 redaction 후 최대 `HARNESS_AGENT_EVENT_CAP`개만 남기고, 컨텍스트에는 `HARNESS_AGENT_EVENT_TTL_MINUTES` 안의 마지막 1건만 주입합니다. 이 파일은 재생성/임시 산출물이며 프로젝트 룰이나 세션 기억으로 자동 승격하지 않습니다.
+- 반복 규칙으로 굳힐 필요가 있을 때만 `developer-input-queue.md`, `decision-log.md`, `.harness/project/*`, 정책 registry 중 알맞은 위치로 별도 승격합니다.
+
 ## 2026-06-06 - 축적형 기억 표면 정리 기준 승격
 - v0.2.54의 세션 슬림 원칙은 `next-session-reminder.md`, `active-context.md` 중심이라 재개 시 로드되는 `decision-log.md`, `developer-input-queue.md`, `project-memory.md`, `MEMORY.md`류 인덱스의 무한 누적을 막기에는 부족했습니다.
 - 세션/기억 운영 기준은 회사 공통 기본 운영 기준으로 보고, 실제 소비자 내용은 project-owned로 보존하되 본체는 `/decision`, `/memory`, session README, skill registry, 신규 설치 시드에 정리 규율을 내립니다.

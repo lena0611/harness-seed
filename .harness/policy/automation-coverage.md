@@ -13,6 +13,16 @@
 | `stack-isolation` | 한 스택 폴더가 다른 스택 폴더를 참조하지 않음 | 자동 검사 (`harness:check`, 본체 개발 시 `docs:check`) |
 | `context-artifact-generation` | 프로젝트 맵, import 맵, Agent Decision Context 생성 | 자동 생성 (`harness:sync`, `harness:context`) |
 
+## Claude Code 어댑터 자동 방어
+Claude Code 환경에서는 `.claude/settings.json` hook으로 다음 방어를 추가합니다. 이 어댑터는 `.harness/` 기준을 대체하지 않고 실행 표면에서 피해를 줄입니다.
+
+| Hook | 설명 | 누적 관리 |
+| --- | --- | --- |
+| `scan-secrets.sh` | 사용자 프롬프트의 API key, token, private key, password-like 값 패턴 감지 | 값을 저장하지 않고 컨텍스트 경고만 출력 |
+| `block-dangerous.sh` | `rm -rf /`, `git reset --hard`, `git clean -fd`, `--no-verify`, `curl \| sh`, secret 파일 읽기 우회 차단 | 누적 없음 |
+| `protect-paths.sh` | `.env`, `.git`, dependency/generated 디렉터리, lockfile 직접 쓰기 차단 | 누적 없음 |
+| `record-tool-failure.sh` | `PostToolUseFailure`와 `PermissionDenied`를 redaction 후 기록해 같은 시도 반복을 줄임 | `.harness/generated/agent-events.ndjson`에 capped 기록. 컨텍스트 주입은 TTL 안의 마지막 1건만. 프로젝트 기준 승격은 별도 판단 |
+
 ## 활성 스택 자동 검증 (`activeStack`에 따라 ON/OFF)
 본체는 특정 프레임워크 전용 자동 검사를 내장하지 않습니다. `"none"`이면 전부 비활성화됩니다.
 

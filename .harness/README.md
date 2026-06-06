@@ -35,6 +35,7 @@ npm run harness:guide
 | `.harness/stacks/.applied/**` | 적용된 스택 기준의 스냅샷 |
 | `.harness/generated/**` | `harness:sync`가 만든 프로젝트 맵, import 맵, 패턴 후보 |
 | `.harness/generated/harness-dashboard.html` | `harness:guide`가 만든 현재 상태 대시보드 |
+| `.harness/generated/agent-events.ndjson` | Claude Code 어댑터가 redaction 후 capped 기록하는 최근 tool 실패/권한 거부 이벤트 |
 | `.harness/session/project-scan-report.md` | `harness:scan`이 생성한 현재 프로젝트 스캔 리포트 |
 | `.harness/session/handoff.md` | `harness:handoff`가 생성한 설치/업데이트 인수인계 요약 |
 | `.harness/session/task-context.md` | `harness:context`가 생성한 에이전트 판단 컨텍스트 |

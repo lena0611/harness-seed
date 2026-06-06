@@ -71,6 +71,54 @@
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/inject-context.sh"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-secrets.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-dangerous.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-paths.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/record-tool-failure.sh"
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "HARNESS_AGENT_EVENT_TYPE=permission_denied \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/record-tool-failure.sh"
+          }
+        ]
       }
     ],
     "Stop": [
@@ -90,6 +138,9 @@
   },
   "env": {
     "HARNESS_ROOT": ".harness",
-    "HARNESS_ADAPTER": "claude"
+    "HARNESS_ADAPTER": "claude",
+    "HARNESS_HOOK_PROFILE": "standard",
+    "HARNESS_AGENT_EVENT_CAP": "50",
+    "HARNESS_AGENT_EVENT_TTL_MINUTES": "120"
   }
 }

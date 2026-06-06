@@ -18,6 +18,10 @@
 - `agents/test-writer.md`: 테스트 작성
 - `agents/security-auditor.md`: 보안 점검
 - `hooks/inject-context.sh`: 프롬프트마다 하네스 상태 요약 주입
+- `hooks/scan-secrets.sh`: 사용자 프롬프트의 secret 패턴을 값 저장 없이 감지
+- `hooks/block-dangerous.sh`: Bash 위험 명령과 secret 파일 읽기 우회 차단
+- `hooks/protect-paths.sh`: Write/Edit의 secret, `.git`, 생성물, lockfile 직접 쓰기 차단
+- `hooks/record-tool-failure.sh`: 최근 tool 실패와 PermissionDenied를 redaction 후 capped 기록
 - `hooks/enforce-check.sh`: 사용자 완료 승인 플래그가 있을 때만 `npm run harness:check` 실행
 - `hooks/statusline.sh`: 현재 브랜치, dirty 상태, active stack 표시
 
@@ -25,5 +29,8 @@
 - 이 어댑터는 `.harness/`를 대체하지 않습니다.
 - Claude Code가 아닌 에이전트는 `CLAUDE.md`와 `AGENTS.md`만 읽어도 같은 기준을 따를 수 있어야 합니다.
 - 프롬프트 주입 hook은 상태 정보만 제공합니다.
+- 프롬프트 secret 감지는 값을 저장하지 않고 컨텍스트 경고만 출력합니다.
+- 최근 실패 기록은 `.harness/generated/agent-events.ndjson`에 최대 `HARNESS_AGENT_EVENT_CAP`개만 남기며, 다음 프롬프트에는 `HARNESS_AGENT_EVENT_TTL_MINUTES` 안의 마지막 1건만 주입합니다. 이 파일은 재생성/임시 산출물로 취급합니다.
+- 실패 기록은 같은 시도를 그대로 반복하지 않기 위한 최근 힌트입니다. 반복 규칙으로 굳히려면 `.harness/project/*` 또는 `developer-input-queue.md`로 별도 승격 판단을 거칩니다.
 - 에이전트 완료 hook은 `HARNESS_AGENT_CHECK_APPROVED=1`일 때만 `npm run harness:check`를 실행하고 실패를 그대로 전달합니다. 일시적으로 해제해야 하면 `HARNESS_AGENT_CHECK_DISABLED=1`을 명시적으로 설정합니다.
 - 사용자가 `커밋` 또는 `커밋하고 푸시`를 승인했고 git hook이 설치되어 있으면 pre-commit/pre-push 검증을 신뢰합니다. 에이전트가 commit 직전에 별도 `npm run harness:check`를 먼저 실행해 같은 검증을 중복하지 않습니다.
