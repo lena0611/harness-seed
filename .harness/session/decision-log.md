@@ -1,5 +1,13 @@
 # 결정 로그
 
+## 2026-06-08 - 기존 .claude/settings.json에 안전 훅 병합 + clubadm 고스트 테스트
+- 갭: 소비자가 이미 `.claude/settings.json`을 가지면 init이 그 파일을 보존만 하고 하네스 훅 wiring(settings.json hooks 블록)을 적용하지 않아, 에이전트 안전 훅(회사 공통 필수 차단 기준)이 실제로 동작하지 않았습니다. clubadm 고스트 테스트에서 재현됨.
+- 또한 첫 설치엔 보존, 이후 업데이트엔 managed로 덮어쓰는 비일관 거동이라 소비자 커스터마이즈가 사라질 위험도 있었습니다.
+- 해결: `.claude/settings.json`을 project-owned로 분류(업데이트 덮어쓰기 방지)하고, `mergeClaudeSettings`로 하네스 안전 표면(hooks/permissions.deny·allow/env/statusLine)을 기존 설정에 멱등·비파괴 병합(기존 값 보존, statusLine은 없을 때만, command 시그니처로 중복 제거). mergePackageJson 선례와 같은 패턴.
+- 정책 근거: 안전 훅 wiring은 보존보다 우선하는 필수 차단 기준이지만, 병합은 추가만 하고 소비자 설정을 파괴하지 않으므로 project-owned 보존 원칙과 양립합니다.
+- SYNC GAP 해소: init.mjs 변경이 트리거하는 force-overwrite·preserve-project-owned는 install 보존 프로토콜 문서 `sync-protocol.md`에, minimum-node는 `.claude` 어댑터 config 문서 `config-contract.md`에 settings.json 병합 거동을 정직하게 기록해 클리어했습니다(둘 다 실제 바뀐 계약).
+- 검증: 신규 smoke test + clubadm 고스트 재테스트(기존 UserPromptSubmit 훅 보존 + 하네스 6개 이벤트 wiring + 재설치 멱등) 통과. 온보딩 플레이북은 `consumer-reviews/CLUBADM_ONBOARDING_PLAYBOOK_2026-06-08.md`.
+
 ## 2026-06-08 - 하네스 업데이트 변경 내역 가시화 (changelog 델타)
 - 문제: `harness:outdated`/`harness:update`가 버전 번호만 보여주고 무엇이 바뀌었는지는 보여주지 않았습니다. 게다가 init은 본체 `CHANGELOG.md`를 소비자에 복사하지 않으므로(INSTALL_ITEMS 제외) 소비자는 변경 내용을 알 길이 없었습니다.
 - 새 CHANGELOG는 `npx ... init`이 새 패키지 안에서 실행되는 그 순간에만 접근 가능합니다. 따라서 init이 (이전 lock 버전 → 새 버전] 구간의 CHANGELOG 델타를 계산해 (a) 설치 직후 인라인 출력하고 (b) `harness-lock.json`의 `lastUpdate`에 보존합니다. lock은 ship되지 않는 프로젝트별 상태라 소비자별로 안전합니다.

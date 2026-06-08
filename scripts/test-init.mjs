@@ -1227,6 +1227,46 @@ function updateRecordsAndReplaysChangelogDelta() {
   assert(replay.includes(packageVersion), 'harness:changelog should re-print the recorded delta from lock.lastUpdate')
 }
 
+function existingClaudeSettingsGetsHarnessHooksMerged() {
+  const target = makeTarget()
+  // 소비자가 이미 자기 .claude/settings.json을 갖고 있는 상황 (clubadm 같은 기존 프로젝트)
+  fs.mkdirSync(path.join(target, '.claude'), { recursive: true })
+  writeJson(target, '.claude/settings.json', {
+    permissions: { allow: ['Bash(npm run dev*)'], deny: ['Bash(rm -rf /*)'] },
+    hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'my-own-hook.sh' }] }] },
+    statusLine: { type: 'command', command: 'my-statusline.sh' },
+    myCustomKey: 'keep-me',
+  })
+
+  runInit(target)
+  const merged = JSON.parse(read(target, '.claude/settings.json'))
+
+  // 1) 소비자 고유 설정 보존
+  assert(merged.myCustomKey === 'keep-me', 'consumer custom key should be preserved')
+  assert(merged.statusLine.command === 'my-statusline.sh', 'consumer statusLine should not be overridden')
+  assert(merged.permissions.allow.includes('Bash(npm run dev*)'), 'consumer allow entry should be preserved')
+  assert(
+    (merged.hooks.UserPromptSubmit || []).some((e) => (e.hooks || []).some((h) => h.command === 'my-own-hook.sh')),
+    'consumer own hook should be preserved',
+  )
+
+  // 2) 하네스 안전 훅이 실제로 wiring됨
+  const cmds = (event) => (merged.hooks[event] || []).flatMap((e) => (e.hooks || []).map((h) => h.command))
+  assert(cmds('UserPromptSubmit').some((c) => c.includes('inject-context.sh')), 'harness inject-context hook should be wired')
+  assert(cmds('UserPromptSubmit').some((c) => c.includes('scan-secrets.sh')), 'harness scan-secrets hook should be wired')
+  assert(cmds('PreToolUse').some((c) => c.includes('protect-paths.sh')), 'harness protect-paths hook should be wired')
+  assert((merged.hooks.SessionStart || []).length >= 1, 'harness SessionStart hook should be wired')
+  assert(merged.permissions.deny.some((d) => d.includes('--no-verify')), 'harness deny entries should be merged')
+
+  // 3) 멱등성: 재실행해도 하네스 훅이 중복되지 않음
+  runInit(target)
+  const again = JSON.parse(read(target, '.claude/settings.json'))
+  const injectCount = (again.hooks.UserPromptSubmit || [])
+    .flatMap((e) => (e.hooks || []).map((h) => h.command))
+    .filter((c) => c.includes('inject-context.sh')).length
+  assert(injectCount === 1, 'reinstall should not duplicate harness hooks (idempotent)')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   initPatchesEslintConfigForHarnessFiles,
@@ -1260,6 +1300,7 @@ const tests = [
   guardDerivesAppliedStackFromTrackedSnapshotWhenMarkerMissing,
   guardFailsWhenActiveStackHasNoTrackedSnapshot,
   updateRecordsAndReplaysChangelogDelta,
+  existingClaudeSettingsGetsHarnessHooksMerged,
 ]
 
 console.log('Init smoke tests')

@@ -71,6 +71,7 @@
 - `init`은 하네스 소유 파일을 갱신하고 프로젝트 소유 파일을 보존해야 합니다.
 - `init`은 `.harness/install-manifest.json`으로 공통 하네스 설치기가 관리하는 파일을 식별해야 합니다.
 - manifest가 없는 기존 `.harness/`, `.claude/`, `.codex/`, `CLAUDE.md`는 전용 하네스일 수 있으므로 기본 보존하고 `--force`일 때만 덮어씁니다.
+- `.claude/settings.json`은 project-owned로 보존하되, 회사 공통 필수 차단 기준인 에이전트 안전 훅이 소비자에서 무력화되지 않도록 `init`이 하네스의 안전 표면(hooks, permissions.deny/allow, env, statusLine)을 기존 설정에 멱등·비파괴로 병합합니다(기존 값은 덮지 않고, statusLine은 없을 때만 설정). 소비자가 의도적으로 제거한 항목을 되살릴 수 있으므로, 원치 않으면 설치 후 제거하고 사유를 남깁니다.
 - `harness:outdated`는 공통 하네스와 스택 하네스를 함께 검사하고, 둘 중 하나라도 업데이트 후보가 있으면 전체 상태를 `outdated`로 표시합니다. 공통만 보려면 `--base-only`, 스택만 보려면 `--stack-only`를 사용합니다.
 - `harness:update` 기본 동작은 스택 하네스 업데이트입니다. 공통 하네스만 업데이트할 때는 `--base-only`를 명시합니다.
 - lock에 repo/ref/version 정보가 부족하면 lock source metadata와 install manifest source metadata에서 복구해 조회합니다.

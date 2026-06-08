@@ -4,6 +4,13 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.59 - 2026-06-08
+
+- 소비자가 이미 `.claude/settings.json`을 갖고 있을 때 하네스 에이전트 안전 훅이 wiring되지 않던 갭을 수정했습니다. 이제 `init`이 기존 설정을 보존하면서 하네스의 hooks/permissions(deny·allow)/env/statusLine을 멱등·비파괴로 병합합니다.
+- `.claude/settings.json`을 project-owned로 분류해 업데이트가 소비자 설정을 덮어쓰지 않도록 했습니다. 병합은 누락된 안전 표면만 추가하고 기존 값은 보존하며, 재설치해도 훅이 중복되지 않습니다.
+- init smoke test에 "기존 settings.json + 하네스 훅 병합 + 멱등성" 검증을 추가했습니다.
+- 실제 첫 소비자 후보 clubadm(Vue3) 대상 고스트 테스트로 설치/보존/업데이트/changelog/훅 병합을 검증하고 온보딩 플레이북을 남겼습니다(`consumer-reviews/`).
+
 ## 0.2.58 - 2026-06-08
 
 - 소비자가 `npm run harness:update`로 공통 하네스를 올리면, 이번 업데이트로 반영된 변경 항목(이전 버전 → 새 버전 사이의 `CHANGELOG.md` 구간)을 설치 직후 바로 출력합니다.

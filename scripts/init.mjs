@@ -99,6 +99,7 @@ const PROJECT_OWNED_PATHS = new Set([
   '.harness/session/manual-actions.md',
   '.harness/session/next-session-reminder.md',
   '.harness/session/project-memory.md',
+  '.claude/settings.json',
   '.claude/settings.local.json',
   'CLAUDE.local.md',
   '.nvmrc',
@@ -1077,6 +1078,90 @@ function buildConsumerScripts(seedScripts) {
   return scripts;
 }
 
+// 소비자가 이미 .claude/settings.json을 갖고 있으면 그 파일은 project-owned로 보존된다.
+// 그 결과 하네스 훅 스크립트는 복사되지만 그것을 wiring하는 settings.json은 적용되지 않아
+// 에이전트 안전 훅(회사 공통 필수 차단 기준)이 실제로 동작하지 않는 문제가 있었다.
+// 이 함수는 소비자 설정을 파괴하지 않고 하네스의 안전 표면(hooks, permissions.deny/allow,
+// env, statusLine)을 멱등하게 병합한다. (package.json scripts 병합과 같은 패턴)
+function mergeClaudeSettings(sourceRoot, target, opts) {
+  const rel = '.claude/settings.json';
+  const result = { changed: false, hooksAdded: 0, denyAdded: 0, allowAdded: 0, envAdded: 0, statusLineSet: false, skipped: null };
+  const srcAbs = join(sourceRoot, rel);
+  const destAbs = join(target, rel);
+
+  const readSafe = (p) => {
+    try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; }
+  };
+
+  if (!existsSync(srcAbs)) return result;
+  const harness = readSafe(srcAbs);
+  if (!harness) return result;
+
+  // 소비자 파일이 없으면 installFiles가 하네스 것을 그대로 복사하므로 병합 불필요.
+  if (!existsSync(destAbs)) return result;
+
+  const user = readSafe(destAbs);
+  if (!user) {
+    // 소비자 settings.json이 깨졌으면 덮어쓰지 않고 건너뛴다(수동 확인 안내).
+    result.skipped = 'parse-error';
+    return result;
+  }
+
+  const sig = (e) => `${e?.matcher ?? ''}::${(e?.hooks ?? []).map((h) => h?.command).sort().join('|')}`;
+
+  if (harness.hooks && typeof harness.hooks === 'object') {
+    if (!user.hooks || typeof user.hooks !== 'object') user.hooks = {};
+    for (const [event, hEntries] of Object.entries(harness.hooks)) {
+      if (!Array.isArray(hEntries)) continue;
+      const uEntries = Array.isArray(user.hooks[event]) ? user.hooks[event] : [];
+      const seen = new Set(uEntries.map(sig));
+      for (const entry of hEntries) {
+        const s = sig(entry);
+        if (seen.has(s)) continue;
+        uEntries.push(entry);
+        seen.add(s);
+        result.hooksAdded += 1;
+      }
+      user.hooks[event] = uEntries;
+    }
+  }
+
+  if (harness.permissions && typeof harness.permissions === 'object') {
+    if (!user.permissions || typeof user.permissions !== 'object') user.permissions = {};
+    for (const key of ['allow', 'deny']) {
+      const hArr = Array.isArray(harness.permissions[key]) ? harness.permissions[key] : [];
+      if (hArr.length === 0) continue;
+      const uArr = Array.isArray(user.permissions[key]) ? user.permissions[key] : [];
+      const set = new Set(uArr);
+      let added = 0;
+      for (const item of hArr) {
+        if (set.has(item)) continue;
+        uArr.push(item); set.add(item); added += 1;
+      }
+      user.permissions[key] = uArr;
+      if (key === 'allow') result.allowAdded = added; else result.denyAdded = added;
+    }
+  }
+
+  if (harness.env && typeof harness.env === 'object') {
+    if (!user.env || typeof user.env !== 'object') user.env = {};
+    for (const [k, v] of Object.entries(harness.env)) {
+      if (!(k in user.env)) { user.env[k] = v; result.envAdded += 1; }
+    }
+  }
+
+  if (harness.statusLine && !user.statusLine) {
+    user.statusLine = harness.statusLine;
+    result.statusLineSet = true;
+  }
+
+  result.changed = (result.hooksAdded + result.denyAdded + result.allowAdded + result.envAdded) > 0 || result.statusLineSet;
+  if (result.changed && !opts.dryRun) {
+    writeFileSync(destAbs, `${JSON.stringify(user, null, 2)}\n`);
+  }
+  return result;
+}
+
 function mergeGitignore(target, opts) {
   const gitignorePath = join(target, '.gitignore');
   const entries = [
@@ -1402,6 +1487,7 @@ function main() {
     const workHistoryYear = ensureCurrentWorkHistoryYear(TARGET, opts);
     const migration = removeLegacyManagedRootScripts(TARGET, legacyManagedRootScripts, opts);
     const pkg = mergePackageJson(sourceRoot, TARGET, opts);
+    const claudeSettings = mergeClaudeSettings(sourceRoot, TARGET, opts);
     const gitignoreAdded = mergeGitignore(TARGET, opts);
     const eslintPatch = patchEslintConfigForHarness(TARGET, opts);
     ensureExecutable(TARGET, opts);
@@ -1420,6 +1506,13 @@ function main() {
         (pkg.skipped.length ? `, 기존 scripts 보존 ${pkg.skipped.length}개 (${pkg.skipped.join(', ')})` : ''),
     );
     console.log(`.gitignore: harness entry ${gitignoreAdded}개 추가`);
+    if (claudeSettings.skipped === 'parse-error') {
+      console.log('.claude/settings.json: 파싱 실패로 하네스 훅 병합을 건너뜀 (수동 확인 필요)');
+    } else if (claudeSettings.changed) {
+      console.log(`.claude/settings.json: 기존 설정 보존하고 하네스 안전 표면 병합 (hooks ${claudeSettings.hooksAdded}, deny ${claudeSettings.denyAdded}, allow ${claudeSettings.allowAdded}, env ${claudeSettings.envAdded}${claudeSettings.statusLineSet ? ', statusLine' : ''})`);
+    } else {
+      console.log('.claude/settings.json: 하네스 안전 표면 이미 반영됨 (변경 없음)');
+    }
     console.log(`eslint config: ${eslintPatch.message}`);
     console.log(`legacy root scripts: ${opts.dryRun ? `${legacyManagedRootScripts.length}개 제거 예정` : `${migration.removed}개 제거`}`);
     console.log(`work history: ${workHistoryYear.rel}${workHistoryYear.created ? ' 생성' : ' 준비됨'}`);
