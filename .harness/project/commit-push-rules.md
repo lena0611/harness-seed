@@ -40,8 +40,14 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 - `.githooks/pre-push`
 - `.harness/bin/install-hooks.mjs`
 - `.harness/bin/run-previous-hook.mjs`
+- `.harness/bin/check-remote-sync.mjs`
 - `.github/commit-template.txt`
 - README의 hook 안내
+
+## 시드 모드(본체) 전용
+- 본체 저장소(`.harness-seed-mode` 존재)는 GitHub(`origin`)와 GitLab(`company`)을 항상 같은 커밋으로 맞춥니다. pre-push의 `.harness/bin/check-remote-sync.mjs`가 어긋남을 비차단으로 알립니다.
+- 본체 변경/배포의 전체 절차(버전, CHANGELOG, 양쪽 push, downstream 통지)는 [본체 변경/배포 체크리스트](./body-release-checklist.md)를 따릅니다.
+- 이 절은 소비자 프로젝트에는 적용되지 않습니다.
 
 ## 예외 기록
 - 프로젝트 사정으로 hook을 설치하지 않는 것은 허용할 수 있습니다.

@@ -15,3 +15,7 @@ fi
 node .harness/bin/run-previous-hook.mjs pre-push "$@"
 
 npm run harness:check -- --fast
+
+# 시드 모드 전용 원격 동기화 가드(비차단): GitHub/GitLab 같은 다중 원격이 어긋나지 않게 알림.
+# .harness-seed-mode가 없는 소비자 프로젝트에서는 no-op. push를 막지 않는다.
+node .harness/bin/check-remote-sync.mjs "$@" || true

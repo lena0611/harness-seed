@@ -4,6 +4,13 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.57 - 2026-06-08
+
+- 본체(harness-seed) 자체를 고치고 내보내는 절차를 `.harness/project/body-release-checklist.md`로 고정했습니다. 영향 확인, 정책-코드 동기화, 버전/CHANGELOG, 양쪽 원격 동기화, downstream 통지를 체크리스트로 만들었습니다.
+- maintainer 작업 스킬 `harness.body-release`를 skill registry에 추가하고 context-registry에 연결했습니다.
+- 시드 모드 전용 원격 동기화 가드 `.harness/bin/check-remote-sync.mjs`를 추가하고 pre-push에 연결했습니다. `.harness-seed-mode`가 있을 때만 동작하고, 네트워크를 쓰지 않으며, push를 막지 않는 비차단 알림입니다. 소비자 프로젝트에서는 no-op입니다.
+- Policy Guard CI(`.github/workflows/policy-guard.yml`)의 `Apply active stack` 단계가 `activeStack=none`에서 항상 실패하던 문제를 가드해, none이면 단계를 건너뛰도록 했습니다.
+
 ## 0.2.56 - 2026-06-06
 
 - 실제 업무 진행 보고에만 visible trace를 적용하고, 단순 질문/잡담/메타 턴에는 강요하지 않는 조건부 경계를 명시했습니다.

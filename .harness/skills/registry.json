@@ -620,6 +620,40 @@
         ".harness/session/next-session-reminder.md",
         ".harness/session/active-context.md"
       ]
+    },
+    {
+      "id": "harness.body-release",
+      "title": "본체 변경/배포 흐름",
+      "purpose": "harness-seed 본체(공통 하네스 설치기) 자체를 변경하고 릴리스할 때 영향 범위, 정책-코드 동기화, 버전/CHANGELOG, 양쪽 원격 동기화, downstream 통지를 빠짐없이 처리한다. seed-mode 저장소에서만 적용된다.",
+      "audience": ["harness-maintainer"],
+      "taskTypes": ["feature", "bugfix", "refactor", "docs", "maintenance"],
+      "priority": "high",
+      "triggers": ["본체", "하네스 본체", "harness-seed", "릴리스", "배포", "버전", "version", "CHANGELOG", "원격 동기화", "seed-mode", "본체 변경"],
+      "read": [
+        ".harness/project/body-release-checklist.md",
+        ".harness/project/commit-push-rules.md",
+        ".harness/project/portability-guide.md",
+        ".harness/policy/sync-protocol.md",
+        ".harness/stacks/authoring-guide.md"
+      ],
+      "commands": [
+        "npm run harness:impact",
+        "npm run harness:check",
+        "node .harness/bin/check-remote-sync.mjs"
+      ],
+      "outputs": [
+        "본체 변경 영향 범위",
+        "정책 문서와 강제 코드 동기화 여부",
+        "버전 bump 필요 여부와 SemVer 등급",
+        "CHANGELOG 항목",
+        "양쪽 원격(GitHub origin + GitLab company) 동기화 확인",
+        "downstream(CLI/스택 하네스) 통지 필요 여부"
+      ],
+      "records": [
+        ".harness/session/decision-log.md",
+        "CHANGELOG.md",
+        ".harness/session/next-session-reminder.md"
+      ]
     }
   ]
 }

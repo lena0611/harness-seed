@@ -1,5 +1,14 @@
 # 결정 로그
 
+## 2026-06-08 - 본체 변경/배포 체크리스트 + 원격 동기화 가드 추가
+- 본체(harness-seed)는 "남을 위한 안전장치"는 갖췄지만 자기 자신을 고치고 내보내는 절차(버전 bump, CHANGELOG, 양쪽 원격 동기화, downstream 통지)가 사람의 기억에만 의존하는 갭이 있었습니다. 실제로 GitHub 미러가 2커밋 뒤처지는 사고로 드러났습니다.
+- 두 가지를 추가합니다. (A) 본체 전용 절차 문서 `.harness/project/body-release-checklist.md`, (B) maintainer 스킬 `harness.body-release` + 원격 동기화 가드 `.harness/bin/check-remote-sync.mjs`.
+- `body-release-checklist.md`는 소비자에게도 ship되지만(authoring-guide.md 선례처럼) seed-mode 전용임을 상단에 명시하고, 소비자 커밋/푸시 기준은 commit-push-rules.md로 분리합니다.
+- 원격 동기화 가드는 `check-seed-mode.mjs` 선례를 따라 `.harness-seed-mode`가 있을 때만 동작(소비자 no-op)하고, 네트워크를 쓰지 않으며(캐시된 remote-tracking ref만 비교) 절대 push를 막지 않습니다(항상 exit 0, 비차단 알림). pre-push에서 `|| true`로 호출합니다.
+- 자동 dual-push 스크립트는 만들지 않았습니다. push는 부수효과가 크고 자격증명/네트워크 위험이 있어, 정확한 절차는 체크리스트로 문서화하고 가드는 "빠진 원격 알림"까지만 책임집니다.
+- 새 문서는 document-registry.json에 등록해 orphan(strict 실패)을 피하고, context-registry.json과 skills/registry.json에 연결했습니다. commit-push-rules.md의 "변경 시 함께 확인할 것"에 새 스크립트와 체크리스트 포인터를 추가했습니다.
+- 버전 bump와 CHANGELOG 항목은 사용자 최종화 승인 단계에서 처리합니다(이 변경 자체가 그 체크리스트의 첫 dogfooding).
+
 ## 2026-06-08 - Policy Guard CI의 activeStack=none 실패 가드
 - GitHub Actions `Policy Guard`(`.github/workflows/policy-guard.yml`)가 `activeStack: none`이 된 5/29 이후 모든 main push에서 ~10초 만에 실패해 왔습니다.
 - 실패 단계는 검증(`harness:check:strict`)이 아니라 그 앞의 `Apply active stack` 단계입니다. 이 단계가 `node .harness/bin/apply-stack.mjs`를 인자 없이 실행하는데, `apply-stack.mjs`는 무인자 + `activeStack==='none'`이면 의도적으로 exit 1 합니다(스택을 먼저 고르라는 정상 동작).

@@ -108,6 +108,15 @@
       "priority": "medium",
       "appliesTo": [".harness/skills/registry.json", ".harness/session/task-context.md"],
       "keywords": ["스킬", "skill", "작업 절차", "읽을거리", "선택", "context"]
+    },
+    {
+      "id": "body-release-checklist",
+      "file": ".harness/project/body-release-checklist.md",
+      "category": "workflow",
+      "taskTypes": ["docs", "maintenance", "refactor", "feature", "review"],
+      "priority": "medium",
+      "appliesTo": [".harness/**", "scripts/**", ".githooks/**", "package.json", "CHANGELOG.md", ".github/workflows/**", "release"],
+      "keywords": ["본체", "릴리스", "배포", "버전", "version", "CHANGELOG", "원격", "동기화", "seed-mode", "downstream"]
     }
   ]
 }
