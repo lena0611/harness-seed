@@ -1198,6 +1198,35 @@ function guardFailsWhenActiveStackHasNoTrackedSnapshot() {
   assert(output.includes('결과: 실패'), 'consumer summary should show failure instead of pass')
 }
 
+function updateRecordsAndReplaysChangelogDelta() {
+  const target = makeTarget()
+  runInit(target)
+
+  // 최초 설치는 이전 버전이 없으므로 lastUpdate를 기록하지 않아야 한다.
+  const firstLock = JSON.parse(read(target, '.harness/harness-lock.json'))
+  assert(firstLock.baseHarness.version === packageVersion, 'clean install lock should record current version')
+  assert(!firstLock.lastUpdate, 'clean install should not record lastUpdate without a previous version')
+
+  // 이전 버전을 낮춰 업데이트 상황을 만든다.
+  firstLock.baseHarness.version = '0.0.1'
+  delete firstLock.lastUpdate
+  writeJson(target, '.harness/harness-lock.json', firstLock)
+
+  const output = runInit(target)
+  assert(output.includes('이번 업데이트로 반영된 공통 하네스 변경'), 'update should print the changelog delta inline')
+
+  const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
+  assert(lock.lastUpdate, 'update should record lastUpdate in the lock')
+  assert(lock.lastUpdate.from === '0.0.1', 'lastUpdate.from should be the previous version')
+  assert(lock.lastUpdate.to === packageVersion, 'lastUpdate.to should be the newly installed version')
+  assert(Array.isArray(lock.lastUpdate.entries) && lock.lastUpdate.entries.length >= 1, 'lastUpdate should carry changelog entries')
+  assert(lock.lastUpdate.entries[0].version === packageVersion, 'newest CHANGELOG entry should equal package.json version (release sync)')
+
+  // 독립 harness:changelog 명령이 lock의 lastUpdate를 다시 출력해야 한다.
+  const replay = run(nodeBin, [path.join(target, '.harness/bin/changelog-delta.mjs')], { cwd: target })
+  assert(replay.includes(packageVersion), 'harness:changelog should re-print the recorded delta from lock.lastUpdate')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   initPatchesEslintConfigForHarnessFiles,
@@ -1230,6 +1259,7 @@ const tests = [
   harnessBaselineDocUpdateDoesNotTriggerSyncGap,
   guardDerivesAppliedStackFromTrackedSnapshotWhenMarkerMissing,
   guardFailsWhenActiveStackHasNoTrackedSnapshot,
+  updateRecordsAndReplaysChangelogDelta,
 ]
 
 console.log('Init smoke tests')

@@ -355,6 +355,7 @@
         "npm run harness:outdated -- --stack-only",
         "npm run harness:update -- --base-only",
         "npm run harness:update",
+        "npm run harness:changelog",
         "npm run stack:status",
         "npm run harness:scan",
         "npm run harness:check"
@@ -364,6 +365,7 @@
         "stackHarness 업데이트 필요 여부",
         "선택한 업데이트 명령",
         "공통 하네스 downgrade 방지 확인",
+        "업데이트로 반영된 CHANGELOG 변경 내역",
         "업데이트 후 검증 결과"
       ],
       "records": [

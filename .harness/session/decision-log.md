@@ -1,5 +1,16 @@
 # 결정 로그
 
+## 2026-06-08 - 하네스 업데이트 변경 내역 가시화 (changelog 델타)
+- 문제: `harness:outdated`/`harness:update`가 버전 번호만 보여주고 무엇이 바뀌었는지는 보여주지 않았습니다. 게다가 init은 본체 `CHANGELOG.md`를 소비자에 복사하지 않으므로(INSTALL_ITEMS 제외) 소비자는 변경 내용을 알 길이 없었습니다.
+- 새 CHANGELOG는 `npx ... init`이 새 패키지 안에서 실행되는 그 순간에만 접근 가능합니다. 따라서 init이 (이전 lock 버전 → 새 버전] 구간의 CHANGELOG 델타를 계산해 (a) 설치 직후 인라인 출력하고 (b) `harness-lock.json`의 `lastUpdate`에 보존합니다. lock은 ship되지 않는 프로젝트별 상태라 소비자별로 안전합니다.
+- 재열람은 새 명령 `npm run harness:changelog`(= `.harness/bin/changelog-delta.mjs`)가 lock.lastUpdate를 다시 출력합니다. 본체 개발자는 `--changelog/--from/--to`로 임의 구간도 파싱할 수 있습니다.
+- `outdated`에는 변경 내역 확인 경로 힌트만 추가하고, 무거운 원격 CHANGELOG fetch는 넣지 않았습니다(자격증명/지연 위험). 실제 델타는 이미 패키지를 받는 update 시점에 보여줍니다.
+- init smoke test에 델타 기록·재생 검증을 추가했고, 이 테스트가 "CHANGELOG 최상단 버전 == package.json version"까지 강제해 릴리스 동기화 회귀를 막습니다.
+- 검증 중 cwd 실수로 시드 저장소에 self-install이 발생했으나(bin mode-only 변경 + lock/manifest 산출물), 커밋 전 전부 복원/삭제했습니다. 작업 트리에는 의도한 변경만 남았습니다.
+- SYNC GAP 해소 (strict CI 통과 기준): init.mjs는 force-overwrite·minimum-node·preserve-project-owned 등 여러 정책의 공통 트리거라, 변경 시 짝 문서를 함께 봐야 합니다. 내 변경이 실제로 건드린 계약만 정직하게 문서화했습니다 — (1) install/update 프로토콜(lock에 lastUpdate 기록)은 `sync-protocol.md`에, (2) harness-lock.json에 새로 추가된 `lastUpdate` 필드는 설정 계약 문서 `config-contract.md`에 반영. 이로써 force-overwrite·minimum-node·preserve-project-owned가 모두 짝 변경으로 클리어됐습니다.
+- 반대로 `outdated/update`의 안내문과 `portability-guide.md` 한 줄은 각각 `common.stack.bundle-integrity`·`common.template.contract-bridge`를 과매칭시키는 cosmetic/중복 변경이라, 정책을 약화하거나 문서를 거짓 수정하는 대신 되돌렸습니다. harness:changelog 발견성은 README·update-flow 스킬·sync-protocol·config-contract·업데이트 인라인 출력으로 충분히 유지됩니다.
+- 참고: 5/29~ CI가 apply-stack 단계에서 죽어 strict 정책 검사가 실제로 돈 적이 없었고, 그 단계를 고친 뒤 0.2.57이 strict를 처음 통과했습니다. 그래서 init.mjs를 건드리는 이번 변경이 다수 정책을 처음으로 마주쳤습니다.
+
 ## 2026-06-08 - 본체 변경/배포 체크리스트 + 원격 동기화 가드 추가
 - 본체(harness-seed)는 "남을 위한 안전장치"는 갖췄지만 자기 자신을 고치고 내보내는 절차(버전 bump, CHANGELOG, 양쪽 원격 동기화, downstream 통지)가 사람의 기억에만 의존하는 갭이 있었습니다. 실제로 GitHub 미러가 2커밋 뒤처지는 사고로 드러났습니다.
 - 두 가지를 추가합니다. (A) 본체 전용 절차 문서 `.harness/project/body-release-checklist.md`, (B) maintainer 스킬 `harness.body-release` + 원격 동기화 가드 `.harness/bin/check-remote-sync.mjs`.

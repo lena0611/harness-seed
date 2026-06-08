@@ -124,6 +124,7 @@ const CONSUMER_SCRIPT_NAMES = [
   'harness:context',
   'harness:outdated',
   'harness:update',
+  'harness:changelog',
   'hooks:install',
   'standards:list',
   'templates:list',
@@ -812,6 +813,8 @@ function printConsumerCommandGuide() {
   - 업데이트 후보 확인 및 적용
        npm run harness:outdated
        npm run harness:update
+  - 마지막 업데이트로 바뀐 공통 하네스 변경 내역 다시 보기
+       npm run harness:changelog
   - git commit/push 전 자동 검증 연결
        npm run hooks:install
 `);
@@ -929,12 +932,74 @@ function writeInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
   return manifest
 }
 
-function writeHarnessLock(target, installManifest, opts) {
+function parseSemverLoose(value) {
+  const m = String(value ?? '').match(/^v?(\d+)\.(\d+)\.(\d+)/)
+  if (!m) return null
+  return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]), version: `${Number(m[1])}.${Number(m[2])}.${Number(m[3])}` }
+}
+
+function compareSemverLoose(a, b) {
+  for (const key of ['major', 'minor', 'patch']) {
+    if (a[key] > b[key]) return 1
+    if (a[key] < b[key]) return -1
+  }
+  return 0
+}
+
+function trimBlankLines(lines) {
+  const out = [...lines]
+  while (out.length && !out[0].trim()) out.shift()
+  while (out.length && !out[out.length - 1].trim()) out.pop()
+  return out
+}
+
+// 새로 설치되는 공통 하네스 패키지의 CHANGELOG.md에서 (이전버전, 새버전] 구간 항목을 뽑는다.
+// 소비자 프로젝트에는 CHANGELOG.md를 복사하지 않으므로, 이 구간 정보는 업데이트 시점에만
+// 얻을 수 있어 lock의 lastUpdate에 보존한다.
+function computeChangelogDelta(sourceRoot, fromVersion, toVersion) {
+  const from = parseSemverLoose(fromVersion)
+  const to = parseSemverLoose(toVersion)
+  if (!from || !to || compareSemverLoose(to, from) <= 0) return null
+
+  const changelogPath = join(sourceRoot, 'CHANGELOG.md')
+  if (!existsSync(changelogPath)) return null
+
+  let text
+  try {
+    text = readFileSync(changelogPath, 'utf8')
+  } catch {
+    return null
+  }
+
+  const sections = []
+  let current = null
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/^##\s+v?(\d+\.\d+\.\d+)\s*(?:[-–]\s*(.*))?$/)
+    if (m) {
+      current = { version: m[1], date: (m[2] || '').trim(), lines: [] }
+      sections.push(current)
+      continue
+    }
+    if (current) current.lines.push(line)
+  }
+
+  const entries = sections
+    .map((s) => ({ version: s.version, date: s.date, lines: trimBlankLines(s.lines) }))
+    .filter((s) => {
+      const v = parseSemverLoose(s.version)
+      return v && compareSemverLoose(v, from) > 0 && compareSemverLoose(v, to) <= 0
+    })
+
+  return entries.length ? { from: from.version, to: to.version, entries } : null
+}
+
+function writeHarnessLock(sourceRoot, target, installManifest, opts) {
   if (opts.dryRun) return null
 
   const lockAbs = join(target, LOCK_PATH)
   const previous = readJson(lockAbs, {})
   const source = installManifest.source ?? {}
+  const delta = computeChangelogDelta(sourceRoot, previous?.baseHarness?.version, installManifest.version)
   const next = {
     version: 1,
     updatedAt: new Date().toISOString(),
@@ -947,11 +1012,14 @@ function writeHarnessLock(target, installManifest, opts) {
       source,
     },
     stackHarness: previous.stackHarness ?? null,
+    lastUpdate: delta
+      ? { from: delta.from, to: delta.to, at: new Date().toISOString(), entries: delta.entries }
+      : (previous.lastUpdate ?? null),
   }
 
   mkdirSync(dirname(lockAbs), { recursive: true })
   writeFileSync(lockAbs, `${JSON.stringify(next, null, 2)}\n`)
-  return next
+  return { lock: next, changelog: delta }
 }
 
 function readJson(absPath, fallback) {
@@ -1338,7 +1406,8 @@ function main() {
     const eslintPatch = patchEslintConfigForHarness(TARGET, opts);
     ensureExecutable(TARGET, opts);
     const writtenManifest = writeInstallManifest(sourceRoot, TARGET, files, installed.copiedFiles, opts);
-    const writtenLock = writtenManifest ? writeHarnessLock(TARGET, writtenManifest, opts) : null;
+    const lockResult = writtenManifest ? writeHarnessLock(sourceRoot, TARGET, writtenManifest, opts) : null;
+    const writtenLock = lockResult?.lock ?? null;
     const diagnostics = runPostInstallDiagnostics(TARGET, opts);
 
     console.log('');
@@ -1359,6 +1428,21 @@ function main() {
     console.log(`scan: ${diagnostics.scan}`);
     console.log(`handoff: ${diagnostics.handoff}`);
     console.log(`check: ${diagnostics.check}`);
+
+    if (!opts.dryRun && lockResult?.changelog?.entries?.length) {
+      const cl = lockResult.changelog;
+      console.log('');
+      console.log(`이번 업데이트로 반영된 공통 하네스 변경 (${cl.from} → ${cl.to}):`);
+      for (const entry of cl.entries) {
+        console.log('');
+        console.log(`  ## ${entry.version}${entry.date ? ` - ${entry.date}` : ''}`);
+        for (const line of entry.lines) {
+          console.log(`  ${line}`);
+        }
+      }
+      console.log('');
+      console.log('이 내역은 나중에 npm run harness:changelog 로 다시 볼 수 있습니다.');
+    }
 
     if (installed.skippedFiles.length > 0) {
       console.log('');

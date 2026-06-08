@@ -4,6 +4,14 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.58 - 2026-06-08
+
+- 소비자가 `npm run harness:update`로 공통 하네스를 올리면, 이번 업데이트로 반영된 변경 항목(이전 버전 → 새 버전 사이의 `CHANGELOG.md` 구간)을 설치 직후 바로 출력합니다.
+- 소비자 프로젝트에는 본체 `CHANGELOG.md`를 복사하지 않으므로, 그 변경 요약을 `.harness/harness-lock.json`의 `lastUpdate`에 보존하고 새 명령 `npm run harness:changelog`로 언제든 다시 볼 수 있게 했습니다.
+- `npm run harness:outdated`가 업데이트 후보를 알릴 때 변경 내역을 어디서 보는지 안내하는 힌트를 추가했습니다.
+- 새 도구 `.harness/bin/changelog-delta.mjs`는 lock의 lastUpdate 재생과 임의 CHANGELOG 구간 파싱(`--changelog/--from/--to`)을 지원합니다.
+- init smoke test에 업데이트 델타 기록·재생 검증을 추가했고, 이 테스트가 "CHANGELOG 최상단 버전 == package.json version" 릴리스 동기화도 함께 강제합니다.
+
 ## 0.2.57 - 2026-06-08
 
 - 본체(harness-seed) 자체를 고치고 내보내는 절차를 `.harness/project/body-release-checklist.md`로 고정했습니다. 영향 확인, 정책-코드 동기화, 버전/CHANGELOG, 양쪽 원격 동기화, downstream 통지를 체크리스트로 만들었습니다.

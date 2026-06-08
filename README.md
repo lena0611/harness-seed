@@ -200,11 +200,14 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2
 ```bash
 npm run harness:outdated
 npm run harness:update
+npm run harness:changelog
 npm run harness:scan
 npm run harness:check
 ```
 
 `harness:outdated`는 `.harness/harness-lock.json`을 읽고 공통 하네스와 스택 하네스를 모두 확인합니다. 둘 중 하나라도 업데이트 후보가 있으면 전체 상태를 `outdated`로 표시합니다.
+
+`harness:update`는 업데이트가 끝나면 이번에 반영된 공통 하네스 변경 항목(이전 버전 → 새 버전 사이의 `CHANGELOG.md` 구간)을 바로 출력합니다. 같은 내역은 `.harness/harness-lock.json`의 `lastUpdate`에 보존되어 `npm run harness:changelog`로 언제든 다시 볼 수 있습니다. 소비자 프로젝트에는 본체 `CHANGELOG.md`를 복사하지 않으므로, 이 변경 요약은 업데이트 시점에 기록한 `lastUpdate`가 출처입니다.
 
 `harness:update`는 안전을 위해 기존처럼 현재 적용된 스택 하네스를 다시 실행합니다. 공통 하네스만 업데이트하려면 `--base-only`를 명시합니다. 기본 전략은 `compatible`이며, 현재 설치된 버전의 SemVer caret 범위 안에서 최신 태그를 선택합니다. 예를 들어 `1.0.0`이 설치되어 있으면 `^1.0.0` 범위의 최신 패치/마이너를 받습니다. 스택 업데이트 중 공통 하네스 요구사항을 볼 때는 `baseHarness.minVersion`을 우선하며, 설치된 공통 하네스가 이미 최소 버전 이상이면 `baseHarness.ref`가 더 낮아도 자동 downgrade하지 않습니다.
 
@@ -475,7 +478,8 @@ npm run harness:check -- --verbose
 | `npm run harness:context -- "<작업>"` | 에이전트가 작업 설명을 기준으로 `.harness/session/task-context.md`에 판단 컨텍스트 생성 |
 | `npm run hooks:install` | 로컬 git hook과 커밋 템플릿 등록. 이후 사용자가 승인한 `git commit` 전에는 전체 `harness:check`, 승인한 `git push` 전에는 `harness:check -- --fast` 자동 실행. 에이전트는 이 경우 commit 직전 수동 `harness:check`를 중복 실행하지 않음 |
 | `npm run harness:outdated` | lock 기준으로 공통/스택 하네스의 업데이트 후보를 함께 조회. 파일 수정 없음 |
-| `npm run harness:update` | lock에 기록된 스택 하네스를 다시 실행해 같은 major 범위의 최신 기준으로 업데이트. 공통 하네스만 올릴 때는 `--base-only` 사용 |
+| `npm run harness:update` | lock에 기록된 스택 하네스를 다시 실행해 같은 major 범위의 최신 기준으로 업데이트. 공통 하네스만 올릴 때는 `--base-only` 사용. 끝나면 이번에 반영된 변경 내역을 출력 |
+| `npm run harness:changelog` | 마지막 업데이트로 반영된 공통 하네스 변경 내역을 다시 출력. `--changelog <path> --from <v> --to <v>`로 특정 CHANGELOG 구간도 조회 |
 | `npm run standards:list` | 원격 스택 하네스 후보 조회 |
 | `npm run templates:list` | 원격 템플릿 후보 조회 |
 | `npm run stack:status` | 활성 스택, 적용 상태, 공통/스택 하네스 버전 확인 |
