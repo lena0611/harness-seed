@@ -1,5 +1,12 @@
 # 결정 로그
 
+## 2026-06-08 - Policy Guard CI의 activeStack=none 실패 가드
+- GitHub Actions `Policy Guard`(`.github/workflows/policy-guard.yml`)가 `activeStack: none`이 된 5/29 이후 모든 main push에서 ~10초 만에 실패해 왔습니다.
+- 실패 단계는 검증(`harness:check:strict`)이 아니라 그 앞의 `Apply active stack` 단계입니다. 이 단계가 `node .harness/bin/apply-stack.mjs`를 인자 없이 실행하는데, `apply-stack.mjs`는 무인자 + `activeStack==='none'`이면 의도적으로 exit 1 합니다(스택을 먼저 고르라는 정상 동작).
+- 로컬 pre-push hook은 `harness:check --fast`만 돌려 `none`을 정상 스킵하므로 통과하지만, CI에만 있는 `apply-stack` 단계가 `none`을 견디지 못해 로컬↔CI 결과가 갈렸습니다.
+- 스크립트(`apply-stack.mjs`)는 건드리지 않습니다. 무인자 적용 시 exit 1은 `npm run stack:apply`의 의도된 사용자 안내이므로 보존합니다.
+- 수정 위치는 워크플로입니다. `Apply active stack` 단계가 `profile.json`의 `activeStack`을 읽어 `none`이면 단계를 건너뛰고, 스택이 지정된 소비자 환경에서는 기존대로 `apply-stack.mjs`를 실행하도록 가드를 추가합니다. 이후 단계는 로컬 pre-push와 동일하게 `harness:check:strict`로 검사합니다.
+
 ## 2026-06-06 - visible trace 조건부 리마인더 본체 반영
 - visible trace는 실제 업무 진행 보고에 적용되는 런타임 보고 규약이며, 단순 질문 응답·잡담·메타 확인에는 강요하지 않습니다.
 - 긴 세션에서 규약이 풍화되지 않도록 Claude UserPromptSubmit hook, Codex inject-context hook, Copilot instructions에 같은 조건부 리마인더 문구를 둡니다.

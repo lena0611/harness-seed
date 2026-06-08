@@ -26,7 +26,13 @@ jobs:
           cache: npm
 
       - name: Apply active stack (scaffold + package.json merge)
-        run: node .harness/bin/apply-stack.mjs
+        run: |
+          active="$(node -pe "JSON.parse(require('fs').readFileSync('.harness/policy/profile.json','utf8')).activeStack||'none'")"
+          if [ "$active" = "none" ]; then
+            echo "activeStack=none → 스택 적용 단계 건너뜀 (공통 하네스만 검사)"
+          else
+            node .harness/bin/apply-stack.mjs
+          fi
 
       - name: Install dependencies
         run: npm install
