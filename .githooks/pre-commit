@@ -15,6 +15,9 @@ if [ -s "$NVM_DIR/nvm.sh" ]; then
   set -u
 fi
 
+# 낮은 Node에서 ESM 크래시 대신 업그레이드 안내가 나오도록 첫 node 호출 전에 버전을 검사한다.
+node .harness/bin/check-node-version.mjs
+
 # 기존 프로젝트 pre-commit hook이 있으면 먼저 실행
 node .harness/bin/run-previous-hook.mjs pre-commit "$@"
 

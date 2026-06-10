@@ -16,6 +16,12 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 - hook이 설치되어 있지 않거나 `--no-verify` 등으로 우회되는 환경이면 에이전트가 commit/push 전에 직접 `npm run harness:check`(비-Node 프로젝트는 `.harness/bin/harness check`)를 실행합니다.
 - 대형 변경에서 커밋 전에 빠른 실패 확인이 필요하면 수동 검증을 먼저 실행할 수 있습니다. 이 경우 이후 commit hook에서 같은 검증이 다시 실행될 수 있음을 사용자에게 먼저 알립니다.
 
+## hook 구현 계약
+- hook 스크립트는 POSIX sh 호환을 유지합니다. Linux에서 `sh`는 dash이므로 bash 전용 문법을 쓰지 않습니다.
+- nvm 로드(`. nvm.sh` + `nvm use`)는 `set -u`와 호환되지 않으므로 반드시 `set +u` … `set -u` 구간으로 감쌉니다. dash에서 미설정 변수 참조는 expansion error라 `|| true`로 잡히지 않고 hook 전체가 무출력 exit 2로 종료됩니다.
+- 다른 `node` 호출보다 먼저 `node .harness/bin/check-node-version.mjs`를 실행합니다. 낮은 Node에서 ESM 크래시 대신 업그레이드 안내가 나오게 하기 위함입니다.
+- 하네스 검증은 npm을 경유하지 않고 `.harness/bin/harness` 런처를 호출합니다(비-Node 프로젝트 호환).
+
 ## hook 설치 기준
 - `npm run hooks:install`은 `core.hooksPath`를 `.githooks`로 설정합니다.
 - 기존 `.git/hooks/*` 또는 기존 `core.hooksPath`의 hook은 삭제하지 않습니다.
