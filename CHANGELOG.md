@@ -4,6 +4,11 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.61 - 2026-06-10
+
+- Linux(sh=dash) + nvm 환경에서 git hook(pre-commit/pre-push)이 메시지 없이 exit 2로 죽어 커밋/푸시가 차단되던 버그를 수정했습니다. `set -u` 상태에서 `nvm use`의 미설정 변수 참조가 dash에서는 expansion error가 되어 `|| true`로도 잡히지 않던 문제로, nvm 로드 구간만 `set +u`로 감쌌습니다.
+- 이 버그는 0.2.60 이전부터 존재했으며(npm 경유 hook도 동일), 0.2.60에서 추가된 CI의 hook 실행 e2e 테스트가 처음 드러냈습니다. macOS(sh=bash)는 영향이 없습니다.
+
 ## 0.2.60 - 2026-06-10
 
 - package.json이 없는 백엔드 프로젝트(PHP/Java/Swift/Kotlin)에 하네스를 설치해도 package.json을 새로 만들지 않습니다. 프로젝트 매니페스트 오염 없이 설치되며, greenfield Node 프로젝트는 `init --with-package-json`으로만 생성합니다.

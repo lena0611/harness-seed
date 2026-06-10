@@ -7,8 +7,12 @@ fi
 
 if [ -s "$NVM_DIR/nvm.sh" ]; then
   # git hook은 로그인 셸의 nvm 상태를 물려받지 않을 수 있으므로 프로젝트 Node를 직접 적용한다.
+  # nvm.sh와 nvm use는 set -u와 호환되지 않는다. dash(sh=dash인 Linux)에서는 미설정 변수
+  # 참조가 expansion error라 `|| true`로도 잡히지 않고 hook 전체가 exit 2로 죽으므로 잠시 끈다.
+  set +u
   . "$NVM_DIR/nvm.sh"
   nvm use >/dev/null 2>&1 || true
+  set -u
 fi
 
 # 기존 프로젝트 pre-commit hook이 있으면 먼저 실행
