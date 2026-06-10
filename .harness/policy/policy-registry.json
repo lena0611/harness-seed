@@ -353,9 +353,7 @@
         "path": ".harness/project/template-contract.md"
       },
       "documents": [
-        ".harness/project/template-contract.md",
-        ".harness/project/portability-guide.md",
-        ".harness/stacks/README.md"
+        ".harness/project/template-contract.md"
       ],
       "ownedAreas": [
         ".harness/bin/apply-stack.mjs",

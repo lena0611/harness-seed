@@ -151,6 +151,11 @@ my-stack-preset/
   "instructions": ["instructions/architecture.md"],
   "policiesFile": "policies.json",
   "checksKey": null,
+  "verify": {
+    "lint": "composer lint",
+    "test": "./gradlew test",
+    "build": "./gradlew assemble"
+  },
   "source": {
     "type": "local",
     "path": "scaffold",
@@ -158,6 +163,8 @@ my-stack-preset/
   }
 }
 ```
+
+`verify`는 선택 섹션입니다. 비-Node 스택(PHP/Java/Swift/Kotlin 등)이 lint/test/build 검증을 npm script 없이 raw shell 명령으로 선언할 때 사용합니다. `harness check`(guard)는 stage별로 `verify.<stage>`가 있으면 그 명령을 프로젝트 루트에서 shell로 실행하고, 없으면 기존처럼 적용 프로젝트 `package.json`의 같은 이름 script로 fallback합니다. `verify` 섹션이 없는 기존 Node 스택은 이전과 동일하게 동작합니다. fast check(pre-push)에서는 npm script와 동일하게 test/build stage를 건너뜁니다.
 
 스택 기준만 있고 scaffold가 없으면 `source.type`을 `none`으로 둡니다.
 

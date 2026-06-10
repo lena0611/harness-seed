@@ -233,6 +233,37 @@ function runNpmScript(scriptName) {
   return { scriptName, status: 'passed' }
 }
 
+// P4(2026-06-09): 스택 manifest의 verify 섹션이 선언한 raw shell 명령을 실행한다.
+// 비-Node 스택(PHP/Java 등)이 lint/test/build를 npm script 없이
+// `./gradlew test`, `composer test` 같은 명령으로 선언할 수 있게 한다.
+function runStackVerifyCommand(stage, command) {
+  console.log(`Stack verify (${stage}): ${command}`)
+  const result = spawnSync(command, {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    shell: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  if (result.status !== 0) {
+    if (result.stdout) process.stdout.write(result.stdout)
+    if (result.stderr) process.stderr.write(result.stderr)
+    console.error('')
+    console.error(`설치 후 검증 실패: stack verify ${stage} (${command})`)
+    console.error('하네스 설치 파일과 별개로, 적용 스택이 선언한 검증 명령이 실패했습니다.')
+    process.exit(result.status ?? 1)
+  }
+
+  if (briefMode) {
+    console.log(`OK: stack verify ${stage} 통과`)
+    return { scriptName: `verify:${stage}`, status: 'passed' }
+  }
+
+  if (result.stdout) process.stdout.write(result.stdout)
+  if (result.stderr) process.stderr.write(result.stderr)
+  return { scriptName: `verify:${stage}`, status: 'passed' }
+}
+
 function commandExists(command) {
   const result = spawnSync('sh', ['-c', `command -v ${command}`], {
     stdio: 'ignore',
@@ -596,7 +627,11 @@ function checkHarnessVersionLock() {
   console.log(`Harness versions OK: base=${installedBase.version}${installedBase.ref ? ` (${installedBase.ref})` : ''}, stack=${lock.stackHarness?.version ?? profile.activeStack}`)
 }
 
-const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'))
+// P1(2026-06-09): 비-Node 프로젝트(package.json 없음)에서도 `node .harness/bin/guard.mjs`가
+// 동작해야 한다. 없으면 빈 객체로 보고 lint/test/build/edge 스크립트가 없는 것으로 처리한다.
+// package.json이 있는 기존 소비자는 거동이 동일하다.
+const pkgPath = path.join(repoRoot, 'package.json')
+const pkg = fs.existsSync(pkgPath) ? JSON.parse(fs.readFileSync(pkgPath, 'utf8')) : {}
 const scripts = pkg.scripts || {}
 const validationResults = []
 
@@ -639,11 +674,22 @@ if (stackState.markerMissing) {
   console.log(`${path.relative(repoRoot, markerPath)} 마커는 없지만 추적된 스택 스냅샷이 있어 lint/test/build를 계속 실행합니다.`)
 }
 
-const scriptPlan = [
-  scripts.lint ? 'lint' : null,
-  !fastMode && scripts.test ? 'test' : null,
-  !fastMode && scripts.build ? 'build' : null,
-].filter(Boolean)
+// P4(2026-06-09): 적용된 스택 manifest의 verify 섹션(raw shell 명령)을 stage별로 우선 사용하고,
+// 선언이 없는 stage는 기존처럼 package.json scripts로 fallback한다.
+// verify 섹션이 없는 기존 Node 스택은 이전과 완전히 같은 경로를 탄다.
+// manifest 내용은 validation cache key에 이미 해시로 포함되므로 verify 변경도 캐시를 무효화한다.
+const stackVerify = (stackState.applied && readJson(stackState.manifestPath)?.verify) || {}
+const stagePlan = [
+  { stage: 'lint', raw: stackVerify.lint, npm: scripts.lint, skipInFast: false },
+  { stage: 'test', raw: stackVerify.test, npm: scripts.test, skipInFast: true },
+  { stage: 'build', raw: stackVerify.build, npm: scripts.build, skipInFast: true },
+].map((entry) => ({
+  ...entry,
+  declared: Boolean(entry.raw || entry.npm),
+  planned: Boolean(entry.raw || entry.npm) && !(fastMode && entry.skipInFast),
+}))
+
+const scriptPlan = stagePlan.filter((entry) => entry.planned).map((entry) => (entry.raw ? `${entry.stage}:raw` : entry.stage))
 const cacheKey = validationCacheKey(scriptPlan)
 const cache = readCheckCache()
 
@@ -655,21 +701,14 @@ if (!noCache && cache?.key === cacheKey && scriptPlan.length > 0) {
   process.exit(0)
 }
 
-if (scripts.lint) {
-  validationResults.push(runNpmScript('lint'))
-}
-
-if (fastMode && (scripts.test || scripts.build)) {
+if (fastMode && stagePlan.some((entry) => entry.declared && entry.skipInFast)) {
   console.log('')
-  console.log('Fast check mode: test/build 단계는 건너뜁니다. 전체 검증은 npm run harness:check 로 실행하세요.')
+  console.log('Fast check mode: test/build 단계는 건너뜁니다. 전체 검증은 harness check 또는 npm run harness:check 로 실행하세요.')
 }
 
-if (!fastMode && scripts.test) {
-  validationResults.push(runNpmScript('test'))
-}
-
-if (!fastMode && scripts.build) {
-  validationResults.push(runNpmScript('build'))
+for (const entry of stagePlan) {
+  if (!entry.planned) continue
+  validationResults.push(entry.raw ? runStackVerifyCommand(entry.stage, entry.raw) : runNpmScript(entry.stage))
 }
 
 if (scriptPlan.length > 0) {

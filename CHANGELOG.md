@@ -4,6 +4,16 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.60 - 2026-06-10
+
+- package.json이 없는 백엔드 프로젝트(PHP/Java/Swift/Kotlin)에 하네스를 설치해도 package.json을 새로 만들지 않습니다. 프로젝트 매니페스트 오염 없이 설치되며, greenfield Node 프로젝트는 `init --with-package-json`으로만 생성합니다.
+- npm 없이 하네스를 실행하는 `harness` 런처(`.harness/bin/harness`)를 추가했습니다. `harness check`, `harness impact`, `harness hooks:install` 등 모든 소비자 명령을 `npm run harness:*`와 동일하게 실행합니다. Windows cmd/PowerShell용 `.harness/bin/harness.cmd` shim도 함께 설치됩니다(git hook은 Windows에서도 Git Bash로 동작).
+- git hook(pre-commit/pre-push)이 npm 대신 harness 런처를 호출해, package.json 없는 프로젝트에서도 commit/push 자동 검증이 동작합니다. npm 프로젝트의 검증 결과는 동일합니다.
+- 스택 manifest에 선택적 `verify` 섹션(`{ "lint", "test", "build" }`, raw shell 명령)을 추가했습니다. 비-Node 스택이 `./gradlew test`, `composer test` 같은 명령을 검증 단계로 선언할 수 있고, 선언이 없는 stage는 기존처럼 package.json scripts로 동작합니다.
+- `harness check`(guard)가 package.json 없이도 동작하도록 수정했고, `.gitignore` 주입에서 Node 전용 항목(node_modules/, dist/)은 package.json이 있을 때만 추가합니다.
+- `common.template.contract-bridge` 정책의 documents를 전용 계약 문서로 좁혀, 일반 안내 문서 수정마다 발생하던 과매칭 SYNC GAP을 해소했습니다.
+- init smoke test에 비-Node 설치, opt-in package.json 생성, 런처 동작/드리프트 가드, npm-free git hook e2e, raw verify 실행 검증을 추가했습니다(총 38종). 기존 Node 소비자의 거동은 모든 경로에서 이전과 동일합니다.
+
 ## 0.2.59 - 2026-06-08
 
 - 소비자가 이미 `.claude/settings.json`을 갖고 있을 때 하네스 에이전트 안전 훅이 wiring되지 않던 갭을 수정했습니다. 이제 `init`이 기존 설정을 보존하면서 하네스의 hooks/permissions(deny·allow)/env/statusLine을 멱등·비파괴로 병합합니다.

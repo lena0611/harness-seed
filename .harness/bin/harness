@@ -1,0 +1,89 @@
+#!/usr/bin/env sh
+# harness 런처 — npm/package.json 없이 하네스 명령을 실행하는 진입면. (P2, 2026-06-09)
+#
+# - package.json이 있는 프로젝트는 기존 `npm run harness:*`를 그대로 써도 된다.
+# - 이 런처는 package.json이 없는 비-Node 프로젝트(PHP/Java/Swift/Kotlin)에 동등한 진입면을 준다.
+# - 둘 다 같은 .harness/bin/*.mjs를 호출하므로 동작이 일치한다.
+# - 전역 설치나 PATH 변경을 요구하지 않는다. `.harness/bin/harness <command>`로 직접 실행한다.
+#   (필요하면 PATH의 디렉터리에 symlink를 걸어 쓸 수 있다.)
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd -P)
+
+# git hook과 동일하게 프로젝트 Node를 적용한다(로그인 셸의 nvm 상태를 못 물려받는 환경 대비).
+if [ -z "${NVM_DIR:-}" ]; then
+  export NVM_DIR="$HOME/.nvm"
+fi
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+  # nvm.sh는 일부 환경에서 unset 변수를 참조하므로 source 동안 -u를 잠시 끈다.
+  set +u
+  . "$NVM_DIR/nvm.sh"
+  nvm use >/dev/null 2>&1 || true
+  set -u
+fi
+
+# npm run이 package.json 위치(프로젝트 루트)를 cwd로 쓰는 것과 동일하게 맞춘다.
+cd "$ROOT"
+
+usage() {
+  cat <<'EOF'
+Usage: harness <command> [args...]
+  npm 없이 하네스를 실행하는 진입면입니다. package.json이 있으면 `npm run harness:*`도 동일하게 동작합니다.
+
+Commands:
+  check [--strict|--fast]    하네스 통합 검사        (npm run harness:check)
+  impact                     정책 영향 분석           (harness:impact)
+  scan                       프로젝트 스캔 리포트      (harness:scan)
+  handoff                    설치/업데이트 인수인계     (harness:handoff)
+  guide                      현재 상태 가이드          (harness:guide)
+  sync                       판단 컨텍스트 동기화       (harness:sync)
+  context "<작업 설명>"       작업별 판단 컨텍스트       (harness:context)
+  outdated                   업데이트 후보 확인         (harness:outdated)
+  update                     하네스 업데이트           (harness:update)
+  changelog                  마지막 업데이트 변경 내역   (harness:changelog)
+  hooks:install              git hook/커밋 템플릿 연결  (hooks:install)
+  standards:list             스택 하네스 후보 조회      (standards:list)
+  templates:list             scaffold 템플릿 후보 조회  (templates:list)
+  stack:apply | stack:reset | stack:status
+  template:apply | template:reset | template:status
+EOF
+}
+
+cmd="${1:-}"
+if [ "$#" -gt 0 ]; then shift; fi
+
+case "$cmd" in
+  ""|-h|--help|help) usage; exit 0 ;;
+esac
+
+# 낮은 Node에서 문법 에러 대신 업그레이드 안내가 먼저 나오도록 버전 검사를 선행한다.
+node .harness/bin/check-node-version.mjs
+
+case "$cmd" in
+  check)           exec node .harness/bin/guard.mjs "$@" ;;
+  impact)          exec node .harness/bin/policy-harness.mjs impact "$@" ;;
+  scan)            exec node .harness/bin/scan-project.mjs --write "$@" ;;
+  handoff)         exec node .harness/bin/handoff.mjs --write "$@" ;;
+  guide)           exec node .harness/bin/harness-guide.mjs "$@" ;;
+  sync)            exec node .harness/bin/sync-context.mjs "$@" ;;
+  context)         exec node .harness/bin/build-context.mjs "$@" ;;
+  outdated)        exec node .harness/bin/outdated-harness.mjs "$@" ;;
+  update)          exec node .harness/bin/update-harness.mjs "$@" ;;
+  changelog)       exec node .harness/bin/changelog-delta.mjs "$@" ;;
+  hooks:install)   exec node .harness/bin/install-hooks.mjs "$@" ;;
+  standards:list)  exec node .harness/bin/list-stack-standards.mjs "$@" ;;
+  templates:list)  exec node .harness/bin/list-templates.mjs "$@" ;;
+  stack:apply)     exec node .harness/bin/apply-stack.mjs "$@" ;;
+  stack:reset)     exec node .harness/bin/apply-stack.mjs --reset "$@" ;;
+  stack:status)    exec node .harness/bin/apply-stack.mjs --status "$@" ;;
+  template:apply)  exec node .harness/bin/apply-stack.mjs --template "$@" ;;
+  template:reset)  exec node .harness/bin/apply-stack.mjs --template-reset "$@" ;;
+  template:status) exec node .harness/bin/apply-stack.mjs --template-status "$@" ;;
+  *)
+    echo "알 수 없는 명령: $cmd" >&2
+    echo "" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

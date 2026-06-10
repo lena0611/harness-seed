@@ -48,9 +48,24 @@ function sha256File(absPath) {
   return createHash('sha256').update(fs.readFileSync(absPath)).digest('hex')
 }
 
-function makeTarget() {
+function makeBareTarget() {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-init-test-'))
   run('git', ['init', '--quiet'], { cwd: target })
+  return target
+}
+
+function makeTarget() {
+  // 대부분의 기존 테스트는 Node 소비자(=package.json 보유) 설치를 가정한다.
+  // P1(2026-06-09) 이후 init은 package.json이 없으면 새로 만들지 않으므로,
+  // 기존 거동(harness 별칭 머지, `npm run` 명령)을 검증하려면 타깃이 package.json을 가져야 한다.
+  // package.json 비주입/비-Node 경로는 makeBareTarget() 기반 별도 테스트로 검증한다.
+  const target = makeBareTarget()
+  writeJson(target, 'package.json', {
+    name: 'harness-test-target',
+    private: true,
+    type: 'module',
+    scripts: {},
+  })
   return target
 }
 
@@ -187,6 +202,11 @@ function cleanInstallCreatesExpectedFiles() {
   assert(projectMemory.includes('한 항목은 한 줄로 유지'), 'consumer project memory should keep compact one-line entries')
   assert(projectMemory.includes('supersede된 기억'), 'consumer project memory should remove stale facts')
 
+  // P5 회귀 잠금: Node 프로젝트(.gitignore)는 기존처럼 node 전용 항목을 받는다.
+  const cleanGitignore = read(target, '.gitignore')
+  assert(cleanGitignore.includes('node_modules/'), 'Node install should keep adding node_modules/ to .gitignore')
+  assert(cleanGitignore.includes('dist/'), 'Node install should keep adding dist/ to .gitignore')
+
   const pkg = JSON.parse(read(target, 'package.json'))
   assert(pkg.scripts['harness:scan'], 'clean install should merge harness scan script')
   assert(pkg.scripts['harness:handoff'], 'clean install should merge harness handoff script')
@@ -252,6 +272,209 @@ function cleanInstallCreatesExpectedFiles() {
   const report = read(target, '.harness/session/project-scan-report.md')
   assert(report.includes('## Standards Layers'), 'scan report should include standards layers')
   assert(report.includes('## Conflict Candidates'), 'scan report should include conflict candidates')
+}
+
+function nonNodeInstallSkipsPackageJson() {
+  // P1(2026-06-09): PHP/Java 같은 비-Node 백엔드 프로젝트(package.json 없음)에는
+  // package.json을 새로 만들지 않는다. 프로젝트 매니페스트 오염 방지.
+  const target = makeBareTarget()
+  fs.writeFileSync(path.join(target, 'composer.json'), '{\n  "name": "acme/app"\n}\n')
+  fs.writeFileSync(path.join(target, 'pom.xml'), '<project></project>\n')
+
+  const output = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  assert(!exists(target, 'package.json'), 'non-Node install should not create package.json')
+  assert(output.includes('package.json: 없음 → 생성하지 않음'), 'non-Node install should report package.json skip')
+  assert(output.includes('비-Node 프로젝트 안내'), 'non-Node install should print npm-free command guidance')
+  assert(read(target, 'composer.json').includes('acme/app'), 'non-Node install should preserve composer.json')
+  assert(read(target, 'pom.xml').includes('<project>'), 'non-Node install should preserve pom.xml')
+
+  // 하네스 본체는 정상 설치되어야 한다.
+  assert(exists(target, '.harness/policy/profile.json'), 'non-Node install should still copy harness body')
+  assert(exists(target, '.harness/bin/guard.mjs'), 'non-Node install should still copy guard')
+  assert(exists(target, '.harness/install-manifest.json'), 'non-Node install should still write install manifest')
+
+  // P5: 비-Node 프로젝트의 .gitignore는 Node 전용 항목으로 오염되지 않아야 한다.
+  const gitignore = read(target, '.gitignore')
+  assert(!gitignore.includes('node_modules/'), 'non-Node install should not add node_modules/ to .gitignore')
+  assert(!gitignore.split(/\r?\n/).includes('dist/'), 'non-Node install should not add dist/ to .gitignore')
+  assert(gitignore.includes('.harness/generated/'), 'non-Node install should still add harness artifacts to .gitignore')
+  assert(gitignore.includes('.harness-backup/'), 'non-Node install should still add harness backup dir to .gitignore')
+
+  // npm/package.json 없이 Node 도구로 직접 검증이 동작해야 한다(activeStack=none → 일반 검사).
+  run(nodeBin, [path.join(target, '.harness/bin/guard.mjs')], { cwd: target })
+}
+
+function optInCreatesPackageJsonForGreenfieldNode() {
+  // 드문 greenfield Node 케이스: --with-package-json 명시 시에만 생성한다.
+  const target = makeBareTarget()
+
+  runInit(target, '--with-package-json', '--no-scan', '--no-handoff', '--no-check')
+
+  assert(exists(target, 'package.json'), 'opt-in should create package.json when missing')
+  const pkg = JSON.parse(read(target, 'package.json'))
+  assert(pkg.scripts['harness:check'], 'opt-in package.json should merge harness check script')
+  assert(
+    pkg.scripts['harness:check'].startsWith('node .harness/bin/check-node-version.mjs &&'),
+    'opt-in consumer scripts should not depend on node:check npm script',
+  )
+}
+
+function launcherRunsHarnessWithoutNpm() {
+  // P2(2026-06-09): npm/package.json 없이도 `.harness/bin/harness <command>`로 하네스를 실행한다.
+  const target = makeBareTarget()
+  fs.writeFileSync(path.join(target, 'composer.json'), '{\n  "name": "acme/app"\n}\n')
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const launcherRel = '.harness/bin/harness'
+  assert(exists(target, launcherRel), 'install should include npm-free harness launcher')
+  const mode = fs.statSync(path.join(target, launcherRel)).mode
+  assert((mode & 0o111) !== 0, 'harness launcher should be executable')
+
+  const launcher = path.join(target, launcherRel)
+
+  const help = run(launcher, ['--help'], { cwd: target })
+  assert(help.includes('Usage: harness'), 'launcher --help should print usage')
+
+  // npm/package.json 없이 통합 검사가 동작해야 한다(activeStack=none → 일반 검사 후 종료).
+  const checkOut = run(launcher, ['check'], { cwd: target })
+  assert(checkOut.includes('Harness check summary'), 'launcher check should run guard without npm')
+
+  // 알 수 없는 명령은 usage와 함께 비정상 종료해야 한다.
+  let failed = false
+  try {
+    run(launcher, ['definitely-not-a-command'], { cwd: target })
+  } catch (error) {
+    failed = error.status === 1
+    assert(String(`${error.stdout ?? ''}${error.stderr ?? ''}`).includes('알 수 없는 명령'), 'launcher should reject unknown command')
+  }
+  assert(failed, 'launcher unknown command should exit non-zero')
+
+  // Windows shim도 함께 설치되어야 한다(cmd.exe/PowerShell 사용자용 — bw-windows-shim).
+  const cmdRel = '.harness/bin/harness.cmd'
+  assert(exists(target, cmdRel), 'install should include Windows cmd shim for the harness launcher')
+  const cmdText = read(target, cmdRel)
+
+  // 드리프트 가드: 소비자 npm script가 호출하는 .harness/bin/*.mjs를 sh 런처와 .cmd shim이 모두 커버해야 한다.
+  const launcherText = read(target, launcherRel)
+  const seedPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'))
+  const initSrc = fs.readFileSync(path.join(repoRoot, 'scripts/init.mjs'), 'utf8')
+  const namesBlock = initSrc.match(/const CONSUMER_SCRIPT_NAMES = \[([\s\S]*?)\]/)
+  assert(namesBlock, 'test should locate CONSUMER_SCRIPT_NAMES in init.mjs')
+  const consumerNames = [...namesBlock[1].matchAll(/'([^']+)'/g)].map((m) => m[1])
+  const referenced = new Set()
+  for (const name of consumerNames) {
+    const script = seedPkg.scripts[name]
+    if (!script) continue
+    for (const m of script.matchAll(/\.harness\/bin\/([\w.-]+\.mjs)/g)) {
+      referenced.add(m[1])
+    }
+  }
+  assert(referenced.size > 0, 'drift guard should find consumer-referenced bin scripts')
+  for (const mjs of referenced) {
+    assert(launcherText.includes(mjs), `launcher should cover ${mjs} (drift guard vs consumer npm scripts)`)
+    assert(cmdText.includes(mjs), `Windows shim should cover ${mjs} (drift guard vs consumer npm scripts)`)
+  }
+
+  // sh 런처와 .cmd shim의 명령 이름표 드리프트 가드: sh case 라벨이 .cmd 분기에도 있어야 한다.
+  const shCommands = [...launcherText.matchAll(/^  ([a-z:]+)\)/gm)].map((m) => m[1])
+  assert(shCommands.length > 0, 'drift guard should find sh launcher command labels')
+  for (const name of shCommands) {
+    assert(cmdText.includes(`"%CMD%"=="${name}"`), `Windows shim should support command '${name}' (drift vs sh launcher)`)
+  }
+}
+
+function gitHooksRunWithoutNpm() {
+  // P3(2026-06-09): git hook이 npm 대신 harness 런처를 호출해
+  // package.json 없는 비-Node 프로젝트에서도 commit/push 검증이 동작한다.
+  const target = makeBareTarget()
+  fs.writeFileSync(path.join(target, 'composer.json'), '{\n  "name": "acme/app"\n}\n')
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  // hook은 npm을 참조하지 않아야 한다(npm-free 보장).
+  for (const rel of ['.githooks/pre-commit', '.githooks/pre-push']) {
+    const hook = read(target, rel)
+    assert(!hook.includes('npm run'), `${rel} should not depend on npm run`)
+    assert(hook.includes('.harness/bin/harness check'), `${rel} should call harness launcher`)
+  }
+
+  // 런처 경유 hooks:install 도 동작해야 한다.
+  run(path.join(target, '.harness/bin/harness'), ['hooks:install'], { cwd: target })
+  const hooksPath = run('git', ['config', '--get', 'core.hooksPath'], { cwd: target }).trim()
+  assert(hooksPath === '.githooks', 'launcher hooks:install should set core.hooksPath')
+
+  // 실제 hook 스크립트를 직접 실행해 npm 없이 통과하는지 e2e 확인
+  // (consumer: previous hook 없음, seed-mode 없음, activeStack=none → 일반 검사 통과).
+  run('sh', [path.join(target, '.githooks/pre-commit')], { cwd: target })
+  run('sh', [path.join(target, '.githooks/pre-push')], { cwd: target })
+}
+
+function makeVerifyPreset() {
+  // P4: lint/test를 npm script가 아니라 raw shell 명령으로 선언하는 비-Node 스택 프리셋.
+  const preset = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-verify-preset-test-'))
+
+  fs.mkdirSync(path.join(preset, 'instructions'), { recursive: true })
+  fs.writeFileSync(path.join(preset, 'instructions/rules.md'), '# Backend Rule\n\nUse raw verify commands.\n')
+  fs.writeFileSync(path.join(preset, 'manifest.json'), JSON.stringify({
+    id: 'backend-verify-demo',
+    title: 'Backend Verify Demo',
+    stackHarness: {
+      repo: 'https://example.test/backend-verify-demo.git',
+      ref: 'v1.0.0',
+    },
+    baseHarness: {
+      repo: 'https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git',
+      ref: packageRef,
+      minVersion: packageVersion,
+    },
+    framework: {
+      runtime: 'php',
+    },
+    designPattern: ['Raw Verify Contract'],
+    instructions: ['instructions/rules.md'],
+    policiesFile: 'policies.json',
+    checksKey: null,
+    verify: {
+      lint: 'echo lint-ok > raw-verify-lint.txt',
+      test: 'echo test-ok > raw-verify-test.txt',
+    },
+    source: {
+      type: 'none',
+    },
+  }, null, 2))
+  fs.writeFileSync(path.join(preset, 'policies.json'), JSON.stringify({
+    version: 1,
+    stackId: 'backend-verify-demo',
+    policies: [],
+  }, null, 2))
+
+  return preset
+}
+
+function stackVerifyRunsRawCommandsWithoutNpm() {
+  // P4(2026-06-09): 스택 manifest의 verify 섹션(raw shell 명령)이 npm script 없이 실행된다.
+  const target = makeBareTarget()
+  fs.writeFileSync(path.join(target, 'composer.json'), '{\n  "name": "acme/app"\n}\n')
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const launcher = path.join(target, '.harness/bin/harness')
+  const preset = makeVerifyPreset()
+  run(launcher, ['stack:apply', '--preset-path', preset], { cwd: target })
+
+  const checkOut = run(launcher, ['check'], { cwd: target })
+  assert(checkOut.includes('Stack verify (lint)'), 'check should announce raw lint verify command')
+  assert(checkOut.includes('Stack verify (test)'), 'check should announce raw test verify command')
+  assert(read(target, 'raw-verify-lint.txt').includes('lint-ok'), 'raw lint verify command should run from project root')
+  assert(read(target, 'raw-verify-test.txt').includes('test-ok'), 'raw test verify command should run from project root')
+  assert(checkOut.includes('verify:lint, verify:test 통과'), 'summary should report raw verify stages as passed')
+
+  // fast check는 npm script와 동일하게 test/build stage를 건너뛴다.
+  fs.rmSync(path.join(target, 'raw-verify-lint.txt'))
+  fs.rmSync(path.join(target, 'raw-verify-test.txt'))
+  const fastOut = run(launcher, ['check', '--fast'], { cwd: target })
+  assert(fastOut.includes('Fast check mode'), 'fast check should announce skipped stages')
+  assert(exists(target, 'raw-verify-lint.txt'), 'fast check should still run lint stage')
+  assert(!exists(target, 'raw-verify-test.txt'), 'fast check should skip raw test stage')
 }
 
 function initPatchesEslintConfigForHarnessFiles() {
@@ -447,7 +670,7 @@ function forceRequiresOverwriteConfirmation() {
 }
 
 function dryRunDoesNotWriteFiles() {
-  const target = makeTarget()
+  const target = makeBareTarget()
   const output = runInit(target, '--dry-run')
 
   assert(output.includes('mode: dry-run'), 'dry-run should report dry-run mode')
@@ -1269,6 +1492,11 @@ function existingClaudeSettingsGetsHarnessHooksMerged() {
 
 const tests = [
   cleanInstallCreatesExpectedFiles,
+  nonNodeInstallSkipsPackageJson,
+  optInCreatesPackageJsonForGreenfieldNode,
+  launcherRunsHarnessWithoutNpm,
+  gitHooksRunWithoutNpm,
+  stackVerifyRunsRawCommandsWithoutNpm,
   initPatchesEslintConfigForHarnessFiles,
   initAddsHarnessBackupIgnoreWhenNodeOverrideExists,
   reinstallPreservesProjectOwnedFiles,

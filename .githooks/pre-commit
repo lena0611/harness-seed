@@ -19,4 +19,6 @@ node .harness/bin/run-previous-hook.mjs pre-commit "$@"
 node .harness/bin/check-seed-mode.mjs
 
 # 통합 검사: 스택 미적용 시 lint/test/build를 자동 스킵, 적용 시 전체 검사
-npm run harness:check
+# P3(2026-06-09): npm/package.json 없는 비-Node 프로젝트에서도 동작하도록 npm 대신 harness 런처를 호출한다.
+# npm 프로젝트에서도 같은 .harness/bin/guard.mjs를 실행하므로 검증 결과는 동일하다.
+.harness/bin/harness check

@@ -14,7 +14,8 @@ fi
 # 기존 프로젝트 pre-push hook이 있으면 먼저 실행
 node .harness/bin/run-previous-hook.mjs pre-push "$@"
 
-npm run harness:check -- --fast
+# P3(2026-06-09): npm/package.json 없는 비-Node 프로젝트에서도 동작하도록 npm 대신 harness 런처를 호출한다.
+.harness/bin/harness check --fast
 
 # 시드 모드 전용 원격 동기화 가드(비차단): GitHub/GitLab 같은 다중 원격이 어긋나지 않게 알림.
 # .harness-seed-mode가 없는 소비자 프로젝트에서는 no-op. push를 막지 않는다.

@@ -207,7 +207,7 @@ ${readManualActionsSummary()}
 - 주요 변경 2
 
 검증
-- pre-commit hook: npm run harness:check
+- pre-commit hook: harness check (.harness/bin/harness check)
 \`\`\`
 
 첫 줄은 한글 요약, 본문은 하이픈 상세, 검증은 실행한 명령과 미실행 사유를 남깁니다.

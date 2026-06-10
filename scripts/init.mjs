@@ -212,6 +212,7 @@ Options:
   --no-handoff           설치/업데이트 인수인계 요약을 자동 생성하지 않습니다.
   --no-check             설치 후 하네스 기본 검사를 자동 실행하지 않습니다.
   --embedded             스택 하네스 설치 흐름 내부에서 호출될 때 중간 안내를 줄입니다.
+  --with-package-json    package.json이 없을 때도 새로 만들어 harness npm 별칭을 주입합니다(기본은 비-Node 프로젝트로 보고 생성하지 않음).
   --from-git <repo-url>  동봉본 대신 git 저장소에서 소스를 가져옵니다.
   --ref <ref>            --from-git과 함께 사용할 branch/tag/sha입니다. 기본값: main
   --source-repo <url>    설치 메타데이터에 기록할 공통 하네스 저장소입니다.
@@ -235,6 +236,7 @@ function parseArgs(argv) {
     noHandoff: false,
     noCheck: false,
     embedded: false,
+    withPackageJson: false,
     fromGit: null,
     ref: 'main',
     sourceRepo: null,
@@ -274,6 +276,9 @@ function parseArgs(argv) {
         break;
       case '--embedded':
         opts.embedded = true;
+        break;
+      case '--with-package-json':
+        opts.withPackageJson = true;
         break;
       case '--from-git': {
         const repo = args[++i];
@@ -1030,10 +1035,21 @@ function readJson(absPath, fallback) {
 
 function mergePackageJson(sourceRoot, target, opts) {
   const pkgPath = join(target, 'package.json');
+  const exists = existsSync(pkgPath);
+
+  // P1(2026-06-09): package.json을 새로 만들지 않는다. 핵심 규칙은 "감지"가 아니라 "존재"다.
+  // 이미 있을 때만 harness npm 별칭을 머지하고, 없으면 비-Node 프로젝트로 보고 조용히 스킵한다
+  // (package.json 부재 자체가 신호 — 백엔드 매니페스트 감지 없이도 성립, 오탐 없음).
+  // 드문 greenfield Node 케이스는 --with-package-json opt-in으로만 새로 생성한다.
+  // 기존 소비자는 package.json이 이미 있어 동일 경로를 타므로 거동이 바뀌지 않는다.
+  if (!exists && !opts.withPackageJson) {
+    return { added: 0, skipped: [], created: false, skippedCreation: true };
+  }
+
   let userPkg;
   let created = false;
 
-  if (!existsSync(pkgPath)) {
+  if (!exists) {
     created = true;
     userPkg = { name: 'my-project', private: true, type: 'module', scripts: {} };
   } else {
@@ -1060,7 +1076,7 @@ function mergePackageJson(sourceRoot, target, opts) {
     writeFileSync(pkgPath, `${after}\n`);
   }
 
-  return { added, skipped, created };
+  return { added, skipped, created, skippedCreation: false };
 }
 
 function buildConsumerScripts(seedScripts) {
@@ -1164,9 +1180,12 @@ function mergeClaudeSettings(sourceRoot, target, opts) {
 
 function mergeGitignore(target, opts) {
   const gitignorePath = join(target, '.gitignore');
+  // P5(2026-06-09): node_modules/dist는 Node 프로젝트 전용 항목이므로 package.json이 있을 때만 주입한다.
+  // (mergePackageJson이 먼저 실행되므로 --with-package-json 생성분도 여기서 감지된다.)
+  // 비-Node 프로젝트(PHP/Java 등)의 .gitignore를 프론트 항목으로 오염시키지 않는다.
+  const isNodeProject = existsSync(join(target, 'package.json'));
   const entries = [
-    'node_modules/',
-    'dist/',
+    ...(isNodeProject ? ['node_modules/', 'dist/'] : []),
     '.env',
     '.env.local',
     '.env.*.local',
@@ -1338,7 +1357,8 @@ function ensureExecutable(target, opts) {
   for (const dir of [join(target, '.githooks'), join(target, '.claude', 'hooks'), join(target, '.harness', 'bin')]) {
     if (!existsSync(dir)) continue;
     for (const file of walkFiles(dir)) {
-      if (/\.(sh|mjs|js|py)$/.test(file)) {
+      // 확장자 스크립트와 무확장자 `harness` 런처(P2)를 실행 가능하게 만든다.
+      if (/\.(sh|mjs|js|py)$/.test(file) || /(^|\/)harness$/.test(file)) {
         try {
           chmodSync(file, 0o755);
         } catch {
@@ -1501,10 +1521,14 @@ function main() {
     console.log(
       `project state: ${opts.dryRun ? `${projectState.planned}개 생성/교체 예정` : `${projectState.added}개 추가, ${projectState.updated}개 교체, ${projectState.preserved}개 보존`}`,
     );
-    console.log(
-      `package.json: ${pkg.created ? '신규 생성, ' : ''}scripts ${pkg.added}개 추가` +
-        (pkg.skipped.length ? `, 기존 scripts 보존 ${pkg.skipped.length}개 (${pkg.skipped.join(', ')})` : ''),
-    );
+    if (pkg.skippedCreation) {
+      console.log('package.json: 없음 → 생성하지 않음 (비-Node 프로젝트로 간주). 강제로 만들려면 --with-package-json');
+    } else {
+      console.log(
+        `package.json: ${pkg.created ? '신규 생성, ' : ''}scripts ${pkg.added}개 추가` +
+          (pkg.skipped.length ? `, 기존 scripts 보존 ${pkg.skipped.length}개 (${pkg.skipped.join(', ')})` : ''),
+      );
+    }
     console.log(`.gitignore: harness entry ${gitignoreAdded}개 추가`);
     if (claudeSettings.skipped === 'parse-error') {
       console.log('.claude/settings.json: 파싱 실패로 하네스 훅 병합을 건너뜀 (수동 확인 필요)');
@@ -1558,6 +1582,20 @@ function main() {
       }
       console.log('기존 개인/전용 룰을 보존했기 때문에, 위 파일에 .harness 읽기 순서를 연결할지 검토하세요.');
       console.log('기준 계층과 충돌 후보는 npm run harness:scan 결과를 확인하세요.');
+    }
+
+    if (pkg.skippedCreation) {
+      console.log('');
+      console.log('비-Node 프로젝트 안내:');
+      console.log('  - package.json이 없어 harness npm 별칭을 주입하지 않았습니다(프로젝트 매니페스트 오염 방지).');
+      console.log('  - 하네스 명령은 npm 없이 harness 런처로 실행하세요:');
+      console.log('      .harness/bin/harness check          # 통합 검사 (harness:check)');
+      console.log('      .harness/bin/harness impact         # 정책 영향 분석');
+      console.log('      .harness/bin/harness scan           # 프로젝트 스캔');
+      console.log('      .harness/bin/harness hooks:install  # git hook/커밋 템플릿 연결');
+      console.log('      .harness/bin/harness --help         # 전체 명령 보기');
+      console.log('  - Windows cmd/PowerShell에서는 .harness\\bin\\harness.cmd <command> 를 사용합니다 (Git Bash에서는 위 sh 런처 그대로).');
+      console.log('  - 개별 스크립트를 직접 부르려면 node .harness/bin/<script>.mjs 도 됩니다.');
     }
 
     if (opts.embedded) {
