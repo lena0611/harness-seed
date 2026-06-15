@@ -1,40 +1,37 @@
 # 다음 세션 리마인더
 
-내일 세션을 열면 이 문서를 짧게 훑고 시작합니다.
+새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
-## 마지막 세션 마감 상태 (2026-04-27)
-- 일반화 하네스 ↔ 외부 스택 기준 런타임 분리가 완료되었습니다.
-- 본체에는 특정 스택 기준이나 스택 템플릿이 없으며 root는 스택-독립적입니다.
-- 결정/이유는 `decision-log.md` 2026-04-27 항목 참고.
-- 세션 종료 시점의 `npm run harness:check`는 적용/미적용 두 다 통과.
+## 마지막 세션 마감 상태 (2026-06-15)
+- 현재 본체 버전: **0.2.64** (이전 0.2.63에서 저버전 Node dual-runtime 지원 + 적대적 리뷰 보강 출시).
+- dual-runtime: 프로젝트 `.nvmrc < 20.19`여도 설치/운영 가능. hook/런처는 하네스 Node로 자동 전환, 프로젝트 검증은 `.nvmrc` Node로 실행. 상세는 `portability-guide.md` "Node 런타임 계약".
+- 0.2.63은 양쪽 원격(origin/main + company/master) + 태그 push 완료, GitHub Actions Policy Guard 통과.
+- CLI(`../ai-standard-cli`)는 0.1.28로 base ref v0.2.63 반영 완료.
 
-## 내일 가장 먼저 확인할 것
-1. `npm run stack:status`로 현재 적용 상태 확인
-2. 스택 기준이 필요하면 `npm run standards:list` 후 `npm run stack:apply`
-3. 새 환경이면 `npm run hooks:install`
-4. 작업 전에는 `npm run harness:impact`로 영향 범위를 확인하고, `npm run harness:check`는 사용자가 최종 검증을 승인한 뒤 실행
+## ★ 본체 개발 후 "배포 마무리 루틴" (빠뜨리기 쉬움 — 반드시 상기)
+본체 변경을 끝내고 사용자가 커밋/푸시/배포를 승인하면 아래가 **한 세트**입니다. 상세·명령은 `body-release-checklist.md`.
+1. 버전 bump(`package.json`) + `CHANGELOG.md` 항목 추가.
+2. 커밋 (pre-commit hook이 dual-runtime으로 `harness check` 실행 — 저버전 셸에서도 동작).
+3. 태그 `vX.Y.Z` 생성.
+4. **양쪽 원격에 push**: `git push origin main` + `git push company main:master` + **태그도 양쪽**(`git push origin vX.Y.Z` / `git push company vX.Y.Z`). 브랜치만 push하면 태그는 안 따라간다.
+5. 세 ref + 태그가 양쪽에서 동일한지 `ls-remote`로 확인.
+6. GitHub Actions `Policy Guard` 통과 확인 (`gh run list --branch main --limit 1`).
+7. **downstream 반영** — 잊지 말 것:
+   - **ai-standard-cli**(`../ai-standard-cli`, GitLab `origin/master`): consumer-facing 릴리스면 CLI 자체 버전(0.1.x) patch bump + README `AI_STANDARD_BASE_HARNESS_REF`/테스트 픽스처를 새 본체 태그로 갱신 + `npm run check && npm test` + 커밋 `공통 하네스 vX.Y.Z 설치 경로 반영` + 태그 + push. (문서/유지보수만 바뀐 릴리스는 생략 가능.)
+   - 스택 하네스: `baseHarness.minVersion` 추종 필요 여부 판단.
+8. 기록: `decision-log.md` + 이 리마인더 갱신.
 
-## 아직 비어 있는 중요한 것
-- 프로젝트가 해결하려는 핵심 문제
-- 주요 사용자 또는 대상
-- 성공 기준
-- 비목표
-- 프로젝트 개요 문서
+## 세션 시작 시 확인
+1. `git --no-pager status --short` / 미배포 변경 여부
+2. `npm run harness:impact`로 영향 범위 (작업 전), `npm run harness:check`는 최종화 승인 후
+3. 새 환경이면 `npm run hooks:install` — 저버전 Node면 dual-runtime 진단도 함께 출력됨
+4. 큰 작업/생소 영역은 `npm run harness:sync` 후 `npm run harness:context -- "<작업 설명>"`
 
-## 내일 바로 이어서 하기 좋은 것
-- `bootstrap.md` 인터뷰의 1단계(프로젝트 개요 7항목)를 개발자에게 질문
-- `project-charter.md`와 `developer-input-queue.md` 동시 갱신
-- 실제 첫 feature 후보를 정하고 `core` 기준 첫 use-case 설계 시작
+## 아직 비어 있는 중요한 것 (프로젝트 헌장)
+- 핵심 문제 / 주요 사용자 / 성공 기준 / 비목표 / 개요 — `bootstrap.md` 인터뷰로 채우기.
+- `developer-input-queue.md`의 `charter-*` 항목 다시 확인.
 
 ## 알아둘 절차 (스택 관련)
-- 스택 하네스 후보 조회: `npm run standards:list`
-- 원격 스택 기준 적용: `npm run stack:apply -- --preset-git <repo-url> --ref <tag-or-branch>`
-- 로컬 스택 기준 적용: `npm run stack:apply -- --preset-path <preset-dir>`
-- scaffold 템플릿 후보 조회: `npm run templates:list`
-- 원격 scaffold 템플릿 적용: `npm run template:apply -- --preset-git <repo-url> --ref <tag-or-branch>`
-- 다른 스택으로 전환: `npm run stack:reset` → 새 기준 선택 → `npm run stack:apply`
-- 공통 하네스만 쓰고 싶을 때: `activeStack: "none"`으로 설정 (자동 lint/test/build 스킵)
-- 새 스택 기준 추가: 본체가 아니라 별도 스택 기준 저장소를 만들고 `.harness/stacks/README.md`의 외부 프리셋 계약을 따르기
-
-## 내일 시작용 한 줄
-- **이제 이 저장소는 "프로젝트 시작점"이다. 도메인을 묻고 스택을 적용한 뒤 시작하라.**
+- 후보 조회 `npm run standards:list` / 적용 `npm run stack:apply` / 전환 `npm run stack:reset`
+- 공통 하네스만: `activeStack: "none"` (자동 lint/test/build 스킵)
+- 새 스택 기준은 본체가 아니라 별도 저장소 + `.harness/stacks/README.md` 외부 프리셋 계약

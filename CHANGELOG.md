@@ -4,6 +4,11 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.64 - 2026-06-15
+
+- 배포 마무리 루틴을 문서로 고정했습니다(문서/프로세스 변경, 소비자 동작 불변). `body-release-checklist.md` 5단계에 "태그도 양쪽 원격에 push" 단계를, 6단계에 `ai-standard-cli` 반영의 구체 절차(버전 bump·base ref 갱신·check/test·태그·GitLab push)를 추가했습니다. 기존에는 이 CLI 반영 루틴이 어디에도 없어 git 이력에서 역추적해야 했습니다.
+- `next-session-reminder.md`를 현재 상태(0.2.63 dual-runtime 출시)로 갱신하고, SessionStart에 자동 노출되는 "본체 개발 후 배포 마무리 루틴" 상기 블록(커밋→dual-remote push→태그 양쪽→CLI 반영→CI 확인)을 추가했습니다.
+
 ## 0.2.63 - 2026-06-12
 
 - 저버전 Node 프로젝트(`.nvmrc` < 20.19) 지원: **dual-runtime 모드**를 추가했습니다. git hook과 `.harness/bin/harness` 런처는 활성 Node가 낮으면 nvm 설치본 중 최신(>=20.19)으로 하네스 스크립트만 자동 전환하고(`.harness/bin/dual-node.sh`, nvm.sh 비의존·dash 안전), lint/test/build·stack verify 등 프로젝트 검증은 guard가 `.nvmrc` Node로 되돌려 실행합니다(`HARNESS_PROJECT_NODE_BIN`, `.harness/bin/node-env.mjs`). 기존 프로젝트 hook 체인(husky 등)은 전환 전 PATH로 실행됩니다.

@@ -61,25 +61,48 @@
 | `origin` | GitHub | `main` |
 | `company` | GitLab | `master` |
 
-- [ ] 양쪽에 모두 push한다.
+- [ ] 브랜치를 양쪽에 모두 push한다.
   ```bash
   git push origin main
   git push company main:master
   ```
-- [ ] 세 ref가 같은지 확인한다.
+- [ ] 태그를 만들었으면 **태그도 양쪽 원격에 push**한다. (브랜치만 push하면 태그는 따라가지 않는다.)
+  ```bash
+  git push origin vX.Y.Z
+  git push company vX.Y.Z
+  ```
+- [ ] 세 ref와 태그가 양쪽에서 같은지 확인한다.
   ```bash
   git fetch origin --quiet && git fetch company --quiet
-  git rev-parse --short main origin/main company/master   # 셋이 동일해야 한다
+  git rev-parse --short main origin/main company/master              # 셋이 동일해야 한다
+  git ls-remote --tags origin vX.Y.Z && git ls-remote --tags company vX.Y.Z   # 양쪽에 존재해야 한다
   ```
 - [ ] pre-push에 연결된 `.harness/bin/check-remote-sync.mjs` 가드가 어긋남을 알리면 빠진 원격에 push한다. (이 가드는 캐시된 remote-tracking 기준의 비차단 알림이며 push를 막지 않는다.)
-- [ ] push 후 GitHub Actions `Policy Guard` 워크플로(`.github/workflows/policy-guard.yml`) 결과가 통과인지 확인한다.
+- [ ] 각 push는 pre-push hook의 `harness check --fast`를 거친다. 저버전 Node 셸에서 push해도 hook이 dual-runtime으로 하네스 Node로 전환해 검증한다(0.2.63+).
+- [ ] push 후 GitHub Actions `Policy Guard` 워크플로(`.github/workflows/policy-guard.yml`) 결과가 통과인지 확인한다. (`gh run list --branch main --limit 1`)
 
-## 6단계 — downstream 통지
+## 6단계 — downstream 반영/통지
 
-본체 버전이 오르면 본체가 downstream에 직접 push하지 않습니다. downstream이 `harness:update`로 당겨갑니다. 다만 영향이 있으면 알립니다.
+소비자 *프로젝트*는 본체가 직접 push하지 않습니다. 각 프로젝트가 `harness:update`로 당겨갑니다(통지만). 단, 아래 downstream은 본체 릴리스 루틴의 일부로 **직접 반영**합니다.
 
-- [ ] 스택 하네스/CLI(`ai-standard-cli`)가 새 본체 버전(`baseHarness.minVersion`/`range`)을 따라와야 하는지 판단한다.
-- [ ] 자동 전파(여러 소비 프로젝트 MR)는 향후 `ai-standard-cli`가 담당한다. 현재는 본체에서 통지/기록만 한다.
+### ai-standard-cli 반영 (consumer-facing 릴리스마다 — 별도 저장소)
+- 위치: 형제 디렉터리 `../ai-standard-cli` (GitLab 단일 원격 `origin`, 기본 브랜치 `master`, 자체 `.harness` 없음 → hook 검증 없음, 검사는 수동).
+- CLI 자체 버전은 본체와 **별개 라인(0.1.x)**이며, 본체 태그를 base ref로 "반영"한다. 커밋 컨벤션: `공통 하네스 vX.Y.Z 설치 경로 반영`.
+- 유지보수/문서만 바뀐 본체 릴리스(consumer 동작 불변)는 CLI base ref를 굳이 올리지 않아도 된다. 기능/버그/계약 변경 릴리스에서 반영한다.
+- 절차(Node ≥20.19 셸에서):
+  ```bash
+  cd ../ai-standard-cli && git fetch origin            # clean + master 최신 확인
+  # 1) package.json version patch bump
+  npm install --package-lock-only --ignore-scripts     # lock 동기 (수동 lock 편집은 hook 차단)
+  # 2) README의 AI_STANDARD_BASE_HARNESS_REF=v<본체새버전> 갱신 + 테스트 픽스처 예시 ref 갱신
+  npm run check && npm test                             # 18 테스트 통과 확인
+  git add -A && git commit -m "공통 하네스 v<본체버전> 설치 경로 반영"
+  git tag -a v<CLI버전> -m "..." && git push origin master && git push origin v<CLI버전>
+  ```
+
+### 스택 하네스
+- [ ] 각 스택 하네스가 새 본체 버전(`baseHarness.minVersion`/`range`)을 따라와야 하는지 판단한다(필요 시 각 스택 저장소에서 반영).
+- [ ] 여러 소비 프로젝트 자동 MR 전파는 향후 `ai-standard-cli`가 담당한다. 현재는 통지/기록만 한다.
 
 ## 7단계 — 기록
 
