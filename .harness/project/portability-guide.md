@@ -32,11 +32,15 @@
 ## Node 런타임 계약
 - 하네스 실행 최소 Node는 `20.19.0`입니다. 하네스 스크립트는 이 버전에서 동작하도록 유지합니다.
 - `package.json`의 `engines.node`는 `>=20.19.0`로 고정합니다.
-- 하네스 패키지는 소비자 프로젝트에 `.nvmrc`를 주입하지 않습니다.
+- **하네스 실행 Node와 프로젝트 빌드 Node는 별개 계약입니다(dual-runtime, 0.2.63).** 프로젝트 Node가 20.19 미만이어도 하네스를 설치할 수 있습니다. hook/런처는 활성 Node가 낮으면 nvm 설치본 중 최신(>=20.19)으로 하네스 스크립트만 전환하고(`.harness/bin/dual-node.sh`), lint/test/build 등 프로젝트 검증은 guard가 `.nvmrc` Node로 되돌려 실행합니다(`.harness/bin/node-env.mjs`).
+- 하네스 패키지는 소비자 프로젝트에 자신의 Node 버전을 `.nvmrc`로 주입하지 않습니다. 단, `.nvmrc`가 없는 프로젝트에서 사용자가 `init --project-node <ver>`로 확인해 주면 그 프로젝트의 기존 Node 버전을 `.nvmrc`로 기록합니다(프로젝트 버전 선언이지 하네스 버전 강요가 아닙니다).
 - 적용 프로젝트의 `.nvmrc`는 프로젝트/Jenkins 빌드 계약입니다. 하네스 설치나 scaffold 템플릿 적용은 기존 `.nvmrc`를 자동 덮어쓰지 않습니다.
-- 기존 `.nvmrc`가 Node 20.19 이상이면 그대로 사용합니다. 더 낮은 버전이면 설치 전에 중단하고 안내합니다. 하네스 설치 후에도 `harness:scan`, `harness:check`, `harness:update`가 Node 20.19 이상에서 실행되어야 하므로 낮은 Node 프로젝트에는 그대로 적용하지 않습니다.
+- 기존 `.nvmrc`가 Node 20.19 이상이면 그대로 단일 런타임으로 사용합니다(전환 없음). 더 낮은 버전이면 dual-runtime 모드로 설치하며, 설치 시 nvm·하네스 Node·프로젝트 Node 설치 여부를 진단합니다. nvm 자체가 없으면 전환 수단이 없으므로 설치를 중단하고 안내합니다(nvm 자동 설치는 하지 않습니다).
+- `.nvmrc` 없는 Node 프로젝트에서 저버전 신호(package.json engines, .node-version, Dockerfile, CI)가 감지되면 추측으로 확정하지 않고 `--project-node` 인터뷰를 요구합니다. 비-Node 프로젝트(package.json 부재)는 `.nvmrc` 계약이 원래 없으므로 인터뷰 없이 설치됩니다.
+- 저버전 `.nvmrc` 프로젝트에서 해당 Node가 nvm에 없으면 guard는 프로젝트 검증을 하네스 Node로 대신 실행하지 않고 `nvm install <ver>` 안내와 함께 실패합니다(검증 신뢰성 우선).
 - Node 20은 2026-04-30에 EOL이므로 신규 프로젝트는 Jenkins 검증이 준비되는 대로 Node 22/24 전환을 검토합니다.
-- 낮은 Node에서 harness 명령을 실행하면 `.harness/bin/check-node-version.mjs`가 먼저 실패해 문법 에러 대신 업그레이드 안내를 보여줍니다.
+- 낮은 Node에서 harness 명령을 실행하면 `.harness/bin/check-node-version.mjs`가 먼저 실패해 문법 에러 대신 업그레이드/dual-runtime 안내를 보여줍니다. Windows(nvm-windows)는 dual-runtime 전환 없이 PATH node + 게이트 거동을 유지합니다.
+- 최소 버전을 올릴 때 함께 바꿀 파일: `.harness/bin/check-node-version.mjs`, `.harness/bin/dual-node.sh`, `.harness/bin/node-env.mjs`, `scripts/init.mjs`, `package.json engines`.
 - 각 프리셋이 추가 런타임 제약을 갖는 경우 해당 프리셋의 instruction 또는 manifest에 기록합니다.
 
 ## 소스 어댑터 (`source.type`)

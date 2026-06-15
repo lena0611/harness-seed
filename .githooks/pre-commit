@@ -15,10 +15,16 @@ if [ -s "$NVM_DIR/nvm.sh" ]; then
   set -u
 fi
 
+# dual-runtime(0.2.63): 프로젝트 Node(.nvmrc)가 하네스 최소 버전(20.19) 미만이거나 node가 없으면
+# 하네스 스크립트만 nvm 설치본 중 최신(>=20.19)으로 전환한다. 프로젝트 검증(lint/test/build)은
+# guard.mjs가 HARNESS_PROJECT_NODE_BIN으로 프로젝트 Node로 되돌려 실행한다.
+. .harness/bin/dual-node.sh
+harness_dual_node_activate
+
 # 낮은 Node에서 ESM 크래시 대신 업그레이드 안내가 나오도록 첫 node 호출 전에 버전을 검사한다.
 node .harness/bin/check-node-version.mjs
 
-# 기존 프로젝트 pre-commit hook이 있으면 먼저 실행
+# 기존 프로젝트 pre-commit hook이 있으면 먼저 실행 (dual-runtime 전환 전의 PATH로 실행됨)
 node .harness/bin/run-previous-hook.mjs pre-commit "$@"
 
 # 시드 하네스 가드: .harness-seed-mode가 있으면 stack:apply 산출물의 staging을 차단

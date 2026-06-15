@@ -287,11 +287,15 @@
       ],
       "ownedAreas": [
         ".harness/bin/check-node-version.mjs",
+        ".harness/bin/dual-node.sh",
+        ".harness/bin/node-env.mjs",
         "scripts/init.mjs",
         "scripts/test-init.mjs"
       ],
       "triggerPaths": [
         ".harness/bin/check-node-version.mjs",
+        ".harness/bin/dual-node.sh",
+        ".harness/bin/node-env.mjs",
         "scripts/init.mjs"
       ],
       "checks": [

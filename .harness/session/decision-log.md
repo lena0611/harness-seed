@@ -1,5 +1,16 @@
 # 결정 로그
 
+## 2026-06-12 - 저버전 Node 프로젝트 dual-runtime 지원 (.nvmrc < 20.19 설치 허용)
+- 배경: 사내 프로젝트는 대부분 nvm으로 Node를 관리하고 프로젝트마다 버전이 다르다(레거시는 Node 12 수준, 일부는 `.nvmrc` 부재). 기존에는 `.nvmrc < 20.19`면 설치를 중단했고, `.nvmrc` 없는 저버전 프로젝트는 차단 게이트가 감지하지 못한 채 설치되어 hook이 동작 불능이었다(2026-06-12 사용자 확인).
+- 결정: 2026-05-08의 "하네스 실행 Node와 프로젝트 빌드 Node 분리"를 실행 레이어까지 완성한다. **dual-runtime**: hook/런처는 활성 Node가 20.19 미만이면 `$NVM_DIR/versions/node` 목록에서 최신(>=20.19)으로 하네스 스크립트만 전환하고(`.harness/bin/dual-node.sh`), guard는 프로젝트 검증(lint/test/build, stack verify)을 `.nvmrc` Node로 되돌려 실행한다(`HARNESS_PROJECT_NODE_BIN`, `.harness/bin/node-env.mjs`). 기존 hook은 전환 전 PATH(`HARNESS_PREV_PATH`)로 체인 실행한다.
+- 2026-05-08 결정과의 구분: "하네스가 자신의 Node 버전을 `.nvmrc`로 주입하지 않는다"는 유지한다. 이번에 허용한 것은 **사용자 확인 기반(`init --project-node <ver>`)으로 프로젝트의 기존 Node 버전을 `.nvmrc`로 선언**하는 것이며, 하네스 버전 강요가 아니다. `.nvmrc`는 계속 project-owned로 업데이트 시 덮어쓰지 않는다.
+- 설치 게이트 변경: `.nvmrc < 20.19` → 중단 대신 dual-runtime 안내+진단(nvm/하네스 Node/프로젝트 Node 설치 여부). 단 nvm 자체가 없으면 전환 수단이 없으므로 중단한다(머신 환경을 바꾸는 nvm 자동 설치는 하지 않고 안내만 한다). `.nvmrc` 없는 Node 프로젝트에서 저버전 신호(engines/.node-version/Dockerfile/CI, major 기준)가 감지되면 추측으로 확정하지 않고 `--project-node` 인터뷰를 요구한다. 비-Node 프로젝트(package.json 부재)는 `.nvmrc` 계약이 원래 없으므로 인터뷰를 생략한다.
+- 강제 규칙: 저버전 `.nvmrc` 프로젝트에서 해당 Node가 nvm에 없으면 guard가 프로젝트 검증을 하네스 Node로 대신 돌리지 않고 `nvm install <ver>` 안내와 함께 실패한다(검증 신뢰성 우선). `.nvmrc >= 20.19`인데 설치본이 없는 경우는 기존 거동(현재 Node로 실행)을 유지한다.
+- 비범위: Windows(nvm-windows)는 dual-runtime 전환을 지원하지 않는다(기존 PATH node + 게이트 거동 유지). nvm 별칭 `.nvmrc`(lts/* 등)는 해석하지 않고 경고 후 현재 Node로 실행한다. 소비자 npm 별칭(`npm run harness:*`)의 런처 경유 전환은 Windows 호환 문제로 보류 — 저버전 셸에서는 게이트 안내가 `.harness/bin/harness <command>` 사용을 권한다.
+- nvm.sh 비의존: dual-node.sh는 nvm 셸 함수를 쓰지 않고 디렉터리 목록만 읽는다. dash + nvm.sh 무출력 사망(0.2.61) 표면을 늘리지 않기 위함이다.
+- 적대적 리뷰(다차원 코드리뷰 + 검증) 결과 5개 엣지 케이스를 보강했다(같은 0.2.63): (1) dual-node.sh 헬퍼 arg-less `set -u` 가드, (2) node가 셸 함수일 때 `HARNESS_PROJECT_NODE_BIN='.'` 누출 차단, (3) guard가 hook이 넘긴 노드 bin을 `.nvmrc`와 교차검증해 nvm use 무음 실패 시에도 검증 신뢰성 우선 하드페일을 hook 경로에서 보장, (4) engines.node를 범위로 평가해 `>=18` floor 오탐 제거(핀만 major<20 강제), (5) `common.runtime.minimum-node` 정책 트리거에 신규 파일 등록. 모두 회귀 테스트로 고정(test-init.mjs).
+- 보류한 제안: bare-major `.nvmrc` '20'을 supported로 올리는 변경은 거부했다. '20'은 20.19를 보장하지 못하므로 보수적으로 dual-runtime/하드페일 경로로 두는 편이 하네스 실행 안전에 부합한다(init.mjs·node-env.mjs 두 구현이 이미 동일 결과). 저버전 npm 별칭 자동 전환은 Windows 호환 문제로 계속 보류하되 진단 메시지에서 `.harness/bin/harness` 사용을 명시한다.
+
 ## 2026-06-09 - 하네스 백엔드 범용성: npm/package.json 표면 분리 설계 (합의용, 코드 미변경)
 - 배경/갭: 하네스 엔진(`.harness/bin/*.mjs`)은 외부 npm 의존성이 0이고 Node 내장 모듈만 쓴다(`@eslint/js`·`globals`는 `scripts/test-init.mjs`의 픽스처 문자열일 뿐, 런타임 import 아님). 즉 `npm install` 없이 `node .harness/bin/guard.mjs`로 직접 돈다. 그런데 설치기와 모든 공개 명령이 npm/package.json을 전제해, package.json이 없는 백엔드 스택(PHP/Java/Swift/Kotlin)에는 범용 설치가 어렵다. 약점은 "기준 본체"가 아니라 "실행/설치 표면"에 있다.
 - 진단(범용성 저해 순): (1) `mergePackageJson`이 package.json 없을 때 새로 생성하고 harness 별칭을 주입 — 가장 침습적, **1순위**(개발자 지정). (2) 일상 명령이 전부 `npm run` 경유이고 `bin`은 설치기(`harness-seed`)만 노출. (3) git hook이 `npm run harness:check`+nvm을 하드코딩. (4) `guard.mjs`의 검증 단계가 `runNpmScript`(`npm run <script>`)를 가정. (5) 본체에 프론트 흔적(Supabase Edge Function verifier, eslint config 패칭, `.gitignore`에 node_modules/dist 주입). (6) Node 런타임 필수 — 가장 깊지만 "도구 런타임"으로는 수용.

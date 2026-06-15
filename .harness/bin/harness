@@ -26,6 +26,12 @@ fi
 # npm run이 package.json 위치(프로젝트 루트)를 cwd로 쓰는 것과 동일하게 맞춘다.
 cd "$ROOT"
 
+# dual-runtime(0.2.63): 프로젝트 Node(.nvmrc)가 하네스 최소 버전(20.19) 미만이거나 node가 없으면
+# 하네스 스크립트만 nvm 설치본 중 최신(>=20.19)으로 전환한다. 프로젝트 검증(lint/test/build)은
+# guard.mjs가 HARNESS_PROJECT_NODE_BIN으로 프로젝트 Node로 되돌려 실행한다.
+. "$ROOT/.harness/bin/dual-node.sh"
+harness_dual_node_activate
+
 usage() {
   cat <<'EOF'
 Usage: harness <command> [args...]

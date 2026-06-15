@@ -147,7 +147,85 @@ function parseNodeVersion(version) {
 
 function isSupportedNode(version) {
   if (version.major > 20) return true;
-  if (version.major === 20) return version.minor >= 19;
+  // minor 미지정(bare-major) .nvmrc '20'은 20.19를 보장하지 못하므로 보수적으로 미지원 처리한다.
+  if (version.major === 20) return (version.minor ?? 0) >= 19;
+  return false;
+}
+
+// 하네스 최소 버전(20.19.0)이 engines.node 같은 SemVer 범위를 만족하는지 평가한다.
+// semver 라이브러리 없이 Node engines에서 흔한 표기(>=, >, <=, <, =, ^, ~, x-range, 하이픈, ||)만 다룬다.
+// engines는 핀이 아니라 범위이므로, '>=18'처럼 20.19+로 만족되는 floor를 저버전 신호로 오탐하지 않기 위함이다.
+function harnessNodeAllowedByRange(range) {
+  const V = [20, 19, 0];
+  const cmp = (a, b) => (a[0] - b[0]) || (a[1] - b[1]) || (a[2] - b[2]);
+  const toNum = (t) => (t === undefined || t === null || /^[xX*]$/.test(t)) ? null : Number(t);
+  const parseVer = (s) => {
+    const m = String(s).trim().match(/^v?(\d+|[xX*])(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?$/);
+    if (!m) return null;
+    return [toNum(m[1]), toNum(m[2]), toNum(m[3])];
+  };
+  const lo = (v) => [v[0] ?? 0, v[1] ?? 0, v[2] ?? 0];
+  const hiExcl = (v) => {
+    if (v[0] === null) return [Infinity, 0, 0];
+    if (v[1] === null) return [v[0] + 1, 0, 0];
+    if (v[2] === null) return [v[0], v[1] + 1, 0];
+    return [v[0], v[1], v[2] + 1];
+  };
+  const inRange = (v) => cmp(V, lo(v)) >= 0 && cmp(V, hiExcl(v)) < 0;
+  const evalToken = (tok) => {
+    tok = tok.trim();
+    if (!tok) return null;
+    if (tok === '*') return true;
+    if (tok[0] === '^') {
+      const v = parseVer(tok.slice(1));
+      if (!v) return null;
+      const hi = v[0] !== null && v[0] > 0 ? [v[0] + 1, 0, 0]
+        : v[1] !== null ? [0, v[1] + 1, 0]
+          : [0, 0, (v[2] ?? 0) + 1];
+      return cmp(V, lo(v)) >= 0 && cmp(V, hi) < 0;
+    }
+    if (tok[0] === '~') {
+      const v = parseVer(tok.slice(1));
+      if (!v) return null;
+      const hi = v[1] !== null ? [v[0], v[1] + 1, 0] : [v[0] + 1, 0, 0];
+      return cmp(V, lo(v)) >= 0 && cmp(V, hi) < 0;
+    }
+    const m = tok.match(/^(>=|<=|>|<|=)\s*(.+)$/);
+    if (m) {
+      const v = parseVer(m[2]);
+      if (!v) return null;
+      switch (m[1]) {
+        case '>=': return cmp(V, lo(v)) >= 0;
+        case '>': return cmp(V, lo(v)) > 0;
+        case '<=': return cmp(V, lo(v)) <= 0;
+        case '<': return cmp(V, lo(v)) < 0;
+        case '=': return inRange(v);
+      }
+    }
+    const bare = parseVer(tok);
+    if (bare) return inRange(bare);
+    return null;
+  };
+
+  for (const orPart of String(range).split('||')) {
+    const trimmed = orPart.trim();
+    const hyphen = trimmed.match(/^(\S+)\s+-\s+(\S+)$/);
+    if (hyphen) {
+      const a = parseVer(hyphen[1]);
+      const b = parseVer(hyphen[2]);
+      if (a && b && cmp(V, lo(a)) >= 0 && cmp(V, hiExcl(b)) < 0) return true;
+      continue;
+    }
+    let andOk = true;
+    let sawKnown = false;
+    for (const token of trimmed.split(/\s+/).filter(Boolean)) {
+      const result = evalToken(token);
+      if (result === null) continue; // 알 수 없는 토큰은 제약으로 보지 않는다.
+      sawKnown = true;
+      if (result === false) { andOk = false; break; }
+    }
+    if (sawKnown && andOk) return true;
+  }
   return false;
 }
 
@@ -165,37 +243,207 @@ function checkNodeVersion() {
 
 function parseNodeContract(raw) {
   const value = String(raw ?? '').trim();
-  const match = value.match(/^v?(\d+)(?:\.(\d+))?/);
+  const match = value.match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/);
   if (!match) return null;
 
+  // minor/patch는 "지정 안 함(null)"과 "0"을 구분한다. '12'는 v12.x 전체와 매칭돼야 한다.
   return {
     raw: value,
     major: Number(match[1]),
-    minor: Number(match[2] ?? 0),
+    minor: match[2] === undefined ? null : Number(match[2]),
+    patch: match[3] === undefined ? null : Number(match[3]),
   };
 }
 
-function checkProjectNodeContract(target, opts) {
+// dual-runtime 진단용 nvm 설치본 해석. 규칙은 .harness/bin/node-env.mjs, dual-node.sh와 같다.
+// (init은 npx 단독 실행되는 설치기라 .harness/bin 모듈을 import하지 않고 자체 보유한다.)
+const NVM_DIR_PATH = process.env.NVM_DIR || join(homedir(), '.nvm');
+
+function listInstalledNodeVersionsForInit() {
+  const versionsDir = join(NVM_DIR_PATH, 'versions', 'node');
+  let entries = [];
+  try {
+    entries = readdirSync(versionsDir);
+  } catch {
+    return [];
+  }
+  return entries
+    .map((name) => ({ name, parsed: parseNodeContract(name), binDir: join(versionsDir, name, 'bin') }))
+    .filter((entry) => entry.parsed && existsSync(join(entry.binDir, 'node')))
+    .sort((a, b) => (a.parsed.major - b.parsed.major)
+      || ((a.parsed.minor ?? 0) - (b.parsed.minor ?? 0))
+      || ((a.parsed.patch ?? 0) - (b.parsed.patch ?? 0)));
+}
+
+function diagnoseNodeEnvironment() {
+  const installed = listInstalledNodeVersionsForInit();
+  const harnessBest = installed.filter((entry) => isSupportedNode(entry.parsed)).at(-1) ?? null;
+  const nvmAvailable = existsSync(join(NVM_DIR_PATH, 'nvm.sh')) || existsSync(join(NVM_DIR_PATH, 'versions', 'node'));
+  return { nvmDir: NVM_DIR_PATH, nvmAvailable, installed, harnessBest };
+}
+
+function findInstalledForSpec(envInfo, parsed) {
+  if (!parsed) return null;
+  const matches = envInfo.installed.filter((entry) =>
+    entry.parsed.major === parsed.major &&
+    (parsed.minor === null || entry.parsed.minor === parsed.minor) &&
+    (parsed.patch === null || entry.parsed.patch === parsed.patch));
+  return matches.at(-1) ?? null;
+}
+
+// .nvmrc가 없을 때 프로젝트 Node 버전 후보를 감지한다. 확정은 사용자(--project-node)가 한다.
+// 각 후보의 low는 "이 신호가 20.19+로는 검증할 수 없는 저버전 프로젝트임을 뜻하는가"이다.
+// - 핀 신호(.node-version/Dockerfile/CI): 단일 버전이므로 major < 20이면 low.
+// - 범위 신호(engines.node): 20.19.0이 범위를 만족하면 low가 아니다('>=18' 같은 floor 오탐 방지).
+function detectProjectNodeCandidates(target) {
+  const candidates = [];
+  const addPin = (source, value) => {
+    const parsed = parseNodeContract(value);
+    candidates.push({ source, value, parsed, kind: 'pin', low: Boolean(parsed && parsed.major < 20) });
+  };
+
+  const pkg = readJson(join(target, 'package.json'), null);
+  const engines = pkg?.engines?.node;
+  if (engines) {
+    const value = String(engines);
+    const match = value.match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+    candidates.push({
+      source: 'package.json engines.node',
+      value,
+      parsed: match ? parseNodeContract(match[0]) : null,
+      kind: 'range',
+      low: !harnessNodeAllowedByRange(value),
+    });
+  }
+
+  const nodeVersionPath = join(target, '.node-version');
+  if (existsSync(nodeVersionPath)) {
+    addPin('.node-version', readFileSync(nodeVersionPath, 'utf8').trim());
+  }
+
+  const dockerfilePath = join(target, 'Dockerfile');
+  if (existsSync(dockerfilePath)) {
+    const match = readFileSync(dockerfilePath, 'utf8').match(/^\s*from\s+node:v?(\d+(?:\.\d+){0,2})/im);
+    if (match) addPin('Dockerfile FROM node', match[1]);
+  }
+
+  const workflowsDir = join(target, '.github', 'workflows');
+  if (existsSync(workflowsDir)) {
+    let workflowFiles = [];
+    try {
+      workflowFiles = readdirSync(workflowsDir).filter((file) => /\.ya?ml$/.test(file));
+    } catch {
+      workflowFiles = [];
+    }
+    for (const file of workflowFiles) {
+      const match = readFileSync(join(workflowsDir, file), 'utf8').match(/node-version:\s*['"[]*v?(\d+(?:\.\d+){0,2})/);
+      if (match) {
+        addPin(`.github/workflows/${file} node-version`, match[1]);
+        break;
+      }
+    }
+  }
+
+  return candidates;
+}
+
+// 저버전 프로젝트(.nvmrc < 20.19)의 dual-runtime 설치 안내와 환경 진단을 출력한다.
+// nvm 자체가 없으면 전환 수단이 없으므로 설치를 중단한다(머신 환경을 바꾸는 nvm 자동 설치는 하지 않는다).
+function printDualRuntimeDiagnostics(projectValue, parsedSpec, envInfo) {
+  console.log(`project node: .nvmrc ${projectValue}는 하네스 최소 Node 20.19.0 미만 → dual-runtime 모드로 설치합니다.`);
+  console.log('  - git hook과 .harness/bin/harness <command>는 nvm 설치본 중 20.19 이상 최신 Node로 자동 전환되어 실행됩니다.');
+  console.log('  - 참고: 활성 Node가 낮은 셸에서 `npm run harness:*`는 Node 게이트에서 멈춥니다. 저버전 셸에서는 `.harness/bin/harness <command>`를 쓰거나 먼저 상위 Node로 `nvm use` 하세요.');
+  console.log('  - lint/test/build 등 프로젝트 검증은 .nvmrc Node로 실행됩니다. 프로젝트 Node를 올릴 필요가 없습니다.');
+
+  if (!envInfo.nvmAvailable) {
+    console.error('');
+    console.error('dual-runtime에는 nvm이 필요하지만 nvm을 찾지 못했습니다 (NVM_DIR 또는 ~/.nvm).');
+    console.error('nvm 설치 후 다시 실행하세요: https://github.com/nvm-sh/nvm');
+    console.error('하네스 설치를 중단합니다.');
+    process.exit(1);
+  }
+
+  if (envInfo.harnessBest) {
+    console.log(`  - 하네스 Node(>=20.19): ${envInfo.harnessBest.name} 설치됨`);
+  } else {
+    console.warn('  - 하네스 Node(>=20.19): nvm에 없음 → nvm install 20 이상을 설치해야 hook과 하네스 명령이 동작합니다.');
+  }
+
+  if (parsedSpec) {
+    const projectInstalled = findInstalledForSpec(envInfo, parsedSpec);
+    if (projectInstalled) {
+      console.log(`  - 프로젝트 Node(${projectValue}): ${projectInstalled.name} 설치됨`);
+    } else {
+      console.warn(`  - 프로젝트 Node(${projectValue}): nvm에 없음 → nvm install ${projectValue} 후 프로젝트 검증(lint/test/build)이 동작합니다.`);
+    }
+  } else {
+    console.warn(`  - 프로젝트 Node(${projectValue}): 버전 표기를 해석하지 못했습니다. nvm 별칭 대신 숫자 버전 사용을 권장합니다.`);
+  }
+}
+
+// 0.2.63: 저버전 .nvmrc도 dual-runtime으로 설치를 허용한다(이전에는 설치 중단).
+// .nvmrc 없는 Node 프로젝트에서 저버전 신호가 감지되면 추측으로 확정하지 않고
+// --project-node 인터뷰(사용자 확인)를 요구한다. 비-Node 프로젝트는 .nvmrc 계약이 원래 없다.
+function ensureProjectNodeContract(target, opts) {
   const nvmrcPath = join(target, '.nvmrc');
-  if (!existsSync(nvmrcPath)) return;
+  const envInfo = diagnoseNodeEnvironment();
 
-  const value = readFileSync(nvmrcPath, 'utf8').trim();
-  const parsed = parseNodeContract(value);
-  const supported = parsed && isSupportedNode(parsed);
-
-  if (supported) {
-    console.log(`project node: existing .nvmrc ${value} preserved`);
+  if (existsSync(nvmrcPath)) {
+    const value = readFileSync(nvmrcPath, 'utf8').trim();
+    const parsed = parseNodeContract(value);
+    if (parsed && isSupportedNode(parsed)) {
+      console.log(`project node: existing .nvmrc ${value} preserved`);
+      return;
+    }
+    printDualRuntimeDiagnostics(value || '(empty)', parsed, envInfo);
     return;
   }
 
-  const message = [
-    `project node: existing .nvmrc ${value || '(empty)'} is below harness minimum Node 20.19.0.`,
-    'Jenkins가 이 버전으로 `nvm use` 후 하네스 검사 또는 빌드를 실행하면 실패할 수 있습니다.',
-    '하네스 설치를 중단합니다. 프로젝트 Node를 20.19 이상으로 전환한 뒤 다시 실행하세요.',
-  ].join('\n');
+  if (opts.projectNode) {
+    const parsed = parseNodeContract(opts.projectNode);
+    if (!parsed) {
+      console.error(`--project-node '${opts.projectNode}'를 버전으로 해석하지 못했습니다. 예: --project-node 12 또는 --project-node 12.18.4`);
+      process.exit(1);
+    }
+    if (opts.dryRun) {
+      console.log(`project node: .nvmrc ${opts.projectNode} 생성 예정 (--project-node)`);
+    } else {
+      writeFileSync(nvmrcPath, `${opts.projectNode}\n`);
+      console.log(`project node: .nvmrc ${opts.projectNode} 생성 (--project-node 사용자 확인 기반)`);
+    }
+    if (!isSupportedNode(parsed)) {
+      printDualRuntimeDiagnostics(opts.projectNode, parsed, envInfo);
+    }
+    return;
+  }
 
-  console.error(message);
-  process.exit(1);
+  const hasPackageJson = existsSync(join(target, 'package.json'));
+  if (!hasPackageJson) {
+    // 비-Node 프로젝트: 프로젝트 Node 계약이 없는 것이 정상. 도구용 Node만 진단한다.
+    if (envInfo.nvmAvailable && !envInfo.harnessBest) {
+      console.warn('project node: 비-Node 프로젝트. nvm에 하네스용 Node(>=20.19)가 없습니다 → nvm install 20 이상을 권장합니다.');
+    }
+    return;
+  }
+
+  const candidates = detectProjectNodeCandidates(target);
+  // engines는 20.19+로 만족 가능한 floor('>=18' 등)면 트리거하지 않는다. 핀만 major<20일 때 트리거한다.
+  const low = candidates.find((candidate) => candidate.low);
+  if (low) {
+    console.error('project node: .nvmrc가 없지만 저버전 Node 신호를 감지했습니다.');
+    for (const candidate of candidates) {
+      console.error(`  - ${candidate.source}: ${candidate.value}${candidate.low ? '' : ' (20.19+로 만족 가능 — 비저버전 신호)'}`);
+    }
+    console.error('');
+    console.error('이 프로젝트의 검증(lint/test/build)을 어떤 Node로 실행할지 확정해야 dual-runtime이 동작합니다.');
+    console.error('프로젝트 Node 버전을 확인한 뒤 같은 init 명령에 --project-node를 붙여 다시 실행하세요.');
+    console.error(`  예: init --project-node ${low.parsed ? low.parsed.major : 12}`);
+    console.error('(.nvmrc를 직접 만들어도 됩니다. 하네스는 프로젝트 Node 버전을 추측으로 확정하지 않습니다.)');
+    process.exit(1);
+  }
+
+  const hint = candidates.length > 0 ? ` (감지된 후보: ${candidates.map((candidate) => `${candidate.source}=${candidate.value}`).join(', ')})` : '';
+  console.log(`project node: .nvmrc 없음 — 프로젝트 Node 계약을 명시하려면 --project-node <version> 또는 .nvmrc 추가를 권장합니다.${hint}`);
 }
 
 function printUsageAndExit(code = 0) {
@@ -213,6 +461,8 @@ Options:
   --no-check             설치 후 하네스 기본 검사를 자동 실행하지 않습니다.
   --embedded             스택 하네스 설치 흐름 내부에서 호출될 때 중간 안내를 줄입니다.
   --with-package-json    package.json이 없을 때도 새로 만들어 harness npm 별칭을 주입합니다(기본은 비-Node 프로젝트로 보고 생성하지 않음).
+  --project-node <ver>   .nvmrc가 없을 때 프로젝트 Node 버전을 사용자 확인 기반으로 .nvmrc에 기록합니다(예: 12, 12.18.4).
+                         20.19 미만 버전은 dual-runtime 모드(하네스 Node와 프로젝트 Node 분리)로 동작합니다.
   --from-git <repo-url>  동봉본 대신 git 저장소에서 소스를 가져옵니다.
   --ref <ref>            --from-git과 함께 사용할 branch/tag/sha입니다. 기본값: main
   --source-repo <url>    설치 메타데이터에 기록할 공통 하네스 저장소입니다.
@@ -237,6 +487,7 @@ function parseArgs(argv) {
     noCheck: false,
     embedded: false,
     withPackageJson: false,
+    projectNode: null,
     fromGit: null,
     ref: 'main',
     sourceRepo: null,
@@ -280,6 +531,15 @@ function parseArgs(argv) {
       case '--with-package-json':
         opts.withPackageJson = true;
         break;
+      case '--project-node': {
+        const version = args[++i];
+        if (!version || version.startsWith('-')) {
+          console.error('--project-node에는 Node 버전이 필요합니다. 예: --project-node 12');
+          process.exit(1);
+        }
+        opts.projectNode = version;
+        break;
+      }
       case '--from-git': {
         const repo = args[++i];
         if (!repo || repo.startsWith('-')) {
@@ -1453,7 +1713,7 @@ function main() {
     console.warn('.git이 없습니다. git 저장소에서 사용하길 권장합니다.\n');
   }
 
-  checkProjectNodeContract(TARGET, opts);
+  ensureProjectNodeContract(TARGET, opts);
 
   const sourceRoot = opts.fromGit ? fetchFromGit(opts.fromGit, opts.ref) : BUNDLED_SOURCE_ROOT;
   const sourceIsTemp = Boolean(opts.fromGit);

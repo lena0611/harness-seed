@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -18,6 +18,7 @@ function run(command, args, options = {}) {
     cwd: options.cwd ?? repoRoot,
     encoding: 'utf8',
     stdio: options.stdio ?? ['ignore', 'pipe', 'pipe'],
+    env: options.env,
   })
 }
 
@@ -71,6 +72,26 @@ function makeTarget() {
 
 function runInit(target, ...args) {
   return run(nodeBin, [path.join(repoRoot, 'scripts/init.mjs'), 'init', ...args], { cwd: target })
+}
+
+function runInitWithEnv(target, env, ...args) {
+  return run(nodeBin, [path.join(repoRoot, 'scripts/init.mjs'), 'init', ...args], {
+    cwd: target,
+    env: { ...process.env, ...env },
+  })
+}
+
+// dual-runtime 테스트용 가짜 nvm 디렉터리. NVM_DIR 환경변수로 주입해 머신의 실제 nvm 상태와 무관하게 만든다.
+function makeFakeNvmDir(versions) {
+  const fakeNvm = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-fake-nvm-'))
+  fs.writeFileSync(path.join(fakeNvm, 'nvm.sh'), '# fake nvm for tests\n')
+  for (const version of versions) {
+    const binDir = path.join(fakeNvm, 'versions', 'node', version, 'bin')
+    fs.mkdirSync(binDir, { recursive: true })
+    fs.writeFileSync(path.join(binDir, 'node'), `#!/bin/sh\necho ${version}\n`)
+    fs.chmodSync(path.join(binDir, 'node'), 0o755)
+  }
+  return fakeNvm
 }
 
 function cleanInstallCreatesExpectedFiles() {
@@ -451,6 +472,37 @@ function makeVerifyPreset() {
   return preset
 }
 
+// verify 명령이 `node --version`을 파일로 남겨, 검증이 어느 Node로 실행됐는지 확인할 수 있는 프리셋.
+function makeNodeVersionVerifyPreset() {
+  const preset = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-nodever-preset-test-'))
+  fs.mkdirSync(path.join(preset, 'instructions'), { recursive: true })
+  fs.writeFileSync(path.join(preset, 'instructions/rules.md'), '# Node Version Probe\n\nVerify runs node --version.\n')
+  fs.writeFileSync(path.join(preset, 'manifest.json'), JSON.stringify({
+    id: 'nodever-verify-demo',
+    title: 'Node Version Verify Demo',
+    stackHarness: { repo: 'https://example.test/nodever-verify-demo.git', ref: 'v1.0.0' },
+    baseHarness: {
+      repo: 'https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git',
+      ref: packageRef,
+      minVersion: packageVersion,
+    },
+    framework: { runtime: 'php' },
+    designPattern: ['Node Version Probe'],
+    instructions: ['instructions/rules.md'],
+    policiesFile: 'policies.json',
+    checksKey: null,
+    verify: { lint: 'node --version > verify-node.txt' },
+    source: { type: 'none' },
+  }, null, 2))
+  fs.writeFileSync(path.join(preset, 'policies.json'), JSON.stringify({
+    version: 1,
+    stackId: 'nodever-verify-demo',
+    policies: [],
+  }, null, 2))
+
+  return preset
+}
+
 function stackVerifyRunsRawCommandsWithoutNpm() {
   // P4(2026-06-09): 스택 manifest의 verify 섹션(raw shell 명령)이 npm script 없이 실행된다.
   const target = makeBareTarget()
@@ -692,21 +744,185 @@ function noBackupRequiresForce() {
   assert(failed, '--no-backup without --force should fail')
 }
 
-function unsupportedProjectNvmrcStopsInit() {
+// 0.2.63: 저버전 .nvmrc는 설치 중단 대신 dual-runtime 모드로 설치된다.
+function lowProjectNvmrcInstallsInDualRuntimeMode() {
   const target = makeTarget()
-  fs.writeFileSync(path.join(target, '.nvmrc'), '18.20.0\n')
+  fs.writeFileSync(path.join(target, '.nvmrc'), '12\n')
+  const fakeNvm = makeFakeNvmDir(['v12.18.4', 'v24.15.0'])
+
+  const output = runInitWithEnv(target, { NVM_DIR: fakeNvm }, '--no-scan', '--no-handoff', '--no-check')
+  assert(output.includes('dual-runtime 모드로 설치합니다'), 'low .nvmrc should install in dual-runtime mode instead of stopping')
+  assert(output.includes('v24.15.0 설치됨'), 'dual-runtime diagnostics should report harness node from nvm installs')
+  assert(output.includes('v12.18.4 설치됨'), 'dual-runtime diagnostics should report project node from nvm installs')
+  assert(exists(target, '.harness/bin/dual-node.sh'), 'dual-runtime install should ship dual-node.sh')
+  assert(exists(target, '.harness/bin/node-env.mjs'), 'dual-runtime install should ship node-env.mjs')
+  assert(read(target, '.nvmrc') === '12\n', 'dual-runtime install should preserve project .nvmrc')
+}
+
+// dual-runtime은 nvm이 전환 수단이다. nvm이 없으면 이전처럼 설치를 중단하고 안내한다.
+function lowProjectNvmrcWithoutNvmStopsInit() {
+  const target = makeTarget()
+  fs.writeFileSync(path.join(target, '.nvmrc'), '12\n')
+  const missingNvm = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'harness-no-nvm-')), 'none')
 
   let failed = false
   try {
-    runInit(target)
+    runInitWithEnv(target, { NVM_DIR: missingNvm }, '--no-scan', '--no-handoff', '--no-check')
   } catch (error) {
     failed = error.status === 1
-    assert(String(error.stderr).includes('below harness minimum Node 20.19.0'), 'unsupported .nvmrc should explain node mismatch')
+    assert(String(error.stderr).includes('dual-runtime에는 nvm이 필요'), 'missing nvm should explain dual-runtime requirement')
   }
 
-  assert(failed, 'unsupported existing .nvmrc should stop init by default')
-  assert(!exists(target, '.harness'), 'unsupported existing .nvmrc should not install harness files')
-  assert(read(target, '.nvmrc') === '18.20.0\n', 'existing .nvmrc should be preserved when init stops')
+  assert(failed, 'low .nvmrc without nvm should stop init')
+  assert(!exists(target, '.harness'), 'stopped init should not install harness files')
+  assert(read(target, '.nvmrc') === '12\n', 'existing .nvmrc should be preserved when init stops')
+}
+
+function projectNodeFlagWritesNvmrcWithUserConfirmation() {
+  const target = makeTarget()
+  const fakeNvm = makeFakeNvmDir(['v12.18.4', 'v24.15.0'])
+
+  const output = runInitWithEnv(target, { NVM_DIR: fakeNvm }, '--project-node', '12', '--no-scan', '--no-handoff', '--no-check')
+  assert(read(target, '.nvmrc') === '12\n', '--project-node should write the confirmed project .nvmrc')
+  assert(output.includes('.nvmrc 12 생성'), '--project-node should report .nvmrc creation')
+  assert(output.includes('dual-runtime 모드로 설치합니다'), 'low --project-node should enable dual-runtime mode')
+}
+
+function missingNvmrcWithLowNodeSignalRequiresInterview() {
+  const target = makeBareTarget()
+  // ^12.22.0은 20.19+로 만족 불가한 capped-low 범위이므로 인터뷰를 강제해야 한다.
+  writeJson(target, 'package.json', { name: 'legacy', private: true, engines: { node: '^12.22.0' }, scripts: {} })
+  const fakeNvm = makeFakeNvmDir(['v24.15.0'])
+
+  let failed = false
+  try {
+    runInitWithEnv(target, { NVM_DIR: fakeNvm }, '--no-scan', '--no-handoff', '--no-check')
+  } catch (error) {
+    failed = error.status === 1
+    assert(String(error.stderr).includes('--project-node'), 'low node signal should request --project-node interview')
+    assert(String(error.stderr).includes('package.json engines.node'), 'interview message should list detected candidates')
+  }
+
+  assert(failed, 'missing .nvmrc with low node signal should stop init for the interview')
+  assert(!exists(target, '.nvmrc'), 'init must not guess and write a project node version')
+  assert(!exists(target, '.harness'), 'stopped init should not install harness files')
+}
+
+// engines floor('>=18')는 20.19+로 만족 가능하므로 저버전 신호로 오탐하면 안 된다(인터뷰 미강제).
+function enginesFloorDoesNotForceProjectNodeInterview() {
+  const target = makeBareTarget()
+  writeJson(target, 'package.json', { name: 'modern', private: true, engines: { node: '>=18.0.0' }, scripts: {} })
+  const fakeNvm = makeFakeNvmDir(['v24.15.0'])
+
+  const output = runInitWithEnv(target, { NVM_DIR: fakeNvm }, '--no-scan', '--no-handoff', '--no-check')
+  assert(!output.includes('저버전 Node 신호를 감지'), 'engines floor >=18 must not trigger the low-node interview')
+  assert(!exists(target, '.nvmrc'), 'engines floor >=18 should not create .nvmrc')
+  assert(exists(target, '.harness'), 'engines floor >=18 should install (20.19+ satisfies it)')
+}
+
+// dual-node.sh 헬퍼는 인자 없이 호출돼도 set -u에서 죽지 않아야 한다(0.2.61 exit-2 클래스 회귀 방지).
+function dualNodeHelpersAreArgSafeUnderSetU() {
+  const script = 'set -eu; . .harness/bin/dual-node.sh; harness_node_supported || true; harness_node_sort_key || true; echo ARG_SAFE_OK'
+  const shells = ['sh']
+  if (spawnSync('sh', ['-c', 'command -v dash'], { encoding: 'utf8' }).status === 0) shells.push('dash')
+  for (const shell of shells) {
+    const result = spawnSync(shell, ['-c', script], { cwd: repoRoot, encoding: 'utf8' })
+    assert(result.status === 0, `${shell}: arg-less dual-node helpers must not exit non-zero under set -u (got ${result.status}: ${result.stderr})`)
+    assert(result.stdout.includes('ARG_SAFE_OK'), `${shell}: script should run to completion`)
+  }
+}
+
+// node가 셸 함수/별칭이면 command -v가 절대경로를 주지 않으므로 HARNESS_PROJECT_NODE_BIN에 '.'를 export하면 안 된다.
+function dualNodeDoesNotExportDotWhenNodeIsShellFunction() {
+  const fakeNvm = makeFakeNvmDir(['v24.15.0'])
+  const script = 'set -eu; node(){ echo v18.20.4; }; . .harness/bin/dual-node.sh; harness_dual_node_activate >/dev/null 2>&1; echo "BIN=[${HARNESS_PROJECT_NODE_BIN:-unset}]"'
+  const result = spawnSync('sh', ['-c', script], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    env: { PATH: '/usr/bin:/bin', NVM_DIR: fakeNvm, HOME: os.homedir() },
+  })
+  assert(result.status === 0, `activation with node-as-function should succeed: ${result.stderr}`)
+  assert(result.stdout.includes('BIN=[unset]'), `node-as-function must not export HARNESS_PROJECT_NODE_BIN='.': ${result.stdout}`)
+}
+
+// guard는 hook이 넘긴 HARNESS_PROJECT_NODE_BIN이 .nvmrc와 불일치하면 맹신하지 않고,
+// .nvmrc Node가 미설치면 '검증 신뢰성 우선'으로 하드페일해야 한다(hook 경로의 우회 차단).
+function guardRejectsHookNodeMismatchingNvmrc() {
+  const target = makeBareTarget()
+  fs.writeFileSync(path.join(target, 'composer.json'), '{\n  "name": "acme/app"\n}\n')
+  // fake nvm에는 v24만 있고 .nvmrc가 요구하는 v12는 없다.
+  const fakeNvm = makeFakeNvmDir(['v24.15.0'])
+  const v24Bin = path.join(fakeNvm, 'versions', 'node', 'v24.15.0', 'bin')
+  runInitWithEnv(target, { NVM_DIR: fakeNvm }, '--project-node', '12', '--no-scan', '--no-handoff', '--no-check')
+
+  const launcher = path.join(target, '.harness/bin/harness')
+  const preset = makeVerifyPreset()
+  run(launcher, ['stack:apply', '--preset-path', preset], { cwd: target, env: { ...process.env, NVM_DIR: fakeNvm } })
+
+  let failed = false
+  let combined = ''
+  try {
+    // 불일치 fromHook(v24)을 직접 주입한 채 guard 실행. .nvmrc=12, v12 미설치 → 하드페일 기대.
+    run(nodeBin, [path.join(target, '.harness/bin/guard.mjs')], {
+      cwd: target,
+      env: { ...process.env, NVM_DIR: fakeNvm, HARNESS_PROJECT_NODE_BIN: v24Bin, PATH: `${v24Bin}:/usr/bin:/bin` },
+    })
+  } catch (error) {
+    failed = error.status !== 0
+    combined = `${error.stdout ?? ''}\n${error.stderr ?? ''}`
+  }
+
+  assert(failed, 'guard must not trust a hook-provided node that mismatches .nvmrc when the .nvmrc node is missing')
+  assert(combined.includes('nvm install 12'), `guard should hard-fail asking for the .nvmrc node, got: ${combined}`)
+}
+
+// 반대로 .nvmrc와 일치하는 fromHook은 신뢰하고, 프로젝트 검증을 그 Node로 실행한다.
+function guardRunsStackVerifyOnProjectNode() {
+  const target = makeBareTarget()
+  fs.writeFileSync(path.join(target, 'composer.json'), '{\n  "name": "acme/app"\n}\n')
+  const fakeNvm = makeFakeNvmDir(['v12.18.4', 'v24.15.0'])
+  const v12Bin = path.join(fakeNvm, 'versions', 'node', 'v12.18.4', 'bin')
+  runInitWithEnv(target, { NVM_DIR: fakeNvm }, '--project-node', '12', '--no-scan', '--no-handoff', '--no-check')
+
+  const launcher = path.join(target, '.harness/bin/harness')
+  const preset = makeNodeVersionVerifyPreset()
+  run(launcher, ['stack:apply', '--preset-path', preset], { cwd: target, env: { ...process.env, NVM_DIR: fakeNvm } })
+
+  run(nodeBin, [path.join(target, '.harness/bin/guard.mjs')], {
+    cwd: target,
+    env: { ...process.env, NVM_DIR: fakeNvm, HARNESS_PROJECT_NODE_BIN: v12Bin, PATH: `${v12Bin}:/usr/bin:/bin` },
+  })
+  assert(read(target, 'verify-node.txt').includes('v12.18.4'), 'stack verify should run on the project (.nvmrc) node, not the harness node')
+}
+
+function backendWithoutNvmrcSkipsProjectNodeInterview() {
+  const target = makeBareTarget()
+  const fakeNvm = makeFakeNvmDir(['v24.15.0'])
+
+  const output = runInitWithEnv(target, { NVM_DIR: fakeNvm }, '--no-scan', '--no-handoff', '--no-check')
+  assert(!exists(target, '.nvmrc'), 'non-Node project install should not create .nvmrc')
+  assert(!output.includes('--project-node를 붙여'), 'non-Node project should not be asked for the project node interview')
+  assert(exists(target, '.harness/bin/harness'), 'non-Node project should still get the harness launcher')
+}
+
+// dual-node.sh가 활성 Node가 낮을 때 nvm 설치본 중 최신(>=20.19)으로 전환하는지 검증한다.
+function dualNodeShSwitchesHarnessNodeWhenActiveNodeIsLow() {
+  const fakeNvm = makeFakeNvmDir(['v12.18.4', 'v18.20.8', 'v20.19.0', 'v24.9.0', 'v24.15.0'])
+  // 활성 node를 저버전으로 시뮬레이션: node --version이 v12.0.0을 출력하는 가짜 bin을 PATH 선두에 둔다.
+  const lowBin = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-low-node-'))
+  fs.writeFileSync(path.join(lowBin, 'node'), '#!/bin/sh\necho v12.0.0\n')
+  fs.chmodSync(path.join(lowBin, 'node'), 0o755)
+
+  const script = '. .harness/bin/dual-node.sh && harness_dual_node_activate && command -v node && echo "projbin=$HARNESS_PROJECT_NODE_BIN"'
+  const result = spawnSync('sh', ['-c', `set -eu; ${script}`], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    env: { PATH: `${lowBin}:/usr/bin:/bin`, NVM_DIR: fakeNvm, HOME: os.homedir() },
+  })
+
+  assert(result.status === 0, `dual-node.sh activation should succeed: ${result.stderr}`)
+  assert(result.stdout.includes(path.join(fakeNvm, 'versions', 'node', 'v24.15.0', 'bin', 'node')), 'dual-node.sh should switch to the highest installed harness node')
+  assert(result.stdout.includes(`projbin=${lowBin}`), 'dual-node.sh should record the project node bin for guard')
 }
 
 function existingProjectNvmrcIsPreserved() {
@@ -1507,7 +1723,17 @@ const tests = [
   forceRequiresOverwriteConfirmation,
   dryRunDoesNotWriteFiles,
   noBackupRequiresForce,
-  unsupportedProjectNvmrcStopsInit,
+  lowProjectNvmrcInstallsInDualRuntimeMode,
+  lowProjectNvmrcWithoutNvmStopsInit,
+  projectNodeFlagWritesNvmrcWithUserConfirmation,
+  missingNvmrcWithLowNodeSignalRequiresInterview,
+  enginesFloorDoesNotForceProjectNodeInterview,
+  backendWithoutNvmrcSkipsProjectNodeInterview,
+  dualNodeShSwitchesHarnessNodeWhenActiveNodeIsLow,
+  dualNodeHelpersAreArgSafeUnderSetU,
+  dualNodeDoesNotExportDotWhenNodeIsShellFunction,
+  guardRejectsHookNodeMismatchingNvmrc,
+  guardRunsStackVerifyOnProjectNode,
   existingProjectNvmrcIsPreserved,
   externalHarnessWithoutManifestIsPreserved,
   scanReportSuggestsBridgeCandidates,

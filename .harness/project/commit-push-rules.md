@@ -19,8 +19,10 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 ## hook 구현 계약
 - hook 스크립트는 POSIX sh 호환을 유지합니다. Linux에서 `sh`는 dash이므로 bash 전용 문법을 쓰지 않습니다.
 - nvm 로드(`. nvm.sh` + `nvm use`)는 `set -u`와 호환되지 않으므로 반드시 `set +u` … `set -u` 구간으로 감쌉니다. dash에서 미설정 변수 참조는 expansion error라 `|| true`로 잡히지 않고 hook 전체가 무출력 exit 2로 종료됩니다.
-- 다른 `node` 호출보다 먼저 `node .harness/bin/check-node-version.mjs`를 실행합니다. 낮은 Node에서 ESM 크래시 대신 업그레이드 안내가 나오게 하기 위함입니다.
-- 하네스 검증은 npm을 경유하지 않고 `.harness/bin/harness` 런처를 호출합니다(비-Node 프로젝트 호환).
+- nvm 로드 다음에 `.harness/bin/dual-node.sh`를 source하고 `harness_dual_node_activate`를 호출합니다(dual-runtime, 0.2.63). 활성 Node가 하네스 최소 버전(20.19) 미만이거나 없으면 `$NVM_DIR/versions/node` 목록에서 최신(>=20.19)을 PATH 선두에 적용합니다. dual-node.sh는 nvm.sh를 source하지 않고 디렉터리 목록만 읽으므로 dash 무출력 사망 표면을 늘리지 않으며, `set -u` 안전을 유지해야 합니다.
+- 전환 시 원래 PATH는 `HARNESS_PREV_PATH`, 프로젝트 Node bin은 `HARNESS_PROJECT_NODE_BIN`으로 export됩니다. `run-previous-hook.mjs`는 기존 프로젝트 hook을 `HARNESS_PREV_PATH`로 실행하고, `guard.mjs`는 프로젝트 검증(lint/test/build, stack verify)을 `HARNESS_PROJECT_NODE_BIN`(또는 `.nvmrc` 해석)으로 실행합니다.
+- 다른 `node` 호출보다 먼저 `node .harness/bin/check-node-version.mjs`를 실행합니다. 낮은 Node에서 ESM 크래시 대신 업그레이드/dual-runtime 안내가 나오게 하기 위함입니다. dual-node 전환이 끝난 뒤의 최후 게이트입니다.
+- 하네스 검증은 npm을 경유하지 않고 `.harness/bin/harness` 런처를 호출합니다(비-Node 프로젝트 호환). 런처도 같은 dual-node 전환을 수행합니다.
 
 ## hook 설치 기준
 - `npm run hooks:install`은 `core.hooksPath`를 `.githooks`로 설정합니다.
@@ -45,6 +47,8 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 - `.githooks/pre-commit`
 - `.githooks/pre-push`
 - `.harness/bin/harness` (hook이 호출하는 npm-free 런처)
+- `.harness/bin/dual-node.sh` (dual-runtime 전환 — hook/런처가 source)
+- `.harness/bin/node-env.mjs` (dual-runtime Node 해석 — guard/install-hooks가 import)
 - `.harness/bin/install-hooks.mjs`
 - `.harness/bin/run-previous-hook.mjs`
 - `.harness/bin/check-remote-sync.mjs`

@@ -4,6 +4,20 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.63 - 2026-06-12
+
+- 저버전 Node 프로젝트(`.nvmrc` < 20.19) 지원: **dual-runtime 모드**를 추가했습니다. git hook과 `.harness/bin/harness` 런처는 활성 Node가 낮으면 nvm 설치본 중 최신(>=20.19)으로 하네스 스크립트만 자동 전환하고(`.harness/bin/dual-node.sh`, nvm.sh 비의존·dash 안전), lint/test/build·stack verify 등 프로젝트 검증은 guard가 `.nvmrc` Node로 되돌려 실행합니다(`HARNESS_PROJECT_NODE_BIN`, `.harness/bin/node-env.mjs`). 기존 프로젝트 hook 체인(husky 등)은 전환 전 PATH로 실행됩니다.
+- init 설치 게이트 완화/보강: `.nvmrc < 20.19`여도 설치를 중단하지 않고 dual-runtime 안내와 환경 진단(nvm, 하네스 Node, 프로젝트 Node 설치 여부)을 출력합니다. nvm 자체가 없으면 전환 수단이 없으므로 설치를 중단하고 안내합니다(머신 환경을 바꾸는 nvm 자동 설치는 하지 않음).
+- `.nvmrc` 없는 Node 프로젝트에서 저버전 신호(package.json engines, .node-version, Dockerfile, CI node-version)를 감지하면 추측으로 확정하지 않고 `init --project-node <ver>` 인터뷰를 요구합니다. 사용자가 확인한 버전을 `.nvmrc`로 기록합니다(프로젝트 버전 선언 — 하네스 버전 `.nvmrc` 주입 금지는 유지). 비-Node 프로젝트(package.json 부재)는 인터뷰 없이 설치됩니다.
+- 저버전 `.nvmrc` Node가 nvm에 미설치면 guard가 프로젝트 검증을 하네스 Node로 대신 실행하지 않고 `nvm install <ver>` 안내와 함께 실패합니다(검증 신뢰성 우선). `hooks:install`도 설치 시점에 같은 node 환경 진단을 출력합니다.
+- `check-node-version.mjs` 게이트 메시지에 dual-runtime 안내를 추가했습니다. Windows(nvm-windows)는 기존 거동(PATH node + 게이트)을 유지합니다.
+- 적대적 코드 리뷰로 발견한 dual-runtime 엣지 케이스를 보강했습니다:
+  - `dual-node.sh` 헬퍼(`harness_node_supported`/`harness_node_sort_key`)를 인자 없이 호출해도 dash `set -u`에서 무출력 exit 2(0.2.61 클래스)로 죽지 않도록 `${1:-}`로 가드했습니다.
+  - `node`가 셸 함수/별칭이라 `command -v node`가 절대경로를 주지 않을 때 `HARNESS_PROJECT_NODE_BIN`에 `.`가 export되던 footgun을, 절대경로일 때만 export하도록 막았습니다.
+  - guard가 hook이 넘긴 `HARNESS_PROJECT_NODE_BIN`을 `.nvmrc`와 교차검증합니다. hook의 `nvm use`가 미설치 `.nvmrc`로 조용히 실패해 displaced 기본 Node를 넘겨도, guard는 그 Node를 맹신하지 않고 `.nvmrc` 해석으로 폴백하며 미설치면 `nvm install <ver>`로 하드페일합니다(검증 신뢰성 우선 계약을 hook 경로에서도 보장).
+  - `.nvmrc` 없는 프로젝트의 저버전 신호 감지에서 `engines.node`를 핀이 아닌 범위로 평가합니다. `>=18`처럼 20.19+로 만족되는 floor는 더 이상 인터뷰를 오탐 강제하지 않고, `^12`·`12.x`·`<20`처럼 20.19+로 만족 불가한 경우만 강제합니다(핀 신호 .node-version/Dockerfile/CI는 종전대로 major<20 기준).
+  - `common.runtime.minimum-node` 정책의 ownedAreas/triggerPaths에 `dual-node.sh`, `node-env.mjs`를 추가해 게이트 상수 변경이 정책 트리거를 깨우도록 했습니다.
+
 ## 0.2.62 - 2026-06-10
 
 - git hook이 첫 `node` 호출 전에 `check-node-version.mjs`를 실행해, 낮은 Node 환경에서 ESM 크래시 스택 대신 명확한 업그레이드 안내가 나오도록 했습니다.

@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
+import { isSupportedNode, parseNodeSpec, readNvmrc, resolveInstalledForSpec } from './node-env.mjs'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -201,11 +202,91 @@ function printEslintHarnessHint(output = '') {
   console.error('하네스 설치 자체가 실패한 것은 아니며, 설치 후 프로젝트 lint 환경 조정이 필요한 상태일 수 있습니다.')
 }
 
+// dual-runtime(0.2.63): 프로젝트 검증(lint/test/build, stack verify)은 하네스 실행 Node가 아니라
+// 프로젝트 Node(.nvmrc)로 실행한다. hook/런처(dual-node.sh)가 전환했으면 HARNESS_PROJECT_NODE_BIN을
+// 물려받고, guard가 직접 실행된 경우에는 .nvmrc를 같은 규칙으로 해석한다.
+// fromHook bin의 실제 node 버전이 .nvmrc spec을 만족하는지 확인한다.
+// hook의 nvm use가 (미설치 .nvmrc 등으로) 조용히 실패하면 dual-node.sh가 displaced 기본 노드의
+// bin을 넘길 수 있으므로, .nvmrc가 있으면 맹신하지 않고 교차검증한다.
+function fromHookMatchesNvmrc(fromHook, nvmrcParsed) {
+  if (!nvmrcParsed) return true // 비교할 핀이 없으면(또는 .nvmrc 없음) hook 값을 신뢰한다.
+  let version
+  try {
+    version = execFileSync(path.join(fromHook, 'node'), ['--version'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+  } catch {
+    return false
+  }
+  const parsed = parseNodeSpec(version)
+  if (!parsed) return false
+  return parsed.major === nvmrcParsed.major &&
+    (nvmrcParsed.minor === null || parsed.minor === nvmrcParsed.minor) &&
+    (nvmrcParsed.patch === null || parsed.patch === nvmrcParsed.patch)
+}
+
+let projectRuntimeCache
+function resolveProjectRuntime() {
+  if (projectRuntimeCache !== undefined) return projectRuntimeCache
+
+  // .nvmrc가 프로젝트 Node 계약의 진실 출처다. fromHook은 .nvmrc와 일치할 때만 신뢰한다.
+  const nvmrc = readNvmrc(repoRoot)
+
+  const fromHook = process.env.HARNESS_PROJECT_NODE_BIN
+  if (fromHook && fs.existsSync(path.join(fromHook, 'node')) && fromHookMatchesNvmrc(fromHook, nvmrc?.parsed)) {
+    projectRuntimeCache = { binDir: fromHook, label: fromHook }
+    console.log(`프로젝트 검증 Node: ${fromHook} (하네스 실행 Node: ${process.version})`)
+    return projectRuntimeCache
+  }
+
+  if (!nvmrc) {
+    projectRuntimeCache = null
+    return projectRuntimeCache
+  }
+
+  if (!nvmrc.parsed) {
+    // 별칭(lts/* 등)은 nvm.sh 없이 해석할 수 없다. 현재 Node로 실행하고 알림만 남긴다.
+    console.warn(`WARNING: .nvmrc '${nvmrc.raw}'를 버전으로 해석하지 못해 프로젝트 검증을 현재 Node(${process.version})로 실행합니다.`)
+    projectRuntimeCache = null
+    return projectRuntimeCache
+  }
+
+  const installed = resolveInstalledForSpec(nvmrc.parsed)
+  if (installed) {
+    projectRuntimeCache = { binDir: installed.binDir, label: installed.name }
+    if (installed.name !== process.version) {
+      console.log(`프로젝트 검증 Node: ${installed.name} (.nvmrc ${nvmrc.raw}, 하네스 실행 Node: ${process.version})`)
+    }
+    return projectRuntimeCache
+  }
+
+  if (!isSupportedNode(nvmrc.parsed)) {
+    // 저버전 프로젝트 검증을 하네스 Node로 돌리면 결과를 신뢰할 수 없으므로 실패시킨다.
+    console.error('')
+    console.error(`프로젝트 검증 실패: .nvmrc ${nvmrc.raw} Node가 nvm에 설치되어 있지 않습니다.`)
+    console.error(`하네스 실행 Node(${process.version})로 프로젝트 lint/test/build를 대신 실행하면 결과를 신뢰할 수 없습니다.`)
+    console.error(`해결: nvm install ${nvmrc.raw}`)
+    process.exit(1)
+  }
+
+  // .nvmrc가 하네스 최소 버전 이상인데 설치본이 없으면 기존 거동대로 현재 Node로 실행한다.
+  projectRuntimeCache = null
+  return projectRuntimeCache
+}
+
+function projectSpawnEnv() {
+  const runtime = resolveProjectRuntime()
+  if (!runtime) return process.env
+  return { ...process.env, PATH: `${runtime.binDir}${path.delimiter}${process.env.PATH ?? ''}` }
+}
+
 function runNpmScript(scriptName) {
   const result = spawnSync('npm', ['run', scriptName], {
     cwd: repoRoot,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: projectSpawnEnv(),
   })
 
   if (result.status !== 0) {
@@ -243,6 +324,7 @@ function runStackVerifyCommand(stage, command) {
     encoding: 'utf8',
     shell: true,
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: projectSpawnEnv(),
   })
 
   if (result.status !== 0) {
