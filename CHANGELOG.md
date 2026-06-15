@@ -4,6 +4,12 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.66 - 2026-06-15
+
+- 0.2.65에서 도입한 안전망(소비자 수정 managed 파일 보존 + `.harness-bak` 사이드카)은 같은 분기를 거치는 모든 hybrid managed 파일에 자동 적용되지만, 회귀 테스트는 `CLAUDE.md`만 명시 검증해 다른 진입점이 같은 보장을 받는다는 잠금이 없었습니다. 이번 릴리스는 그 잠금을 추가합니다.
+- `scripts/test-init.mjs`에 hybrid managed 진입점 회귀 5종을 추가했습니다(총 55종): `AGENTS.md` 보존 + 사이드카, `.github/copilot-instructions.md` 보존, 세 파일(CLAUDE.md/AGENTS.md/copilot) 동시 수정 시 모두 보존 + 후처리 리포트가 셋을 모두 명시, `--force --confirm` 시 세 파일 모두 `.harness-bak` 사이드카가 소비자 바이트 verbatim 보존.
+- 본체 동작은 변경 없음(test-only patch). installer/CLI 사용자는 거동 차이를 못 느끼며, 0.2.65 안전망이 PaceLAB류 다중 파일 수정 시나리오에서 의도대로 동작함이 회귀로 잠겼습니다.
+
 ## 0.2.65 - 2026-06-15
 
 - 소비자가 직접 수정한 managed 파일(예: `CLAUDE.md`, `AGENTS.md`)을 `harness:update`가 무경고로 덮어쓰던 사고를 차단했습니다. PaceLAB(0.2.56→0.2.64)에서 `CLAUDE.md`의 `## 모노레포 구조 (#250)` 섹션과 UI reading-list 라인이 조용히 소실된 사례가 동기입니다.

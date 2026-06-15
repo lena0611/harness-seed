@@ -1764,6 +1764,103 @@ function forceAloneStopsWhenManagedHarnessFileWasLocallyEdited() {
   assert(read(target, 'CLAUDE.md') === 'CONSUMER EDIT\n', '--force without confirmation should preserve the modified managed file')
 }
 
+// CLAUDE.md 외의 hybrid managed 파일도 동일 분기를 거치지만 0.2.65에서는 CLAUDE.md만 명시 검증했다.
+// 0.2.66에서 AGENTS.md(비-Claude 에이전트 진입점)와 .github/copilot-instructions.md(GitHub Copilot 진입점)에도
+// 보존/사이드카 보장이 회귀로 잠긴다.
+function reinstallPreservesLocallyEditedAgentsMd() {
+  const target = makeTarget()
+  runInit(target)
+
+  const original = read(target, 'AGENTS.md')
+  const sentinel = '\n## 프로젝트 전용 에이전트 룰\nCodex 진입점 보충 지침입니다.\n'
+  fs.writeFileSync(path.join(target, 'AGENTS.md'), original + sentinel)
+
+  const output = runInit(target, '--no-scan', '--no-check')
+
+  const after = read(target, 'AGENTS.md')
+  assert(after.includes('프로젝트 전용 에이전트 룰'), 'reinstall should preserve consumer additions in managed AGENTS.md')
+  assert(output.includes('AGENTS.md'), 'preserved-managed report should name AGENTS.md when modified')
+  assert(!exists(target, 'AGENTS.md.harness-bak'), 'preservation path should not leave AGENTS.md.harness-bak')
+}
+
+function forceConfirmOverwritesAgentsMdWithBackup() {
+  const target = makeTarget()
+  runInit(target)
+
+  const consumerVersion = `${read(target, 'AGENTS.md')}\n## CONSUMER\n`
+  fs.writeFileSync(path.join(target, 'AGENTS.md'), consumerVersion)
+
+  runInit(target, '--force', '--confirm-overwrite-project-files', '--no-scan', '--no-check')
+
+  assert(!read(target, 'AGENTS.md').includes('## CONSUMER'), '--force --confirm should replace AGENTS.md')
+  assert(exists(target, 'AGENTS.md.harness-bak'), '--force --confirm should leave AGENTS.md.harness-bak')
+  assert(read(target, 'AGENTS.md.harness-bak') === consumerVersion, 'AGENTS.md.harness-bak should hold the consumer bytes verbatim')
+}
+
+function reinstallPreservesLocallyEditedCopilotInstructions() {
+  const target = makeTarget()
+  runInit(target)
+
+  const rel = '.github/copilot-instructions.md'
+  const original = read(target, rel)
+  const consumerVersion = `${original}\n## PaceLAB 전용 모노레포 안내\n`
+  fs.writeFileSync(path.join(target, rel), consumerVersion)
+
+  const output = runInit(target, '--no-scan', '--no-check')
+
+  const after = read(target, rel)
+  assert(after.includes('PaceLAB 전용 모노레포 안내'), 'reinstall should preserve consumer additions in copilot-instructions.md')
+  assert(output.includes('copilot-instructions.md'), 'preserved-managed report should name copilot-instructions.md')
+  assert(!exists(target, `${rel}.harness-bak`), 'preservation path should not leave copilot-instructions.md.harness-bak')
+}
+
+// 0.2.65 안전망은 본질적으로 단일 파일 분기지만, PaceLAB류 소비자는 보통 CLAUDE.md/AGENTS.md/copilot을
+// 동시에 손댄다. 한 번의 update에서 모두 보존되고 후처리 리포트가 모두를 명시하는지 잠근다.
+function reinstallPreservesAllHybridManagedFilesSimultaneously() {
+  const target = makeTarget()
+  runInit(target)
+
+  const claude = `${read(target, 'CLAUDE.md')}\n## 모노레포 구조 (#250)\n`
+  const agents = `${read(target, 'AGENTS.md')}\n## 프로젝트 전용 에이전트 룰\n`
+  const copilot = `${read(target, '.github/copilot-instructions.md')}\n## PaceLAB 전용 모노레포 안내\n`
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), claude)
+  fs.writeFileSync(path.join(target, 'AGENTS.md'), agents)
+  fs.writeFileSync(path.join(target, '.github/copilot-instructions.md'), copilot)
+
+  const output = runInit(target, '--no-scan', '--no-check')
+
+  assert(read(target, 'CLAUDE.md') === claude, 'CLAUDE.md preserved in multi-file scenario')
+  assert(read(target, 'AGENTS.md') === agents, 'AGENTS.md preserved in multi-file scenario')
+  assert(read(target, '.github/copilot-instructions.md') === copilot, 'copilot-instructions.md preserved in multi-file scenario')
+  assert(output.includes('로컬 수정으로 보존된 managed 파일'), 'multi-file scenario should print preserved-managed report')
+  // 세 파일이 모두 리포트에 등장해야 한다 — 조용한 손실 차단의 핵심.
+  assert(output.includes('CLAUDE.md'), 'report should name CLAUDE.md')
+  assert(output.includes('AGENTS.md'), 'report should name AGENTS.md')
+  assert(output.includes('copilot-instructions.md'), 'report should name copilot-instructions.md')
+}
+
+function forceConfirmOverwriteLeavesSidecarsForAllHybridManagedFiles() {
+  const target = makeTarget()
+  runInit(target)
+
+  const consumerClaude = `${read(target, 'CLAUDE.md')}\n## CONSUMER CLAUDE\n`
+  const consumerAgents = `${read(target, 'AGENTS.md')}\n## CONSUMER AGENTS\n`
+  const consumerCopilot = `${read(target, '.github/copilot-instructions.md')}\n## CONSUMER COPILOT\n`
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), consumerClaude)
+  fs.writeFileSync(path.join(target, 'AGENTS.md'), consumerAgents)
+  fs.writeFileSync(path.join(target, '.github/copilot-instructions.md'), consumerCopilot)
+
+  runInit(target, '--force', '--confirm-overwrite-project-files', '--no-scan', '--no-check')
+
+  assert(read(target, 'CLAUDE.md.harness-bak') === consumerClaude, 'CLAUDE.md sidecar holds consumer bytes')
+  assert(read(target, 'AGENTS.md.harness-bak') === consumerAgents, 'AGENTS.md sidecar holds consumer bytes')
+  assert(read(target, '.github/copilot-instructions.md.harness-bak') === consumerCopilot, 'copilot sidecar holds consumer bytes')
+  // 본체로 갱신은 셋 다 일어났는지 확인 (sidecar는 직전 소비자본, 디스크는 새 본체)
+  assert(!read(target, 'CLAUDE.md').includes('## CONSUMER CLAUDE'), 'CLAUDE.md replaced by harness')
+  assert(!read(target, 'AGENTS.md').includes('## CONSUMER AGENTS'), 'AGENTS.md replaced by harness')
+  assert(!read(target, '.github/copilot-instructions.md').includes('## CONSUMER COPILOT'), 'copilot replaced by harness')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   nonNodeInstallSkipsPackageJson,
@@ -1816,6 +1913,11 @@ const tests = [
   reinstallPreservesLocallyEditedManagedHarnessFile,
   forceConfirmOverwritesLocallyEditedManagedHarnessFileWithBackup,
   forceAloneStopsWhenManagedHarnessFileWasLocallyEdited,
+  reinstallPreservesLocallyEditedAgentsMd,
+  forceConfirmOverwritesAgentsMdWithBackup,
+  reinstallPreservesLocallyEditedCopilotInstructions,
+  reinstallPreservesAllHybridManagedFilesSimultaneously,
+  forceConfirmOverwriteLeavesSidecarsForAllHybridManagedFiles,
 ]
 
 console.log('Init smoke tests')

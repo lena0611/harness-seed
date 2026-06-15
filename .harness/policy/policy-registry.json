@@ -257,6 +257,7 @@
       ],
       "triggerPaths": [
         "scripts/init.mjs",
+        "scripts/test-init.mjs",
         ".harness/bin/update-harness.mjs"
       ],
       "checks": [
