@@ -696,6 +696,19 @@ function isManagedByManifest(manifest, relPath) {
   return Boolean(manifest && manifest.managedFiles && manifest.managedFiles[toPosix(relPath)]);
 }
 
+// managed 파일이 manifest 기록 시점 이후 소비자에 의해 수정됐는지 판별한다.
+// CLAUDE.md/AGENTS.md처럼 본체 보일러플레이트 + 소비자 지침이 한 파일에 섞일 수 있는
+// 하이브리드 managed 파일이 base 업데이트 때 무경고로 덮여 소비자 내용이 영구 소실되는 사고를
+// 막기 위한 안전망의 1차 판단 함수다.
+function isLocallyModifiedManagedFile(target, relPath, manifest) {
+  const rel = toPosix(relPath);
+  const expected = manifest?.managedFiles?.[rel]?.sha256;
+  if (!expected) return false;
+  const abs = join(target, rel);
+  if (!existsSync(abs) || !statSync(abs).isFile()) return false;
+  return sha256(abs) !== expected;
+}
+
 function collectLegacyManagedRootScripts(target, manifest) {
   if (!manifest) return [];
 
@@ -794,6 +807,10 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
   const stats = { added: 0, updated: 0, skipped: 0 };
   const skippedFiles = [];
   const copiedFiles = [];
+  // 안전망: 로컬 수정 감지된 managed 파일은 기본적으로 보존하고, --force --confirm-overwrite-project-files
+  // 동의가 있을 때만 .harness-bak 백업 후 덮어쓴다. 둘 다 후처리에서 명시적으로 보고한다.
+  const preservedLocallyModified = [];
+  const overwroteLocallyModified = [];
 
   for (const rel of files) {
     const src = join(sourceRoot, rel);
@@ -801,28 +818,61 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     const exists = existsSync(dest);
     const projectOwned = isProjectOwned(rel);
     const managed = isManagedByManifest(manifest, rel);
-    const shouldCopy = !exists || opts.force || (!projectOwned && managed);
+    let shouldCopy = !exists || opts.force || (!projectOwned && managed);
+
+    let preservedByGuard = false;
+    let backupRel = null;
+
+    if (exists && managed && !projectOwned && isLocallyModifiedManagedFile(target, rel, manifest)) {
+      if (!opts.force) {
+        // 기본 흐름: --force 없으면 로컬 수정본을 보존한다.
+        shouldCopy = false;
+        preservedByGuard = true;
+      } else if (opts.confirmOverwriteProjectFiles) {
+        // 명시적 동의가 있으면 덮어쓴다. .harness-bak 사이드카로 직전 소비자본을 같은 디렉터리에 남긴다.
+        backupRel = `${rel}.harness-bak`;
+        if (!opts.dryRun) {
+          copyFileSync(dest, join(target, backupRel));
+        }
+      }
+      // --force만 있고 --confirm 미동의면 collectForceOverwriteTargets 가드가 차단한다.
+    }
 
     if (opts.dryRun) {
-      console.log(`[dry-run] ${!exists ? 'add' : shouldCopy ? 'update' : 'preserve'} ${rel}`);
+      const action = !exists
+        ? 'add'
+        : preservedByGuard
+          ? 'preserve(locally-modified-managed)'
+          : shouldCopy
+            ? 'update'
+            : 'preserve';
+      const suffix = backupRel ? ` [backup → ${backupRel}]` : '';
+      console.log(`[dry-run] ${action} ${rel}${suffix}`);
     } else if (shouldCopy) {
       mkdirSync(dirname(dest), { recursive: true });
       copyFileSync(src, dest);
     }
 
-    if (!exists) {
+    if (preservedByGuard) {
+      stats.skipped++;
+      skippedFiles.push(rel);
+      preservedLocallyModified.push(rel);
+    } else if (!exists) {
       stats.added++;
       copiedFiles.push(rel);
     } else if (shouldCopy) {
       stats.updated++;
       copiedFiles.push(rel);
+      if (backupRel) {
+        overwroteLocallyModified.push({ rel, backup: backupRel });
+      }
     } else {
       stats.skipped++;
       skippedFiles.push(rel);
     }
   }
 
-  return { ...stats, skippedFiles, copiedFiles };
+  return { ...stats, skippedFiles, copiedFiles, preservedLocallyModified, overwroteLocallyModified };
 }
 
 function consumerProjectStateTemplate(rel, context) {
@@ -1092,7 +1142,10 @@ function collectForceOverwriteTargets(target, files, manifest) {
     .filter((rel) => (
       CONSUMER_PROJECT_STATE_PATHS.includes(rel) ||
       isProjectOwned(rel) ||
-      !isManagedByManifest(manifest, rel)
+      !isManagedByManifest(manifest, rel) ||
+      // 로컬에서 수정된 managed 파일도 같은 가드에 포함한다.
+      // (CLAUDE.md/AGENTS.md처럼 본체 보일러플레이트 + 소비자 지침이 섞일 수 있는 파일)
+      isLocallyModifiedManagedFile(target, rel, manifest)
     ))
     .sort();
 }
@@ -1102,7 +1155,7 @@ function assertForceOverwriteConfirmed(opts, targets) {
     return;
   }
 
-  console.error('--force는 프로젝트 소유 파일 또는 출처를 확인할 수 없는 기존 파일을 덮어쓸 수 있어 중단합니다.');
+  console.error('--force는 프로젝트 소유 파일, 출처를 확인할 수 없는 기존 파일, 또는 로컬 수정된 managed 파일(CLAUDE.md 등)을 덮어쓸 수 있어 중단합니다.');
   console.error('');
   console.error('덮어쓰기 위험 대상 예시:');
   for (const rel of targets.slice(0, 20)) {
@@ -1831,6 +1884,36 @@ function main() {
         console.log(`  ... 외 ${installed.skippedFiles.length - 15}건`);
       }
       console.log('모두 덮어쓰려면 --force를 사용하세요.');
+    }
+
+    // 안전망 후처리 리포트: 로컬 수정 감지된 managed 파일을 명시적으로 보고한다.
+    // CLAUDE.md/AGENTS.md를 비롯한 하이브리드 managed 파일이 base 업데이트로 조용히 사라지지 않도록
+    // 매번 표면에 띄우는 것이 안전망의 핵심이다.
+    if (installed.preservedLocallyModified && installed.preservedLocallyModified.length > 0) {
+      console.log('');
+      console.log('로컬 수정으로 보존된 managed 파일 (안전망 작동):');
+      for (const rel of installed.preservedLocallyModified.slice(0, 15)) {
+        console.log(`  - ${rel}`);
+      }
+      if (installed.preservedLocallyModified.length > 15) {
+        console.log(`  ... 외 ${installed.preservedLocallyModified.length - 15}건`);
+      }
+      console.log('이 파일들은 manifest 기록 이후 변경된 흔적이 있어 본체로 덮지 않았습니다.');
+      console.log('덮어쓰려면 위험을 인지한 뒤 다음 옵션을 함께 사용하세요:');
+      console.log('  npm run harness:update -- --force --confirm-overwrite-project-files');
+      console.log('이 경우 각 파일은 같은 디렉터리에 <파일>.harness-bak 사이드카로 백업됩니다.');
+    }
+
+    if (installed.overwroteLocallyModified && installed.overwroteLocallyModified.length > 0) {
+      console.log('');
+      console.log('로컬 수정 상태에서 .harness-bak 백업 후 덮어쓴 managed 파일:');
+      for (const entry of installed.overwroteLocallyModified.slice(0, 15)) {
+        console.log(`  - ${entry.rel} → 백업 ${entry.backup}`);
+      }
+      if (installed.overwroteLocallyModified.length > 15) {
+        console.log(`  ... 외 ${installed.overwroteLocallyModified.length - 15}건`);
+      }
+      console.log('소비자가 보존하려던 내용이 사이드카에 남아 있으니 필요한 부분을 다시 머지하세요.');
     }
 
     const bridgeCandidates = detectBridgeCandidates(TARGET, installed.skippedFiles);

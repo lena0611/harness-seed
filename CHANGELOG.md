@@ -4,6 +4,15 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.65 - 2026-06-15
+
+- 소비자가 직접 수정한 managed 파일(예: `CLAUDE.md`, `AGENTS.md`)을 `harness:update`가 무경고로 덮어쓰던 사고를 차단했습니다. PaceLAB(0.2.56→0.2.64)에서 `CLAUDE.md`의 `## 모노레포 구조 (#250)` 섹션과 UI reading-list 라인이 조용히 소실된 사례가 동기입니다.
+- 안전망(옵션 C): `init`이 managed 파일을 덮어쓰기 전에 `install-manifest.json`에 기록된 sha256과 현재 sha256을 비교합니다. 불일치(=설치 이후 소비자가 수정)면 기본적으로 파일을 보존하고, 후처리 리포트에 "로컬 수정으로 보존된 managed 파일" 목록을 명시 출력합니다. `--force`만 있고 `--confirm-overwrite-project-files`가 없으면 이 파일들도 기존 force 가드에 포함되어 init이 중단됩니다(`scripts/init.mjs`).
+- 위험 인지 후 덮어쓰기 경로도 보존책을 둡니다: `--force --confirm-overwrite-project-files`로 덮어쓸 때는 직전 소비자본을 같은 디렉터리에 `<파일>.harness-bak` 사이드카로 남기고, 후처리 리포트에 백업 경로를 한 줄씩 명시합니다(다시 머지할 표면이 드러나도록).
+- 적용 범위는 `managedFiles`에 등록된 모든 파일이며, manifest가 없는 첫 설치 경로는 영향이 없습니다. `CLAUDE.md`/`AGENTS.md`만 특별 처리하지 않고 같은 클래스의 다른 managed 파일에도 같은 보호가 자동 적용됩니다.
+- init smoke test에 3종을 추가했습니다(총 50종): managed `CLAUDE.md`에 소비자가 섹션을 추가한 뒤 재설치 시 보존되고 후처리 리포트가 파일을 명시할 것, `--force --confirm`로 덮어쓸 때 `.harness-bak` 사이드카가 소비자 바이트를 그대로 보존할 것, `--force` 단독은 confirmation 안내와 함께 종료할 것.
+- 마커 기반 머지(옵션 A) 또는 `CLAUDE.md`/`AGENTS.md`의 project-owned 재분류(옵션 B)는 후속 릴리스 검토 대상입니다. 본 릴리스는 "어떤 경우에도 조용한 손실 없음"을 우선 보장하는 안전망까지를 범위로 합니다.
+
 ## 0.2.64 - 2026-06-15
 
 - 배포 마무리 루틴을 문서로 고정했습니다(문서/프로세스 변경, 소비자 동작 불변). `body-release-checklist.md` 5단계에 "태그도 양쪽 원격에 push" 단계를, 6단계에 `ai-standard-cli` 반영의 구체 절차(버전 bump·base ref 갱신·check/test·태그·GitLab push)를 추가했습니다. 기존에는 이 CLI 반영 루틴이 어디에도 없어 git 이력에서 역추적해야 했습니다.

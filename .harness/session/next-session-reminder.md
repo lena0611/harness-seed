@@ -3,10 +3,10 @@
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
 ## 마지막 세션 마감 상태 (2026-06-15)
-- 현재 본체 버전: **0.2.64** (이전 0.2.63에서 저버전 Node dual-runtime 지원 + 적대적 리뷰 보강 출시).
-- dual-runtime: 프로젝트 `.nvmrc < 20.19`여도 설치/운영 가능. hook/런처는 하네스 Node로 자동 전환, 프로젝트 검증은 `.nvmrc` Node로 실행. 상세는 `portability-guide.md` "Node 런타임 계약".
-- 0.2.63은 양쪽 원격(origin/main + company/master) + 태그 push 완료, GitHub Actions Policy Guard 통과.
-- CLI(`../ai-standard-cli`)는 0.1.28로 base ref v0.2.63 반영 완료.
+- 현재 본체 버전: **0.2.65** (PaceLAB 0.2.56→0.2.64 업데이트 시 `CLAUDE.md` 무단 삭제 사고 차단 — managed 파일 로컬 수정 안전망 옵션 C 도입). 이전 0.2.64는 배포 마무리 루틴 명문화.
+- 안전망(0.2.65): managed 파일이 `install-manifest.json` 기록 sha와 다르면(=소비자 수정) 기본 보존, `--force --confirm-overwrite-project-files`로만 `<파일>.harness-bak` 사이드카 백업 후 덮어씀, 후처리에 보존/덮어쓴 managed 파일 목록을 항상 출력. CLAUDE.md/AGENTS.md만이 아니라 모든 managed 파일에 일반 적용. 옵션 A(마커 영역)·옵션 B(project-owned 재분류 + Markdown 머지)는 후속 검토.
+- dual-runtime(0.2.63): 프로젝트 `.nvmrc < 20.19`여도 설치/운영 가능. hook/런처는 하네스 Node로 자동 전환, 프로젝트 검증은 `.nvmrc` Node로 실행. 상세는 `portability-guide.md` "Node 런타임 계약".
+- 0.2.65 push/배포: **아직 미수행**. 사용자 승인 후 진행. 0.2.63까지는 양쪽 원격(origin/main + company/master) + 태그 push 완료. CLI(`../ai-standard-cli`)는 0.1.28로 base ref v0.2.63 반영 완료(0.2.65 반영 미정).
 
 ## ★ 본체 개발 후 "배포 마무리 루틴" (빠뜨리기 쉬움 — 반드시 상기)
 본체 변경을 끝내고 사용자가 커밋/푸시/배포를 승인하면 아래가 **한 세트**입니다. 상세·명령은 `body-release-checklist.md`.

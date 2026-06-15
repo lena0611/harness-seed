@@ -1706,6 +1706,64 @@ function existingClaudeSettingsGetsHarnessHooksMerged() {
   assert(injectCount === 1, 'reinstall should not duplicate harness hooks (idempotent)')
 }
 
+function reinstallPreservesLocallyEditedManagedHarnessFile() {
+  // CLAUDE.md/AGENTS.md 같은 managed 파일에 소비자가 직접 섹션을 추가하면
+  // base 업데이트가 그 수정을 무경고로 덮어쓰지 않아야 한다(안전망).
+  const target = makeTarget()
+  runInit(target)
+
+  const original = read(target, 'CLAUDE.md')
+  const sentinel = '\n## 모노레포 구조 (#250)\n프로젝트 고유 지침입니다.\n'
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), original + sentinel)
+
+  const output = runInit(target, '--no-scan', '--no-check')
+
+  const after = read(target, 'CLAUDE.md')
+  assert(after.includes('모노레포 구조 (#250)'), 'reinstall should preserve consumer additions in managed CLAUDE.md')
+  assert(after.includes('프로젝트 고유 지침입니다.'), 'reinstall should preserve consumer sentinel line')
+  assert(output.includes('로컬 수정으로 보존된 managed 파일'), 'reinstall should explicitly report preserved locally-modified managed files')
+  assert(output.includes('CLAUDE.md'), 'preserved-managed report should name the file')
+  assert(!exists(target, 'CLAUDE.md.harness-bak'), 'preservation path should not leave a .harness-bak sidecar')
+}
+
+function forceConfirmOverwritesLocallyEditedManagedHarnessFileWithBackup() {
+  // 소비자가 위험을 인지하고 --force --confirm-overwrite-project-files를 함께 지정하면
+  // 덮어쓰되 소비자본은 같은 디렉터리의 .harness-bak 사이드카로 남겨야 한다.
+  const target = makeTarget()
+  runInit(target)
+
+  const original = read(target, 'CLAUDE.md')
+  const sentinel = '\n## 모노레포 구조 (#250)\n프로젝트 고유 지침입니다.\n'
+  const consumerVersion = original + sentinel
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), consumerVersion)
+
+  const output = runInit(target, '--force', '--confirm-overwrite-project-files', '--no-scan', '--no-check')
+
+  const after = read(target, 'CLAUDE.md')
+  assert(!after.includes('모노레포 구조 (#250)'), '--force --confirm should replace consumer-modified managed CLAUDE.md')
+  assert(exists(target, 'CLAUDE.md.harness-bak'), '--force --confirm should leave a .harness-bak sidecar with consumer content')
+  assert(read(target, 'CLAUDE.md.harness-bak') === consumerVersion, '.harness-bak should hold the consumer-modified bytes verbatim')
+  assert(output.includes('.harness-bak'), 'post-install report should mention the .harness-bak sidecar')
+}
+
+function forceAloneStopsWhenManagedHarnessFileWasLocallyEdited() {
+  // 동일한 사고를 막기 위해 --force만 주고 동의 플래그가 없으면 init이 중단되어야 한다.
+  const target = makeTarget()
+  runInit(target)
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), 'CONSUMER EDIT\n')
+
+  let failed = false
+  try {
+    runInit(target, '--force')
+  } catch (error) {
+    failed = error.status === 1
+    assert(String(error.stderr).includes('--confirm-overwrite-project-files'), '--force failure should advise the confirmation flag')
+  }
+
+  assert(failed, '--force without confirmation should fail when a managed file is locally modified')
+  assert(read(target, 'CLAUDE.md') === 'CONSUMER EDIT\n', '--force without confirmation should preserve the modified managed file')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   nonNodeInstallSkipsPackageJson,
@@ -1755,6 +1813,9 @@ const tests = [
   guardFailsWhenActiveStackHasNoTrackedSnapshot,
   updateRecordsAndReplaysChangelogDelta,
   existingClaudeSettingsGetsHarnessHooksMerged,
+  reinstallPreservesLocallyEditedManagedHarnessFile,
+  forceConfirmOverwritesLocallyEditedManagedHarnessFileWithBackup,
+  forceAloneStopsWhenManagedHarnessFileWasLocallyEdited,
 ]
 
 console.log('Init smoke tests')
