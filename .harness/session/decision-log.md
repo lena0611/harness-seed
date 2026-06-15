@@ -1,5 +1,12 @@
 # 결정 로그
 
+## 2026-06-15 - 0.2.66 회귀 강화 (hybrid managed 진입점 모두에 명시 잠금)
+- 배경: 0.2.65 안전망은 `installFiles`의 단일 분기로 모든 managed 파일에 일반화 적용되지만, 회귀 테스트는 `CLAUDE.md`만 명시 검증했다. PaceLAB류 실 소비자는 보통 `CLAUDE.md`/`AGENTS.md`/`.github/copilot-instructions.md`를 모두 수정하기 때문에 같은 보장을 명시로 잠그는 것이 안착 신뢰도를 높인다.
+- 결정: 본체 동작은 변경하지 않고 회귀 테스트 5종만 추가(0.2.66 patch). `AGENTS.md` 보존 + 사이드카, `.github/copilot-instructions.md` 보존, 세 파일 동시 수정 시 모두 보존 + 후처리 리포트 명시, `--force --confirm` 시 세 파일 모두 `.harness-bak` 사이드카 verbatim 보존.
+- installer 동작 무변경 → consumer-facing 아님 → `ai-standard-cli` base ref 반영 생략(0.2.64 사례).
+- 후속(옵션 A 마커 영역, 옵션 B project-owned 재분류)은 별도 릴리스로 진행. 본 patch는 0.2.65 안착 신뢰도 강화에 한정.
+- SYNC GAP 정합: `common.install.force-overwrite-confirmation` 정책의 `triggerPaths`에 `scripts/test-init.mjs`를 추가했다. 본 정책의 ownedAreas에는 이미 test-init.mjs가 있었지만 triggerPaths에는 빠져 있어, 회귀 추가만으로는 force-overwrite 정책이 docs-only로 분류되어 blocking SYNC GAP이 떠 있었다. `common.install.preserve-project-owned-files`의 triggerPaths가 이미 test-init.mjs를 포함하던 패턴과 정렬한다(2026-06-09 P5 사례, 0.2.63 minimum-node 정책 트리거 확장 사례와 동일 패턴).
+
 ## 2026-06-15 - harness:update가 소비자 수정된 managed 파일(CLAUDE.md/AGENTS.md)을 무경고로 덮어쓰던 사고 차단 (안전망, 옵션 C)
 - 배경: PaceLAB(RunningCoach)에서 0.2.56→0.2.64 base 업데이트 시 소비자가 직접 추가한 `CLAUDE.md`의 `## 모노레포 구조 (#250)` 섹션과 UI reading-list 라인이 경고/백업/머지 없이 통째로 사라졌다(`git diff` 9 deletions, 0 insertions). 커밋 전 수동 발견·복원이 없었다면 영구 손실. 보고서로 코드 근거 5건이 모두 정확히 식별됨: (1) `CLAUDE.md`/`AGENTS.md`가 `install-manifest.json.managedFiles`에 전체-파일 sha256으로 등록, (2) `installFiles`의 `shouldCopy = !exists || force || (!projectOwned && managed)`가 무조건 덮어쓰기, (3) `--force --confirm-overwrite-project-files` 가드는 project-owned만 보호, (4) `isUnmodifiedManagedHarnessFile`(guard)는 sha 불일치=로컬 수정을 관용하는데 update는 그 수정을 폐기(시스템 내부 모순), (5) 0.2.59 `.claude/settings.json` 사례가 같은 버그 클래스를 project-owned 재분류+비파괴 머지로 이미 고쳤지만 CLAUDE.md/AGENTS.md에는 적용 안 됨.
 - 결정: **옵션 C(안전망) 단독으로 0.2.65 릴리스**. 보고서 우선순위 1을 따른다 — "어떤 경우에도 *조용한* 손실 없음"이 가장 위. 옵션 A(`<!-- harness-managed:start/end -->` 마커 영역 머지)와 옵션 B(`CLAUDE.md`/`AGENTS.md` project-owned 재분류 + Markdown 멱등 머지)는 후속 검토.
