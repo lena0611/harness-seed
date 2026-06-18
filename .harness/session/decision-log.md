@@ -1,5 +1,15 @@
 # 결정 로그
 
+## 2026-06-18 - CLAUDE.md/AGENTS.md/copilot 마커 기반 공존융합 (옵션 A, 0.2.67)
+- 배경: 0.2.65/0.2.66 통짜 안전망은 "소비자가 수정한 진입 파일을 무경고로 안 덮는다"까지였고, 회사 갱신과 소비자 지침의 공존융합은 없었다("둘 중 하나만 산다"). 사용자가 "CLAUDE.md 사고만 막았지 공존융합 개념이 없다"고 지적하고 옵션 A를 선택.
+- 결정: CLAUDE.md/AGENTS.md/.github/copilot-instructions.md를 마커(`<!-- harness-managed:start/end -->`) 기반 머지로 전환. apply-stack.mjs의 `upsertGeneratedSection`과 같은 마커 패턴. 본체 진입 파일 전체를 마커로 감싸고 안내 주석으로 "마커 안=회사 자동갱신, 마커 밖=소비자 보존, 충돌 시 standards-layers 충돌 해석 순서"를 명시.
+- 의미 충돌 자동 감지는 범위 제외: 자유 산문의 의미 모순을 결정론적으로 판정하는 것은 LLM 없이 불가하고 오탐이 많다. 대신 이미 존재하는 standards-layers "충돌 해석 순서"(안전류=회사 필수 차단 우선, 운영류=프로젝트 우선)가 에이전트의 판단 기준이 된다. 마커는 물리적 공존, 충돌 해석 순서는 판단 심판 — 둘을 연결하는 것이 본 릴리스의 설계다.
+- 완전 자동 머지(규칙을 JSON DB로 구조화, settings.json 수준)는 CLAUDE.md를 산문에서 데이터로 바꾸는 대공사라 범위 제외. 충돌이 잦은 규칙이 생기면 그때 해당 규칙만 `policy-registry.json`으로 승격하는 것이 현실적(사용자와 합의).
+- 구현(`scripts/init.mjs`): `MARKER_MANAGED_FILES` 상수, `extractManagedBlock`/`extractManagedRegion`/`mergeMarkerManaged` 헬퍼, installFiles 마커 분기(머지/자동 마이그레이션/보존+안내), buildInstallManifest `managedRegionSha256` 기록(manifestVersion 2→3), `isLocallyModifiedManagedFile`에 마커 가드(마커 대상은 통짜 경로 제외). 마커 머지는 force와 무관(소비자 영역은 항상 보존). 소비자가 회사 영역(마커 안)을 수정했으면 머지 전 `.harness-bak` 백업.
+- 통짜 안전망(0.2.65)의 적용 대상 재정의: 마커 비대상 managed 파일(hook 스크립트, `.harness/bin/*` 등). 0.2.65 회귀 3종을 `.claude/hooks/enforce-check.sh` 대상으로 재타게팅. 0.2.66의 hybrid 통짜 테스트 5종은 마커 도입으로 동작이 바뀌어(마커 밖 추가는 이제 머지로 보존) 마커 머지 회귀 6종으로 대체.
+- 검증: `node scripts/test-init.mjs` 57/57 OK. CLI(`../ai-standard-cli`)는 installer 실제 동작 변경(consumer-facing)이라 base ref 반영 필요.
+- SYNC GAP 예상: init.mjs/test-init.mjs → install 정책 3개(blocker, 짝: sync-protocol/portability 갱신함). CLAUDE.md/AGENTS.md/copilot → visible-trace/skill-selection 정책(warning) — 마커는 그 규칙 내용과 무관한 구조 변경이라 짝 문서(context-protocol/skills) 변경 없음(commit 시 결과 확인).
+
 ## 2026-06-15 - 0.2.66 회귀 강화 (hybrid managed 진입점 모두에 명시 잠금)
 - 배경: 0.2.65 안전망은 `installFiles`의 단일 분기로 모든 managed 파일에 일반화 적용되지만, 회귀 테스트는 `CLAUDE.md`만 명시 검증했다. PaceLAB류 실 소비자는 보통 `CLAUDE.md`/`AGENTS.md`/`.github/copilot-instructions.md`를 모두 수정하기 때문에 같은 보장을 명시로 잠그는 것이 안착 신뢰도를 높인다.
 - 결정: 본체 동작은 변경하지 않고 회귀 테스트 5종만 추가(0.2.66 patch). `AGENTS.md` 보존 + 사이드카, `.github/copilot-instructions.md` 보존, 세 파일 동시 수정 시 모두 보존 + 후처리 리포트 명시, `--force --confirm` 시 세 파일 모두 `.harness-bak` 사이드카 verbatim 보존.

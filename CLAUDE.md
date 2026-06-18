@@ -1,3 +1,10 @@
+<!-- harness-managed:start -->
+<!--
+  이 블록은 공통 하네스(harness-seed)가 소유하며 harness:update가 자동 갱신합니다.
+  블록 안(harness-managed:start ~ harness-managed:end)은 직접 수정하지 마세요. 다음 업데이트 때 본체 정본으로 다시 채워집니다.
+  프로젝트 고유 지침은 이 블록 "아래"(harness-managed:end 다음)에 작성하면 업데이트와 무관하게 영구 보존됩니다.
+  관리 블록 기준과 프로젝트 영역 지침이 충돌하면 .harness/project/standards-layers.md의 "충돌 해석 순서"를 따릅니다.
+-->
 # CLAUDE
 
 이 파일이 모든 에이전트의 기준 진입점입니다. 사내 표준 에이전트는 Claude입니다.
@@ -58,3 +65,10 @@
 - 실제 업무 진행을 개발자에게 보고할 때는 원시 내부 추론이 아니라 `[harness] request/context/impact/action/decision/verify` 형태의 visible trace로 요약합니다. 단순 질문 응답, 잡담, 메타 확인처럼 업무 진행 보고가 아닌 턴에는 이 형식을 강요하지 않습니다.
 - 에이전트 작업에서는 로컬 git hook 설치 여부와 무관하게 기준 계층을 따릅니다. 다만 완료 승인 전에는 무거운 검증과 side effect 있는 작업을 실행하지 않습니다. 승인 후 최종화 단계에서 `최종 검증만` 요청은 직접 검사, `커밋/푸시` 요청은 설치된 hook 검사에 맡겨 중복 실행을 피합니다.
 - 새 프로젝트 방향이 비어 있으면 구현보다 `.harness/project/bootstrap.md` 인터뷰를 먼저 진행합니다.
+<!-- harness-managed:end -->
+
+<!--
+  이 줄 아래는 프로젝트 소유 영역입니다. 프로젝트 고유의 에이전트 진입 지침(아키텍처 경계, 읽기 순서 예외, 워크플로우 보충 등)을 자유롭게 작성하세요.
+  harness:update는 위 harness-managed 블록만 갱신하고 이 영역은 보존합니다.
+-->
+

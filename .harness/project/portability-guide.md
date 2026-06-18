@@ -72,7 +72,8 @@
 - 개발 기준 동기화 프로토콜과 강제 강도 기준
 - doc-link 검증, SYNC GAP 검출, waiver 체계
 - CI 워크플로 골격(`policy-guard.yml`)
-- 소비자가 managed 파일에 추가한 내용(0.2.65 안전망). 본체 업데이트는 `install-manifest.json` sha256과의 불일치를 감지하면 그 파일을 기본 보존하고, `--force --confirm-overwrite-project-files`로 명시 동의했을 때만 `<파일>.harness-bak` 사이드카 백업과 함께 덮어씁니다. 상세는 `.harness/policy/sync-protocol.md`.
+- 소비자가 managed 파일에 추가한 내용(0.2.65 통짜 안전망). 본체 업데이트는 `install-manifest.json` sha256과의 불일치를 감지하면 그 파일을 기본 보존하고, `--force --confirm-overwrite-project-files`로 명시 동의했을 때만 `<파일>.harness-bak` 사이드카 백업과 함께 덮어씁니다.
+- `CLAUDE.md`/`AGENTS.md`/`.github/copilot-instructions.md`의 마커 밖(소비자 영역) 내용(0.2.67 마커 머지, 옵션 A). 본체 업데이트는 `<!-- harness-managed:start -->`~`<!-- harness-managed:end -->` 블록 안(회사 영역)만 정본으로 갱신하고 블록 밖은 보존합니다. 프로젝트 고유 진입 지침은 `harness-managed:end` 마커 아래에 작성하세요. 마커 안과 소비자 영역이 충돌하면 `standards-layers.md`의 "충돌 해석 순서"를 따릅니다. 상세는 `.harness/policy/sync-protocol.md`.
 
 ## 검증
 - 이식 직후 `npm run harness:check`를 실행합니다. CI나 릴리스 검증에서는 `npm run harness:check:strict`로 SYNC GAP을 실패 처리합니다.

@@ -696,12 +696,53 @@ function isManagedByManifest(manifest, relPath) {
   return Boolean(manifest && manifest.managedFiles && manifest.managedFiles[toPosix(relPath)]);
 }
 
+// 마커 기반 managed 영역 (옵션 A, 0.2.67).
+// CLAUDE.md/AGENTS.md/.github/copilot-instructions.md는 본체 보일러플레이트와 소비자 지침이
+// 한 파일에 공존한다. 마커 안(start~end)은 본체 소유로 자동 갱신하고, 마커 밖은 소비자 소유로 보존한다.
+const MARKER_START = '<!-- harness-managed:start -->';
+const MARKER_END = '<!-- harness-managed:end -->';
+const MARKER_MANAGED_FILES = new Set(['CLAUDE.md', 'AGENTS.md', '.github/copilot-instructions.md']);
+
+function isMarkerManaged(relPath) {
+  return MARKER_MANAGED_FILES.has(toPosix(relPath));
+}
+
+// 마커 블록(마커 라인 포함)을 반환한다. 마커 쌍이 없거나 순서가 어긋나면 null.
+function extractManagedBlock(content) {
+  const s = content.indexOf(MARKER_START);
+  const e = content.indexOf(MARKER_END);
+  if (s === -1 || e === -1 || e < s) return null;
+  return content.slice(s, e + MARKER_END.length);
+}
+
+// 마커 안 내용(마커 라인 제외)을 반환한다. 영역 해시 비교용. 마커 쌍이 없으면 null.
+function extractManagedRegion(content) {
+  const block = extractManagedBlock(content);
+  if (block === null) return null;
+  return block.slice(MARKER_START.length, block.length - MARKER_END.length);
+}
+
+// 소비자 파일의 마커 블록을 본체 마커 블록으로 교체하고 마커 밖(소비자 영역)은 보존한다.
+// 본체나 소비자 어느 한쪽에 마커가 없으면 null(머지 불가)을 반환한다.
+function mergeMarkerManaged(harnessContent, consumerContent) {
+  const harnessBlock = extractManagedBlock(harnessContent);
+  if (harnessBlock === null) return null;
+  const s = consumerContent.indexOf(MARKER_START);
+  const e = consumerContent.indexOf(MARKER_END);
+  if (s === -1 || e === -1 || e < s) return null;
+  const before = consumerContent.slice(0, s);
+  const after = consumerContent.slice(e + MARKER_END.length);
+  return `${before}${harnessBlock}${after}`;
+}
+
 // managed 파일이 manifest 기록 시점 이후 소비자에 의해 수정됐는지 판별한다.
 // CLAUDE.md/AGENTS.md처럼 본체 보일러플레이트 + 소비자 지침이 한 파일에 섞일 수 있는
 // 하이브리드 managed 파일이 base 업데이트 때 무경고로 덮여 소비자 내용이 영구 소실되는 사고를
 // 막기 위한 안전망의 1차 판단 함수다.
 function isLocallyModifiedManagedFile(target, relPath, manifest) {
   const rel = toPosix(relPath);
+  // 마커 관리 파일은 마커 머지 경로(installFiles)로 처리되므로 통짜 보존/force 가드 대상에서 제외한다.
+  if (isMarkerManaged(rel)) return false;
   const expected = manifest?.managedFiles?.[rel]?.sha256;
   if (!expected) return false;
   const abs = join(target, rel);
@@ -811,6 +852,11 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
   // 동의가 있을 때만 .harness-bak 백업 후 덮어쓴다. 둘 다 후처리에서 명시적으로 보고한다.
   const preservedLocallyModified = [];
   const overwroteLocallyModified = [];
+  // 마커 머지(옵션 A, 0.2.67) 후처리 분류.
+  const mergedMarkerFiles = [];        // 마커 머지: 마커 밖(소비자) 보존 + 마커 안(본체) 갱신
+  const overwroteManagedRegion = [];   // 머지 중 소비자가 회사 영역(마커 안)을 수정해 사이드카로 백업한 파일
+  const autoMigratedMarkerFiles = [];  // 마커 없던 미수정 파일을 마커 버전으로 자동 이전
+  const needsMarkerMigration = [];     // 마커 없는 수정본 → 보존 + 수동 이전 안내
 
   for (const rel of files) {
     const src = join(sourceRoot, rel);
@@ -818,6 +864,63 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     const exists = existsSync(dest);
     const projectOwned = isProjectOwned(rel);
     const managed = isManagedByManifest(manifest, rel);
+
+    // 마커 관리 파일(CLAUDE.md/AGENTS.md/copilot): 마커 안은 본체 갱신, 마커 밖은 소비자 보존.
+    // 첫 설치(!exists)나 미등록(!managed)은 아래 일반 경로에서 본체(마커 포함)를 그대로 복사한다.
+    if (exists && managed && isMarkerManaged(rel)) {
+      const consumerContent = readFileSync(dest, 'utf8');
+      const consumerRegion = extractManagedRegion(consumerContent);
+      const recorded = manifest?.managedFiles?.[toPosix(rel)] ?? {};
+
+      if (consumerRegion !== null) {
+        // 소비자에 마커 있음 → 머지: 마커 밖 보존 + 마커 안 본체로 교체.
+        const harnessContent = readFileSync(src, 'utf8');
+        const merged = mergeMarkerManaged(harnessContent, consumerContent);
+        // 소비자가 회사 영역(마커 안)까지 수정했으면 머지로 그 수정이 사라지므로 사이드카 백업 + 리포트.
+        const regionModified = Boolean(
+          recorded.managedRegionSha256 && sha256Text(consumerRegion) !== recorded.managedRegionSha256,
+        );
+        const backupRel = regionModified ? `${rel}.harness-bak` : null;
+
+        if (opts.dryRun) {
+          console.log(`[dry-run] merge(marker) ${rel}${backupRel ? ` [backup → ${backupRel}]` : ''}`);
+        } else {
+          if (backupRel) copyFileSync(dest, join(target, backupRel));
+          writeFileSync(dest, merged);
+        }
+        stats.updated++;
+        copiedFiles.push(rel);
+        mergedMarkerFiles.push(rel);
+        if (backupRel) overwroteManagedRegion.push({ rel, backup: backupRel });
+        continue;
+      }
+
+      // 소비자에 마커 없음 → 옛 버전. 마이그레이션 판정.
+      const unmodified = Boolean(recorded.sha256 && sha256(dest) === recorded.sha256);
+      if (unmodified) {
+        // 소비자가 파일을 전혀 안 건드림 → 마커 버전(본체)으로 통째 교체(자동 마이그레이션).
+        if (opts.dryRun) {
+          console.log(`[dry-run] migrate(marker) ${rel}`);
+        } else {
+          mkdirSync(dirname(dest), { recursive: true });
+          copyFileSync(src, dest);
+        }
+        stats.updated++;
+        copiedFiles.push(rel);
+        autoMigratedMarkerFiles.push(rel);
+        continue;
+      }
+
+      // 마커 없는 수정본 → 어디까지가 회사/소비자인지 모름 → 보존 + 수동 이전 안내.
+      if (opts.dryRun) {
+        console.log(`[dry-run] preserve(needs-marker-migration) ${rel}`);
+      }
+      stats.skipped++;
+      skippedFiles.push(rel);
+      needsMarkerMigration.push(rel);
+      continue;
+    }
+
     let shouldCopy = !exists || opts.force || (!projectOwned && managed);
 
     let preservedByGuard = false;
@@ -872,7 +975,17 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     }
   }
 
-  return { ...stats, skippedFiles, copiedFiles, preservedLocallyModified, overwroteLocallyModified };
+  return {
+    ...stats,
+    skippedFiles,
+    copiedFiles,
+    preservedLocallyModified,
+    overwroteLocallyModified,
+    mergedMarkerFiles,
+    overwroteManagedRegion,
+    autoMigratedMarkerFiles,
+    needsMarkerMigration,
+  };
 }
 
 function consumerProjectStateTemplate(rel, context) {
@@ -1190,9 +1303,16 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
       continue
     }
 
-    managedFiles[rel] = {
-      sha256: sha256(abs),
+    const entry = { sha256: sha256(abs) }
+    // 마커 관리 파일은 마커 안(회사 영역) 해시를 따로 기록한다. 다음 업데이트에서 소비자가
+    // 회사 영역을 수정했는지(머지 시 사이드카 백업 필요 여부) 판정하는 기준이 된다.
+    if (isMarkerManaged(rel)) {
+      const region = extractManagedRegion(readFileSync(abs, 'utf8'))
+      if (region !== null) {
+        entry.managedRegionSha256 = sha256Text(region)
+      }
     }
+    managedFiles[rel] = entry
   }
 
   return {
@@ -1200,7 +1320,7 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
     version: seedPkg.version || '0.0.0',
     installedAt: new Date().toISOString(),
     source,
-    manifestVersion: 2,
+    manifestVersion: 3,
     managedFiles,
     projectOwnedFiles: projectOwnedFiles.sort(),
   }
@@ -1914,6 +2034,53 @@ function main() {
         console.log(`  ... 외 ${installed.overwroteLocallyModified.length - 15}건`);
       }
       console.log('소비자가 보존하려던 내용이 사이드카에 남아 있으니 필요한 부분을 다시 머지하세요.');
+    }
+
+    // 마커 머지(옵션 A, 0.2.67) 후처리 리포트.
+    if (installed.mergedMarkerFiles && installed.mergedMarkerFiles.length > 0) {
+      console.log('');
+      console.log('마커 머지된 managed 파일 (마커 밖 소비자 영역 보존 + 마커 안 본체 갱신):');
+      for (const rel of installed.mergedMarkerFiles.slice(0, 15)) {
+        console.log(`  - ${rel}`);
+      }
+      if (installed.mergedMarkerFiles.length > 15) {
+        console.log(`  ... 외 ${installed.mergedMarkerFiles.length - 15}건`);
+      }
+    }
+
+    if (installed.overwroteManagedRegion && installed.overwroteManagedRegion.length > 0) {
+      console.log('');
+      console.log('머지 중 소비자가 수정한 회사 영역(마커 안)을 .harness-bak로 백업한 파일:');
+      for (const entry of installed.overwroteManagedRegion.slice(0, 15)) {
+        console.log(`  - ${entry.rel} → 백업 ${entry.backup}`);
+      }
+      if (installed.overwroteManagedRegion.length > 15) {
+        console.log(`  ... 외 ${installed.overwroteManagedRegion.length - 15}건`);
+      }
+      console.log('마커 안은 본체 소유라 정본으로 교체했습니다. 그 안에 두려던 내용은 마커 밖(소비자 영역)으로 옮기세요.');
+    }
+
+    if (installed.autoMigratedMarkerFiles && installed.autoMigratedMarkerFiles.length > 0) {
+      console.log('');
+      console.log('마커 도입으로 자동 이전된 managed 파일 (수정 흔적 없어 안전하게 마커 버전으로 교체):');
+      for (const rel of installed.autoMigratedMarkerFiles.slice(0, 15)) {
+        console.log(`  - ${rel}`);
+      }
+      if (installed.autoMigratedMarkerFiles.length > 15) {
+        console.log(`  ... 외 ${installed.autoMigratedMarkerFiles.length - 15}건`);
+      }
+    }
+
+    if (installed.needsMarkerMigration && installed.needsMarkerMigration.length > 0) {
+      console.log('');
+      console.log('마커 도입 수동 이전 필요 (소비자가 수정했는데 마커가 없어 자동 분리 불가 — 보존함):');
+      for (const rel of installed.needsMarkerMigration.slice(0, 15)) {
+        console.log(`  - ${rel}`);
+      }
+      if (installed.needsMarkerMigration.length > 15) {
+        console.log(`  ... 외 ${installed.needsMarkerMigration.length - 15}건`);
+      }
+      console.log('조치: 각 파일에서 프로젝트 고유 내용을 harness-managed:end 마커 아래로 옮기고, 본체 영역에 harness-managed:start/end 마커를 두른 뒤 다시 업데이트하면 이후로는 자동 머지됩니다.');
     }
 
     const bridgeCandidates = detectBridgeCandidates(TARGET, installed.skippedFiles);

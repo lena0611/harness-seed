@@ -1706,24 +1706,28 @@ function existingClaudeSettingsGetsHarnessHooksMerged() {
   assert(injectCount === 1, 'reinstall should not duplicate harness hooks (idempotent)')
 }
 
+// 통짜 안전망(0.2.65)은 마커 비대상 managed 파일에 적용된다. 마커 대상(CLAUDE.md 등)은 0.2.67 마커 머지로
+// 별도 처리되므로, 여기서는 hook 스크립트 같은 마커 비대상 managed 파일로 통짜 보존/사이드카/중단을 검증한다.
+const NON_MARKER_MANAGED_REL = '.claude/hooks/enforce-check.sh'
+
 function reinstallPreservesLocallyEditedManagedHarnessFile() {
-  // CLAUDE.md/AGENTS.md 같은 managed 파일에 소비자가 직접 섹션을 추가하면
-  // base 업데이트가 그 수정을 무경고로 덮어쓰지 않아야 한다(안전망).
   const target = makeTarget()
   runInit(target)
 
-  const original = read(target, 'CLAUDE.md')
-  const sentinel = '\n## 모노레포 구조 (#250)\n프로젝트 고유 지침입니다.\n'
-  fs.writeFileSync(path.join(target, 'CLAUDE.md'), original + sentinel)
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  assert(manifest.managedFiles[NON_MARKER_MANAGED_REL], 'hook script should be a managed file (precondition)')
+
+  const original = read(target, NON_MARKER_MANAGED_REL)
+  const sentinel = '\n# consumer local edit\n'
+  fs.writeFileSync(path.join(target, NON_MARKER_MANAGED_REL), original + sentinel)
 
   const output = runInit(target, '--no-scan', '--no-check')
 
-  const after = read(target, 'CLAUDE.md')
-  assert(after.includes('모노레포 구조 (#250)'), 'reinstall should preserve consumer additions in managed CLAUDE.md')
-  assert(after.includes('프로젝트 고유 지침입니다.'), 'reinstall should preserve consumer sentinel line')
+  const after = read(target, NON_MARKER_MANAGED_REL)
+  assert(after.includes('consumer local edit'), 'reinstall should preserve consumer edit in a non-marker managed file')
   assert(output.includes('로컬 수정으로 보존된 managed 파일'), 'reinstall should explicitly report preserved locally-modified managed files')
-  assert(output.includes('CLAUDE.md'), 'preserved-managed report should name the file')
-  assert(!exists(target, 'CLAUDE.md.harness-bak'), 'preservation path should not leave a .harness-bak sidecar')
+  assert(output.includes(NON_MARKER_MANAGED_REL), 'preserved-managed report should name the file')
+  assert(!exists(target, `${NON_MARKER_MANAGED_REL}.harness-bak`), 'preservation path should not leave a .harness-bak sidecar')
 }
 
 function forceConfirmOverwritesLocallyEditedManagedHarnessFileWithBackup() {
@@ -1732,17 +1736,15 @@ function forceConfirmOverwritesLocallyEditedManagedHarnessFileWithBackup() {
   const target = makeTarget()
   runInit(target)
 
-  const original = read(target, 'CLAUDE.md')
-  const sentinel = '\n## 모노레포 구조 (#250)\n프로젝트 고유 지침입니다.\n'
-  const consumerVersion = original + sentinel
-  fs.writeFileSync(path.join(target, 'CLAUDE.md'), consumerVersion)
+  const consumerVersion = `${read(target, NON_MARKER_MANAGED_REL)}\n# consumer local edit\n`
+  fs.writeFileSync(path.join(target, NON_MARKER_MANAGED_REL), consumerVersion)
 
   const output = runInit(target, '--force', '--confirm-overwrite-project-files', '--no-scan', '--no-check')
 
-  const after = read(target, 'CLAUDE.md')
-  assert(!after.includes('모노레포 구조 (#250)'), '--force --confirm should replace consumer-modified managed CLAUDE.md')
-  assert(exists(target, 'CLAUDE.md.harness-bak'), '--force --confirm should leave a .harness-bak sidecar with consumer content')
-  assert(read(target, 'CLAUDE.md.harness-bak') === consumerVersion, '.harness-bak should hold the consumer-modified bytes verbatim')
+  const after = read(target, NON_MARKER_MANAGED_REL)
+  assert(!after.includes('consumer local edit'), '--force --confirm should replace consumer-modified managed file')
+  assert(exists(target, `${NON_MARKER_MANAGED_REL}.harness-bak`), '--force --confirm should leave a .harness-bak sidecar with consumer content')
+  assert(read(target, `${NON_MARKER_MANAGED_REL}.harness-bak`) === consumerVersion, '.harness-bak should hold the consumer-modified bytes verbatim')
   assert(output.includes('.harness-bak'), 'post-install report should mention the .harness-bak sidecar')
 }
 
@@ -1750,7 +1752,7 @@ function forceAloneStopsWhenManagedHarnessFileWasLocallyEdited() {
   // 동일한 사고를 막기 위해 --force만 주고 동의 플래그가 없으면 init이 중단되어야 한다.
   const target = makeTarget()
   runInit(target)
-  fs.writeFileSync(path.join(target, 'CLAUDE.md'), 'CONSUMER EDIT\n')
+  fs.writeFileSync(path.join(target, NON_MARKER_MANAGED_REL), '# CONSUMER EDIT\n')
 
   let failed = false
   try {
@@ -1761,104 +1763,116 @@ function forceAloneStopsWhenManagedHarnessFileWasLocallyEdited() {
   }
 
   assert(failed, '--force without confirmation should fail when a managed file is locally modified')
-  assert(read(target, 'CLAUDE.md') === 'CONSUMER EDIT\n', '--force without confirmation should preserve the modified managed file')
+  assert(read(target, NON_MARKER_MANAGED_REL) === '# CONSUMER EDIT\n', '--force without confirmation should preserve the modified managed file')
 }
 
-// CLAUDE.md 외의 hybrid managed 파일도 동일 분기를 거치지만 0.2.65에서는 CLAUDE.md만 명시 검증했다.
-// 0.2.66에서 AGENTS.md(비-Claude 에이전트 진입점)와 .github/copilot-instructions.md(GitHub Copilot 진입점)에도
-// 보존/사이드카 보장이 회귀로 잠긴다.
-function reinstallPreservesLocallyEditedAgentsMd() {
+// 옵션 A(0.2.67): CLAUDE.md/AGENTS.md/.github/copilot-instructions.md는 마커 머지로 처리된다.
+// 마커 밖(소비자 영역)은 보존하고 마커 안(회사 영역)은 본체로 갱신한다. 위의 통짜 안전망 3개 테스트는
+// 마커 비대상 managed 파일(hook 스크립트 등)에만 적용되고, 아래는 마커 융합 동작을 잠근다.
+const MARKER_START_T = '<!-- harness-managed:start -->'
+const MARKER_END_T = '<!-- harness-managed:end -->'
+
+function newInstallWritesMarkerAndRegionSha() {
   const target = makeTarget()
   runInit(target)
 
-  const original = read(target, 'AGENTS.md')
-  const sentinel = '\n## 프로젝트 전용 에이전트 룰\nCodex 진입점 보충 지침입니다.\n'
-  fs.writeFileSync(path.join(target, 'AGENTS.md'), original + sentinel)
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  for (const rel of ['CLAUDE.md', 'AGENTS.md', '.github/copilot-instructions.md']) {
+    const content = read(target, rel)
+    assert(content.includes(MARKER_START_T) && content.includes(MARKER_END_T), `${rel} should ship with managed markers`)
+    assert(manifest.managedFiles[rel], `${rel} should be managed`)
+    assert(manifest.managedFiles[rel].managedRegionSha256, `${rel} manifest entry should record managedRegionSha256`)
+  }
+}
+
+function markerMergePreservesConsumerAreaAndUpdatesManagedBlock() {
+  const target = makeTarget()
+  runInit(target)
+
+  const consumerSection = '\n## 우리 팀 모노레포 (#250)\n프로젝트 고유 지침.\n'
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), read(target, 'CLAUDE.md') + consumerSection)
 
   const output = runInit(target, '--no-scan', '--no-check')
 
-  const after = read(target, 'AGENTS.md')
-  assert(after.includes('프로젝트 전용 에이전트 룰'), 'reinstall should preserve consumer additions in managed AGENTS.md')
-  assert(output.includes('AGENTS.md'), 'preserved-managed report should name AGENTS.md when modified')
-  assert(!exists(target, 'AGENTS.md.harness-bak'), 'preservation path should not leave AGENTS.md.harness-bak')
+  const after = read(target, 'CLAUDE.md')
+  assert(after.includes('우리 팀 모노레포 (#250)'), 'merge should preserve consumer area outside markers')
+  assert(after.includes(MARKER_START_T) && after.includes(MARKER_END_T), 'merge should keep managed markers')
+  assert(output.includes('마커 머지된'), 'should report marker merge')
+  assert(!exists(target, 'CLAUDE.md.harness-bak'), 'clean merge should not leave a sidecar')
 }
 
-function forceConfirmOverwritesAgentsMdWithBackup() {
+function markerMergeRestoresTamperedManagedBlockWithSidecar() {
   const target = makeTarget()
   runInit(target)
 
-  const consumerVersion = `${read(target, 'AGENTS.md')}\n## CONSUMER\n`
-  fs.writeFileSync(path.join(target, 'AGENTS.md'), consumerVersion)
-
-  runInit(target, '--force', '--confirm-overwrite-project-files', '--no-scan', '--no-check')
-
-  assert(!read(target, 'AGENTS.md').includes('## CONSUMER'), '--force --confirm should replace AGENTS.md')
-  assert(exists(target, 'AGENTS.md.harness-bak'), '--force --confirm should leave AGENTS.md.harness-bak')
-  assert(read(target, 'AGENTS.md.harness-bak') === consumerVersion, 'AGENTS.md.harness-bak should hold the consumer bytes verbatim')
-}
-
-function reinstallPreservesLocallyEditedCopilotInstructions() {
-  const target = makeTarget()
-  runInit(target)
-
-  const rel = '.github/copilot-instructions.md'
-  const original = read(target, rel)
-  const consumerVersion = `${original}\n## PaceLAB 전용 모노레포 안내\n`
-  fs.writeFileSync(path.join(target, rel), consumerVersion)
+  const original = read(target, 'CLAUDE.md')
+  // 소비자가 마커 안 본체 문구를 훼손 + 마커 밖에 자기 영역 추가
+  const tampered = original.replace('모든 에이전트의 기준 진입점', '소비자가 바꾼 문구') + '\n## 소비자 영역\n보존돼야 함\n'
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), tampered)
 
   const output = runInit(target, '--no-scan', '--no-check')
 
-  const after = read(target, rel)
-  assert(after.includes('PaceLAB 전용 모노레포 안내'), 'reinstall should preserve consumer additions in copilot-instructions.md')
-  assert(output.includes('copilot-instructions.md'), 'preserved-managed report should name copilot-instructions.md')
-  assert(!exists(target, `${rel}.harness-bak`), 'preservation path should not leave copilot-instructions.md.harness-bak')
+  const after = read(target, 'CLAUDE.md')
+  assert(after.includes('모든 에이전트의 기준 진입점'), 'managed block should be restored to canonical content')
+  assert(!after.includes('소비자가 바꾼 문구'), 'tampered managed content should be replaced')
+  assert(after.includes('소비자 영역'), 'consumer area outside markers should be preserved')
+  assert(exists(target, 'CLAUDE.md.harness-bak'), 'tampered managed region should be backed up to sidecar')
+  assert(read(target, 'CLAUDE.md.harness-bak') === tampered, 'sidecar should hold the consumer bytes verbatim')
+  assert(output.includes('회사 영역'), 'should report managed-region backup')
 }
 
-// 0.2.65 안전망은 본질적으로 단일 파일 분기지만, PaceLAB류 소비자는 보통 CLAUDE.md/AGENTS.md/copilot을
-// 동시에 손댄다. 한 번의 update에서 모두 보존되고 후처리 리포트가 모두를 명시하는지 잠근다.
-function reinstallPreservesAllHybridManagedFilesSimultaneously() {
+function autoMigrateUnmodifiedLegacyFileToMarkerVersion() {
   const target = makeTarget()
   runInit(target)
 
-  const claude = `${read(target, 'CLAUDE.md')}\n## 모노레포 구조 (#250)\n`
-  const agents = `${read(target, 'AGENTS.md')}\n## 프로젝트 전용 에이전트 룰\n`
-  const copilot = `${read(target, '.github/copilot-instructions.md')}\n## PaceLAB 전용 모노레포 안내\n`
-  fs.writeFileSync(path.join(target, 'CLAUDE.md'), claude)
-  fs.writeFileSync(path.join(target, 'AGENTS.md'), agents)
-  fs.writeFileSync(path.join(target, '.github/copilot-instructions.md'), copilot)
+  // 마커 없는 옛 버전(미수정)을 시뮬: 마커 없는 내용으로 덮고 manifest를 그 내용 기준으로 set.
+  const legacy = '# CLAUDE\n\n옛 버전 본문. 마커 없음.\n'
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), legacy)
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  manifest.managedFiles['CLAUDE.md'] = { sha256: sha256Text(legacy) }
+  writeJson(target, '.harness/install-manifest.json', manifest)
 
   const output = runInit(target, '--no-scan', '--no-check')
 
-  assert(read(target, 'CLAUDE.md') === claude, 'CLAUDE.md preserved in multi-file scenario')
-  assert(read(target, 'AGENTS.md') === agents, 'AGENTS.md preserved in multi-file scenario')
-  assert(read(target, '.github/copilot-instructions.md') === copilot, 'copilot-instructions.md preserved in multi-file scenario')
-  assert(output.includes('로컬 수정으로 보존된 managed 파일'), 'multi-file scenario should print preserved-managed report')
-  // 세 파일이 모두 리포트에 등장해야 한다 — 조용한 손실 차단의 핵심.
-  assert(output.includes('CLAUDE.md'), 'report should name CLAUDE.md')
-  assert(output.includes('AGENTS.md'), 'report should name AGENTS.md')
-  assert(output.includes('copilot-instructions.md'), 'report should name copilot-instructions.md')
+  const after = read(target, 'CLAUDE.md')
+  assert(after.includes(MARKER_START_T), 'unmodified legacy file should auto-migrate to the marker version')
+  assert(!after.includes('옛 버전 본문'), 'legacy content should be replaced on auto-migration')
+  assert(output.includes('자동 이전'), 'should report auto-migration')
+  assert(!exists(target, 'CLAUDE.md.harness-bak'), 'auto-migration of unmodified file needs no sidecar')
 }
 
-function forceConfirmOverwriteLeavesSidecarsForAllHybridManagedFiles() {
+function preserveModifiedLegacyFileWithoutMarkerAndAdvise() {
   const target = makeTarget()
   runInit(target)
 
-  const consumerClaude = `${read(target, 'CLAUDE.md')}\n## CONSUMER CLAUDE\n`
-  const consumerAgents = `${read(target, 'AGENTS.md')}\n## CONSUMER AGENTS\n`
-  const consumerCopilot = `${read(target, '.github/copilot-instructions.md')}\n## CONSUMER COPILOT\n`
-  fs.writeFileSync(path.join(target, 'CLAUDE.md'), consumerClaude)
-  fs.writeFileSync(path.join(target, 'AGENTS.md'), consumerAgents)
-  fs.writeFileSync(path.join(target, '.github/copilot-instructions.md'), consumerCopilot)
+  // 마커 없는 옛 파일을 소비자가 수정(sha 불일치) → 자동 분리 불가 → 보존 + 안내.
+  const legacyModified = '# CLAUDE\n\n옛 버전인데 소비자가 수정함. 마커 없음.\n## 내 메모\n중요\n'
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), legacyModified)
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  manifest.managedFiles['CLAUDE.md'] = { sha256: sha256Text('# CLAUDE\n\n옛 정본(소비자 수정 전).\n') }
+  writeJson(target, '.harness/install-manifest.json', manifest)
 
-  runInit(target, '--force', '--confirm-overwrite-project-files', '--no-scan', '--no-check')
+  const output = runInit(target, '--no-scan', '--no-check')
 
-  assert(read(target, 'CLAUDE.md.harness-bak') === consumerClaude, 'CLAUDE.md sidecar holds consumer bytes')
-  assert(read(target, 'AGENTS.md.harness-bak') === consumerAgents, 'AGENTS.md sidecar holds consumer bytes')
-  assert(read(target, '.github/copilot-instructions.md.harness-bak') === consumerCopilot, 'copilot sidecar holds consumer bytes')
-  // 본체로 갱신은 셋 다 일어났는지 확인 (sidecar는 직전 소비자본, 디스크는 새 본체)
-  assert(!read(target, 'CLAUDE.md').includes('## CONSUMER CLAUDE'), 'CLAUDE.md replaced by harness')
-  assert(!read(target, 'AGENTS.md').includes('## CONSUMER AGENTS'), 'AGENTS.md replaced by harness')
-  assert(!read(target, '.github/copilot-instructions.md').includes('## CONSUMER COPILOT'), 'copilot replaced by harness')
+  assert(read(target, 'CLAUDE.md') === legacyModified, 'modified legacy file without markers should be preserved as-is')
+  assert(output.includes('수동 이전 필요'), 'should advise manual marker migration')
+}
+
+function markerMergeIsIdempotent() {
+  const target = makeTarget()
+  runInit(target)
+
+  const consumerSection = '\n## 소비자 영역\n한 번만 있어야 함\n'
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), read(target, 'CLAUDE.md') + consumerSection)
+
+  runInit(target, '--no-scan', '--no-check')
+  const first = read(target, 'CLAUDE.md')
+  runInit(target, '--no-scan', '--no-check')
+  const second = read(target, 'CLAUDE.md')
+
+  assert(first === second, 'repeated marker merge should be byte-identical (idempotent)')
+  assert(second.split('## 소비자 영역').length - 1 === 1, 'consumer area should not duplicate across merges')
+  assert(second.split(MARKER_START_T).length - 1 === 1, 'managed start marker should not duplicate')
 }
 
 const tests = [
@@ -1913,11 +1927,12 @@ const tests = [
   reinstallPreservesLocallyEditedManagedHarnessFile,
   forceConfirmOverwritesLocallyEditedManagedHarnessFileWithBackup,
   forceAloneStopsWhenManagedHarnessFileWasLocallyEdited,
-  reinstallPreservesLocallyEditedAgentsMd,
-  forceConfirmOverwritesAgentsMdWithBackup,
-  reinstallPreservesLocallyEditedCopilotInstructions,
-  reinstallPreservesAllHybridManagedFilesSimultaneously,
-  forceConfirmOverwriteLeavesSidecarsForAllHybridManagedFiles,
+  newInstallWritesMarkerAndRegionSha,
+  markerMergePreservesConsumerAreaAndUpdatesManagedBlock,
+  markerMergeRestoresTamperedManagedBlockWithSidecar,
+  autoMigrateUnmodifiedLegacyFileToMarkerVersion,
+  preserveModifiedLegacyFileWithoutMarkerAndAdvise,
+  markerMergeIsIdempotent,
 ]
 
 console.log('Init smoke tests')
