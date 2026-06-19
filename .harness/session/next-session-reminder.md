@@ -7,8 +7,8 @@
 - 마커 머지(0.2.67): CLAUDE.md/AGENTS.md/.github/copilot-instructions.md는 `<!-- harness-managed:start/end -->` 블록 안(회사 영역)만 update가 갱신하고 블록 밖(소비자 영역)은 보존. 마커 없는 옛 파일은 미수정이면 자동 이전, 수정됐으면 보존+수동 이전 안내. 회사 영역을 소비자가 수정했으면 머지 전 `.harness-bak` 백업. 충돌은 standards-layers "충돌 해석 순서"로 판단. manifest에 `managedRegionSha256`(manifestVersion 3).
 - 통짜 안전망(0.2.65)은 이제 마커 비대상 managed 파일(hook 스크립트, `.harness/bin/*` 등)에만 적용. 의미 충돌 자동 감지·완전 JSON DB 머지는 범위 외(후속).
 - dual-runtime(0.2.63): 프로젝트 `.nvmrc < 20.19`여도 설치/운영 가능. 상세는 `portability-guide.md` "Node 런타임 계약".
-- 0.2.66 push/배포 완료: 양쪽 원격 + 태그 `v0.2.66`(=eefe807), merge commit `daabf80`로 동기화(rebase로 sibling 생겨 GitLab protected branch가 force-push 거부 → merge 폴백). 0.2.67은 본 세션에서 push 진행.
-- CLI(`../ai-standard-cli`)는 0.1.29(base ref v0.2.65). 0.2.67은 installer 동작 변경(consumer-facing)이라 base ref 반영 필요 — 본 세션에서 0.1.30으로 진행 예정.
+- 0.2.67 push/배포 완료: 양쪽 원격(origin/main + company/master = `3f0d799`) + 태그 `v0.2.67`(=5d44ad7) 양쪽 push, GitHub Actions Policy Guard 통과(34s).
+- CLI(`../ai-standard-cli`)는 0.1.30으로 base ref v0.2.67 반영 완료(GitLab master `0b5678d`, 태그 `v0.1.30`, test 18/18). 0.2.66은 test-only라 CLI에서 건너뛰고 v0.2.65→v0.2.67 점프.
 
 ## ★ 본체 개발 후 "배포 마무리 루틴" (빠뜨리기 쉬움 — 반드시 상기)
 본체 변경을 끝내고 사용자가 커밋/푸시/배포를 승인하면 아래가 **한 세트**입니다. 상세·명령은 `body-release-checklist.md`.
