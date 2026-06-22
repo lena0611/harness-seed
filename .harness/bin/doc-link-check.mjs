@@ -94,6 +94,13 @@ const dynamicArtifactPrefixes = [
   '.github/templates/.applied/',
 ]
 
+// 본체(seed-mode) 전용 문서. 소비자 프로젝트에는 배포되지 않으므로 document-registry에 등록하지 않는다.
+// 본체 저장소에는 파일이 존재하지만 registry 미등록이 정상이므로 orphan으로 보지 않는다.
+// (init.mjs의 SEED_ONLY_DOC_PATHS와 동기화 — 한쪽을 바꾸면 다른 쪽도 함께 갱신)
+const seedOnlyDocs = new Set([
+  '.harness/project/body-release-checklist.md',
+])
+
 function toPosix(p) {
   return p.split(path.sep).join('/')
 }
@@ -196,6 +203,10 @@ function findOrphans(registered) {
     }
 
     if (dynamicArtifactPaths.has(file)) {
+      continue
+    }
+
+    if (seedOnlyDocs.has(file)) {
       continue
     }
 

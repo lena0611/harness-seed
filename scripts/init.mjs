@@ -114,6 +114,16 @@ const PROJECT_OWNED_PREFIXES = [
   '.claude/agents/project-',
 ];
 
+// 본체(seed-mode) 저장소 존재를 알리는 마커. 이 마커가 있는 타깃은 본체 자신이다.
+const SEED_MODE_MARKER = '.harness-seed-mode';
+
+// 본체(seed-mode) 전용 문서. 내용이 하네스 본체의 개발/배포/거버넌스 절차라 소비자 프로젝트에는 무의미하다.
+// 소비자(마커 없음) 타깃에는 배포하지 않고, 기존 설치본은 정리한다. 본체(마커 있음)에는 그대로 둔다.
+// (.harness/bin/doc-link-check.mjs의 seedOnlyDocs와 동기화 — 한쪽을 바꾸면 다른 쪽도 함께 갱신)
+const SEED_ONLY_DOC_PATHS = new Set([
+  '.harness/project/body-release-checklist.md',
+]);
+
 const CONSUMER_SCRIPT_NAMES = [
   'harness:guide',
   'harness:scan',
@@ -857,6 +867,9 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
   const overwroteManagedRegion = [];   // 머지 중 소비자가 회사 영역(마커 안)을 수정해 사이드카로 백업한 파일
   const autoMigratedMarkerFiles = [];  // 마커 없던 미수정 파일을 마커 버전으로 자동 이전
   const needsMarkerMigration = [];     // 마커 없는 수정본 → 보존 + 수동 이전 안내
+  // seed-only 문서(0.2.69): 본체 전용 문서는 소비자 타깃에 배포하지 않는다.
+  const seedModeTarget = existsSync(join(target, SEED_MODE_MARKER));
+  const skippedSeedOnlyDocs = [];
 
   for (const rel of files) {
     const src = join(sourceRoot, rel);
@@ -864,6 +877,16 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     const exists = existsSync(dest);
     const projectOwned = isProjectOwned(rel);
     const managed = isManagedByManifest(manifest, rel);
+
+    // seed-only 문서는 소비자(마커 없음) 타깃에 배포하지 않는다. 기존 설치본 제거는 removeSeedOnlyDocs가 담당.
+    // 본체(마커 있음) 타깃에는 그대로 복사한다(본체 개발에 필요).
+    if (!seedModeTarget && SEED_ONLY_DOC_PATHS.has(toPosix(rel))) {
+      if (opts.dryRun) {
+        console.log(`[dry-run] skip(seed-only) ${rel}`);
+      }
+      skippedSeedOnlyDocs.push(rel);
+      continue;
+    }
 
     // 마커 관리 파일(CLAUDE.md/AGENTS.md/copilot): 마커 안은 본체 갱신, 마커 밖은 소비자 보존.
     // 첫 설치(!exists)나 미등록(!managed)은 아래 일반 경로에서 본체(마커 포함)를 그대로 복사한다.
@@ -985,7 +1008,48 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     overwroteManagedRegion,
     autoMigratedMarkerFiles,
     needsMarkerMigration,
+    skippedSeedOnlyDocs,
   };
+}
+
+// 소비자(마커 없음) 타깃에서 이미 설치된 seed-only 문서를 정리한다.
+// manifest에 managed로 기록되고 미수정(sha 일치)이면 제거하고, 소비자가 수정했으면 보존 + 리포트한다.
+// 본체(마커 있음) 타깃은 건드리지 않는다.
+function removeSeedOnlyDocs(target, manifest, opts) {
+  const result = { removed: [], preservedModified: [] };
+
+  if (existsSync(join(target, SEED_MODE_MARKER))) {
+    return result;
+  }
+
+  for (const rel of SEED_ONLY_DOC_PATHS) {
+    const abs = join(target, rel);
+    if (!existsSync(abs)) {
+      continue;
+    }
+
+    const recordedSha = manifest?.managedFiles?.[toPosix(rel)]?.sha256;
+    const unmodified = recordedSha && sha256(abs) === recordedSha;
+
+    if (!recordedSha) {
+      // 출처를 확인할 수 없는(외부에서 만든) 파일은 건드리지 않는다.
+      result.preservedModified.push(rel);
+      continue;
+    }
+
+    if (!unmodified) {
+      // 소비자가 수정한 흔적이 있으면 조용히 지우지 않고 보존 + 안내.
+      result.preservedModified.push(rel);
+      continue;
+    }
+
+    if (!opts.dryRun) {
+      rmSync(abs, { force: true });
+    }
+    result.removed.push(rel);
+  }
+
+  return result;
 }
 
 function consumerProjectStateTemplate(rel, context) {
@@ -1939,6 +2003,7 @@ function main() {
     const projectState = writeConsumerProjectStateFiles(TARGET, opts, recognizedManifest, sourcePkg);
     const workHistoryYear = ensureCurrentWorkHistoryYear(TARGET, opts);
     const migration = removeLegacyManagedRootScripts(TARGET, legacyManagedRootScripts, opts);
+    const seedOnlyCleanup = removeSeedOnlyDocs(TARGET, recognizedManifest, opts);
     const pkg = mergePackageJson(sourceRoot, TARGET, opts);
     const claudeSettings = mergeClaudeSettings(sourceRoot, TARGET, opts);
     const gitignoreAdded = mergeGitignore(TARGET, opts);
@@ -2081,6 +2146,33 @@ function main() {
         console.log(`  ... 외 ${installed.needsMarkerMigration.length - 15}건`);
       }
       console.log('조치: 각 파일에서 프로젝트 고유 내용을 harness-managed:end 마커 아래로 옮기고, 본체 영역에 harness-managed:start/end 마커를 두른 뒤 다시 업데이트하면 이후로는 자동 머지됩니다.');
+    }
+
+    // seed-only 문서(0.2.69) 후처리 리포트.
+    if (installed.skippedSeedOnlyDocs && installed.skippedSeedOnlyDocs.length > 0) {
+      console.log('');
+      console.log('소비자 배포 제외된 본체 전용(seed-only) 문서:');
+      for (const rel of installed.skippedSeedOnlyDocs) {
+        console.log(`  - ${rel}`);
+      }
+      console.log('이 문서들은 하네스 본체 개발/배포 전용이라 소비자 프로젝트에는 설치하지 않습니다.');
+    }
+
+    if (seedOnlyCleanup.removed.length > 0) {
+      console.log('');
+      console.log('기존 설치본에서 정리된 본체 전용(seed-only) 문서:');
+      for (const rel of seedOnlyCleanup.removed) {
+        console.log(`  - ${rel}`);
+      }
+    }
+
+    if (seedOnlyCleanup.preservedModified.length > 0) {
+      console.log('');
+      console.log('본체 전용(seed-only) 문서지만 로컬 수정/출처 불명이라 보존한 파일:');
+      for (const rel of seedOnlyCleanup.preservedModified) {
+        console.log(`  - ${rel}`);
+      }
+      console.log('내용을 확인하고 불필요하면 직접 삭제하세요(본체 전용 문서라 소비자 프로젝트에는 의미가 없습니다).');
     }
 
     const bridgeCandidates = detectBridgeCandidates(TARGET, installed.skippedFiles);

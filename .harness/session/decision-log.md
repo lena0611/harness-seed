@@ -1,5 +1,13 @@
 # 결정 로그
 
+## 2026-06-22 - 본체(seed-mode) 전용 문서 소비자 배포 제외 (0.2.69)
+- 배경: 0.2.68 후속 과제. `body-release-checklist.md`는 "seed-mode 본체 전용, 소비자 미적용"을 자기 명시하면서도 managed로 소비자에 배포됨. dead-link 오탐은 0.2.68로 해소됐으나 본체 전용 문서가 소비자에 존재하는 적절성 문제 잔존.
+- 식별: 배포 문서 49개를 워크플로(classify low-effort 51 에이전트 + seed-only adversarial verify high-effort)로 전수 감사. seed-only 확정 = `body-release-checklist.md` 1개. `policy-db-readiness.md`는 ambiguous였으나 "소비자가 project/personal 정책을 policy-registry에 등록할 때 필드 스키마가 필요"로 refute → 보존. 잘못 제외하면 소비자가 필요한 문서를 잃으므로 보수적 판정(default refute).
+- 결정: `SEED_ONLY_DOC_PATHS` 도입. 소비자(`.harness-seed-mode` 마커 없음) 타깃에 배포 안 함 + 기존본 정리(미수정 sha 일치 → 제거, 수정/출처불명 → 보존+안내). 본체(마커 있음)는 유지(본체 개발에 필요).
+- 연쇄: `document-registry.json`에서 제거(소비자 missing 방지) + `doc-link-check`의 `seedOnlyDocs` orphan 예외(본체 orphan 방지). `init.mjs` `SEED_ONLY_DOC_PATHS` ↔ `doc-link-check.mjs` `seedOnlyDocs` 동기화 필요.
+- 회귀 5종(총 64). 짝 문서: `sync-protocol.md`(배포 제외), `indexing-rules.md`(registry 예외 절), `portability-guide.md`(소비자 미배포 절).
+- CLI: 소비자 설치 산출물이 바뀌므로(body-release-checklist 미설치) consumer-facing → base ref 반영.
+
 ## 2026-06-22 - doc-link-check 소비자 환경 의존 오탐 수정 (백틱 디렉토리/CI 예시 경로) (0.2.68)
 - 배경: clubadm 소비자 설치 후 doc-link-check가 백틱 예시 경로(`.github/workflows/` 등)를 code-path 참조로 해석해 dead로 표시. 본체엔 `.github/workflows/`·`scripts/`·`src/` 등 디렉토리가 실제 존재해 통과하지만, 소비자 환경엔 없을 수 있어(CI 미사용, 비-Node, 구조 차이) 환경 의존 오탐 발생. 본체 self-test로는 안 잡히는 사각지대였다.
 - 결정: `codePathPattern` 검사에 `isIgnorableCodePath` 도입. (1) glob/생략(`*`, `...`), (2) trailing-slash 디렉토리 예시, (3) `.github/workflows/` 하위(본체 CI 어댑터, 소비자 미주입)는 검사 제외. 구체 파일 참조는 계속 검사해 진짜 dead 탐지는 유지.

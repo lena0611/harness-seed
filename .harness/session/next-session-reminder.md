@@ -3,16 +3,18 @@
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
 ## 마지막 세션 마감 상태 (2026-06-22)
-- 현재 본체 버전: **0.2.68** (doc-link-check 소비자 환경 의존 오탐 수정 — 백틱 디렉토리/CI 예시 경로). 직전 0.2.67은 마커 기반 공존융합(옵션 A).
+- 현재 본체 버전: **0.2.69** (본체 seed-mode 전용 문서 소비자 배포 제외). 직전 0.2.68은 doc-link-check 소비자 환경 의존 오탐 수정, 0.2.67은 마커 기반 공존융합(옵션 A).
+- seed-only 배포 제외(0.2.69): `SEED_ONLY_DOC_PATHS`(현재 `body-release-checklist.md`)는 소비자(`.harness-seed-mode` 마커 없음)에 배포 안 함 + 기존본 미수정이면 정리/수정이면 보존. 본체는 유지. document-registry 제거 + doc-link-check `seedOnlyDocs` orphan 예외. 두 상수 동기화 필수.
 - doc-link 오탐(0.2.68): `isIgnorableCodePath`가 glob(`*`,`...`)·trailing-slash 디렉토리 예시(`.github/workflows/`)·`.github/workflows/` 하위(본체 CI 어댑터, 소비자 미주입)를 code-path 검사에서 제외. 구체 파일 참조는 계속 검사. doc-link-check.mjs는 직접 실행 가드로 감싸 isIgnorableCodePath를 export(test import 가능).
 - 마커 머지(0.2.67): CLAUDE.md/AGENTS.md/.github/copilot-instructions.md는 `<!-- harness-managed:start/end -->` 블록 안(회사 영역)만 update가 갱신하고 블록 밖(소비자 영역)은 보존. 마커 없는 옛 파일은 미수정이면 자동 이전, 수정됐으면 보존+수동 이전 안내. 회사 영역을 소비자가 수정했으면 머지 전 `.harness-bak` 백업. 충돌은 standards-layers "충돌 해석 순서". manifest에 `managedRegionSha256`(manifestVersion 3).
 - 통짜 안전망(0.2.65)은 마커 비대상 managed 파일(hook 스크립트, `.harness/bin/*` 등)에만 적용.
 - dual-runtime(0.2.63): 프로젝트 `.nvmrc < 20.19`여도 설치/운영 가능. 상세는 `portability-guide.md` "Node 런타임 계약".
-- 0.2.68 push/배포 완료: 양쪽 원격(origin/main + company/master = `618bb26`) + 태그 `v0.2.68`(=ba13c4b) 양쪽 push, GitHub Actions Policy Guard 통과(36s).
-- CLI(`../ai-standard-cli`)는 0.1.31로 base ref v0.2.68 반영 완료(GitLab master `2236d87`, 태그 `v0.1.31`, check+test 18/18).
+- 0.2.68 push/배포 완료: 양쪽 원격 + 태그 `v0.2.68`(=ba13c4b). CLI 0.1.31(base ref v0.2.68).
+- 0.2.69는 본 세션에서 push 진행. CLI는 consumer-facing이라 0.1.32 반영 예정.
 
-## ★ 미해결 후속 과제
-- **본체 전용 문서의 소비자 배포 제외**: `body-release-checklist.md`는 "seed-mode 본체 전용"을 자기 명시하는데 managed로 소비자에 배포됨. 0.2.68에서 dead-link 오탐은 해소했으나, 본체 전용 문서가 소비자에 존재하는 적절성 문제는 배포 제외 로직 + 기존 소비자 정리(removeLegacy류)가 필요. 다른 seed-mode 전용 문서도 함께 식별 필요.
+## ★ 후속 과제
+- 본체 전용 문서 소비자 배포 제외는 0.2.69로 해소(body-release-checklist 1개 확정). 향후 새 본체 전용 문서가 생기면 `SEED_ONLY_DOC_PATHS` + `doc-link-check.mjs seedOnlyDocs`에 함께 등록.
+- clubadm QA(2026-06-22) FEATURE 후보: `hooks:install`에 Claude settings.json 병합 옵션 추가 여부 검토 중(현재 init/update 경로에선 `mergeClaudeSettings`로 자동 병합됨 — 0.2.59).
 
 ## ★ 본체 개발 후 "배포 마무리 루틴" (빠뜨리기 쉬움 — 반드시 상기)
 본체 변경을 끝내고 사용자가 커밋/푸시/배포를 승인하면 아래가 **한 세트**입니다. 상세·명령은 `body-release-checklist.md`.

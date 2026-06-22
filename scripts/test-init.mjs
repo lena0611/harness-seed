@@ -1901,6 +1901,65 @@ function consumerDocLinkCheckIgnoresCiExamplePaths() {
   assert(!out.includes('.github/workflows'), 'consumer doc-link-check must not flag .github/workflows example/CI paths')
 }
 
+// seed-only 문서(0.2.69): 본체 전용 문서(body-release-checklist.md)는 소비자에 배포하지 않는다.
+const SEED_ONLY_DOC = '.harness/project/body-release-checklist.md'
+
+function consumerInstallExcludesSeedOnlyDocs() {
+  const target = makeTarget()
+  runInit(target)
+  assert(!exists(target, SEED_ONLY_DOC), 'seed-only doc must not be installed to a consumer project')
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  assert(!manifest.managedFiles[SEED_ONLY_DOC], 'seed-only doc must not appear in consumer install manifest')
+}
+
+function consumerDocLinkCheckHandlesAbsentSeedOnlyDoc() {
+  const target = makeTarget()
+  runInit(target)
+  // body-release-checklist는 소비자에 없고 document-registry에도 없으므로 missing/orphan으로 표시되면 안 된다.
+  const out = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(!out.includes('body-release-checklist'), 'consumer doc-link-check must not flag the absent seed-only doc')
+}
+
+function reinstallRemovesPreexistingSeedOnlyDocWhenUnmodified() {
+  const target = makeTarget()
+  runInit(target)
+  // 옛 버전(0.2.68 이하)이 설치해 둔 상태를 시뮬: 파일 + manifest에 미수정 sha 기록.
+  const body = '# 본체 전용\n옛 버전이 설치한 내용\n'
+  fs.writeFileSync(path.join(target, SEED_ONLY_DOC), body)
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  manifest.managedFiles[SEED_ONLY_DOC] = { sha256: sha256Text(body) }
+  writeJson(target, '.harness/install-manifest.json', manifest)
+
+  const output = runInit(target, '--no-scan', '--no-check')
+
+  assert(!exists(target, SEED_ONLY_DOC), 'unmodified pre-existing seed-only doc should be removed on update')
+  assert(output.includes('정리된 본체 전용'), 'should report seed-only cleanup')
+}
+
+function reinstallPreservesModifiedSeedOnlyDoc() {
+  const target = makeTarget()
+  runInit(target)
+  const modified = '# 소비자가 직접 고친 내용\n'
+  fs.writeFileSync(path.join(target, SEED_ONLY_DOC), modified)
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  manifest.managedFiles[SEED_ONLY_DOC] = { sha256: sha256Text('# 다른 원본(수정 전)\n') } // sha 불일치
+  writeJson(target, '.harness/install-manifest.json', manifest)
+
+  const output = runInit(target, '--no-scan', '--no-check')
+
+  assert(exists(target, SEED_ONLY_DOC), 'modified seed-only doc should be preserved (not silently deleted)')
+  assert(read(target, SEED_ONLY_DOC) === modified, 'modified seed-only content should be preserved verbatim')
+  assert(output.includes('보존한'), 'should report preserved seed-only doc')
+}
+
+function seedModeTargetKeepsSeedOnlyDocs() {
+  const target = makeTarget()
+  // seed-mode 마커가 있으면 본체 타깃으로 간주 → seed-only 문서를 그대로 설치한다.
+  fs.writeFileSync(path.join(target, '.harness-seed-mode'), 'seed mode marker for test\n')
+  runInit(target)
+  assert(exists(target, SEED_ONLY_DOC), 'seed-mode target must keep seed-only docs (body repo needs them)')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   nonNodeInstallSkipsPackageJson,
@@ -1961,6 +2020,11 @@ const tests = [
   markerMergeIsIdempotent,
   isIgnorableCodePathClassifiesExamplesAndCiPaths,
   consumerDocLinkCheckIgnoresCiExamplePaths,
+  consumerInstallExcludesSeedOnlyDocs,
+  consumerDocLinkCheckHandlesAbsentSeedOnlyDoc,
+  reinstallRemovesPreexistingSeedOnlyDocWhenUnmodified,
+  reinstallPreservesModifiedSeedOnlyDoc,
+  seedModeTargetKeepsSeedOnlyDocs,
 ]
 
 console.log('Init smoke tests')
