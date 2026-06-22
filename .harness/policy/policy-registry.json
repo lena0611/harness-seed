@@ -465,7 +465,6 @@
         ".harness/skills/**",
         ".harness/bin/build-context.mjs",
         ".harness/documentation/context-registry.json",
-        ".harness/documentation/document-registry.json",
         "CLAUDE.md",
         "AGENTS.md"
       ],

@@ -10,6 +10,7 @@
 - seed-only 식별은 배포 문서 전수를 adversarial 검증(분류 + 반론)으로 감사해 `body-release-checklist.md` 1개로 확정했습니다. `policy-db-readiness.md` 등은 "소비자가 자기 project/personal 정책을 policy-registry에 등록할 때 스키마가 필요"하다는 반론으로 보존 판정 — 잘못 제외하면 소비자가 필요한 문서를 잃으므로 보수적으로 처리했습니다.
 - 연쇄 정합: `body-release-checklist.md`를 `document-registry.json`에서 제거(소비자에서 "registry엔 있는데 파일 없음" 오탐 방지)하고, `doc-link-check`는 `seedOnlyDocs` 예외로 본체에서 orphan으로 보지 않습니다. `init.mjs`의 `SEED_ONLY_DOC_PATHS`와 `doc-link-check.mjs`의 `seedOnlyDocs`를 동기화합니다.
 - init smoke test에 seed-only 회귀 5종을 추가했습니다(소비자 미배포+manifest 미등록, 소비자 doc-link 무오탐, 미수정 기존본 정리, 수정본 보존, seed-mode 타깃 유지). 총 64종.
+- `document-registry.json`에서 문서를 제거하면 `common.agent.skill-selection` 정책이 strict 검사에서 과매칭으로 실패하던 것을 정밀화했습니다. skill-selection의 ownedAreas에서 `document-registry.json`을 제거했고(레지스트리 무결성은 `documentation.registry-integrity`가 전담), reading-set 직접 입력인 `context-registry.json`은 유지합니다.
 
 ## 0.2.68 - 2026-06-22
 

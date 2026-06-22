@@ -7,6 +7,7 @@
 - 연쇄: `document-registry.json`에서 제거(소비자 missing 방지) + `doc-link-check`의 `seedOnlyDocs` orphan 예외(본체 orphan 방지). `init.mjs` `SEED_ONLY_DOC_PATHS` ↔ `doc-link-check.mjs` `seedOnlyDocs` 동기화 필요.
 - 회귀 5종(총 64). 짝 문서: `sync-protocol.md`(배포 제외), `indexing-rules.md`(registry 예외 절), `portability-guide.md`(소비자 미배포 절).
 - CLI: 소비자 설치 산출물이 바뀌므로(body-release-checklist 미설치) consumer-facing → base ref 반영.
+- SYNC GAP 정밀화(CI 복구): `document-registry.json`에서 문서를 제거하면 `common.agent.skill-selection`(reading-set) 정책이 strict에서 과매칭으로 실패했다(0.2.69 첫 push에서 GitHub Actions Policy Guard `Run harness check` 실패). skill-selection의 ownedAreas에서 `document-registry.json`을 제거했다 — 레지스트리 무결성은 `common.documentation.registry-integrity`가 전담하고, reading-set 직접 입력인 `context-registry.json`은 유지한다. 0.2.68의 install 정책 triggerPaths 정밀화와 동형. (참고: 본체 전용 `harness.body-release` 스킬은 purpose에 "seed-mode 저장소에서만 적용"을 명시하고 audience가 harness-maintainer라 소비자에선 자연 배제되므로 skills/registry.json은 변경하지 않았다.)
 
 ## 2026-06-22 - doc-link-check 소비자 환경 의존 오탐 수정 (백틱 디렉토리/CI 예시 경로) (0.2.68)
 - 배경: clubadm 소비자 설치 후 doc-link-check가 백틱 예시 경로(`.github/workflows/` 등)를 code-path 참조로 해석해 dead로 표시. 본체엔 `.github/workflows/`·`scripts/`·`src/` 등 디렉토리가 실제 존재해 통과하지만, 소비자 환경엔 없을 수 있어(CI 미사용, 비-Node, 구조 차이) 환경 의존 오탐 발생. 본체 self-test로는 안 잡히는 사각지대였다.
