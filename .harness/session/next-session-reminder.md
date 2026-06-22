@@ -8,8 +8,8 @@
 - 마커 머지(0.2.67): CLAUDE.md/AGENTS.md/.github/copilot-instructions.md는 `<!-- harness-managed:start/end -->` 블록 안(회사 영역)만 update가 갱신하고 블록 밖(소비자 영역)은 보존. 마커 없는 옛 파일은 미수정이면 자동 이전, 수정됐으면 보존+수동 이전 안내. 회사 영역을 소비자가 수정했으면 머지 전 `.harness-bak` 백업. 충돌은 standards-layers "충돌 해석 순서". manifest에 `managedRegionSha256`(manifestVersion 3).
 - 통짜 안전망(0.2.65)은 마커 비대상 managed 파일(hook 스크립트, `.harness/bin/*` 등)에만 적용.
 - dual-runtime(0.2.63): 프로젝트 `.nvmrc < 20.19`여도 설치/운영 가능. 상세는 `portability-guide.md` "Node 런타임 계약".
-- 0.2.67 push/배포 완료: 양쪽 원격 + 태그 `v0.2.67`. 0.2.68은 본 세션에서 push 진행.
-- CLI(`../ai-standard-cli`)는 0.1.30(base ref v0.2.67). 0.2.68은 소비자 검증 동작 변경(consumer-facing)이라 base ref 반영 필요 — 본 세션에서 0.1.31 진행 예정.
+- 0.2.68 push/배포 완료: 양쪽 원격(origin/main + company/master = `618bb26`) + 태그 `v0.2.68`(=ba13c4b) 양쪽 push, GitHub Actions Policy Guard 통과(36s).
+- CLI(`../ai-standard-cli`)는 0.1.31로 base ref v0.2.68 반영 완료(GitLab master `2236d87`, 태그 `v0.1.31`, check+test 18/18).
 
 ## ★ 미해결 후속 과제
 - **본체 전용 문서의 소비자 배포 제외**: `body-release-checklist.md`는 "seed-mode 본체 전용"을 자기 명시하는데 managed로 소비자에 배포됨. 0.2.68에서 dead-link 오탐은 해소했으나, 본체 전용 문서가 소비자에 존재하는 적절성 문제는 배포 제외 로직 + 기존 소비자 정리(removeLegacy류)가 필요. 다른 seed-mode 전용 문서도 함께 식별 필요.
