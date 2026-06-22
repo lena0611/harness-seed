@@ -10,12 +10,13 @@
 - 마커 머지(0.2.67): CLAUDE.md/AGENTS.md/.github/copilot-instructions.md는 `<!-- harness-managed:start/end -->` 블록 안(회사 영역)만 update가 갱신하고 블록 밖(소비자 영역)은 보존. 마커 없는 옛 파일은 미수정이면 자동 이전, 수정됐으면 보존+수동 이전 안내. 회사 영역을 소비자가 수정했으면 머지 전 `.harness-bak` 백업. 충돌은 standards-layers "충돌 해석 순서". manifest에 `managedRegionSha256`(manifestVersion 3).
 - 통짜 안전망(0.2.65)은 마커 비대상 managed 파일(hook 스크립트, `.harness/bin/*` 등)에만 적용.
 - dual-runtime(0.2.63): 프로젝트 `.nvmrc < 20.19`여도 설치/운영 가능. 상세는 `portability-guide.md` "Node 런타임 계약".
-- 0.2.69 push/배포 완료: 양쪽 원격 + 태그 `v0.2.69`(=c84c00f), CI 통과. (0.2.69 첫 push 시 CI strict 2회 실패 → skill-selection 과매칭 정밀화 + seed-only 참조 exists 예외로 복구.)
-- 0.2.70은 본 세션에서 push 진행. CLI는 consumer-facing(소비자 검증 속도 개선)이라 0.2.69+0.2.70 묶어 0.1.32로 base ref 반영 예정.
+- 0.2.70 push/배포 완료: 양쪽 원격(origin/main + company/master = `52da079`) + 태그 `v0.2.70`(=2c40236), CI 통과(40s). push 속도 체감 개선 확인(태그/company push가 캐시 히트로 즉시 완료).
+- 검증 캐시 부수효과(0.2.70): install 정책 documents를 `sync-protocol.md`(종합) → `portability-guide.md`(설치 전용)로 옮겨 종합 문서 공유 과매칭 노이즈를 근본 제거. 이제 sync-protocol/검증/세션 변경이 install 정책을 깨우지 않음. 정책 documents는 "주제 전용 문서"로 두는 게 노이즈 예방 원칙.
+- CLI(`../ai-standard-cli`)는 consumer-facing(0.2.69 seed-only 배포 + 0.2.70 검증 속도)이라 0.1.32로 base ref v0.2.70 반영 진행.
 
 ## ★ 후속 과제
 - 본체 전용 문서 소비자 배포 제외는 0.2.69로 해소(body-release-checklist 1개 확정). 향후 새 본체 전용 문서가 생기면 `SEED_ONLY_DOC_PATHS` + `doc-link-check.mjs seedOnlyDocs`에 함께 등록.
-- clubadm QA(2026-06-22) FEATURE 후보: `hooks:install`에 Claude settings.json 병합 옵션 추가 여부 검토 중(현재 init/update 경로에선 `mergeClaudeSettings`로 자동 병합됨 — 0.2.59).
+- clubadm QA(2026-06-22) 3건 중 doc-link 오탐(0.2.68)·seed-only(0.2.69)는 해소. SessionStart grep 과매칭은 이미 수정됨(`session-start-reminder.sh` 회귀 존재). 남은 FEATURE 후보: `hooks:install`에 Claude settings.json 병합 옵션 추가 — 현재 init/update 경로엔 `mergeClaudeSettings` 자동 병합(0.2.59)이 있어 업데이트만 하면 연결됨. 별도 재연결 명령 필요성은 낮음.
 
 ## ★ 본체 개발 후 "배포 마무리 루틴" (빠뜨리기 쉬움 — 반드시 상기)
 본체 변경을 끝내고 사용자가 커밋/푸시/배포를 승인하면 아래가 **한 세트**입니다. 상세·명령은 `body-release-checklist.md`.
