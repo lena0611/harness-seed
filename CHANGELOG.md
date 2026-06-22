@@ -11,6 +11,7 @@
 - 연쇄 정합: `body-release-checklist.md`를 `document-registry.json`에서 제거(소비자에서 "registry엔 있는데 파일 없음" 오탐 방지)하고, `doc-link-check`는 `seedOnlyDocs` 예외로 본체에서 orphan으로 보지 않습니다. `init.mjs`의 `SEED_ONLY_DOC_PATHS`와 `doc-link-check.mjs`의 `seedOnlyDocs`를 동기화합니다.
 - init smoke test에 seed-only 회귀 5종을 추가했습니다(소비자 미배포+manifest 미등록, 소비자 doc-link 무오탐, 미수정 기존본 정리, 수정본 보존, seed-mode 타깃 유지). 총 64종.
 - `document-registry.json`에서 문서를 제거하면 `common.agent.skill-selection` 정책이 strict 검사에서 과매칭으로 실패하던 것을 정밀화했습니다. skill-selection의 ownedAreas에서 `document-registry.json`을 제거했고(레지스트리 무결성은 `documentation.registry-integrity`가 전담), reading-set 직접 입력인 `context-registry.json`은 유지합니다.
+- 다른 문서가 seed-only 문서를 링크/코드 경로로 참조할 때 소비자(파일 부재)에서 broken으로 잡히던 것을 막았습니다. `doc-link-check`의 `exists()`가 `seedOnlyDocs` 경로를 존재로 간주하므로 본체(파일 있음)와 소비자(파일 없음) 양쪽에서 동일하게 통과합니다.
 
 ## 0.2.68 - 2026-06-22
 

@@ -29,6 +29,7 @@
 - `.harness/project/body-release-checklist.md`처럼 하네스 본체 개발/배포 전용 문서는 소비자 프로젝트에 배포되지 않습니다(0.2.69).
 - 소비자에 배포되지 않으므로 `document-registry.json`에 등록하지 않습니다(등록하면 소비자에서 "registry엔 있는데 파일 없음" 오탐이 납니다).
 - 본체 저장소에는 파일이 존재하지만 registry 미등록이 정상이므로, `doc-link-check`는 `seedOnlyDocs` 목록의 문서를 orphan으로 보지 않습니다. 이 목록은 `scripts/init.mjs`의 `SEED_ONLY_DOC_PATHS`와 동기화합니다.
+- 다른 문서가 seed-only 문서를 링크나 코드 경로로 참조해도 소비자에서는 broken으로 보지 않습니다(소비자엔 부재가 정상). `doc-link-check`의 `exists()`가 `seedOnlyDocs` 경로를 존재로 간주하므로, 본체(파일 있음)와 소비자(파일 없음) 양쪽에서 동일하게 통과합니다.
 
 ## 7. 코드 경로 참조 검사 규칙
 - doc-link 검사는 백틱으로 감싼 `src|scripts|.github|.harness|.claude|.githooks/` 경로를 코드 경로 참조로 보고 실제 존재를 확인합니다(`.harness/bin/doc-link-check.mjs`의 `codePathPattern`).

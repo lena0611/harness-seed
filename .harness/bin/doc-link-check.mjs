@@ -110,6 +110,13 @@ function exists(rel) {
     return true
   }
 
+  // seed-only 문서는 소비자 프로젝트에 배포되지 않으므로(소비자엔 부재가 정상),
+  // 다른 문서가 이 경로를 링크/코드경로로 참조해도 broken으로 보지 않는다.
+  // 본체에는 실제 존재하므로 본체 검사에도 영향이 없다.
+  if (seedOnlyDocs.has(rel)) {
+    return true
+  }
+
   if (dynamicArtifactPrefixes.some((prefix) => rel.startsWith(prefix))) {
     return true
   }
