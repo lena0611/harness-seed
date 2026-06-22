@@ -200,10 +200,9 @@
       "owner": "ai-standard/harness-seed",
       "source": {
         "type": "local",
-        "path": ".harness/policy/sync-protocol.md"
+        "path": ".harness/project/portability-guide.md"
       },
       "documents": [
-        ".harness/policy/sync-protocol.md",
         ".harness/project/portability-guide.md",
         "README.md"
       ],
@@ -244,10 +243,10 @@
       "owner": "ai-standard/harness-seed",
       "source": {
         "type": "local",
-        "path": ".harness/policy/sync-protocol.md"
+        "path": ".harness/project/portability-guide.md"
       },
       "documents": [
-        ".harness/policy/sync-protocol.md"
+        ".harness/project/portability-guide.md"
       ],
       "ownedAreas": [
         "scripts/init.mjs",

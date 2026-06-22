@@ -43,9 +43,11 @@
 - 에이전트가 직접 처리할 수 없는 외부 콘솔, secret, capability, Pages 설정은 `.harness/session/manual-actions.md`에 남깁니다.
 
 ## 반복 검증 완화
-- `harness:check`는 같은 git tree와 같은 검증 계획이 이미 통과했으면 `.harness/generated/check-cache.json`을 사용해 lint/test/build 반복을 줄일 수 있습니다.
+- `harness:check`는 같은 git tree가 이미 통과했으면 `.harness/generated/check-cache.json`을 사용해 **전체 검증(정책 SYNC GAP, doc-link, seed-mode의 test-init, 스택 lint/test/build)을 통째로 스킵**합니다(0.2.70). 이들은 모두 git tree의 결정론적 함수이므로 "같은 tree면 결과가 같다"가 보장되어 검증 신뢰성을 해치지 않습니다. 캐시 키는 검사 모드(strict/default) + HEAD + 변경/핵심 파일 해시 + 스택 상태(`validationCacheKey`)이며, tree가 1비트라도 바뀌면 미스되어 전체 재검증합니다. 강제 재검증은 `--no-cache`.
+- `full` 통과 캐시는 `fast` 요청이 재사용합니다(full ⊇ fast). 따라서 `pre-commit`(full)이 통과하면 직후 `pre-push`(fast)와 양쪽 원격(GitHub/GitLab) push, 태그 push는 같은 tree라 캐시 히트로 재검증을 건너뜁니다(릴리스 1회 검증 5회 → 1회). 반대로 `fast` 캐시는 `full` 요청을 만족시키지 않습니다(test/build를 빠뜨리므로 재검증).
 - `pre-commit`은 `.harness/bin/harness check`로 전체 검사를 실행합니다(npm 프로젝트의 `npm run harness:check`와 동일 검사, 비-Node 프로젝트에서도 동작).
-- `pre-push`는 `.harness/bin/harness check --fast`를 실행해 정책, 문서, 버전, lint 중심으로 빠르게 확인하고 test/build 반복을 줄입니다.
+- `pre-push`는 `.harness/bin/harness check --fast`를 실행하되, commit 직후 같은 tree면 위 캐시로 즉시 통과합니다. 캐시가 없을 때만 정책·문서·버전·lint 중심으로 확인합니다.
+- 이 캐시 거동이 바뀌면 `.harness/bin/guard.mjs`의 `validationCacheKey`/캐시 게이트와 `scripts/test-init.mjs`의 캐시 회귀(`guardCacheHitSkipsRevalidationOnSameTree`, `guardFullCacheSatisfiesFastRequest`, `guardNoCacheForcesRevalidation`, `guardCacheMissAfterTreeChange`)를 함께 갱신합니다.
 
 ## 세션 트리거
 - 새 세션 시작 시 `session-boot.md`를 읽은 직후 이 프로토콜을 확인합니다.

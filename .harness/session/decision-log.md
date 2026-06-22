@@ -1,5 +1,16 @@
 # 결정 로그
 
+## 2026-06-22 - push/배포 중복 검사 제거: 전체 검증 git-tree 캐시 (0.2.70)
+- 배경: 사용자가 push/배포가 느리다고 지적. 진단 결과 본체(seed-mode)는 매 `harness check`(pre-commit/pre-push)가 `guard.mjs:726`에서 `test-init`(64+ 테스트, ~30s) + 정책 + doc-link를 전부 재실행. 릴리스 1회 = commit + 양쪽 원격 push + 태그 2개 = 같은 검증 5회. 기존 validation cache는 스택 lint/test/build 전용 + `activeStack=none`이면 그 전에 exit해 본체에서 무력.
+- 결정: `guard.mjs`의 전체 검증(policy guard, doc-link, test-init, edge, critical, version lock, 스택 verify)을 `validationCacheKey` 게이트 뒤로 이동. 같은 git tree면 전체 스킵(측정 69s→0.1s). 근거: 모든 검증이 git tree의 결정론적 함수라 외부 비결정 요소가 없어 "같은 tree=같은 결과"가 보장 → 캐시가 신뢰성을 해치지 않음.
+- 캐시 키 재설계: `validationCacheKey`에서 fast/full을 제거하고 strict/default만 키에 유지. fast/full은 캐시 레코드의 mode로 판정해 `full` 통과 캐시를 `fast` 요청이 재사용(full ⊇ fast). 반대(`fast` 캐시 → `full` 요청)는 test/build 누락이라 미스. 효과: commit(full) 1회만 실검증, 직후 push(fast)·양쪽 원격·태그 push는 같은 tree라 전부 히트 → 릴리스 검증 5회→1회.
+- 안전: tree가 1비트라도 바뀌면(getChangedFiles 해시) 미스→전체 재검증. guard.mjs/policy/doc-link/test-init 코드가 바뀌면 commit으로 HEAD 변동 또는 working tree dirty라 자동 무효화. harness 업데이트는 harness-lock 변동으로 무효화. `--no-cache`로 강제 재검증. missing-snapshot 등 실패는 통과가 아니므로 캐시 기록 안 함.
+- 회귀 4종(총 68): 같은 tree 히트, full→fast 재사용, --no-cache 강제 재검증, tree 변경 미스.
+- 짝 문서 처리: guard.mjs(코드) 변경의 정책 짝은 `common.policy.sync-gap`(guard.mjs ownedArea + documents=`.harness/policy/**`,`.harness/session/**`)이며 sync-protocol/session 변경으로 충족된다. 검증 캐시 계약은 `sync-protocol.md` "반복 검증 완화" 절에 정밀 반영했다.
+- SYNC GAP 노이즈 근본 제거(사용자 "푸시배포 노이즈 앞으로 없게" 지시): 검증 캐시 계약을 sync-protocol에 반영하자 install 정책(`preserve-project-owned-files`/`force-overwrite-confirmation`)이 sync-protocol을 공유 documents로 가져 "문서만 변경" blocking으로 깨졌다(sync-protocol "정책 매칭 범위" 절이 경고하는 노이즈 그대로 — 한 종합 문서를 여러 정책이 documents로 공유). **install 정책의 documents/source를 종합 문서 `sync-protocol.md` → 설치 전용 문서 `portability-guide.md`로 옮겨 근본 해결**했다. portability-guide는 이미 install 보존/force/seed-only 계약("그대로 두는 것"/"소비자에 배포하지 않는 것")을 담고 있다. 이제 sync-protocol(검증/세션/동기화 빈번 변경)이 install 정책을 깨우지 않는다.
+- 분리 방식 비교: install 계약 전용 문서(install-protocol.md) 신설도 시도했으나, 신규 문서 추가 자체가 install 정책을 'document-only'로 깨우고 그걸 닫으려 install 소스(init.mjs→minimum-node, update-harness→bundle-integrity)를 건드리면 다른 정책이 연쇄로 깨지는 함정이 있어 폐기했다. **기존 install 계약 문서(portability-guide)를 documents로 재지정**하는 쪽이 신규 gap 없이 노이즈를 제거한다(이번 커밋에서 portability-guide 내용은 미변경이므로 install 정책이 트리거되지 않음).
+- 태그 push의 hook 레벨 스킵(nvm 로드까지 생략)은 stdin 처리 복잡도 대비 이득(수초)이 작고, 캐시로 이미 검사가 스킵되므로 채택하지 않음. CLI: 소비자 검증 속도 개선(consumer-facing)이라 0.2.69+0.2.70 묶어 base ref 반영.
+
 ## 2026-06-22 - 본체(seed-mode) 전용 문서 소비자 배포 제외 (0.2.69)
 - 배경: 0.2.68 후속 과제. `body-release-checklist.md`는 "seed-mode 본체 전용, 소비자 미적용"을 자기 명시하면서도 managed로 소비자에 배포됨. dead-link 오탐은 0.2.68로 해소됐으나 본체 전용 문서가 소비자에 존재하는 적절성 문제 잔존.
 - 식별: 배포 문서 49개를 워크플로(classify low-effort 51 에이전트 + seed-only adversarial verify high-effort)로 전수 감사. seed-only 확정 = `body-release-checklist.md` 1개. `policy-db-readiness.md`는 ambiguous였으나 "소비자가 project/personal 정책을 policy-registry에 등록할 때 필드 스키마가 필요"로 refute → 보존. 잘못 제외하면 소비자가 필요한 문서를 잃으므로 보수적 판정(default refute).

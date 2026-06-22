@@ -75,6 +75,10 @@ function runInit(target, ...args) {
   return run(nodeBin, [path.join(repoRoot, 'scripts/init.mjs'), 'init', ...args], { cwd: target })
 }
 
+function runGuard(target, ...args) {
+  return run(nodeBin, [path.join(target, '.harness/bin/guard.mjs'), ...args], { cwd: target })
+}
+
 function runInitWithEnv(target, env, ...args) {
   return run(nodeBin, [path.join(repoRoot, 'scripts/init.mjs'), 'init', ...args], {
     cwd: target,
@@ -1960,6 +1964,40 @@ function seedModeTargetKeepsSeedOnlyDocs() {
   assert(exists(target, SEED_ONLY_DOC), 'seed-mode target must keep seed-only docs (body repo needs them)')
 }
 
+// 검증 캐시(0.2.70): 같은 git tree면 policy/doc-link/test-init/stack verify 전체를 스킵해 push/배포 중복 검사를 제거.
+function guardCacheHitSkipsRevalidationOnSameTree() {
+  const target = makeTarget()
+  runInit(target)
+  runGuard(target) // 1회차: 캐시 미스 → 전체 검증 → 통과 기록
+  const second = runGuard(target) // 2회차: 같은 tree → 캐시 재사용
+  assert(second.includes('캐시 재사용'), 'second guard run on the same git tree should reuse the validation cache')
+}
+
+function guardFullCacheSatisfiesFastRequest() {
+  const target = makeTarget()
+  runInit(target)
+  runGuard(target) // full 통과 기록 (commit hook 시뮬)
+  const fast = runGuard(target, '--fast') // push hook 시뮬: full ⊇ fast 이므로 full 캐시 재사용
+  assert(fast.includes('캐시 재사용'), 'fast request should reuse a full cache on the same tree (full superset of fast)')
+}
+
+function guardNoCacheForcesRevalidation() {
+  const target = makeTarget()
+  runInit(target)
+  runGuard(target) // 기록
+  const out = runGuard(target, '--no-cache')
+  assert(!out.includes('캐시 재사용'), '--no-cache must force full revalidation, never reuse cache')
+}
+
+function guardCacheMissAfterTreeChange() {
+  const target = makeTarget()
+  runInit(target)
+  runGuard(target) // 기록
+  fs.appendFileSync(path.join(target, '.harness/project/domain-rules.md'), '\n<!-- tree change -->\n')
+  const out = runGuard(target) // working tree가 바뀌어 키가 달라짐 → 미스 → 재검증
+  assert(!out.includes('캐시 재사용'), 'a changed git tree must miss the cache and revalidate')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   nonNodeInstallSkipsPackageJson,
@@ -2025,6 +2063,10 @@ const tests = [
   reinstallRemovesPreexistingSeedOnlyDocWhenUnmodified,
   reinstallPreservesModifiedSeedOnlyDoc,
   seedModeTargetKeepsSeedOnlyDocs,
+  guardCacheHitSkipsRevalidationOnSameTree,
+  guardFullCacheSatisfiesFastRequest,
+  guardNoCacheForcesRevalidation,
+  guardCacheMissAfterTreeChange,
 ]
 
 console.log('Init smoke tests')

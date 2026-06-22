@@ -4,6 +4,14 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.70 - 2026-06-22
+
+- push/배포 시 중복 검사를 제거해 속도를 크게 높였습니다. 본체(seed-mode)는 매 `harness check`가 `test-init`(64+개 테스트) + 정책 + doc-link를 전부 다시 돌려, 릴리스 1회(commit + 양쪽 원격 + 태그 2개 push)에 같은 검증이 5회 반복됐습니다(약 1분/회).
+- `guard.mjs`가 전체 검증(정책 SYNC GAP, doc-link, seed-mode test-init, 스택 lint/test/build)을 git tree 지문 캐시 게이트 뒤로 옮깁니다. 같은 tree면 전체를 스킵합니다(약 69초 → 0.1초 측정). 이들은 모두 git tree의 결정론적 함수라 "같은 tree면 결과가 같다"가 보장되어 검증 신뢰성을 해치지 않습니다. 기존 캐시는 스택 lint/test/build 전용 + `activeStack=none`이면 도달하지 못해 본체에선 무력했습니다.
+- `full` 통과 캐시를 `fast` 요청이 재사용합니다(full ⊇ fast). commit(full) 직후 push(fast)·양쪽 원격·태그 push가 같은 tree라 캐시 히트로 재검증을 건너뜁니다. `fast` 캐시는 `full` 요청을 만족시키지 않습니다(test/build 누락 방지). 강제 재검증은 `--no-cache`.
+- init smoke test에 캐시 회귀 4종을 추가했습니다(같은 tree 히트, full→fast 재사용, `--no-cache` 강제 재검증, tree 변경 시 미스). 총 68종.
+- 정책 노이즈 제거: install 보존/force 정책(`common.install.*`)의 기준 문서를 종합 문서 `sync-protocol.md`에서 설치 전용 문서 `portability-guide.md`로 옮겼습니다. 한 종합 문서를 여러 정책이 공유해 "검증 캐시 절만 바꿔도 install 정책이 blocking으로 깨지던" 과매칭 노이즈(push/배포 시 반복되던 SYNC GAP 실패)를 근본 제거했습니다.
+
 ## 0.2.69 - 2026-06-22
 
 - 본체(seed-mode) 전용 문서를 소비자 프로젝트 배포에서 제외했습니다. `body-release-checklist.md`(하네스 본체 릴리스 절차)는 자기 자신이 "소비자 미적용"을 명시하면서도 managed로 소비자에 배포돼 왔습니다. `init`은 `.harness-seed-mode` 마커 없는 타깃(소비자)에 이 문서를 복사하지 않고, 이전 버전이 설치한 기존본은 미수정(manifest sha 일치)이면 정리하고 수정·출처불명이면 보존+안내합니다. 본체(마커 있음)에는 그대로 둡니다.

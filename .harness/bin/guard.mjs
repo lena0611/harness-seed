@@ -77,7 +77,10 @@ function hashFileIfExists(filePath) {
 
 function validationCacheKey(scriptNames) {
   const hash = crypto.createHash('sha256')
-  hash.update(`mode:${strictMode ? 'strict' : 'default'}:${fastMode ? 'fast' : 'full'}\n`)
+  // strict/default는 검사 강도가 달라(strict는 SYNC GAP을 실패 처리) 키로 분리한다.
+  // fast/full은 키에 넣지 않고 캐시 레코드의 mode로 구분한다 — full 통과는 fast를 포함(full ⊇ fast)하므로
+  // commit(full) 직후 push(fast)가 같은 tree면 full 캐시를 재사용할 수 있다(아래 히트 판정 참고).
+  hash.update(`mode:${strictMode ? 'strict' : 'default'}\n`)
   hash.update(`head:${runGit(['rev-parse', 'HEAD']) || 'no-head'}\n`)
 
   for (const filePath of getChangedFiles().sort()) {
@@ -717,6 +720,48 @@ const pkg = fs.existsSync(pkgPath) ? JSON.parse(fs.readFileSync(pkgPath, 'utf8')
 const scripts = pkg.scripts || {}
 const validationResults = []
 
+// 0.2.70: 전체 검증(정책/문서/test-init/스택 verify)을 git tree 지문 캐시 게이트 뒤로 둔다.
+// policy-harness guard, doc-link-check, test-init, stack verify는 모두 git tree의 결정론적 함수이므로
+// "같은 tree면 직전 통과 결과를 신뢰"해도 검증 신뢰성이 떨어지지 않는다. (외부 비결정 요소 없음.)
+// 효과: commit 직후 첫 push는 새 HEAD라 미스→전체 검증; 둘째 원격 push와 태그 push는 같은 tree라 히트→스킵.
+// 강제 재검증은 --no-cache. cache key는 mode + HEAD + 변경/핵심 파일 해시 + 스택 상태(validationCacheKey).
+const stackState = resolveStackState()
+
+// 스택 verify 단계 계획(캐시 키 구성에 필요). 미적용 스택은 빈 계획.
+const stackVerify = (stackState.applied && readJson(stackState.manifestPath)?.verify) || {}
+const stagePlan = [
+  { stage: 'lint', raw: stackVerify.lint, npm: scripts.lint, skipInFast: false },
+  { stage: 'test', raw: stackVerify.test, npm: scripts.test, skipInFast: true },
+  { stage: 'build', raw: stackVerify.build, npm: scripts.build, skipInFast: true },
+].map((entry) => ({
+  ...entry,
+  declared: Boolean(entry.raw || entry.npm),
+  planned: Boolean(entry.raw || entry.npm) && !(fastMode && entry.skipInFast),
+}))
+const scriptPlan = stagePlan.filter((entry) => entry.planned).map((entry) => (entry.raw ? `${entry.stage}:raw` : entry.stage))
+const cacheKey = validationCacheKey(scriptPlan)
+const cache = readCheckCache()
+
+// 캐시 재사용 조건: 같은 tree 키 + (같은 mode이거나, fast 요청인데 캐시가 full이면 full ⊇ fast로 재사용).
+// full 요청이 fast 캐시를 재사용하면 test/build를 빠뜨리므로 허용하지 않는다.
+const requestMode = fastMode ? 'fast' : 'full'
+const cacheUsable = !noCache && cache?.key === cacheKey
+  && (cache.mode === requestMode || (fastMode && cache.mode === 'full'))
+
+if (cacheUsable) {
+  console.log(`Validation cache hit: 이 git tree는 이미 ${cache.mode === 'fast' ? 'fast' : 'full'} 검증(정책/문서/테스트${scriptPlan.length > 0 ? '/스택' : ''})을 통과했습니다.`)
+  console.log(`passedAt: ${cache.passedAt}`)
+  console.log('강제 재검증: --no-cache')
+  printConsumerSummary({
+    validationResults,
+    edgeResult: { status: 'ok' },
+    criticalResult: { recommendations: [] },
+    cacheHit: true,
+    stackSkipped: !stackState.applied,
+  })
+  process.exit(0)
+}
+
 run('node', ['.harness/bin/policy-harness.mjs', 'guard', ...forwardedArgs])
 const edgeResult = runSupabaseEdgeFunctionChecks(scripts)
 const criticalResult = printCriticalPathReview()
@@ -727,7 +772,6 @@ if (fs.existsSync(path.join(repoRoot, '.harness-seed-mode')) && fs.existsSync(pa
   run('node', ['scripts/test-init.mjs'])
 }
 
-const stackState = resolveStackState()
 if (!stackState.applied) {
   console.log('')
   if (stackState.reason === 'missing-stack-snapshot') {
@@ -746,6 +790,8 @@ if (!stackState.applied) {
 
   console.log('Stack not applied: activeStack=none. lint/test/build 단계는 건너뜁니다.')
   console.log('스택 기준을 적용하려면: npm run standards:list 후 해당 스택 하네스 init을 실행하세요.')
+  // 전체 검증 통과(정책/문서/test-init)를 캐시에 기록해 같은 tree 재검증을 스킵한다.
+  writeCheckCache(cacheKey, scriptPlan)
   printConsumerSummary({ validationResults, edgeResult, criticalResult, stackSkipped: true })
   process.exit(0)
 }
@@ -754,33 +800,6 @@ if (stackState.markerMissing) {
   console.log('')
   console.log(`Stack applied state derived from tracked snapshot: ${stackState.manifestRelPath}`)
   console.log(`${path.relative(repoRoot, markerPath)} 마커는 없지만 추적된 스택 스냅샷이 있어 lint/test/build를 계속 실행합니다.`)
-}
-
-// P4(2026-06-09): 적용된 스택 manifest의 verify 섹션(raw shell 명령)을 stage별로 우선 사용하고,
-// 선언이 없는 stage는 기존처럼 package.json scripts로 fallback한다.
-// verify 섹션이 없는 기존 Node 스택은 이전과 완전히 같은 경로를 탄다.
-// manifest 내용은 validation cache key에 이미 해시로 포함되므로 verify 변경도 캐시를 무효화한다.
-const stackVerify = (stackState.applied && readJson(stackState.manifestPath)?.verify) || {}
-const stagePlan = [
-  { stage: 'lint', raw: stackVerify.lint, npm: scripts.lint, skipInFast: false },
-  { stage: 'test', raw: stackVerify.test, npm: scripts.test, skipInFast: true },
-  { stage: 'build', raw: stackVerify.build, npm: scripts.build, skipInFast: true },
-].map((entry) => ({
-  ...entry,
-  declared: Boolean(entry.raw || entry.npm),
-  planned: Boolean(entry.raw || entry.npm) && !(fastMode && entry.skipInFast),
-}))
-
-const scriptPlan = stagePlan.filter((entry) => entry.planned).map((entry) => (entry.raw ? `${entry.stage}:raw` : entry.stage))
-const cacheKey = validationCacheKey(scriptPlan)
-const cache = readCheckCache()
-
-if (!noCache && cache?.key === cacheKey && scriptPlan.length > 0) {
-  console.log('')
-  console.log(`Validation cache hit: ${fastMode ? 'fast' : 'full'} check already passed for this git tree.`)
-  console.log(`passedAt: ${cache.passedAt}`)
-  printConsumerSummary({ validationResults, edgeResult, criticalResult, cacheHit: true })
-  process.exit(0)
 }
 
 if (fastMode && stagePlan.some((entry) => entry.declared && entry.skipInFast)) {
@@ -793,8 +812,7 @@ for (const entry of stagePlan) {
   validationResults.push(entry.raw ? runStackVerifyCommand(entry.stage, entry.raw) : runNpmScript(entry.stage))
 }
 
-if (scriptPlan.length > 0) {
-  writeCheckCache(cacheKey, scriptPlan)
-}
+// 전체 검증 통과를 캐시에 기록(스택 적용/미적용 무관). 같은 tree 재검증(둘째 원격·태그 push)을 스킵.
+writeCheckCache(cacheKey, scriptPlan)
 
 printConsumerSummary({ validationResults, edgeResult, criticalResult })
