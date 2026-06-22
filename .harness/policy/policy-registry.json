@@ -219,7 +219,6 @@
       ],
       "triggerPaths": [
         "scripts/init.mjs",
-        "scripts/test-init.mjs",
         ".harness/bin/update-harness.mjs",
         ".harness/bin/apply-stack.mjs",
         ".harness/policy/profile.json",
@@ -257,7 +256,6 @@
       ],
       "triggerPaths": [
         "scripts/init.mjs",
-        "scripts/test-init.mjs",
         ".harness/bin/update-harness.mjs"
       ],
       "checks": [

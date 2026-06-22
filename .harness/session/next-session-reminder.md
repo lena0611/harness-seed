@@ -2,13 +2,17 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
-## 마지막 세션 마감 상태 (2026-06-18)
-- 현재 본체 버전: **0.2.67** (CLAUDE.md/AGENTS.md/copilot 마커 기반 공존융합 — 옵션 A). 직전 0.2.66은 0.2.65 안전망 회귀 강화(test-only), 0.2.65는 PaceLAB CLAUDE.md 무단 삭제 사고 차단(통짜 안전망 옵션 C).
-- 마커 머지(0.2.67): CLAUDE.md/AGENTS.md/.github/copilot-instructions.md는 `<!-- harness-managed:start/end -->` 블록 안(회사 영역)만 update가 갱신하고 블록 밖(소비자 영역)은 보존. 마커 없는 옛 파일은 미수정이면 자동 이전, 수정됐으면 보존+수동 이전 안내. 회사 영역을 소비자가 수정했으면 머지 전 `.harness-bak` 백업. 충돌은 standards-layers "충돌 해석 순서"로 판단. manifest에 `managedRegionSha256`(manifestVersion 3).
-- 통짜 안전망(0.2.65)은 이제 마커 비대상 managed 파일(hook 스크립트, `.harness/bin/*` 등)에만 적용. 의미 충돌 자동 감지·완전 JSON DB 머지는 범위 외(후속).
+## 마지막 세션 마감 상태 (2026-06-22)
+- 현재 본체 버전: **0.2.68** (doc-link-check 소비자 환경 의존 오탐 수정 — 백틱 디렉토리/CI 예시 경로). 직전 0.2.67은 마커 기반 공존융합(옵션 A).
+- doc-link 오탐(0.2.68): `isIgnorableCodePath`가 glob(`*`,`...`)·trailing-slash 디렉토리 예시(`.github/workflows/`)·`.github/workflows/` 하위(본체 CI 어댑터, 소비자 미주입)를 code-path 검사에서 제외. 구체 파일 참조는 계속 검사. doc-link-check.mjs는 직접 실행 가드로 감싸 isIgnorableCodePath를 export(test import 가능).
+- 마커 머지(0.2.67): CLAUDE.md/AGENTS.md/.github/copilot-instructions.md는 `<!-- harness-managed:start/end -->` 블록 안(회사 영역)만 update가 갱신하고 블록 밖(소비자 영역)은 보존. 마커 없는 옛 파일은 미수정이면 자동 이전, 수정됐으면 보존+수동 이전 안내. 회사 영역을 소비자가 수정했으면 머지 전 `.harness-bak` 백업. 충돌은 standards-layers "충돌 해석 순서". manifest에 `managedRegionSha256`(manifestVersion 3).
+- 통짜 안전망(0.2.65)은 마커 비대상 managed 파일(hook 스크립트, `.harness/bin/*` 등)에만 적용.
 - dual-runtime(0.2.63): 프로젝트 `.nvmrc < 20.19`여도 설치/운영 가능. 상세는 `portability-guide.md` "Node 런타임 계약".
-- 0.2.67 push/배포 완료: 양쪽 원격(origin/main + company/master = `3f0d799`) + 태그 `v0.2.67`(=5d44ad7) 양쪽 push, GitHub Actions Policy Guard 통과(34s).
-- CLI(`../ai-standard-cli`)는 0.1.30으로 base ref v0.2.67 반영 완료(GitLab master `0b5678d`, 태그 `v0.1.30`, test 18/18). 0.2.66은 test-only라 CLI에서 건너뛰고 v0.2.65→v0.2.67 점프.
+- 0.2.67 push/배포 완료: 양쪽 원격 + 태그 `v0.2.67`. 0.2.68은 본 세션에서 push 진행.
+- CLI(`../ai-standard-cli`)는 0.1.30(base ref v0.2.67). 0.2.68은 소비자 검증 동작 변경(consumer-facing)이라 base ref 반영 필요 — 본 세션에서 0.1.31 진행 예정.
+
+## ★ 미해결 후속 과제
+- **본체 전용 문서의 소비자 배포 제외**: `body-release-checklist.md`는 "seed-mode 본체 전용"을 자기 명시하는데 managed로 소비자에 배포됨. 0.2.68에서 dead-link 오탐은 해소했으나, 본체 전용 문서가 소비자에 존재하는 적절성 문제는 배포 제외 로직 + 기존 소비자 정리(removeLegacy류)가 필요. 다른 seed-mode 전용 문서도 함께 식별 필요.
 
 ## ★ 본체 개발 후 "배포 마무리 루틴" (빠뜨리기 쉬움 — 반드시 상기)
 본체 변경을 끝내고 사용자가 커밋/푸시/배포를 승인하면 아래가 **한 세트**입니다. 상세·명령은 `body-release-checklist.md`.

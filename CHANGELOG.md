@@ -4,6 +4,14 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.68 - 2026-06-22
+
+- doc-link-check가 백틱으로 감싼 디렉토리 예시·CI 어댑터 경로를 dead code-path로 잘못 표시하던 환경 의존 오탐을 수정했습니다. 소비자(clubadm) 설치 후 `.github/workflows/` 같은 예시 경로가 dead로 검출되던 문제입니다.
+- `isIgnorableCodePath`를 도입해 (1) glob/생략(`*`, `...`), (2) trailing slash 디렉토리 예시(`.github/workflows/`, `.harness/policy/`), (3) `.github/workflows/` 하위(본체 CI 어댑터, 소비자에 기본 주입되지 않음)를 code-path 무결성 검사에서 제외합니다. 구체 파일 참조(`.harness/bin/guard.mjs` 등)는 계속 검사하므로 진짜 dead 탐지는 유지됩니다.
+- 본체 저장소엔 해당 디렉토리가 실제 존재해 통과하지만 소비자 환경엔 없을 수 있어(CI 미사용, 비-Node, 구조 차이) 본체 self-test로는 드러나지 않던 사각지대였습니다.
+- `doc-link-check.mjs`의 진입을 직접 실행 가드로 감싸 `isIgnorableCodePath`를 테스트에서 import할 수 있게 했고, init smoke test에 단위/소비자 e2e 회귀 2종을 추가했습니다(총 59종). 짝 문서로 `.harness/documentation/indexing-rules.md`에 코드 경로 참조 검사 규칙을 명문화했습니다.
+- 알려진 후속(별도): `body-release-checklist.md`는 자기 자신이 "seed-mode 본체 전용"이라 명시하지만 managed로 소비자에 배포됩니다. dead-link 오탐은 본 릴리스로 해소됐고, 본체 전용 문서의 소비자 배포 제외는 배포 로직·기존 소비자 정리가 필요해 후속 과제로 둡니다.
+
 ## 0.2.67 - 2026-06-18
 
 - `CLAUDE.md`/`AGENTS.md`/`.github/copilot-instructions.md`를 마커 기반 머지로 전환했습니다(옵션 A, 공존융합). 본체가 배포하는 이 진입 파일들은 `<!-- harness-managed:start -->`~`<!-- harness-managed:end -->` 블록으로 회사 영역을 감싸고, 그 아래를 소비자 소유 영역으로 둡니다. `harness:update`는 마커 안(회사 영역)만 정본으로 갱신하고 마커 밖(소비자 영역)은 보존합니다. 0.2.65/0.2.66의 통짜 안전망("둘 중 하나만 보존")을 넘어, 회사 갱신과 소비자 지침이 한 파일에서 공존합니다.

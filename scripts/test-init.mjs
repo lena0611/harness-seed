@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isIgnorableCodePath } from '../.harness/bin/doc-link-check.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const repoRoot = path.resolve(path.dirname(__filename), '..')
@@ -1875,6 +1876,31 @@ function markerMergeIsIdempotent() {
   assert(second.split(MARKER_START_T).length - 1 === 1, 'managed start marker should not duplicate')
 }
 
+// doc-link-check 오탐(0.2.68): 백틱 디렉토리 예시/CI 어댑터 경로를 dead code-path로 잘못 표시하던 문제.
+function isIgnorableCodePathClassifiesExamplesAndCiPaths() {
+  // 예시/디렉토리/CI 어댑터 경로는 무결성 검사 대상이 아니다.
+  assert(isIgnorableCodePath('.github/workflows/'), 'trailing-slash CI dir is a directory example')
+  assert(isIgnorableCodePath('.harness/policy/'), 'trailing-slash dir is a directory example')
+  assert(isIgnorableCodePath('.github/workflows/policy-guard.yml'), 'CI adapter path is ignorable (not injected into consumers)')
+  assert(isIgnorableCodePath('.harness/bin/*.mjs'), 'glob is ignorable')
+  assert(isIgnorableCodePath('.harness/session/...'), 'ellipsis is ignorable')
+  // 구체 파일 참조는 여전히 검사 대상이어야 한다(오탐 수정이 진짜 dead까지 가리면 안 된다).
+  assert(!isIgnorableCodePath('.harness/bin/guard.mjs'), 'concrete harness file must still be checked')
+  assert(!isIgnorableCodePath('.claude/hooks/enforce-check.sh'), 'concrete hook file must still be checked')
+  assert(!isIgnorableCodePath('src/index.ts'), 'concrete src file must still be checked')
+}
+
+function consumerDocLinkCheckIgnoresCiExamplePaths() {
+  const target = makeTarget()
+  runInit(target)
+  // 소비자에는 본체 CI 어댑터(.github/workflows/)가 주입되지 않는다(전제).
+  assert(!exists(target, '.github/workflows'), 'consumer should not have .github/workflows (precondition)')
+  // 본체 문서(harness-scan.md 등)는 `.github/workflows/`를 백틱 예시로 언급한다. 설치된 doc-link-check를
+  // 소비자 루트에서 실행해도 그 예시/CI 경로를 dead로 보고하지 않아야 한다.
+  const out = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(!out.includes('.github/workflows'), 'consumer doc-link-check must not flag .github/workflows example/CI paths')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   nonNodeInstallSkipsPackageJson,
@@ -1933,6 +1959,8 @@ const tests = [
   autoMigrateUnmodifiedLegacyFileToMarkerVersion,
   preserveModifiedLegacyFileWithoutMarkerAndAdvise,
   markerMergeIsIdempotent,
+  isIgnorableCodePathClassifiesExamplesAndCiPaths,
+  consumerDocLinkCheckIgnoresCiExamplePaths,
 ]
 
 console.log('Init smoke tests')

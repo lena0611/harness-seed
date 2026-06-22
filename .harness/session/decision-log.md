@@ -1,5 +1,14 @@
 # 결정 로그
 
+## 2026-06-22 - doc-link-check 소비자 환경 의존 오탐 수정 (백틱 디렉토리/CI 예시 경로) (0.2.68)
+- 배경: clubadm 소비자 설치 후 doc-link-check가 백틱 예시 경로(`.github/workflows/` 등)를 code-path 참조로 해석해 dead로 표시. 본체엔 `.github/workflows/`·`scripts/`·`src/` 등 디렉토리가 실제 존재해 통과하지만, 소비자 환경엔 없을 수 있어(CI 미사용, 비-Node, 구조 차이) 환경 의존 오탐 발생. 본체 self-test로는 안 잡히는 사각지대였다.
+- 결정: `codePathPattern` 검사에 `isIgnorableCodePath` 도입. (1) glob/생략(`*`, `...`), (2) trailing-slash 디렉토리 예시, (3) `.github/workflows/` 하위(본체 CI 어댑터, 소비자 미주입)는 검사 제외. 구체 파일 참조는 계속 검사해 진짜 dead 탐지는 유지.
+- 근거: 디렉토리 trailing-slash는 "이런 위치를 보라"는 안내이지 파일 링크가 아니다. `.github/workflows/`는 기존 decision-log와 body-release-checklist가 이미 "소비자 기본 주입 대상 아님"이라 명시.
+- 테스트 가능성: `doc-link-check.mjs`의 `main()`을 직접 실행 가드(`process.argv[1] === __filename`)로 감싸 `isIgnorableCodePath`를 export. test-init이 import해 단위 + 소비자 e2e 회귀 2종 추가(총 59종).
+- 짝 문서(`common.documentation.registry-integrity`, ownedAreas에 doc-link-check.mjs): `indexing-rules.md`에 "코드 경로 참조 검사 규칙" 절 추가.
+- 후속(별도 과제): `body-release-checklist.md`는 자기 자신이 "seed-mode 본체 전용, 소비자 미적용"이라 명시하는데 managed로 소비자에 배포된다. dead-link는 본 수정으로 해소됐으나, 본체 전용 문서가 소비자에 존재하는 적절성 문제는 배포 제외 로직 + 기존 소비자 정리(removeLegacy류)가 필요해 분리한다.
+- 정책 정밀화: install 정책(`common.install.preserve-project-owned-files`, `common.install.force-overwrite-confirmation`)의 `triggerPaths`에서 `scripts/test-init.mjs`를 제거했다(ownedAreas는 유지). test-init.mjs는 init의 install·마커·doc-link·dual-runtime을 모두 검증하는 종합 스모크라, install 무관 변경(이번 doc-link 회귀 등)에도 install 짝 문서 갱신을 강요하는 false positive가 다발했다. install 계약 변경의 실제 trigger는 `scripts/init.mjs`/`update-harness.mjs`이고 그때 test-init.mjs는 ownedAreas로 함께 검토된다. 0.2.66에서 force-overwrite triggerPaths에 test-init.mjs를 넣었던 것을 이 근거로 되돌린다.
+
 ## 2026-06-18 - CLAUDE.md/AGENTS.md/copilot 마커 기반 공존융합 (옵션 A, 0.2.67)
 - 배경: 0.2.65/0.2.66 통짜 안전망은 "소비자가 수정한 진입 파일을 무경고로 안 덮는다"까지였고, 회사 갱신과 소비자 지침의 공존융합은 없었다("둘 중 하나만 산다"). 사용자가 "CLAUDE.md 사고만 막았지 공존융합 개념이 없다"고 지적하고 옵션 A를 선택.
 - 결정: CLAUDE.md/AGENTS.md/.github/copilot-instructions.md를 마커(`<!-- harness-managed:start/end -->`) 기반 머지로 전환. apply-stack.mjs의 `upsertGeneratedSection`과 같은 마커 패턴. 본체 진입 파일 전체를 마커로 감싸고 안내 주석으로 "마커 안=회사 자동갱신, 마커 밖=소비자 보존, 충돌 시 standards-layers 충돌 해석 순서"를 명시.
