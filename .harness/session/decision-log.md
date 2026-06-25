@@ -1,5 +1,12 @@
 # 결정 로그
 
+## 2026-06-25 - stack reset은 profile의 스택 소유 필드만 복원
+- 배경: clubadm이 `profile.json`의 `harnessMode`를 `active`로 바꾼 뒤 `npm run harness:update`를 실행하자 `bootstrap`으로 되돌아가는 현상을 보고. 실제 clubadm 롤백본에서 업데이트를 실행해 `.harness/policy/profile.json`의 `harnessMode: active -> bootstrap` 회귀를 재현했다.
+- 원인: 스택 하네스 init의 같은 스택 업데이트 경로가 `npm run stack:reset` 후 `stack:apply`를 실행한다. `stack:reset`은 `.harness/.stack-applied.json`의 최초 적용 시점 `profileBackup` 전체를 `profile.json`에 다시 쓰고 있었고, clubadm의 backup에는 초기 `harnessMode: bootstrap`이 남아 있었다. 이후 apply는 스택 필드만 갱신하므로 bootstrap이 그대로 유지됐다. 같은 경로에서 `updateHarnessLockForStack`이 lock을 새 객체로 만들며 base update의 `lastUpdate`도 삭제하는 부수 결함을 확인했다.
+- 결정: profile에서 스택 런타임이 reset으로 되돌릴 수 있는 범위는 `activeStack`, `available`, `stackManifest`로 한정한다. `harnessMode`, `sources[]` 등 프로젝트가 직접 관리하는 필드는 현재 값을 보존한다.
+- 조치: `apply-stack.mjs`의 reset 복원을 `restoreStackProfileFields`로 좁히고, stack lock 갱신은 기존 lock 메타데이터를 spread 보존한 뒤 `stackHarness`만 갱신하도록 바꿨다. 회귀 테스트가 stack apply 이후 변경된 `harnessMode`와 `sources[]`가 reset 후에도 유지되는지, stack apply/reset 후 `lastUpdate`가 유지되는지 확인한다. README와 `stack-preset-rules.md`에 profile 필드 소유 범위를 기록했다.
+- 후속: 소비자에게 배포하려면 본체 릴리스 뒤 스택 하네스의 `baseHarness.minVersion/ref`도 새 본체 버전으로 올려, 기존 소비자가 같은 `npx ... init` 업데이트 경로에서 수정된 base를 받게 해야 한다.
+
 ## 2026-06-25 - bundled base outdated 안내 경로 정정
 - 배경: clubadm 소비자가 `baseHarness.source.type="bundled"` 및 repo/ref 없음 상태에서 `harness:outdated`가 base를 `outdated`로 표시하면서 `npm run harness:update -- --base-only`를 권하고, 해당 명령은 `update-harness.mjs`에서 repo metadata 없음으로 실패한다고 보고.
 - 판정: 보고가 맞다. `outdated-harness.mjs`는 조회 정확도를 위해 스택 lock의 `requiredBaseHarness.repo`로 base repo를 복구하지만, `update-harness --base-only`는 그 fallback을 갱신 입력으로 사용하지 않는다. 따라서 bundled base에서 repo를 stack requirement로만 복구한 경우 `--base-only`를 실행 가능한 경로로 안내하면 안 된다.

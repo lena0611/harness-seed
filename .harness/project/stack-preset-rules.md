@@ -21,3 +21,5 @@
 - 이미 설치된 공통 하네스가 `minVersion` 이상이면 스택 업데이트가 더 낮은 `baseHarness.ref`로 자동 downgrade하지 않습니다.
 - 정확한 공통 하네스 ref 고정이 필요한 스택만 `baseHarness.exactRefRequired: true`를 명시합니다.
 - 스택 lock의 `requiredBaseHarness.repo`는 base source metadata가 누락된 소비자 프로젝트에서 `harness:outdated`가 공통 하네스 원격 저장소를 복구하는 fallback으로도 사용됩니다.
+- 스택 재적용 중 `stack:reset`은 profile의 스택 소유 필드(`activeStack`, `available`, `stackManifest`)만 이전 스택 상태로 되돌립니다. 프로젝트가 직접 관리하는 `harnessMode`, `sources[]` 등 다른 `profile.json` 필드는 보존합니다.
+- 스택 재적용이 `.harness/harness-lock.json`의 `stackHarness`를 갱신하더라도 `baseHarness`, `lastUpdate`, scaffold template metadata 등 기존 lock 메타데이터는 보존합니다.

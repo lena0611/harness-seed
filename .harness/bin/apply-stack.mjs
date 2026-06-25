@@ -362,6 +362,7 @@ function buildTemplateMetadata(templateId, manifest, context, templateSnapshot) 
 function updateHarnessLockForStack(stackHarness) {
   const previous = readLock()
   const next = {
+    ...previous,
     version: 1,
     updatedAt: new Date().toISOString(),
     baseHarness: previous.baseHarness ?? null,
@@ -417,12 +418,22 @@ function clearTemplateLock() {
   return next
 }
 
-function restoreProfile(snapshot) {
+function restoreStackProfileFields(snapshot) {
   if (!snapshot) {
     return
   }
 
-  writeJson(profilePath, snapshot)
+  const current = readProfile()
+  const restored = {
+    ...snapshot,
+    ...current,
+    // stack:reset reverts only stack-owned profile fields.
+    activeStack: snapshot.activeStack ?? 'none',
+    available: snapshot.available ?? ['none'],
+    stackManifest: snapshot.stackManifest ?? null,
+  }
+
+  writeJson(profilePath, restored)
 }
 
 function unique(values) {
@@ -1126,7 +1137,7 @@ function commandReset() {
 
   restorePackageJson(marker.packageJsonBackup)
   restoreStackLocalRules(marker.stackLocalRulesBackup)
-  restoreProfile(marker.profileBackup)
+  restoreStackProfileFields(marker.profileBackup)
   if (marker.stackSnapshot?.root) {
     fs.rmSync(path.join(repoRoot, marker.stackSnapshot.root), { recursive: true, force: true })
     removeEmptyParents(path.join(repoRoot, marker.stackSnapshot.root))

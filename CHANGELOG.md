@@ -4,6 +4,12 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.73 - 2026-06-25
+
+- 스택 하네스 업데이트 경로에서 `stack:reset`이 최초 적용 시점의 `profileBackup` 전체를 복원해, 소비자가 직접 바꾼 `.harness/policy/profile.json`의 `harnessMode`가 `active`에서 `bootstrap`으로 되돌아가던 문제를 수정했습니다. 이제 reset은 스택 소유 필드(`activeStack`, `available`, `stackManifest`)만 되돌리고 `harnessMode`, `sources[]` 등 프로젝트 소유 필드는 현재 값을 보존합니다.
+- 같은 경로에서 `stack:apply`가 `.harness/harness-lock.json`을 새 객체로 다시 쓰며 base 업데이트의 `lastUpdate` 변경 이력을 삭제하던 문제를 수정했습니다. stack lock 갱신은 기존 lock metadata를 보존한 뒤 `stackHarness`만 갱신합니다.
+- init smoke test에 stack apply/reset 이후 `harnessMode`, `sources[]`, `lastUpdate`가 보존되는 회귀를 추가했습니다. clubadm의 실제 `.stack-applied.json` marker를 복사한 temp clone에서 업데이트 경로를 재검증했습니다.
+
 ## 0.2.72 - 2026-06-25
 
 - `harness:outdated`가 bundled base의 업데이트 후보를 안내할 때 실행 불가능한 `npm run harness:update -- --base-only`를 권하던 문제를 수정했습니다. base repo가 lock/install manifest에 직접 없고 스택의 `requiredBaseHarness.repo`에서만 복구된 상태에서는 `--base-only`가 실패하므로, 최신 스택 하네스 `npx ... init` 재실행을 안내합니다.

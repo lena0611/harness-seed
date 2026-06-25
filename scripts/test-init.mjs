@@ -1138,21 +1138,52 @@ function stackApplyMaterializesPresetAsLocalRules() {
   const preset = makePreset()
 
   runInit(target)
+  const lockBeforeStackApply = JSON.parse(read(target, '.harness/harness-lock.json'))
+  lockBeforeStackApply.lastUpdate = {
+    from: '0.2.70',
+    to: '0.2.72',
+    at: '2026-06-25T00:00:00.000Z',
+    entries: [
+      {
+        version: '0.2.72',
+        date: '2026-06-25',
+        lines: ['base update summary'],
+      },
+    ],
+  }
+  writeJson(target, '.harness/harness-lock.json', lockBeforeStackApply)
   run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
 
   const localRules = read(target, '.harness/project/stack-preset-rules.md')
   assert(localRules.includes('## 적용된 스택:'), 'stack apply should write applied stack section')
   assert(localRules.includes('External Preset Contract'), 'stack apply should materialize stack instructions as local rules')
   assert(localRules.includes('harness-stack-rules:start'), 'stack local rules should stay inside managed section')
+  const appliedLock = JSON.parse(read(target, '.harness/harness-lock.json'))
+  assert(appliedLock.lastUpdate?.to === '0.2.72', 'stack apply should preserve base changelog metadata')
+
+  const profileBeforeReset = JSON.parse(read(target, '.harness/policy/profile.json'))
+  profileBeforeReset.harnessMode = 'active'
+  profileBeforeReset.sources = [
+    {
+      path: 'developmentGuide/agent-rules.md',
+      kind: 'methodology',
+      owner: 'PROJECT_OWNED',
+      inject: 'always',
+    },
+  ]
+  writeJson(target, '.harness/policy/profile.json', profileBeforeReset)
 
   run('npm', ['run', 'stack:reset'], { cwd: target })
 
   const resetRules = read(target, '.harness/project/stack-preset-rules.md')
   assert(resetRules.includes('적용된 스택 프리셋이 없습니다.'), 'stack reset should restore previous local rules file')
   const resetProfile = JSON.parse(read(target, '.harness/policy/profile.json'))
-  assert(resetProfile.activeStack === 'none', 'stack reset should restore previous profile')
+  assert(resetProfile.activeStack === 'none', 'stack reset should restore stack-owned activeStack')
+  assert(resetProfile.harnessMode === 'active', 'stack reset should preserve project-owned harnessMode')
+  assert(resetProfile.sources?.[0]?.path === 'developmentGuide/agent-rules.md', 'stack reset should preserve project-owned profile sources')
   const resetLock = JSON.parse(read(target, '.harness/harness-lock.json'))
   assert(resetLock.stackHarness === null, 'stack reset should clear stack harness lock')
+  assert(resetLock.lastUpdate?.to === '0.2.72', 'stack reset should preserve base changelog metadata')
   assert(!exists(target, '.harness/stacks/.applied/external-demo/manifest.json'), 'stack reset should remove applied stack snapshot')
 }
 

@@ -231,7 +231,7 @@ npm run harness:update -- --force --confirm-overwrite-project-files
 
 `harness:outdated`는 원격 tag를 조회해 업데이트 후보가 있는지만 확인하고 프로젝트 파일은 수정하지 않습니다. 출력에는 `baseHarness`, `stackHarness`별 현재 버전, 최신 버전, 상태, 실제 업데이트 명령이 분리되어 표시됩니다. 향후 `ai-standard-cli`에서 여러 프로젝트에 업데이트 MR을 만들 때도 이 명령을 먼저 호출하는 방식으로 확장합니다.
 
-같은 스택 하네스를 새 버전으로 다시 실행하면 스택 기준은 기존 적용분을 reset한 뒤 다시 적용됩니다. 공통 하네스는 스택의 최소 요구 버전을 만족하지 못할 때만 업데이트 대상이 됩니다. 프로젝트 소유 문서와 기존 업무 코드는 보존됩니다. 적용 후 `stack:status`와 `harness:scan`에서 공통/스택 하네스 버전 상태를 확인할 수 있습니다.
+같은 스택 하네스를 새 버전으로 다시 실행하면 스택 기준은 기존 적용분을 reset한 뒤 다시 적용됩니다. 공통 하네스는 스택의 최소 요구 버전을 만족하지 못할 때만 업데이트 대상이 됩니다. 프로젝트 소유 문서와 기존 업무 코드, 프로젝트가 직접 바꾼 `profile.json`의 `harnessMode`와 `sources[]`는 보존됩니다. 적용 후 `stack:status`와 `harness:scan`에서 공통/스택 하네스 버전 상태를 확인할 수 있습니다.
 
 ## 공통 하네스가 하는 일
 
@@ -464,7 +464,7 @@ npm run harness:check -- --verbose
 
 ## 비표준 위치 룰 등록 (`profile.json` `sources[]`)
 
-프로젝트가 기준/룰 문서를 `.harness/project/*` 밖(별도 가이드 폴더, 루트 표준 문서 등)에 두고 그대로 유지하려면, 그 위치를 `.harness/policy/profile.json`의 프로젝트 소유 `sources[]` 배열에 선언합니다. 본체는 이 배열을 **읽기만** 하고 자동으로 채우지 않습니다(자동 변경 금지). `profile.json`은 PROJECT_OWNED라 업데이트 시 보존되고, 신규 설치에는 빈 배열로 배포됩니다.
+프로젝트가 기준/룰 문서를 `.harness/project/*` 밖(별도 가이드 폴더, 루트 표준 문서 등)에 두고 그대로 유지하려면, 그 위치를 `.harness/policy/profile.json`의 프로젝트 소유 `sources[]` 배열에 선언합니다. 본체는 이 배열을 **읽기만** 하고 자동으로 채우지 않습니다(자동 변경 금지). `profile.json`은 PROJECT_OWNED라 업데이트 시 보존되고, 신규 설치에는 빈 배열로 배포됩니다. `stack:reset`은 `activeStack`, `available`, `stackManifest`만 스택 소유 필드로 되돌리며, 프로젝트가 직접 설정한 `harnessMode`와 `sources[]`는 유지합니다.
 
 각 항목은 `{ path, kind, owner, inject }` 형태입니다.
 
