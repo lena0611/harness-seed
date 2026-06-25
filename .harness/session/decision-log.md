@@ -1,5 +1,14 @@
 # 결정 로그
 
+## 2026-06-25 - clubadm P0 개선요청서 적대적 검토 + P0-1 축소 수용 (0.2.71)
+- 배경: 소비자 clubadm이 본체 0.2.70 대상 P0 5건(P0-2 hook 자동배선, P0-5 Codex 정합, P0-1 sources[] 레지스트리, P0-4 행위충돌 표면화, P0-3 harnessMode 라이프사이클) 개선요청. 사용자가 "오해 가능성 포함 적대적 검토" 지시. 본체 원본 대조 + 독립 재검증.
+- 메타 발견: clubadm의 코드 인용(file:line)은 대체로 정확하나 **증상·동기 서사는 반복적으로 조작/과장**됐고, 제안 5건 전부 "본체가 소비자 소유 파일을 자동으로 쓴다/넓은 탐지기" 요소가 있어 자동 변경 금지·노이즈 최소화 위배. 또 clubadm은 자기 개인 글로벌 설정을 본체 동작으로 혼동(P0-4 Co-author).
+- 판정: P0-1 축소 수용·배포. **P0-2 거부**(hook 미배선은 의도된 opt-in, commit-template를 런타임 약속으로 오독, fallback·테스트 이미 존재, 자동배선은 git config 무단 변경). **P0-5 거부**(본체는 "Codex 강제 불가"를 일관 명시 = 고치라는 문구가 이미 맞음, .codex/hooks.json은 추측성 자산 grep 0건, 제안 테스트는 test theater). P0-3·P0-4는 축소 형태(문서/read-only)로만 후속 후보 — 필드 추가·init 자동 기록·소비자 정책 파일 자동 덮어쓰기는 거부.
+- P0-1 반영 범위(읽기 전용): profile.json 프로젝트 소유 `sources[]`({path,kind,owner,inject}) 추가(본체 자동 작성 X, PROJECT_OWNED 보존, 신규설치 빈 배열). build-context가 profile.json을 읽어 `inject:always`·실재 항목을 Always Read에 병합(`(project source)` 표시; 이전엔 profile.json 미독해라 순수 가산). scan은 선언 경로 존재만 검증(false positive 0, 없으면 Open Question; 룰성 kind 선언 시 "방법론 없음" 오탐 질문 대체). 넓은 휴리스틱 자동 탐지기·자동 등록 writer는 거부(0.2.68~70 과매칭 제거 방향 유지). bootstrap.md에 등록 인터뷰 단계.
+- ★ SYNC GAP 짝 문서 = leaf 문서 페어링(중요): 코드 변경의 정책 짝을 **공유 문서가 아닌, 해당 정책 전용 leaf 문서**로 골라야 연쇄 gap이 안 난다. preserve-project-owned(profile.json 트리거, blocker)→`README.md`(preserve 전용 leaf), generated-not-source(build-context)→`context-registry.json`(엔트리 추가; 양측 owned/doc), skill-selection(build-context)→`skills/README.md`(skills/** 전용). **portability-guide.md·context-protocol.md는 금지** — portability-guide는 minimum-node/force-overwrite의 doc이라 건드리면 그 코드(node파일/init) 미변경으로 document-only blocking; context-protocol은 visible-trace의 doc이자 source-trace의 ownedArea라 양방향 연쇄. 첫 시도에서 이 둘을 건드려 blocking 2 + review 2 발생 → 되돌리고 leaf로 재페어링해 SYNC GAP 0 달성. 교훈: 정책 documents/ownedAreas 그래프를 먼저 조회(matchedFiles 로직)해 leaf를 고른다.
+- 검증: strict 70 tests + 정책 strict + doc-link 통과(SYNC GAP 0). 회귀 2종(build-context 병합/비-always 미병합, scan 존재검증/누락 Open Question).
+- 배포: 양쪽 원격 `5e90efd` + 태그 `v0.2.71`, CI Policy Guard success. CLI 0.1.33로 base ref v0.2.71 반영(consumer-facing: 소비자가 sources[] 사용).
+
 ## 2026-06-22 - push/배포 중복 검사 제거: 전체 검증 git-tree 캐시 (0.2.70)
 - 배경: 사용자가 push/배포가 느리다고 지적. 진단 결과 본체(seed-mode)는 매 `harness check`(pre-commit/pre-push)가 `guard.mjs:726`에서 `test-init`(64+ 테스트, ~30s) + 정책 + doc-link를 전부 재실행. 릴리스 1회 = commit + 양쪽 원격 push + 태그 2개 = 같은 검증 5회. 기존 validation cache는 스택 lint/test/build 전용 + `activeStack=none`이면 그 전에 exit해 본체에서 무력.
 - 결정: `guard.mjs`의 전체 검증(policy guard, doc-link, test-init, edge, critical, version lock, 스택 verify)을 `validationCacheKey` 게이트 뒤로 이동. 같은 git tree면 전체 스킵(측정 69s→0.1s). 근거: 모든 검증이 git tree의 결정론적 함수라 외부 비결정 요소가 없어 "같은 tree=같은 결과"가 보장 → 캐시가 신뢰성을 해치지 않음.
