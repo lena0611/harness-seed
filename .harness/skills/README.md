@@ -65,6 +65,7 @@ Claude Code의 slash command나 Codex의 외부 skill 시스템과 같은 실행
 - 스킬은 기준 원본이 아닙니다. 실제 기준은 `.harness/policy/*`, `.harness/project/*`, `.harness/session/*`입니다.
 - 스킬은 필요한 문서를 줄이는 장치이지, 기준 확인을 생략하는 장치가 아닙니다.
 - 반복되는 판단 절차가 생기면 `registry.json`에 스킬로 추가하고, 관련 문서는 `context-registry.json`에 연결합니다.
+- 비표준 위치에 둔 프로젝트 룰은 `.harness/policy/profile.json`의 `sources[]`에 선언하면 `harness:context`가 읽을거리로 발견합니다. `inject: always`인 항목은 Always Read 세트에 병합됩니다(본체는 이 배열을 읽기만 합니다).
 
 ## 기본 흐름
 

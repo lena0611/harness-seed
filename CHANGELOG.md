@@ -4,6 +4,15 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.71 - 2026-06-25
+
+- 소비자(clubadm) P0 개선요청 중 P0-1만 축소 수용했습니다. 프로젝트가 기준/룰 문서를 `.harness/project/*` 밖(별도 가이드 폴더, 루트 표준 문서 등)에 두면 본체의 자동 발견·주입 경로(`build-context`의 하드코딩 `alwaysRead`, `scan-project`의 고정 화이트리스트)에서 보이지 않던 구조적 갭을 해소합니다. 나머지(P0-2 hook 자동배선, P0-5 Codex 정합)는 거부, P0-3/P0-4는 후속 후보로 남깁니다.
+- `profile.json`에 프로젝트 소유 `sources[]` 배열을 추가했습니다(`{ path, kind, owner, inject }`). 본체는 이 배열을 **읽기만** 하고 자동으로 채우지 않습니다(자동 변경 금지 원칙). `profile.json`은 PROJECT_OWNED라 업데이트 시 보존되고, 신규 설치에는 빈 배열로 배포됩니다.
+- `build-context`가 `profile.json`을 읽어 `inject:'always'`이고 실제 존재하는 소스를 Always Read에 병합합니다(병합 항목은 `(project source: profile.json sources[])`로 표시). 이전에는 profile.json을 전혀 읽지 않았으므로 순수 가산 변경입니다.
+- `harness:scan`은 선언된 `sources[]` 경로가 실제 존재하는지만 검증합니다(zero false positive). 없는 경로는 Open Questions로 표면화하고, 룰 성격(`kind`) 소스가 선언돼 있으면 "로컬 방법론 없음" 오탐 질문을 대체합니다. 넓은 휴리스틱 자동 탐지는 도입하지 않습니다(최근 0.2.68~70 과매칭 제거 방향 유지).
+- `bootstrap.md`에 "비표준 위치 룰 등록" 인터뷰 단계를 추가하고, 짝 문서로 `context-protocol.md`(계층/주입 거동)와 `portability-guide.md`(프로젝트 소유 등록 절차)를 갱신했습니다.
+- init smoke test에 회귀 2종을 추가했습니다(build-context의 inject:always 병합 + 비-always 미병합, scan의 선언 경로 존재 검증 + 누락 경로 Open Question). 총 70종.
+
 ## 0.2.70 - 2026-06-22
 
 - push/배포 시 중복 검사를 제거해 속도를 크게 높였습니다. 본체(seed-mode)는 매 `harness check`가 `test-init`(64+개 테스트) + 정책 + doc-link를 전부 다시 돌려, 릴리스 1회(commit + 양쪽 원격 + 태그 2개 push)에 같은 검증이 5회 반복됐습니다(약 1분/회).

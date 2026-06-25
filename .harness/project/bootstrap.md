@@ -94,6 +94,18 @@ npm run harness:check
 
 이 답들은 `project-charter.md`, `domain-rules.md`, `architecture-rules.md`, `workflow-rules.md` 중 알맞은 위치에 들어갑니다.
 
+### 6. 비표준 위치 룰 등록 (선택)
+프로젝트가 기존 기준/룰 문서를 `.harness/project/*` 밖(예: 별도 가이드 폴더, 루트 표준 문서)에 두고 있고 그대로 유지하려면, 그 위치를 `.harness/policy/profile.json`의 `sources[]`에 등록해 하네스가 발견·주입하게 합니다. 본체는 이 배열을 읽기만 하고 자동으로 채우지 않으므로, 등록 여부는 사용자에게 확인한 뒤 에이전트가 기록합니다.
+
+각 항목은 `{ path, kind, owner, inject }` 형태입니다.
+
+- `path`: 룰 문서의 저장소 상대 경로
+- `kind`: 문서 성격(예: `methodology`, `rule`, `standard`, `convention`). 룰 성격이면 scan의 "로컬 방법론 없음" 질문을 대체합니다.
+- `owner`: 책임 주체(예: 팀, 개인)
+- `inject`: `always`면 `build-context`가 Always Read에 병합합니다. 그 외 값이면 선언만 하고 자동 주입하지 않습니다.
+
+등록 후 `npm run harness:scan`은 선언된 `path`가 실제 존재하는지 검증하고, 없으면 Open Questions로 표면화합니다. 상세는 저장소 루트 `README.md`의 "비표준 위치 룰 등록" 절과 `.harness/policy/profile.json`의 notes를 참고합니다.
+
 ## 인터뷰가 끝난 뒤
 1. `npm run harness:check` 1회 실행해 일반 인프라 + 스택 기준이 모두 통과하는지 확인합니다.
 2. `active-context.md`에 "프로젝트 상태=`<status>`, 스택=`<id>`" 한 줄을 남깁니다.

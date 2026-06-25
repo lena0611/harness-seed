@@ -462,6 +462,19 @@ npm run harness:check -- --verbose
 | `maintenance` | 안정화된 운영/유지보수 프로젝트 | 변경 영향도, 예외, 회귀 위험을 더 중요하게 봅니다. |
 | `strict` | CI, 릴리스, 보호 브랜치 | SYNC GAP과 기준 누락을 실패 기준으로 봅니다. 보통 `harness:check:strict`와 함께 씁니다. |
 
+## 비표준 위치 룰 등록 (`profile.json` `sources[]`)
+
+프로젝트가 기준/룰 문서를 `.harness/project/*` 밖(별도 가이드 폴더, 루트 표준 문서 등)에 두고 그대로 유지하려면, 그 위치를 `.harness/policy/profile.json`의 프로젝트 소유 `sources[]` 배열에 선언합니다. 본체는 이 배열을 **읽기만** 하고 자동으로 채우지 않습니다(자동 변경 금지). `profile.json`은 PROJECT_OWNED라 업데이트 시 보존되고, 신규 설치에는 빈 배열로 배포됩니다.
+
+각 항목은 `{ path, kind, owner, inject }` 형태입니다.
+
+- `path`: 룰 문서의 저장소 상대 경로
+- `kind`: 문서 성격(예: `methodology`, `rule`, `standard`, `convention`). 룰 성격이면 `harness:scan`의 "로컬 방법론 없음" 질문을 대체합니다.
+- `owner`: 책임 주체(팀, 개인 등)
+- `inject`: `always`면 `harness:context`가 Always Read에 병합하고 `(project source: profile.json sources[])`로 표시합니다. 그 외 값이면 선언만 하고 자동 주입하지 않습니다.
+
+`npm run harness:scan`은 선언된 `path`가 실제 존재하는지만 검증하고(false positive 없음), 없으면 Open Questions로 표면화합니다. 등록 절차는 `.harness/project/bootstrap.md`의 "비표준 위치 룰 등록" 단계를 따릅니다.
+
 ## 주요 명령
 
 개발자는 아래 명령을 먼저 봅니다.

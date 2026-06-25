@@ -1998,6 +1998,57 @@ function guardCacheMissAfterTreeChange() {
   assert(!out.includes('캐시 재사용'), 'a changed git tree must miss the cache and revalidate')
 }
 
+// P0-1(0.2.71): profile.json의 프로젝트 소유 sources[]에 inject:always로 선언된
+// 비표준 위치 룰 문서를 build-context가 Always Read에 병합한다(본체는 읽기만 함).
+function buildContextMergesProfileAlwaysSources() {
+  const target = makeTarget()
+  runInit(target)
+
+  fs.mkdirSync(path.join(target, 'docs/standards'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'docs/standards/team-conventions.md'), '# Team Conventions\n\n팀 규칙.\n')
+  fs.writeFileSync(path.join(target, 'docs/standards/reference.md'), '# Reference\n')
+
+  const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
+  profile.sources = [
+    { path: 'docs/standards/team-conventions.md', kind: 'methodology', owner: 'team', inject: 'always' },
+    { path: 'docs/standards/reference.md', kind: 'reference', owner: 'team', inject: 'context' },
+  ]
+  writeJson(target, '.harness/policy/profile.json', profile)
+
+  run('npm', ['run', 'harness:context', '--', 'context smoke'], { cwd: target })
+  const context = read(target, '.harness/session/task-context.md')
+  const alwaysSection = (context.split('## Always Read\n')[1] ?? '').split('\n## ')[0]
+
+  assert(alwaysSection.includes('docs/standards/team-conventions.md'), 'build-context should merge inject:always profile source into Always Read')
+  assert(alwaysSection.includes('(project source: profile.json sources[])'), 'merged project source should be tagged as project-declared in Always Read')
+  assert(!alwaysSection.includes('docs/standards/reference.md'), 'a source with inject other than always must not be merged into Always Read')
+}
+
+// P0-1(0.2.71): harness:scan은 선언된 sources[] 경로가 실제 존재하는지만 검증한다(zero false positive).
+// 없는 경로는 Open Questions로 표면화하고, 선언 소스를 인벤토리에 나열한다.
+function scanValidatesDeclaredProjectSources() {
+  const target = makeTarget()
+  runInit(target)
+
+  fs.mkdirSync(path.join(target, 'docs/standards'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'docs/standards/team-conventions.md'), '# Team Conventions\n')
+
+  const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
+  profile.sources = [
+    { path: 'docs/standards/team-conventions.md', kind: 'methodology', owner: 'team', inject: 'always' },
+    { path: 'docs/standards/does-not-exist.md', kind: 'rule', owner: 'team', inject: 'context' },
+  ]
+  writeJson(target, '.harness/policy/profile.json', profile)
+
+  run('npm', ['run', 'harness:scan'], { cwd: target })
+  const report = read(target, '.harness/session/project-scan-report.md')
+
+  assert(report.includes('### Declared Project Sources (profile.json sources[])'), 'scan report should include the declared project sources inventory')
+  assert(report.includes('docs/standards/team-conventions.md') && report.includes('exists'), 'scan should mark an existing declared source as exists')
+  assert(report.includes('docs/standards/does-not-exist.md'), 'scan should surface the missing declared source path')
+  assert(/sources\[\]에 선언된 경로가 실제로 없습니다/.test(report), 'scan should raise an open question for a missing declared source path')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   nonNodeInstallSkipsPackageJson,
@@ -2067,6 +2118,8 @@ const tests = [
   guardFullCacheSatisfiesFastRequest,
   guardNoCacheForcesRevalidation,
   guardCacheMissAfterTreeChange,
+  buildContextMergesProfileAlwaysSources,
+  scanValidatesDeclaredProjectSources,
 ]
 
 console.log('Init smoke tests')

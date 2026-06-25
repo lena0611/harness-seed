@@ -86,6 +86,19 @@ function read(rel) {
   return fs.readFileSync(path.join(repoRoot, rel), 'utf8')
 }
 
+function readProfileSources() {
+  if (!exists('.harness/policy/profile.json')) {
+    return []
+  }
+
+  try {
+    const profile = JSON.parse(read('.harness/policy/profile.json'))
+    return Array.isArray(profile.sources) ? profile.sources : []
+  } catch {
+    return []
+  }
+}
+
 function readRegistryFiles() {
   if (!exists('.harness/documentation/document-registry.json')) {
     return []
@@ -290,7 +303,14 @@ function renderContext() {
   const tokens = tokenize(task)
   const taskType = detectTaskType(tokens)
   const registryFiles = readRegistryFiles()
-  const always = alwaysRead.filter(exists)
+  const baseAlways = alwaysRead.filter(exists)
+  const declaredAlways = [...new Set(
+    readProfileSources()
+      .filter((source) => source && source.inject === 'always' && typeof source.path === 'string')
+      .map((source) => source.path)
+      .filter((rel) => exists(rel) && !baseAlways.includes(rel)),
+  )]
+  const always = [...baseAlways, ...declaredAlways]
   const contextEntries = selectContextEntries(tokens, taskType)
   const skillEntries = selectSkillEntries(tokens, taskType)
   const keywordCandidates = registryFiles
@@ -323,7 +343,10 @@ function renderContext() {
   lines.push('')
   lines.push('## Always Read')
   lines.push('')
-  for (const file of always) lines.push(`- ${file}`)
+  for (const file of always) {
+    const tag = declaredAlways.includes(file) ? ' (project source: profile.json sources[])' : ''
+    lines.push(`- ${file}${tag}`)
+  }
   lines.push('')
   lines.push('## Relevant Policies')
   lines.push('')

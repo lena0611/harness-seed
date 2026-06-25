@@ -403,6 +403,19 @@ function detectLocalMethodologyFiles() {
   ])
 }
 
+// profile.json의 프로젝트 소유 sources[]에 선언된 비표준 위치 룰 문서를 분류한다.
+// 본체는 이 배열을 읽기만 한다(자동 탐지·자동 작성 없음). path가 실제 존재하는지만 검증한다.
+const RULE_LIKE_KIND = /(methodology|rule|standard|guide|convention|policy|doc)/i
+
+function detectDeclaredSources(profile) {
+  const sources = Array.isArray(profile.sources) ? profile.sources : []
+  const declared = sources.filter((source) => source && typeof source.path === 'string')
+  const missing = declared.filter((source) => !exists(source.path))
+  const present = declared.filter((source) => exists(source.path))
+  const ruleLike = present.filter((source) => RULE_LIKE_KIND.test(String(source.kind ?? '')))
+  return { declared, missing, present, ruleLike }
+}
+
 function detectPersonalStandardFiles() {
   return listExisting([
     'CLAUDE.local.md',
@@ -668,6 +681,7 @@ function buildReport() {
   const stylePresetCandidates = renderStylePresetCandidates(styleGuideFiles)
   const docs = detectDocs()
   const localMethodologyFiles = detectLocalMethodologyFiles()
+  const declaredSources = detectDeclaredSources(profile)
   const personalStandardFiles = detectPersonalStandardFiles()
   const companyStandardFiles = detectCompanyStandardFiles()
   const stackStandardFiles = detectStackStandardFiles(profile)
@@ -700,8 +714,11 @@ function buildReport() {
   if (!exists('.harness/project/project-charter.md')) {
     questions.push('프로젝트 charter가 없습니다. `.harness/project/bootstrap.md` 인터뷰가 필요합니다.')
   }
-  if (localMethodologyFiles.length === 0) {
-    questions.push('로컬 개발방법론 문서가 없습니다. `.harness/project/local-methodology.md` 계층을 확인해야 합니다.')
+  if (localMethodologyFiles.length === 0 && declaredSources.ruleLike.length === 0) {
+    questions.push('로컬 개발방법론 문서가 없습니다. `.harness/project/local-methodology.md` 계층을 확인하거나, 비표준 위치에 룰을 둔다면 `.harness/policy/profile.json` `sources[]`에 등록하세요.')
+  }
+  if (declaredSources.missing.length > 0) {
+    questions.push(`profile.json sources[]에 선언된 경로가 실제로 없습니다: ${declaredSources.missing.map((source) => source.path).join(', ')}. 경로를 고치거나 항목을 제거하세요.`)
   }
   if (sourceRoots.length === 0) {
     questions.push('소스 루트를 찾지 못했습니다. 실제 업무 코드 위치를 확인해야 합니다.')
@@ -759,6 +776,12 @@ ${formatList(docs)}
 
 ### Local Methodology Files
 ${formatList(localMethodologyFiles)}
+
+### Declared Project Sources (profile.json sources[])
+${formatList(
+  declaredSources.declared.map((source) => `${source.path} (kind: ${source.kind ?? '미지정'}, inject: ${source.inject ?? '미지정'}, ${exists(source.path) ? 'exists' : 'MISSING'})`),
+  '- profile.json sources[]에 선언된 비표준 위치 룰 없음',
+)}
 
 ### Personal Standard Files
 ${formatList(personalStandardFiles)}

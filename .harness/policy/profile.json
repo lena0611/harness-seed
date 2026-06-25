@@ -4,5 +4,6 @@
   "harnessMode": "bootstrap",
   "available": ["none"],
   "stackManifest": null,
-  "notes": "activeStack 값으로 프리셋이 활성화됩니다. harnessMode는 bootstrap, active, maintenance, strict 중 하나를 권장합니다. 'none'이면 공통 하네스만 동작하고 프레임워크-특화 검사와 기준 병합은 비활성화됩니다. 일반 프로젝트 개발자는 스택 하네스의 npx ... init 흐름을 사용합니다. 사내 스택 하네스 후보는 standards:list로 조회합니다. 관리자/고급 흐름에서는 stackManifest에 적용 스냅샷 manifest.json 경로를 지정하거나 stack:apply -- --preset-path <dir>, stack:apply -- --preset-git <repo-url> --ref <tag>로 직접 적용할 수 있습니다."
+  "sources": [],
+  "notes": "activeStack 값으로 프리셋이 활성화됩니다. harnessMode는 bootstrap, active, maintenance, strict 중 하나를 권장합니다. 'none'이면 공통 하네스만 동작하고 프레임워크-특화 검사와 기준 병합은 비활성화됩니다. 일반 프로젝트 개발자는 스택 하네스의 npx ... init 흐름을 사용합니다. 사내 스택 하네스 후보는 standards:list로 조회합니다. 관리자/고급 흐름에서는 stackManifest에 적용 스냅샷 manifest.json 경로를 지정하거나 stack:apply -- --preset-path <dir>, stack:apply -- --preset-git <repo-url> --ref <tag>로 직접 적용할 수 있습니다. sources는 프로젝트가 비표준 위치(.harness/project/* 밖)에 둔 기준/룰 문서를 하네스에 선언하는 프로젝트 소유 배열입니다. 각 항목은 { path, kind, owner, inject } 형태이며 본체는 이 배열을 읽기만 하고 자동으로 채우지 않습니다. inject가 'always'면 build-context가 Always Read에 병합하고, scan은 선언된 path가 실제 존재하는지만 검증합니다. 상세는 portability-guide.md와 context-protocol.md를 참고합니다."
 }

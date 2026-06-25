@@ -117,6 +117,15 @@
       "priority": "medium",
       "appliesTo": [".harness/**", "scripts/**", ".githooks/**", "package.json", "CHANGELOG.md", ".github/workflows/**", "release"],
       "keywords": ["본체", "릴리스", "배포", "버전", "version", "CHANGELOG", "원격", "동기화", "seed-mode", "downstream"]
+    },
+    {
+      "id": "project-source-registry",
+      "file": ".harness/project/bootstrap.md",
+      "category": "policy",
+      "taskTypes": ["feature", "maintenance", "docs"],
+      "priority": "medium",
+      "appliesTo": [".harness/policy/**"],
+      "keywords": ["sources", "profile", "비표준", "always-read", "registry", "선언", "방법론 위치"]
     }
   ]
 }
