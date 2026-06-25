@@ -5,6 +5,7 @@
 - 판정: 보고가 맞다. `outdated-harness.mjs`는 조회 정확도를 위해 스택 lock의 `requiredBaseHarness.repo`로 base repo를 복구하지만, `update-harness --base-only`는 그 fallback을 갱신 입력으로 사용하지 않는다. 따라서 bundled base에서 repo를 stack requirement로만 복구한 경우 `--base-only`를 실행 가능한 경로로 안내하면 안 된다.
 - 조치: `outdated` 결과에 base repo가 lock/install manifest에 직접 없고 requiredBase fallback으로만 복구된 판정을 추가하고, update command를 최신 스택 하네스 `npx ... init` 재실행으로 안내한다. 실제 소비자 파일 자동 수정은 하지 않는다. 회귀는 bundled base가 outdated일 때 `--base-only` 대신 stack init command와 note가 나오는지 확인한다.
 - 기준 짝: `.harness/project/stack-preset-rules.md`에 bundled base 예외를 기록했다. 공통 하네스 git source로 설치된 base는 기존 `--base-only` 경로를 유지한다.
+- 배포: 본체 0.2.72를 양쪽 원격(origin/main, company/master)과 태그 `v0.2.72`로 배포했고, GitHub Actions Policy Guard success 확인. consumer-facing 변경이라 `ai-standard-cli` 0.1.34에 base ref v0.2.72를 반영해 GitLab master와 태그 `v0.1.34`로 push했다.
 
 ## 2026-06-25 - clubadm P0 개선요청서 적대적 검토 + P0-1 축소 수용 (0.2.71)
 - 배경: 소비자 clubadm이 본체 0.2.70 대상 P0 5건(P0-2 hook 자동배선, P0-5 Codex 정합, P0-1 sources[] 레지스트리, P0-4 행위충돌 표면화, P0-3 harnessMode 라이프사이클) 개선요청. 사용자가 "오해 가능성 포함 적대적 검토" 지시. 본체 원본 대조 + 독립 재검증.

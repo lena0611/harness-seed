@@ -3,7 +3,8 @@
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
 ## 마지막 세션 마감 상태 (2026-06-25)
-- 현재 본체 버전: **0.2.71** (clubadm P0-1 축소 수용 — profile.json `sources[]`로 비표준 위치 룰 선언·주입). 직전 0.2.70 push/배포 중복 검사 제거(git-tree 캐시), 0.2.69 seed-only 배포 제외, 0.2.68 doc-link 오탐, 0.2.67 마커 공존융합.
+- 현재 본체 버전: **0.2.72** (clubadm 신규 버그 수정 — bundled/base repo fallback 상태에서 `harness:outdated`가 실행 불가능한 `--base-only` 대신 스택 하네스 `npx ... init`을 안내). 직전 0.2.71 profile.json `sources[]`, 0.2.70 push/배포 중복 검사 제거(git-tree 캐시), 0.2.69 seed-only 배포 제외, 0.2.68 doc-link 오탐.
+- 0.2.72 push/배포 완료: 양쪽 원격(origin/main + company/master = `8baaa5e`) + 태그 `v0.2.72`, GitHub Actions Policy Guard success(38s). CLI `ai-standard-cli` 0.1.34로 base ref v0.2.72 반영(GitLab master + 태그, check+18 tests).
 - `sources[]` 도입 (0.2.71): profile.json에 프로젝트 소유 `sources[]`({path,kind,owner,inject}) 추가. 본체는 **읽기만**(자동 작성 X, PROJECT_OWNED 보존, 신규설치 빈 배열). `build-context`가 `inject:always`·실재 항목을 Always Read에 병합(`(project source)` 표시), `harness:scan`은 선언 경로 존재만 검증(false positive 0 → 없으면 Open Question). ★ 짝 문서는 정책 over-match 회피로 **leaf 문서** 페어링: preserve→`README.md`, generated-not-source→`context-registry.json`(엔트리), skill-selection→`skills/README.md`. **`portability-guide.md`·`context-protocol.md`는 공유/ownedArea라 건드리면 minimum-node/force-overwrite/visible-trace/source-trace 연쇄 → 금지**(상세 decision-log 2026-06-25). 회귀 2종(총 70). bootstrap.md에 등록 인터뷰 단계.
 - 0.2.71 push/배포 완료: 양쪽 원격(origin/main + company/master = `5e90efd`) + 태그 `v0.2.71`, CI 통과(43s). CLI `ai-standard-cli` 0.1.33로 base ref v0.2.71 반영(GitLab master + 태그, check+18 tests).
 - 검증 캐시(0.2.70): `guard.mjs`가 전체 검증(정책/doc-link/test-init/스택verify)을 git tree 지문 캐시 게이트 뒤로 둠. 같은 tree면 전체 스킵(69s→0.1s). `validationCacheKey`는 strict/default + HEAD + 파일해시(fast/full은 레코드 mode로). full 통과 캐시를 fast가 재사용(full⊇fast) → commit(full) 1회만 실검증, push·양쪽원격·태그는 히트. 강제 재검증 `--no-cache`. 캐시 거동 변경 시 guard.mjs + test-init 캐시 회귀 4종 동기화.
@@ -14,12 +15,12 @@
 - dual-runtime(0.2.63): 프로젝트 `.nvmrc < 20.19`여도 설치/운영 가능. 상세는 `portability-guide.md` "Node 런타임 계약".
 - 0.2.70 push/배포 완료: 양쪽 원격(origin/main + company/master = `52da079`) + 태그 `v0.2.70`(=2c40236), CI 통과(40s). push 속도 체감 개선 확인(태그/company push가 캐시 히트로 즉시 완료).
 - 검증 캐시 부수효과(0.2.70): install 정책 documents를 `sync-protocol.md`(종합) → `portability-guide.md`(설치 전용)로 옮겨 종합 문서 공유 과매칭 노이즈를 근본 제거. 이제 sync-protocol/검증/세션 변경이 install 정책을 깨우지 않음. 정책 documents는 "주제 전용 문서"로 두는 게 노이즈 예방 원칙.
-- CLI(`../ai-standard-cli`)는 consumer-facing(0.2.69 seed-only 배포 + 0.2.70 검증 속도)이라 0.1.32로 base ref v0.2.70 반영 진행.
 
 ## ★ 후속 과제
 - 본체 전용 문서 소비자 배포 제외는 0.2.69로 해소(body-release-checklist 1개 확정). 향후 새 본체 전용 문서가 생기면 `SEED_ONLY_DOC_PATHS` + `doc-link-check.mjs seedOnlyDocs`에 함께 등록.
 - clubadm QA(2026-06-22) 3건 중 doc-link 오탐(0.2.68)·seed-only(0.2.69)는 해소. SessionStart grep 과매칭은 이미 수정됨(`session-start-reminder.sh` 회귀 존재). 남은 FEATURE 후보: `hooks:install`에 Claude settings.json 병합 옵션 추가 — 현재 init/update 경로엔 `mergeClaudeSettings` 자동 병합(0.2.59)이 있어 업데이트만 하면 연결됨. 별도 재연결 명령 필요성은 낮음.
 - clubadm P0 개선요청서(2026-06-25) 판정: P0-1 축소 수용·배포(0.2.71). **P0-2(hook 자동배선)·P0-5(Codex 정합) 거부** — 둘 다 오해 기반(P0-2 commit-template를 런타임 약속으로 오독, P0-5 'Codex always-on 광고' 전제가 정반대 + hooks.json 추측성). 재요청 시 decision-log 2026-06-25 근거 참조. P0-3(harnessMode 라이프사이클)·P0-4(commit/release 행위충돌 표면화)는 축소 형태(문서/read-only)로만 후속 후보 — 필드 추가·init 자동 기록·소비자 파일 자동 덮어쓰기는 거부.
+- clubadm 신규 버그(2026-06-25) bundled base outdated 안내는 0.2.72로 해소. `source.type="bundled"`이고 base repo/ref가 lock/install manifest에 없어 `requiredBaseHarness.repo`로만 조회를 복구하는 경우, update 안내는 `--base-only`가 아니라 최신 스택 하네스 init 재실행이어야 한다.
 
 ## ★ 본체 개발 후 "배포 마무리 루틴" (빠뜨리기 쉬움 — 반드시 상기)
 본체 변경을 끝내고 사용자가 커밋/푸시/배포를 승인하면 아래가 **한 세트**입니다. 상세·명령은 `body-release-checklist.md`.
