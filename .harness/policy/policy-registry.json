@@ -220,7 +220,6 @@
         "scripts/init.mjs",
         ".harness/bin/update-harness.mjs",
         ".harness/bin/apply-stack.mjs",
-        ".harness/policy/profile.json",
         ".harness/policy/waivers.json"
       ],
       "checks": [

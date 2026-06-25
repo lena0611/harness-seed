@@ -1,5 +1,11 @@
 # 결정 로그
 
+## 2026-06-25 - 소비자 profile.json 편집은 install preserve source trigger에서 제외
+- 배경: clubadm이 0.2.73 적용 후 `profile.json`의 `harnessMode=active`와 `sources[]`를 직접 편집하자 `common.install.preserve-project-owned-files`가 blocking SYNC GAP을 냈다. 소비자 profile 편집은 본체 install/update 코드 변경이 아니라 PROJECT_OWNED 데이터 변경이다.
+- 원인: preserve-project-owned-files 정책의 `triggerPaths`에 `.harness/policy/profile.json`이 포함되어 있어, 소비자가 자기 profile을 바꾼 것도 "install 보존 정책의 소스만 변경"으로 과매칭됐다.
+- 결정: `profile.json`은 보존 대상(`ownedAreas`)으로 남기되, install 보존 정책의 source trigger에서는 제외한다. install/update 보존 동작 변경은 `scripts/init.mjs`, `update-harness.mjs`, `apply-stack.mjs`, waiver 변경으로 감지하고, 소비자 profile의 스택 상태·sources 선언은 `common.stack.bundle-integrity`와 profile 읽기 테스트가 다룬다.
+- 회귀: 소비자 타깃에서 `profile.harnessMode`와 `sources[]`를 바꿔도 `common.install.preserve-project-owned-files` 및 SYNC GAP summary가 나오지 않는 테스트를 추가한다.
+
 ## 2026-06-25 - stack reset은 profile의 스택 소유 필드만 복원
 - 배경: clubadm이 `profile.json`의 `harnessMode`를 `active`로 바꾼 뒤 `npm run harness:update`를 실행하자 `bootstrap`으로 되돌아가는 현상을 보고. 실제 clubadm 롤백본에서 업데이트를 실행해 `.harness/policy/profile.json`의 `harnessMode: active -> bootstrap` 회귀를 재현했다.
 - 원인: 스택 하네스 init의 같은 스택 업데이트 경로가 `npm run stack:reset` 후 `stack:apply`를 실행한다. `stack:reset`은 `.harness/.stack-applied.json`의 최초 적용 시점 `profileBackup` 전체를 `profile.json`에 다시 쓰고 있었고, clubadm의 backup에는 초기 `harnessMode: bootstrap`이 남아 있었다. 이후 apply는 스택 필드만 갱신하므로 bootstrap이 그대로 유지됐다. 같은 경로에서 `updateHarnessLockForStack`이 lock을 새 객체로 만들며 base update의 `lastUpdate`도 삭제하는 부수 결함을 확인했다.

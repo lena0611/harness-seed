@@ -2088,6 +2088,35 @@ function scanValidatesDeclaredProjectSources() {
   assert(/sources\[\]에 선언된 경로가 실제로 없습니다/.test(report), 'scan should raise an open question for a missing declared source path')
 }
 
+function profileProjectSourcesDoNotTriggerInstallSyncGap() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run('git', ['add', '.'], { cwd: target })
+  run('git', [
+    '-c',
+    'user.name=Harness Test',
+    '-c',
+    'user.email=harness-test@example.invalid',
+    'commit',
+    '--quiet',
+    '-m',
+    'baseline',
+  ], { cwd: target })
+
+  fs.mkdirSync(path.join(target, 'developmentGuide'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'developmentGuide/agent-rules.md'), '# Agent Rules\n')
+  const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
+  profile.harnessMode = 'active'
+  profile.sources = [
+    { path: 'developmentGuide/agent-rules.md', kind: 'methodology', owner: 'team', inject: 'always' },
+  ]
+  writeJson(target, '.harness/policy/profile.json', profile)
+
+  const impact = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'impact'], { cwd: target })
+  assert(!impact.includes('SYNC GAP review summary'), 'project-owned profile sources should not create a sync gap')
+  assert(!impact.includes('common.install.preserve-project-owned-files'), 'project-owned profile edits must not trigger install preserve source policy')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   nonNodeInstallSkipsPackageJson,
@@ -2159,6 +2188,7 @@ const tests = [
   guardCacheMissAfterTreeChange,
   buildContextMergesProfileAlwaysSources,
   scanValidatesDeclaredProjectSources,
+  profileProjectSourcesDoNotTriggerInstallSyncGap,
 ]
 
 console.log('Init smoke tests')

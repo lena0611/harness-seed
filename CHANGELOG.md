@@ -4,6 +4,12 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.74 - 2026-06-25
+
+- 소비자 프로젝트가 `.harness/policy/profile.json`의 `harnessMode`나 `sources[]`를 직접 편집하면 `common.install.preserve-project-owned-files`가 blocking SYNC GAP을 내던 과매칭을 수정했습니다. `profile.json`은 PROJECT_OWNED 보존 대상이지만 install/update 구현 변경을 뜻하는 source trigger는 아니므로, preserve 정책의 `triggerPaths`에서 제외했습니다.
+- install/update 보존 동작 변경은 계속 `scripts/init.mjs`, `update-harness.mjs`, `apply-stack.mjs`, waiver 변경으로 감지합니다. 소비자 profile의 스택 상태와 선언 소스는 stack/profile 관련 검사에서 다룹니다.
+- init smoke test에 소비자 profile 편집(`harnessMode=active`, `sources[]`)이 install preserve SYNC GAP을 만들지 않는 회귀를 추가했습니다.
+
 ## 0.2.73 - 2026-06-25
 
 - 스택 하네스 업데이트 경로에서 `stack:reset`이 최초 적용 시점의 `profileBackup` 전체를 복원해, 소비자가 직접 바꾼 `.harness/policy/profile.json`의 `harnessMode`가 `active`에서 `bootstrap`으로 되돌아가던 문제를 수정했습니다. 이제 reset은 스택 소유 필드(`activeStack`, `available`, `stackManifest`)만 되돌리고 `harnessMode`, `sources[]` 등 프로젝트 소유 필드는 현재 값을 보존합니다.
