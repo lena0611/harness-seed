@@ -4,6 +4,12 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.72 - 2026-06-25
+
+- `harness:outdated`가 bundled base의 업데이트 후보를 안내할 때 실행 불가능한 `npm run harness:update -- --base-only`를 권하던 문제를 수정했습니다. base repo가 lock/install manifest에 직접 없고 스택의 `requiredBaseHarness.repo`에서만 복구된 상태에서는 `--base-only`가 실패하므로, 최신 스택 하네스 `npx ... init` 재실행을 안내합니다.
+- 기존 git source base는 그대로 `npm run harness:update -- --base-only` 경로를 유지합니다. 이번 변경은 read-only outdated 안내 정정이며 소비자 파일을 자동 수정하지 않습니다.
+- init smoke test에 bundled base가 outdated일 때 stack init command와 note가 출력되는 회귀를 추가했습니다.
+
 ## 0.2.71 - 2026-06-25
 
 - 소비자(clubadm) P0 개선요청 중 P0-1만 축소 수용했습니다. 프로젝트가 기준/룰 문서를 `.harness/project/*` 밖(별도 가이드 폴더, 루트 표준 문서 등)에 두면 본체의 자동 발견·주입 경로(`build-context`의 하드코딩 `alwaysRead`, `scan-project`의 고정 화이트리스트)에서 보이지 않던 구조적 갭을 해소합니다. 나머지(P0-2 hook 자동배선, P0-5 Codex 정합)는 거부, P0-3/P0-4는 후속 후보로 남깁니다.

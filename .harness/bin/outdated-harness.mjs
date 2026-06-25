@@ -103,6 +103,14 @@ function stripGitPrefix(repo) {
   return repo?.startsWith('git+') ? repo.slice(4) : repo
 }
 
+function ensureGitPackageSpec(repo) {
+  if (repo.startsWith('git+') || repo.startsWith('github:')) {
+    return repo
+  }
+
+  return `git+${repo}`
+}
+
 function parseSourceSpec(spec) {
   if (!spec || spec === 'bundled') {
     return {}
@@ -252,7 +260,8 @@ function resolveHarnessMetadata(target, installManifest, lock) {
   const requiredBase = target.label === 'baseHarness'
     ? lock?.stackHarness?.requiredBaseHarness ?? {}
     : {}
-  const repo = harness?.repo ?? harness?.source?.repo ?? source?.repo ?? spec.repo ?? requiredBase.repo ?? null
+  const directRepo = harness?.repo ?? harness?.source?.repo ?? source?.repo ?? spec.repo ?? null
+  const repo = directRepo ?? requiredBase.repo ?? null
   const ref = harness?.ref
     ?? harness?.source?.ref
     ?? source?.ref
@@ -264,6 +273,7 @@ function resolveHarnessMetadata(target, installManifest, lock) {
     ref,
     currentVersion,
     range: harness?.range ?? harness?.source?.range ?? source?.range ?? null,
+    updateViaStackInit: target.label === 'baseHarness' && !directRepo && Boolean(requiredBase.repo),
   }
 }
 
@@ -271,6 +281,43 @@ function updateCommandForTarget(label) {
   return label === 'baseHarness'
     ? 'npm run harness:update -- --base-only'
     : 'npm run harness:update'
+}
+
+function stackInitCommand(lock) {
+  const stack = lock?.stackHarness
+  const repo = stack?.repo ?? stack?.source?.repo ?? parseSourceSpec(stack?.source?.spec).repo
+  if (!repo) {
+    return null
+  }
+
+  const range = stack?.range ?? stack?.source?.range ?? compatibleRange(stack)
+  const ref = range ? `semver:${range}` : stack?.ref ?? stack?.source?.ref ?? parseSourceSpec(stack?.source?.spec).ref ?? null
+  const packageSpec = ref
+    ? `${ensureGitPackageSpec(repo)}#${ref}`
+    : ensureGitPackageSpec(repo)
+
+  return `npx -y ${packageSpec} init`
+}
+
+function updateInstructionForTarget(target, metadata, lock, outdated) {
+  if (!outdated) {
+    return {
+      updateCommand: null,
+      updateNote: null,
+    }
+  }
+
+  if (metadata.updateViaStackInit) {
+    return {
+      updateCommand: stackInitCommand(lock),
+      updateNote: '이 공통 하네스는 repo를 스택 requirement에서만 복구했기 때문에 --base-only로 갱신할 수 없습니다. 최신 스택 하네스 init을 다시 실행하세요.',
+    }
+  }
+
+  return {
+    updateCommand: updateCommandForTarget(target.label),
+    updateNote: null,
+  }
 }
 
 function unavailableTargetStatus(target, harness, message) {
@@ -286,6 +333,7 @@ function unavailableTargetStatus(target, harness, message) {
     outdated: false,
     status: 'unavailable',
     updateCommand: null,
+    updateNote: null,
     message,
     recovery: target.label === 'baseHarness'
       ? '공통 하네스 repo/ref/version을 복구하려면 공통 하네스를 git source로 다시 init/update 하거나 install-manifest source metadata를 확인하세요.'
@@ -325,6 +373,7 @@ function buildTargetStatus(target, opts, installManifest, lock) {
   const latest = candidates.at(-1) ?? null
   const current = parseSemver(currentVersion)
   const outdated = latest ? compareSemver(latest.semver, current) > 0 : false
+  const updateInstruction = updateInstructionForTarget(target, metadata, lock, outdated)
 
   return {
     target: target.label,
@@ -337,7 +386,8 @@ function buildTargetStatus(target, opts, installManifest, lock) {
     latestRef: latest?.tag ?? null,
     outdated,
     status: outdated ? 'outdated' : 'up-to-date',
-    updateCommand: outdated ? updateCommandForTarget(target.label) : null,
+    updateCommand: updateInstruction.updateCommand,
+    updateNote: updateInstruction.updateNote,
   }
 }
 
@@ -376,7 +426,10 @@ function printTarget(status) {
   console.log(`  current: ${status.currentVersion}${status.currentRef ? ` (${status.currentRef})` : ''}`)
   console.log(`  range: ${status.range}`)
   console.log(`  latest: ${status.latestVersion ? `${status.latestVersion} (${status.latestRef})` : 'not found'}`)
-  console.log(`  update: ${status.updateCommand ?? 'not needed'}`)
+  console.log(`  update: ${status.updateCommand ?? (status.outdated ? 'manual stack init required' : 'not needed')}`)
+  if (status.updateNote) {
+    console.log(`  note: ${status.updateNote}`)
+  }
 }
 
 function printText(status) {

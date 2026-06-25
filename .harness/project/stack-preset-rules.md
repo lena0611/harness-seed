@@ -16,6 +16,7 @@
 ## 스택 업데이트 기준
 - `harness:outdated`는 공통 하네스와 스택 하네스의 업데이트 후보를 함께 보여줘야 합니다.
 - `harness:update` 기본 동작은 현재 적용된 스택 하네스를 갱신하는 것입니다. 공통 하네스만 갱신할 때는 `npm run harness:update -- --base-only`를 사용합니다.
+- 단, lock/install manifest의 base source가 `bundled`이고 repo를 스택의 `requiredBaseHarness.repo`에서만 복구한 경우 `--base-only`는 실행 가능한 갱신 경로가 아닙니다. 이때 `harness:outdated`는 최신 스택 하네스 `npx ... init` 재실행을 안내해야 합니다.
 - 스택 manifest의 `baseHarness.minVersion`은 최소 요구 버전이고, `baseHarness.ref`는 검증된 기준 ref입니다.
 - 이미 설치된 공통 하네스가 `minVersion` 이상이면 스택 업데이트가 더 낮은 `baseHarness.ref`로 자동 downgrade하지 않습니다.
 - 정확한 공통 하네스 ref 고정이 필요한 스택만 `baseHarness.exactRefRequired: true`를 명시합니다.
