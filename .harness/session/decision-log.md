@@ -1,5 +1,10 @@
 # 결정 로그
 
+## 2026-06-25 - 본체 전용 Spec Authority 로드맵 seed-only 기록
+- 배경: 사용자가 기획 정책/기능 스펙이 스트림성으로 흩어져 코드가 최종 기준점이 되는 문제를 지적하고, 스펙을 권위 원본으로 둔 외부 spec repo 연계 하네스 에픽을 다음 작업 로드맵으로 남기되 소비자 프로젝트에는 배포하지 말라고 지시했다.
+- 결정: 로드맵은 소비자 운영 기준이 아니라 harness-seed 본체의 제품 방향이므로 `.harness/project/body-roadmap.md` seed-only 문서로 둔다. 소비자 프로젝트에는 파일 본문을 배포하지 않으며, 코드 repo에 spec 본문을 vendoring하지 않고 외부 spec repo commit/ref만 lock으로 남기는 방향을 에픽 기준으로 기록한다.
+- 조치: `body-roadmap.md`를 추가하고 `scripts/init.mjs`의 `SEED_ONLY_DOC_PATHS`, `doc-link-check.mjs`의 `seedOnlyDocs`, seed-only 설치/문서 회귀 테스트 목록에 포함했다. 소비자 배포 문서에는 seed-only 일반 계약만 보강하고 로드맵 본문은 노출하지 않는다.
+
 ## 2026-06-25 - 소비자 profile.json 편집은 install preserve source trigger에서 제외
 - 배경: clubadm이 0.2.73 적용 후 `profile.json`의 `harnessMode=active`와 `sources[]`를 직접 편집하자 `common.install.preserve-project-owned-files`가 blocking SYNC GAP을 냈다. 소비자 profile 편집은 본체 install/update 코드 변경이 아니라 PROJECT_OWNED 데이터 변경이다.
 - 원인: preserve-project-owned-files 정책의 `triggerPaths`에 `.harness/policy/profile.json`이 포함되어 있어, 소비자가 자기 profile을 바꾼 것도 "install 보존 정책의 소스만 변경"으로 과매칭됐다.

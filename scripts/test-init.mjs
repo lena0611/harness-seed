@@ -1944,23 +1944,31 @@ function consumerDocLinkCheckIgnoresCiExamplePaths() {
   assert(!out.includes('.github/workflows'), 'consumer doc-link-check must not flag .github/workflows example/CI paths')
 }
 
-// seed-only 문서(0.2.69): 본체 전용 문서(body-release-checklist.md)는 소비자에 배포하지 않는다.
-const SEED_ONLY_DOC = '.harness/project/body-release-checklist.md'
+// seed-only 문서(0.2.69+): 본체 전용 문서는 소비자에 배포하지 않는다.
+const SEED_ONLY_DOCS = [
+  '.harness/project/body-release-checklist.md',
+  '.harness/project/body-roadmap.md',
+]
+const SEED_ONLY_DOC = SEED_ONLY_DOCS[0]
 
 function consumerInstallExcludesSeedOnlyDocs() {
   const target = makeTarget()
   runInit(target)
-  assert(!exists(target, SEED_ONLY_DOC), 'seed-only doc must not be installed to a consumer project')
   const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
-  assert(!manifest.managedFiles[SEED_ONLY_DOC], 'seed-only doc must not appear in consumer install manifest')
+  for (const docPath of SEED_ONLY_DOCS) {
+    assert(!exists(target, docPath), 'seed-only doc must not be installed to a consumer project')
+    assert(!manifest.managedFiles[docPath], 'seed-only doc must not appear in consumer install manifest')
+  }
 }
 
 function consumerDocLinkCheckHandlesAbsentSeedOnlyDoc() {
   const target = makeTarget()
   runInit(target)
-  // body-release-checklist는 소비자에 없고 document-registry에도 없으므로 missing/orphan으로 표시되면 안 된다.
+  // seed-only 문서는 소비자에 없고 document-registry에도 없으므로 missing/orphan으로 표시되면 안 된다.
   const out = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
-  assert(!out.includes('body-release-checklist'), 'consumer doc-link-check must not flag the absent seed-only doc')
+  for (const docPath of SEED_ONLY_DOCS) {
+    assert(!out.includes(path.basename(docPath, '.md')), 'consumer doc-link-check must not flag the absent seed-only doc')
+  }
 }
 
 function reinstallRemovesPreexistingSeedOnlyDocWhenUnmodified() {
@@ -2000,7 +2008,9 @@ function seedModeTargetKeepsSeedOnlyDocs() {
   // seed-mode 마커가 있으면 본체 타깃으로 간주 → seed-only 문서를 그대로 설치한다.
   fs.writeFileSync(path.join(target, '.harness-seed-mode'), 'seed mode marker for test\n')
   runInit(target)
-  assert(exists(target, SEED_ONLY_DOC), 'seed-mode target must keep seed-only docs (body repo needs them)')
+  for (const docPath of SEED_ONLY_DOCS) {
+    assert(exists(target, docPath), 'seed-mode target must keep seed-only docs (body repo needs them)')
+  }
 }
 
 // 검증 캐시(0.2.70): 같은 git tree면 policy/doc-link/test-init/stack verify 전체를 스킵해 push/배포 중복 검사를 제거.

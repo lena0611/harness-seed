@@ -76,7 +76,7 @@
 - `CLAUDE.md`/`AGENTS.md`/`.github/copilot-instructions.md`의 마커 밖(소비자 영역) 내용(0.2.67 마커 머지, 옵션 A). 본체 업데이트는 `<!-- harness-managed:start -->`~`<!-- harness-managed:end -->` 블록 안(회사 영역)만 정본으로 갱신하고 블록 밖은 보존합니다. 프로젝트 고유 진입 지침은 `harness-managed:end` 마커 아래에 작성하세요. 마커 안과 소비자 영역이 충돌하면 `standards-layers.md`의 "충돌 해석 순서"를 따릅니다. 상세는 `.harness/policy/sync-protocol.md`.
 
 ## 소비자에 배포하지 않는 것
-- 본체(seed-mode) 전용 문서(0.2.69). 하네스 본체의 개발/배포/거버넌스 절차 문서(현재 `body-release-checklist.md`)는 설치된 소비자 프로젝트에 무의미하므로 `init`이 `.harness-seed-mode` 마커 없는 타깃(소비자)에는 복사하지 않고, 이전 버전이 설치한 기존본은 미수정이면 정리합니다. 소비자의 커밋/푸시 기준은 `commit-push-rules.md`를 따릅니다. 상세는 `.harness/policy/sync-protocol.md`.
+- 본체(seed-mode) 전용 문서(0.2.69). 하네스 본체의 개발/배포/로드맵/거버넌스처럼 소비자 프로젝트에 무의미하거나 노출하면 안 되는 문서는 seed-only 목록으로 관리합니다. `init`은 `.harness-seed-mode` 마커 없는 타깃(소비자)에 이 목록을 복사하지 않고, 이전 버전이 설치한 기존본은 미수정이면 정리합니다. 소비자의 커밋/푸시 기준은 `commit-push-rules.md`를 따릅니다. 상세는 `.harness/policy/sync-protocol.md`.
 
 ## 검증
 - 이식 직후 `npm run harness:check`를 실행합니다. CI나 릴리스 검증에서는 `npm run harness:check:strict`로 SYNC GAP을 실패 처리합니다.

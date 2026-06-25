@@ -122,6 +122,7 @@ const SEED_MODE_MARKER = '.harness-seed-mode';
 // (.harness/bin/doc-link-check.mjs의 seedOnlyDocs와 동기화 — 한쪽을 바꾸면 다른 쪽도 함께 갱신)
 const SEED_ONLY_DOC_PATHS = new Set([
   '.harness/project/body-release-checklist.md',
+  '.harness/project/body-roadmap.md',
 ]);
 
 const CONSUMER_SCRIPT_NAMES = [

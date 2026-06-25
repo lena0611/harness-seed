@@ -99,6 +99,7 @@ const dynamicArtifactPrefixes = [
 // (init.mjs의 SEED_ONLY_DOC_PATHS와 동기화 — 한쪽을 바꾸면 다른 쪽도 함께 갱신)
 const seedOnlyDocs = new Set([
   '.harness/project/body-release-checklist.md',
+  '.harness/project/body-roadmap.md',
 ])
 
 function toPosix(p) {
