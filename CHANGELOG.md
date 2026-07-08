@@ -4,6 +4,13 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.76 - 2026-07-08
+
+- 기존 AI 작업 룰 후보 리포트에 git 상태를 추가했습니다. 후보별로 `git tracked`, `.gitignore 적용됨`, `.gitignore 미적용`을 표시해 개인/임시 기준이 커밋될 위험을 바로 확인할 수 있습니다.
+- `project-scan-report.md`에 `Existing AI Rule Registration Guide` 섹션을 추가했습니다. 팀 기준으로 확정한 문서를 `.harness/policy/profile.json`의 `sources[]`에 어떤 형식으로 등록하는지, 등록하면 어떤 효과가 있는지 설명합니다.
+- `project-scan-report.md`와 `handoff.md`에 `Project Rule Authoring` 안내를 추가했습니다. 기존 에이전트 룰이 없는 프로젝트에서 작업방식/작업패턴 계약을 `.harness/project/domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`, `commit-push-rules.md` 중 어디에 기록할지 설명합니다.
+- `handoff.md`에도 팀 기준 등록 효과와 개인/임시 기준의 `.gitignore`/`git rm --cached` 조치 안내를 요약합니다.
+
 ## 0.2.75 - 2026-07-08
 
 - 공통 하네스 설치 기본 출력에서 내부 `node .harness/bin/...` 실행 명령과 원문 진단 로그를 숨기고, 설치 결과/스캔/인수인계/검사 성공 여부만 요약하도록 정리했습니다. 상세 로그는 실패 시 또는 `init --verbose`에서 확인합니다.

@@ -2,7 +2,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -55,6 +55,14 @@ function runGit(gitArgs) {
   } catch {
     return ''
   }
+}
+
+function gitExit(gitArgs) {
+  const result = spawnSync('git', gitArgs, {
+    cwd: repoRoot,
+    stdio: ['ignore', 'ignore', 'ignore'],
+  })
+  return result.status
 }
 
 function walk(dir, depth = 0, maxDepth = 3) {
@@ -510,12 +518,24 @@ function detectExistingAiRuleDocs(declaredSources) {
       rel,
       reason,
       declared: declaredPaths.has(rel),
+      gitTracked: gitExit(['ls-files', '--error-unmatch', rel]) === 0,
+      gitIgnored: gitExit(['check-ignore', '--quiet', rel]) === 0,
     })
   }
 
   return docs
     .sort((left, right) => left.rel.localeCompare(right.rel))
     .slice(0, 50)
+}
+
+function renderGitSafety(doc) {
+  if (doc.gitTracked) {
+    return 'git tracked'
+  }
+  if (doc.gitIgnored) {
+    return '.gitignore 적용됨'
+  }
+  return '.gitignore 미적용'
 }
 
 function renderExistingAiRuleHandling(existingAiRuleDocs) {
@@ -527,8 +547,49 @@ function renderExistingAiRuleHandling(existingAiRuleDocs) {
     '- 하네스는 위 후보 문서를 삭제하거나 자동 병합하지 않고 보존합니다.',
     '- 팀 전체가 항상 따라야 하는 기준이면 `.harness/policy/profile.json`의 `sources[]`에 등록합니다.',
     '- 개인 도구용 선호나 임시 프롬프트라면 팀 기준으로 승격하지 말고 개인/도구 전용 파일로 유지합니다.',
+    '- 개인/임시 기준은 `.gitignore` 적용 여부와 git tracked 상태를 확인합니다. `.gitignore 미적용`이면 ignore 패턴을 추가하고, `git tracked`이면 `git rm --cached <path>` 후 ignore 처리해야 커밋에서 빠집니다.',
     '- 등록 전에는 문서 소유자, 적용 범위, 하네스 기준과 충돌 여부를 확인합니다.',
   ].join('\n')
+}
+
+function renderExistingAiRuleRegistrationGuide(existingAiRuleDocs) {
+  if (existingAiRuleDocs.length === 0) {
+    return '- 등록할 기존 AI 작업 룰 후보가 없습니다.'
+  }
+
+  const firstUndeclared = existingAiRuleDocs.find((doc) => !doc.declared) ?? existingAiRuleDocs[0]
+
+  return `팀 전체가 따라야 하는 기준으로 확정한 문서만 \`.harness/policy/profile.json\`의 \`sources[]\`에 등록합니다. 하네스가 임의의 md를 모두 팀 기준으로 보면 일반 문서까지 오탐되므로 자동 등록하지 않습니다.
+
+예:
+
+\`\`\`json
+{
+  "path": "${firstUndeclared.rel}",
+  "kind": "methodology",
+  "owner": "team",
+  "inject": "always"
+}
+\`\`\`
+
+등록 효과:
+- \`harness:scan\`이 비표준 위치의 팀 기준으로 인식합니다.
+- \`inject: "always"\`이면 \`npm run harness:context -- "<작업 설명>"\`의 Always Read에 포함됩니다.
+- 하네스 업데이트와 스택 재적용 후에도 연결 정보가 보존됩니다.
+- \`kind\`가 \`methodology\`, \`rule\`, \`standard\`, \`convention\`이면 "로컬 개발방법론 없음" 같은 오탐 질문을 줄입니다.`
+}
+
+function renderProjectRuleAuthoringGuide() {
+  return `기존 에이전트 룰이 없거나 새 작업방식 계약을 추가해야 하면 \`.harness/project/*\`에 팀 기준으로 기록합니다.
+
+- \`.harness/project/domain-rules.md\`: 도메인 용어, 업무 규칙, 예외 조건
+- \`.harness/project/architecture-rules.md\`: 책임 경계, 데이터 흐름, 금지 구조
+- \`.harness/project/workflow-rules.md\`: 작업 순서, 리뷰/검증 방식, 반복 업무 패턴
+- \`.harness/project/commit-push-rules.md\`: 완료 승인, commit/push, hook 검증 기준
+- \`.harness/session/decision-log.md\`: 아직 영구 규칙으로 확정하지 않은 판단과 선택 이유
+- \`.harness/session/developer-input-queue.md\`: 팀 확인이 필요한 미결 질문
+
+하네스를 인지하는 에이전트는 작업 중 반복되는 규칙, 중요한 판단, 검증 기준이 드러나면 위 문서 중 맞는 위치에 후보를 남기거나 승격합니다. 단발성 구현 메모는 프로젝트 룰로 승격하지 않고, 불확실한 내용은 decision-log 또는 developer-input-queue에 남깁니다.`
 }
 
 function detectPersonalStandardFiles() {
@@ -905,12 +966,18 @@ ${formatList(
 
 ### Existing AI Rule Document Candidates
 ${formatList(
-  existingAiRuleDocs.map((doc) => `${doc.rel} (${doc.declared ? 'profile.json sources[] 등록됨' : '미등록 후보'}, ${doc.reason})`),
+  existingAiRuleDocs.map((doc) => `${doc.rel} (${doc.declared ? 'profile.json sources[] 등록됨' : '미등록 후보'}, ${doc.reason}, ${renderGitSafety(doc)})`),
   '- 감지 없음',
 )}
 
 ### Existing AI Rule Handling
 ${renderExistingAiRuleHandling(existingAiRuleDocs)}
+
+### Existing AI Rule Registration Guide
+${renderExistingAiRuleRegistrationGuide(existingAiRuleDocs)}
+
+### Project Rule Authoring Guide
+${renderProjectRuleAuthoringGuide()}
 
 ### Personal Standard Files
 ${formatList(personalStandardFiles)}

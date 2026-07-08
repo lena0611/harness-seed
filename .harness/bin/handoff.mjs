@@ -122,7 +122,24 @@ function renderExistingAiRuleSummary() {
 ${formatList(candidates.slice(0, 10))}
 ${candidates.length > 10 ? `- ... 외 ${candidates.length - 10}건` : ''}
 
-팀 공유 기준이면 \`.harness/policy/profile.json\`의 \`sources[]\`에 등록하고, 개인/임시 기준이면 도구 전용 파일로 분리 보존합니다.
+팀 공유 기준이면 \`.harness/policy/profile.json\`의 \`sources[]\`에 등록합니다. 등록하면 \`harness:scan\`이 팀 기준으로 인식하고, \`inject: "always"\`인 문서는 \`harness:context\`의 Always Read에 포함됩니다.
+
+개인/임시 기준이면 등록하지 말고 커밋 방지 상태를 확인합니다. 후보에 \`.gitignore 미적용\`이 보이면 ignore 패턴을 추가하고, \`git tracked\`가 보이면 \`git rm --cached <path>\` 후 ignore 처리해야 합니다.
+`
+}
+
+function renderProjectRuleAuthoringGuide() {
+  return `## Project Rule Authoring
+기존 에이전트 룰이 없거나 새 작업방식 계약을 정해야 하면 \`.harness/project/*\`에 팀 기준으로 기록합니다.
+
+- \`.harness/project/domain-rules.md\`: 도메인/업무 규칙
+- \`.harness/project/architecture-rules.md\`: 책임 경계/구조 기준
+- \`.harness/project/workflow-rules.md\`: 작업 순서/검증/반복 업무 패턴
+- \`.harness/project/commit-push-rules.md\`: 완료 승인, commit/push, hook 기준
+- \`.harness/session/decision-log.md\`: 확정 전 판단과 선택 이유
+- \`.harness/session/developer-input-queue.md\`: 팀 확인이 필요한 질문
+
+하네스를 인지하는 에이전트는 반복되는 규칙, 중요한 판단, 검증 기준이 드러나면 위 문서 중 맞는 위치에 후보를 남기거나 승격합니다. 단발성 구현 메모는 프로젝트 룰로 승격하지 않습니다.
 `
 }
 
@@ -193,6 +210,8 @@ npm run harness:check
 ${stackDecision}
 
 ${renderExistingAiRuleSummary()}
+
+${renderProjectRuleAuthoringGuide()}
 
 ## Read First
 - \`.harness/session/project-scan-report.md\`: 현재 프로젝트 구조, 스택, 스타일, 충돌 후보

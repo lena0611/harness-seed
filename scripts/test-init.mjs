@@ -2106,6 +2106,7 @@ function installReportsExistingAiRuleDocuments() {
   const target = makeTarget()
   fs.mkdirSync(path.join(target, 'docs/standards'), { recursive: true })
   fs.writeFileSync(path.join(target, 'docs/standards/agent-rules.md'), '# Agent Rules\n\nAlways keep existing team AI rules visible.\n')
+  run('git', ['add', 'docs/standards/agent-rules.md'], { cwd: target })
 
   const output = runInit(target)
   const report = read(target, '.harness/session/project-scan-report.md')
@@ -2114,10 +2115,31 @@ function installReportsExistingAiRuleDocuments() {
   assert(output.includes('기존 AI 작업 룰 후보 1건을 감지했습니다'), 'install output should summarize detected existing AI rule docs')
   assert(report.includes('### Existing AI Rule Document Candidates'), 'scan report should include existing AI rule candidate section')
   assert(report.includes('docs/standards/agent-rules.md (미등록 후보'), 'scan report should list the pre-existing AI rule doc as unregistered')
+  assert(report.includes('docs/standards/agent-rules.md (미등록 후보, rule-like markdown name, git tracked)'), 'scan report should show git tracked safety state')
   assert(report.includes('하네스는 위 후보 문서를 삭제하거나 자동 병합하지 않고 보존합니다'), 'scan report should explain preservation behavior')
   assert(report.includes('profile.json sources[]에 등록'), 'scan report should explain source registration')
+  assert(report.includes('### Existing AI Rule Registration Guide'), 'scan report should include registration guide section')
+  assert(report.includes('### Project Rule Authoring Guide'), 'scan report should include project rule authoring guide section')
+  assert(report.includes('"path": "docs/standards/agent-rules.md"'), 'registration guide should include a concrete sources[] path example')
+  assert(report.includes('inject: "always"'), 'registration guide should explain Always Read effect')
+  assert(report.includes('git rm --cached <path>'), 'scan report should explain tracked personal-rule removal')
+  assert(report.includes('.harness/project/workflow-rules.md'), 'project rule authoring guide should explain workflow rules target')
   assert(handoff.includes('## Existing AI Rules'), 'handoff should include existing AI rules summary')
   assert(handoff.includes('docs/standards/agent-rules.md'), 'handoff should repeat the detected AI rule doc')
+  assert(handoff.includes('git rm --cached <path>'), 'handoff should explain tracked personal-rule removal')
+  assert(handoff.includes('## Project Rule Authoring'), 'handoff should include project rule authoring guidance')
+}
+
+function scanReportsIgnoredAiRuleCandidates() {
+  const target = makeTarget()
+  fs.mkdirSync(path.join(target, '.cursor/rules'), { recursive: true })
+  fs.writeFileSync(path.join(target, '.cursor/rules/private.mdc'), '# Private Rule\n\nUse my temporary prompts.\n')
+  fs.writeFileSync(path.join(target, '.gitignore'), '.cursor/rules/private.mdc\n')
+
+  runInit(target)
+  const report = read(target, '.harness/session/project-scan-report.md')
+
+  assert(report.includes('.cursor/rules/private.mdc (미등록 후보, agent rule directory, .gitignore 적용됨)'), 'scan report should show ignored personal rule candidates')
 }
 
 function profileProjectSourcesDoNotTriggerInstallSyncGap() {
@@ -2221,6 +2243,7 @@ const tests = [
   buildContextMergesProfileAlwaysSources,
   scanValidatesDeclaredProjectSources,
   installReportsExistingAiRuleDocuments,
+  scanReportsIgnoredAiRuleCandidates,
   profileProjectSourcesDoNotTriggerInstallSyncGap,
 ]
 

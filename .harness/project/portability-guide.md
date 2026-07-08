@@ -32,7 +32,8 @@
 ## 기존 AI 작업 룰 문서 처리 계약
 - 기존 프로젝트에 `.cursor/rules/`, `.github/copilot-instructions.md`, `CLAUDE.md`, `AGENTS.md`, `docs/**/agent-rules.md`처럼 AI 에이전트 작업 기준으로 보이는 문서가 있으면 `harness:scan`의 `Existing AI Rule Document Candidates`에 후보로 기록합니다.
 - 이 후보는 자동 삭제, 자동 병합, 자동 `profile.json sources[]` 등록을 하지 않습니다. 설치기는 후보 수와 보존 사실만 콘솔에 짧게 보여주고, 실제 판단 기준은 `.harness/session/project-scan-report.md`와 `.harness/session/handoff.md`에 남깁니다.
-- 팀 공유 기준이면 개발자가 확인한 뒤 `.harness/policy/profile.json`의 `sources[]`에 등록합니다. 개인 도구용 선호나 임시 프롬프트면 팀 기준으로 승격하지 않고 도구 전용 파일로 분리 보존합니다.
+- 팀 공유 기준이면 개발자가 확인한 뒤 `.harness/policy/profile.json`의 `sources[]`에 등록합니다. 리포트는 등록 예시와 등록 효과(`harness:scan` 인식, `harness:context` Always Read 포함, 업데이트 후 보존)를 함께 표시합니다.
+- 개인 도구용 선호나 임시 프롬프트면 팀 기준으로 승격하지 않고 도구 전용 파일로 분리 보존합니다. 리포트는 후보별 git 상태를 `git tracked`, `.gitignore 적용됨`, `.gitignore 미적용`으로 표시합니다. 개인/임시 기준인데 `.gitignore 미적용`이면 ignore 패턴을 추가하고, `git tracked`이면 `git rm --cached <path>` 후 ignore 처리해야 합니다.
 - `CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`처럼 공통 하네스가 관리 블록을 가진 파일은 `harness-managed:end` 아래의 프로젝트 소유 영역만 후보 판단에 사용합니다.
 - 후보 탐지는 설치 UX 리포팅을 위한 휴리스틱입니다. 실제 적용 여부와 우선순위는 `standards-layers.md`와 `profile.json sources[]` 선언을 기준으로 확정합니다.
 

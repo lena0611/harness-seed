@@ -474,7 +474,33 @@ npm run harness:check -- --verbose
 - `owner`: 책임 주체(팀, 개인 등)
 - `inject`: `always`면 `harness:context`가 Always Read에 병합하고 `(project source: profile.json sources[])`로 표시합니다. 그 외 값이면 선언만 하고 자동 주입하지 않습니다.
 
-`npm run harness:scan`은 선언된 `path`가 실제 존재하는지만 검증하고(false positive 없음), 없으면 Open Questions로 표면화합니다. 또한 `.cursor/rules/`, `.github/copilot-instructions.md`, `CLAUDE.md`, `AGENTS.md`, `docs/**/agent-rules.md`처럼 기존 AI 작업 룰로 보이는 문서는 `Existing AI Rule Document Candidates`에 후보로 기록합니다. 이 후보는 자동 삭제, 자동 병합, 자동 `sources[]` 등록을 하지 않습니다. 팀 공유 기준으로 확정된 문서만 사용자가 `sources[]`에 등록하고, 개인/임시 프롬프트는 도구 전용 파일로 분리 보존합니다. 등록 절차는 `.harness/project/bootstrap.md`의 "비표준 위치 룰 등록" 단계를 따릅니다.
+`npm run harness:scan`은 선언된 `path`가 실제 존재하는지만 검증하고(false positive 없음), 없으면 Open Questions로 표면화합니다. 또한 `.cursor/rules/`, `.github/copilot-instructions.md`, `CLAUDE.md`, `AGENTS.md`, `docs/**/agent-rules.md`처럼 기존 AI 작업 룰로 보이는 문서는 `Existing AI Rule Document Candidates`에 후보로 기록합니다. 이 후보는 자동 삭제, 자동 병합, 자동 `sources[]` 등록을 하지 않습니다. 팀 공유 기준으로 확정된 문서만 사용자가 `sources[]`에 등록하고, 개인/임시 프롬프트는 도구 전용 파일로 분리 보존합니다. 후보에는 `git tracked`, `.gitignore 적용됨`, `.gitignore 미적용` 상태가 함께 표시됩니다. 개인/임시 기준인데 `.gitignore 미적용`이면 ignore 패턴을 추가하고, 이미 `git tracked`이면 `git rm --cached <path>` 후 ignore 처리해야 커밋에서 빠집니다. 등록 절차는 `.harness/project/bootstrap.md`의 "비표준 위치 룰 등록" 단계를 따릅니다.
+
+`Existing AI Rule Registration Guide`에는 바로 붙여 넣을 수 있는 `sources[]` 예시와 등록 효과가 표시됩니다.
+
+```json
+{
+  "path": "docs/dev-guide.md",
+  "kind": "methodology",
+  "owner": "team",
+  "inject": "always"
+}
+```
+
+등록하면 `harness:scan`이 해당 문서를 팀 기준으로 인식하고, `inject: "always"`인 문서는 `npm run harness:context -- "<작업 설명>"`의 Always Read에 포함됩니다. 이 연결 정보는 하네스 업데이트와 스택 재적용 후에도 보존됩니다.
+
+기존 에이전트 룰이 없는 프로젝트에서 새 작업방식이나 작업패턴 계약을 정해야 하면 `.harness/project/*`에 팀 기준으로 기록합니다.
+
+| 파일 | 기록할 내용 |
+| --- | --- |
+| `.harness/project/domain-rules.md` | 도메인 용어, 업무 규칙, 예외 조건 |
+| `.harness/project/architecture-rules.md` | 책임 경계, 데이터 흐름, 금지 구조 |
+| `.harness/project/workflow-rules.md` | 작업 순서, 리뷰/검증 방식, 반복 업무 패턴 |
+| `.harness/project/commit-push-rules.md` | 완료 승인, commit/push, hook 검증 기준 |
+| `.harness/session/decision-log.md` | 아직 영구 규칙으로 확정하지 않은 판단과 선택 이유 |
+| `.harness/session/developer-input-queue.md` | 팀 확인이 필요한 미결 질문 |
+
+하네스를 인지하는 에이전트는 반복되는 규칙, 중요한 판단, 검증 기준이 드러나면 위 문서 중 맞는 위치에 후보를 남기거나 승격합니다. 단발성 구현 메모는 프로젝트 룰로 승격하지 않습니다.
 
 ## 주요 명령
 

@@ -2124,7 +2124,7 @@ function main() {
       console.log(`  - 하네스 기준 검사를 실행했습니다. (check ${diagnostics.check})`);
       if (existingAiRuleCandidates.length > 0) {
         console.log(`  - 기존 AI 작업 룰 후보 ${existingAiRuleCandidates.length}건을 감지했습니다. 하네스는 삭제/병합하지 않고 보존합니다.`);
-        console.log('    처리 기준은 .harness/session/project-scan-report.md 와 .harness/session/handoff.md 에 기록했습니다.');
+        console.log('    팀 기준 등록과 개인용 gitignore/tracked 처리 기준은 .harness/session/project-scan-report.md 와 .harness/session/handoff.md 에 기록했습니다.');
       }
     }
 
