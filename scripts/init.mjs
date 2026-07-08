@@ -2149,6 +2149,7 @@ function main() {
       console.log('');
       console.log('::: 설치 결과 요약 :::');
       console.log(`  - 공통 기준 파일을 설치/갱신했습니다. (추가 ${installed.added}, 갱신 ${installed.updated}, 보존 ${installed.skipped})`);
+      console.log(`  - 설치 버전: 공통 하네스 v${writtenLock.baseHarness.version}`);
       console.log(`  - project state: ${projectState.added}개 추가, ${projectState.updated}개 교체, ${projectState.preserved}개 보존`);
       if (pkg.skippedCreation) {
         console.log('  - package.json: 없음 → 생성하지 않음. 비-Node 프로젝트는 .harness/bin/harness 명령을 사용합니다.');
@@ -2338,6 +2339,7 @@ function main() {
 
 ::: 현재 상태 :::
   - 공통 개발 기준만 설치되었습니다.
+  - 설치 버전: 공통 하네스 v${writtenLock?.baseHarness?.version ?? sourcePkg.version ?? 'dry-run'}
   - 스택 기준은 아직 적용되지 않았습니다.
   - 맞는 스택 하네스가 있으면 추가 적용하고, 없으면 공통 기준만으로 운영해도 됩니다.
   - 다만 공통 기준만 유지한다면 그 이유를 프로젝트 판단 기록에 남기는 것이 좋습니다.
