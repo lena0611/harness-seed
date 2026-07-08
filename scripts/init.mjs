@@ -1314,7 +1314,7 @@ function renderNodeStep(target = TARGET) {
   }
 
   return `  0) 프로젝트 .nvmrc 없음
-       nvm use 단계는 건너뜁니다. Node 계약을 정하려면 .nvmrc를 추가하거나 init --project-node <version>을 사용하세요.`;
+       Node 버전 적용 단계는 건너뜁니다. Node 계약을 정하려면 .nvmrc를 추가하거나 init --project-node <version>을 사용하세요.`;
 }
 
 function renderHookStep(target = TARGET, index = 7) {
