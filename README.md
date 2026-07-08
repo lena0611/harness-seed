@@ -85,7 +85,7 @@ npx -y git+<stack-harness-repo-url>#<tag> init
 
 ### 2. 스캔 리포트 확인
 
-설치 후 `.harness/session/project-scan-report.md`를 먼저 봅니다. 이 리포트에는 감지된 기술 스택, 기존 스타일 설정, 기존 룰 문서, 충돌 후보, 확인 질문이 정리됩니다.
+설치 후 `.harness/session/project-scan-report.md`를 먼저 봅니다. 이 리포트에는 감지된 기술 스택, 기존 스타일 설정, 기존 AI 작업 룰 후보, 충돌 후보, 확인 질문이 정리됩니다.
 
 다시 스캔하려면 다음 명령을 실행합니다.
 
@@ -298,7 +298,7 @@ npm run harness:update -- --force --confirm-overwrite-project-files
 기존 프로젝트에 공통 하네스를 설치하면 다음 원칙을 따릅니다.
 
 1. 기존 업무 코드는 덮어쓰지 않습니다.
-2. 기존 하네스나 개인 룰 파일이 있으면 먼저 보존합니다.
+2. 기존 하네스나 개인/전용 AI 룰 파일이 있으면 먼저 보존합니다.
 3. 공통 하네스 설치기가 만든 파일은 `.harness/install-manifest.json`으로 추적합니다.
 4. 실제 설치된 공통/스택 하네스 버전은 `.harness/harness-lock.json`으로 추적합니다.
 5. 출처를 알 수 없는 기존 파일은 기본적으로 프로젝트 소유로 봅니다.
@@ -309,7 +309,7 @@ npm run harness:update -- --force --confirm-overwrite-project-files
 | 기존 프로젝트에 있는 것 | 공통 하네스 설치기의 처리 |
 | --- | --- |
 | 기존 코드 스타일 설정 | 스타일 출처로 감지하고 초안 작성 |
-| 기존 개인/전용 룰 문서 | 보존하고 브리지 섹션 후보 제안 |
+| 기존 개인/전용 AI 룰 문서 | 보존하고 스캔/인수인계 리포트에 후보와 등록 기준 안내 |
 | 기존 아키텍처 규칙 | 로컬 방법론 문서에 연결 |
 | 기존 테스트/빌드 명령 | 검증 후보로 감지 |
 | 기존 CI | 보존하고 필요한 check 연결만 검토 |
@@ -407,7 +407,8 @@ npm run harness:check
 - 회사/스택/템플릿/프로젝트/개인 기준 계층
 - 공통/스택 하네스 버전 상태
 - 기준 충돌 후보
-- 기존 룰 문서와 하네스 연결 후보
+- 기존 AI 작업 룰 후보와 보존/등록 기준
+- 기존 룰 문서와 하네스 브리지 후보
 - 확인이 필요한 질문
 
 `harness:check`는 현재 하네스 기준으로 문서, 검증 기준, 링크, 적용된 스택 상태를 검사합니다. 스택이 아직 적용되지 않았으면 기준 동기화와 문서 검사만 실행하고 lint/test/build는 건너뜁니다.
@@ -473,7 +474,7 @@ npm run harness:check -- --verbose
 - `owner`: 책임 주체(팀, 개인 등)
 - `inject`: `always`면 `harness:context`가 Always Read에 병합하고 `(project source: profile.json sources[])`로 표시합니다. 그 외 값이면 선언만 하고 자동 주입하지 않습니다.
 
-`npm run harness:scan`은 선언된 `path`가 실제 존재하는지만 검증하고(false positive 없음), 없으면 Open Questions로 표면화합니다. 등록 절차는 `.harness/project/bootstrap.md`의 "비표준 위치 룰 등록" 단계를 따릅니다.
+`npm run harness:scan`은 선언된 `path`가 실제 존재하는지만 검증하고(false positive 없음), 없으면 Open Questions로 표면화합니다. 또한 `.cursor/rules/`, `.github/copilot-instructions.md`, `CLAUDE.md`, `AGENTS.md`, `docs/**/agent-rules.md`처럼 기존 AI 작업 룰로 보이는 문서는 `Existing AI Rule Document Candidates`에 후보로 기록합니다. 이 후보는 자동 삭제, 자동 병합, 자동 `sources[]` 등록을 하지 않습니다. 팀 공유 기준으로 확정된 문서만 사용자가 `sources[]`에 등록하고, 개인/임시 프롬프트는 도구 전용 파일로 분리 보존합니다. 등록 절차는 `.harness/project/bootstrap.md`의 "비표준 위치 룰 등록" 단계를 따릅니다.
 
 ## 주요 명령
 

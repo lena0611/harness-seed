@@ -12,7 +12,7 @@
 1. 기존 프로젝트 루트에서 프로젝트에 맞는 스택 하네스의 `npx -y git+<stack-harness-repo-url>#<tag> init`을 실행합니다. 안정 재현을 위해 `main`/`master` 대신 릴리스 tag를 사용합니다.
 2. 스택 하네스가 내부적으로 공통 하네스를 설치하거나 업데이트하고, 자기 스택 기준을 로컬룰로 정착했는지 확인합니다.
 3. `.harness/harness-lock.json`에서 실제 설치된 공통 하네스와 스택 하네스의 repo, ref, version을 확인합니다.
-4. `.harness/session/project-scan-report.md`에서 기존 프로젝트 기준, 스타일 출처, 버전 상태, 충돌 후보를 확인합니다.
+4. `.harness/session/project-scan-report.md`에서 기존 프로젝트 기준, 기존 AI 작업 룰 후보, 스타일 출처, 버전 상태, 충돌 후보를 확인합니다.
 5. `npm run hooks:install`로 로컬 hook을 연결합니다.
 6. scaffold가 필요하면 `npm run templates:list`로 별도 템플릿 후보를 확인하고 `template:apply`로 적용합니다.
 7. scaffold 템플릿이 적용되었으면 `.harness/project/template-contract.md`에서 템플릿 사용 계약 브리지를 확인합니다.
@@ -29,6 +29,13 @@
 - 어댑터를 추가하거나 제거하면 `package.json` files 목록, `scripts/init.mjs`, `scripts/test-init.mjs`, README, sync protocol을 함께 갱신합니다.
 - 응답 형식 리마인더처럼 런타임 행동을 보강하는 항목은 정적 검사로 강제하지 않고, 어댑터 주입 문구와 진입점 문서로 유지합니다.
 
+## 기존 AI 작업 룰 문서 처리 계약
+- 기존 프로젝트에 `.cursor/rules/`, `.github/copilot-instructions.md`, `CLAUDE.md`, `AGENTS.md`, `docs/**/agent-rules.md`처럼 AI 에이전트 작업 기준으로 보이는 문서가 있으면 `harness:scan`의 `Existing AI Rule Document Candidates`에 후보로 기록합니다.
+- 이 후보는 자동 삭제, 자동 병합, 자동 `profile.json sources[]` 등록을 하지 않습니다. 설치기는 후보 수와 보존 사실만 콘솔에 짧게 보여주고, 실제 판단 기준은 `.harness/session/project-scan-report.md`와 `.harness/session/handoff.md`에 남깁니다.
+- 팀 공유 기준이면 개발자가 확인한 뒤 `.harness/policy/profile.json`의 `sources[]`에 등록합니다. 개인 도구용 선호나 임시 프롬프트면 팀 기준으로 승격하지 않고 도구 전용 파일로 분리 보존합니다.
+- `CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`처럼 공통 하네스가 관리 블록을 가진 파일은 `harness-managed:end` 아래의 프로젝트 소유 영역만 후보 판단에 사용합니다.
+- 후보 탐지는 설치 UX 리포팅을 위한 휴리스틱입니다. 실제 적용 여부와 우선순위는 `standards-layers.md`와 `profile.json sources[]` 선언을 기준으로 확정합니다.
+
 ## Node 런타임 계약
 - 하네스 실행 최소 Node는 `20.19.0`입니다. 하네스 스크립트는 이 버전에서 동작하도록 유지합니다.
 - `package.json`의 `engines.node`는 `>=20.19.0`로 고정합니다.
@@ -40,6 +47,7 @@
 - 저버전 `.nvmrc` 프로젝트에서 해당 Node가 nvm에 없으면 guard는 프로젝트 검증을 하네스 Node로 대신 실행하지 않고 `nvm install <ver>` 안내와 함께 실패합니다(검증 신뢰성 우선).
 - Node 20은 2026-04-30에 EOL이므로 신규 프로젝트는 Jenkins 검증이 준비되는 대로 Node 22/24 전환을 검토합니다.
 - 낮은 Node에서 harness 명령을 실행하면 `.harness/bin/check-node-version.mjs`가 먼저 실패해 문법 에러 대신 업그레이드/dual-runtime 안내를 보여줍니다. Windows(nvm-windows)는 dual-runtime 전환 없이 PATH node + 게이트 거동을 유지합니다.
+- npm이 `npm_config_prefix` 같은 prefix 환경변수를 주입한 상태에서 런처나 hook이 nvm을 source하면 nvm이 경고 후 실패할 수 있습니다. 하네스 런처와 git hook은 nvm 로딩 직전에 `npm_config_prefix`, `NPM_CONFIG_PREFIX`, `PREFIX`를 제거해 이 환경에서도 같은 검증 경로를 유지합니다.
 - 최소 버전을 올릴 때 함께 바꿀 파일: `.harness/bin/check-node-version.mjs`, `.harness/bin/dual-node.sh`, `.harness/bin/node-env.mjs`, `scripts/init.mjs`, `package.json engines`.
 - 각 프리셋이 추가 런타임 제약을 갖는 경우 해당 프리셋의 instruction 또는 manifest에 기록합니다.
 

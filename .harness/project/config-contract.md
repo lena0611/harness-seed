@@ -28,3 +28,5 @@
 - npm 없이 하네스를 실행하는 `.harness/bin/harness` 런처도 각 명령 dispatch 전에 `.harness/bin/check-node-version.mjs`를 먼저 호출해 최소 Node(20.19+)를 강제합니다. npm 경로(`npm run node:check`)와 동일한 런타임 계약을 npm 없는 비-Node 프로젝트에도 적용하기 위함입니다.
 - 플랫폼 어댑터(`.claude/`, `.codex/`, `.github/copilot-instructions*`) 설치와 갱신은 하네스 실행 표면 설정이며 프로젝트 런타임 `.nvmrc`, Jenkins Node 계약, 애플리케이션 환경값 계약을 바꾸지 않습니다.
 - `.claude/settings.json`은 project-owned 설정이지만, 에이전트 안전 훅 wiring이 빠지지 않도록 `init`이 하네스의 hooks/permissions(deny·allow)/env/statusLine을 기존 소비자 설정에 멱등·비파괴로 병합합니다. 기존 키와 값은 보존하고 누락된 안전 표면만 추가하며, 이 병합은 프로젝트 런타임/환경값 계약을 바꾸지 않습니다.
+- `init` 기본 출력은 설치 결과, 자동 스캔/인수인계/검사 성공 여부, 기존 AI 작업 룰 후보 수만 요약합니다. 내부 `node .harness/bin/...` 실행 명령과 원문 진단 로그는 실패 시 또는 `init --verbose`에서만 표시합니다. 이는 콘솔 표시 계약이며 설치 manifest, lock, Node 런타임 계약을 바꾸지 않습니다.
+- 기존 AI 작업 룰 후보 감지는 리포팅 계약입니다. 하네스는 후보 문서를 자동으로 `profile.json sources[]`에 쓰지 않고, 팀 공유 기준으로 확정된 항목만 사용자가 프로젝트 소유 설정으로 등록합니다.

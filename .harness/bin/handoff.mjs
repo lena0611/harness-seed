@@ -87,6 +87,45 @@ function readPackageScripts() {
   return Object.keys(pkg.scripts ?? {}).sort()
 }
 
+function readScanSection(title) {
+  const rel = '.harness/session/project-scan-report.md'
+  if (!exists(rel)) return []
+
+  const content = fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+  const marker = `### ${title}`
+  const start = content.indexOf(marker)
+  if (start < 0) return []
+
+  const afterMarker = content.slice(start + marker.length)
+  const next = afterMarker.search(/\n### |\n## /)
+  const section = (next >= 0 ? afterMarker.slice(0, next) : afterMarker).trim()
+
+  return section
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('- ') && !line.includes('감지 없음'))
+    .map((line) => line.replace(/^-\s+/, ''))
+}
+
+function renderExistingAiRuleSummary() {
+  const candidates = readScanSection('Existing AI Rule Document Candidates')
+
+  if (candidates.length === 0) {
+    return `## Existing AI Rules
+- 기존 AI 작업 룰 후보 감지 없음
+`
+  }
+
+  return `## Existing AI Rules
+설치 전부터 있던 AI 작업 룰 후보입니다. 하네스는 자동 삭제/병합하지 않고 보존합니다.
+
+${formatList(candidates.slice(0, 10))}
+${candidates.length > 10 ? `- ... 외 ${candidates.length - 10}건` : ''}
+
+팀 공유 기준이면 \`.harness/policy/profile.json\`의 \`sources[]\`에 등록하고, 개인/임시 기준이면 도구 전용 파일로 분리 보존합니다.
+`
+}
+
 function buildReport() {
   const profile = readJson('.harness/policy/profile.json', {})
   const lock = readJson('.harness/harness-lock.json', {})
@@ -152,6 +191,8 @@ npm run harness:check
 - scaffoldTemplate: ${template ? `${template.version ?? 'unknown'} (${template.ref ?? 'unknown'})` : 'none'}
 
 ${stackDecision}
+
+${renderExistingAiRuleSummary()}
 
 ## Read First
 - \`.harness/session/project-scan-report.md\`: 현재 프로젝트 구조, 스택, 스타일, 충돌 후보

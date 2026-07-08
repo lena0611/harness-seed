@@ -4,6 +4,14 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.75 - 2026-07-08
+
+- 공통 하네스 설치 기본 출력에서 내부 `node .harness/bin/...` 실행 명령과 원문 진단 로그를 숨기고, 설치 결과/스캔/인수인계/검사 성공 여부만 요약하도록 정리했습니다. 상세 로그는 실패 시 또는 `init --verbose`에서 확인합니다.
+- `harness:scan`이 기존 프로젝트의 AI 작업 룰 후보(`.cursor/rules/`, `.github/copilot-instructions.md`, `CLAUDE.md`, `AGENTS.md`, `docs/**/agent-rules.md` 등)를 별도 섹션으로 감지합니다. 후보는 자동 삭제·자동 병합·자동 `profile.json sources[]` 등록 없이 보존하고, 팀 공유 기준인지 개인/임시 기준인지 판단하도록 안내합니다.
+- 설치 직후 콘솔과 `.harness/session/handoff.md`가 기존 AI 작업 룰 후보 수와 처리 기준을 함께 보여주도록 했습니다.
+- npm이 `npm_config_prefix`를 주입한 환경에서 하네스 런처나 git hook이 nvm을 source하다가 멈추는 문제를 방지했습니다. 런처/hook은 nvm 로딩 전에 npm prefix 환경변수를 제거합니다.
+- init smoke test에 기존 AI 작업 룰 문서 감지/리포팅 회귀를 추가했습니다.
+
 ## 0.2.74 - 2026-06-25
 
 - 소비자 프로젝트가 `.harness/policy/profile.json`의 `harnessMode`나 `sources[]`를 직접 편집하면 `common.install.preserve-project-owned-files`가 blocking SYNC GAP을 내던 과매칭을 수정했습니다. `profile.json`은 PROJECT_OWNED 보존 대상이지만 install/update 구현 변경을 뜻하는 source trigger는 아니므로, preserve 정책의 `triggerPaths`에서 제외했습니다.

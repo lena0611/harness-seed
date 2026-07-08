@@ -361,6 +361,9 @@ function launcherRunsHarnessWithoutNpm() {
 
   const help = run(launcher, ['--help'], { cwd: target })
   assert(help.includes('Usage: harness'), 'launcher --help should print usage')
+  const prefixEnv = { ...process.env, npm_config_prefix: '/opt/homebrew', NPM_CONFIG_PREFIX: '/opt/homebrew' }
+  const helpWithNpmPrefix = run(launcher, ['--help'], { cwd: target, env: prefixEnv })
+  assert(helpWithNpmPrefix.includes('Usage: harness'), 'launcher should tolerate npm_config_prefix when sourcing nvm')
 
   // npm/package.json 없이 통합 검사가 동작해야 한다(activeStack=none → 일반 검사 후 종료).
   const checkOut = run(launcher, ['check'], { cwd: target })
@@ -431,8 +434,9 @@ function gitHooksRunWithoutNpm() {
 
   // 실제 hook 스크립트를 직접 실행해 npm 없이 통과하는지 e2e 확인
   // (consumer: previous hook 없음, seed-mode 없음, activeStack=none → 일반 검사 통과).
-  run('sh', [path.join(target, '.githooks/pre-commit')], { cwd: target })
-  run('sh', [path.join(target, '.githooks/pre-push')], { cwd: target })
+  const prefixEnv = { ...process.env, npm_config_prefix: '/opt/homebrew', NPM_CONFIG_PREFIX: '/opt/homebrew' }
+  run('sh', [path.join(target, '.githooks/pre-commit')], { cwd: target, env: prefixEnv })
+  run('sh', [path.join(target, '.githooks/pre-push')], { cwd: target, env: prefixEnv })
 }
 
 function makeVerifyPreset() {
@@ -2098,6 +2102,24 @@ function scanValidatesDeclaredProjectSources() {
   assert(/sources\[\]에 선언된 경로가 실제로 없습니다/.test(report), 'scan should raise an open question for a missing declared source path')
 }
 
+function installReportsExistingAiRuleDocuments() {
+  const target = makeTarget()
+  fs.mkdirSync(path.join(target, 'docs/standards'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'docs/standards/agent-rules.md'), '# Agent Rules\n\nAlways keep existing team AI rules visible.\n')
+
+  const output = runInit(target)
+  const report = read(target, '.harness/session/project-scan-report.md')
+  const handoff = read(target, '.harness/session/handoff.md')
+
+  assert(output.includes('기존 AI 작업 룰 후보 1건을 감지했습니다'), 'install output should summarize detected existing AI rule docs')
+  assert(report.includes('### Existing AI Rule Document Candidates'), 'scan report should include existing AI rule candidate section')
+  assert(report.includes('docs/standards/agent-rules.md (미등록 후보'), 'scan report should list the pre-existing AI rule doc as unregistered')
+  assert(report.includes('하네스는 위 후보 문서를 삭제하거나 자동 병합하지 않고 보존합니다'), 'scan report should explain preservation behavior')
+  assert(report.includes('profile.json sources[]에 등록'), 'scan report should explain source registration')
+  assert(handoff.includes('## Existing AI Rules'), 'handoff should include existing AI rules summary')
+  assert(handoff.includes('docs/standards/agent-rules.md'), 'handoff should repeat the detected AI rule doc')
+}
+
 function profileProjectSourcesDoNotTriggerInstallSyncGap() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -2198,6 +2220,7 @@ const tests = [
   guardCacheMissAfterTreeChange,
   buildContextMergesProfileAlwaysSources,
   scanValidatesDeclaredProjectSources,
+  installReportsExistingAiRuleDocuments,
   profileProjectSourcesDoNotTriggerInstallSyncGap,
 ]
 

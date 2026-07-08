@@ -416,6 +416,121 @@ function detectDeclaredSources(profile) {
   return { declared, missing, present, ruleLike }
 }
 
+const AI_RULE_KNOWN_PATHS = new Set([
+  '.cursorrules',
+  '.clinerules',
+  '.windsurfrules',
+  '.aider.conf.md',
+  'CLAUDE.md',
+  'AGENTS.md',
+  'GEMINI.md',
+  'CODEX.md',
+  'AIDER.md',
+  'AI.md',
+  'AI_RULES.md',
+  'ai-rules.md',
+  '.github/copilot-instructions.md',
+])
+
+const AI_RULE_DIR_PREFIXES = [
+  '.cursor/rules/',
+  '.github/instructions/',
+  '.github/copilot-instructions/',
+  '.claude/',
+  '.codex/',
+]
+
+const AI_RULE_NAME_PATTERN = /(^|[-_.\s])(ai|agent|agents|assistant|claude|codex|copilot|cursor|cline|windsurf|aider|gemini|prompt|instruction|instructions|rule|rules|standard|standards|guideline|guidelines|convention|conventions|methodology)([-_.\s]|$)/i
+
+function isMarkdownLikeRuleFile(rel) {
+  return /\.(md|mdc|markdown)$/i.test(rel) || AI_RULE_KNOWN_PATHS.has(rel)
+}
+
+function stripHarnessManagedRegion(content) {
+  if (!content.includes('harness-managed:start')) return content
+  return content.replace(/<!-- harness-managed:start -->[\s\S]*?<!-- harness-managed:end -->/g, '')
+}
+
+function hasProjectOwnedRuleContent(rel) {
+  const content = readText(rel)
+  if (!content) return false
+
+  const projectOwned = stripHarnessManagedRegion(content)
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/^\s*#.*$/gm, '')
+    .trim()
+
+  return projectOwned.length > 0
+}
+
+function isHarnessGeneratedRulePath(rel) {
+  return rel.startsWith('.harness/')
+    || rel.startsWith('.harness-backup/')
+    || rel.startsWith('.claude/agents/')
+    || rel.startsWith('.claude/commands/')
+    || rel.startsWith('.claude/hooks/')
+    || rel.startsWith('.codex/hooks/')
+    || rel.startsWith('.github/copilot-instructions/')
+    || rel === '.claude/README.md'
+}
+
+function classifyExistingAiRuleDoc(rel) {
+  if (isHarnessGeneratedRulePath(rel) || !isMarkdownLikeRuleFile(rel)) return null
+
+  const base = path.basename(rel)
+  const lowerRel = rel.toLowerCase()
+  const lowerBase = base.toLowerCase()
+
+  if (AI_RULE_KNOWN_PATHS.has(rel)) {
+    return hasProjectOwnedRuleContent(rel) ? 'known agent entrypoint' : null
+  }
+
+  if (AI_RULE_DIR_PREFIXES.some((prefix) => lowerRel.startsWith(prefix))) {
+    return hasProjectOwnedRuleContent(rel) ? 'agent rule directory' : null
+  }
+
+  if (!AI_RULE_NAME_PATTERN.test(lowerBase) && !AI_RULE_NAME_PATTERN.test(lowerRel)) {
+    return null
+  }
+
+  return hasProjectOwnedRuleContent(rel) ? 'rule-like markdown name' : null
+}
+
+function detectExistingAiRuleDocs(declaredSources) {
+  const declaredPaths = new Set((declaredSources?.declared ?? []).map((source) => source.path))
+  const docs = []
+
+  for (const { rel, entry } of walk(repoRoot, 0, 5)) {
+    if (!entry.isFile()) continue
+
+    const reason = classifyExistingAiRuleDoc(rel)
+    if (!reason) continue
+
+    docs.push({
+      rel,
+      reason,
+      declared: declaredPaths.has(rel),
+    })
+  }
+
+  return docs
+    .sort((left, right) => left.rel.localeCompare(right.rel))
+    .slice(0, 50)
+}
+
+function renderExistingAiRuleHandling(existingAiRuleDocs) {
+  if (existingAiRuleDocs.length === 0) {
+    return '- 기존 AI 작업 룰 후보를 찾지 못했습니다.'
+  }
+
+  return [
+    '- 하네스는 위 후보 문서를 삭제하거나 자동 병합하지 않고 보존합니다.',
+    '- 팀 전체가 항상 따라야 하는 기준이면 `.harness/policy/profile.json`의 `sources[]`에 등록합니다.',
+    '- 개인 도구용 선호나 임시 프롬프트라면 팀 기준으로 승격하지 말고 개인/도구 전용 파일로 유지합니다.',
+    '- 등록 전에는 문서 소유자, 적용 범위, 하네스 기준과 충돌 여부를 확인합니다.',
+  ].join('\n')
+}
+
 function detectPersonalStandardFiles() {
   return listExisting([
     'CLAUDE.local.md',
@@ -682,6 +797,8 @@ function buildReport() {
   const docs = detectDocs()
   const localMethodologyFiles = detectLocalMethodologyFiles()
   const declaredSources = detectDeclaredSources(profile)
+  const existingAiRuleDocs = detectExistingAiRuleDocs(declaredSources)
+  const unregisteredAiRuleDocs = existingAiRuleDocs.filter((doc) => !doc.declared)
   const personalStandardFiles = detectPersonalStandardFiles()
   const companyStandardFiles = detectCompanyStandardFiles()
   const stackStandardFiles = detectStackStandardFiles(profile)
@@ -716,6 +833,9 @@ function buildReport() {
   }
   if (localMethodologyFiles.length === 0 && declaredSources.ruleLike.length === 0) {
     questions.push('로컬 개발방법론 문서가 없습니다. `.harness/project/local-methodology.md` 계층을 확인하거나, 비표준 위치에 룰을 둔다면 `.harness/policy/profile.json` `sources[]`에 등록하세요.')
+  }
+  if (unregisteredAiRuleDocs.length > 0) {
+    questions.push(`기존 AI 작업 룰 후보가 감지되었습니다: ${unregisteredAiRuleDocs.map((doc) => doc.rel).join(', ')}. 팀 공유 기준이면 profile.json sources[]에 등록하고, 개인/임시 기준이면 그대로 분리 보존하세요.`)
   }
   if (declaredSources.missing.length > 0) {
     questions.push(`profile.json sources[]에 선언된 경로가 실제로 없습니다: ${declaredSources.missing.map((source) => source.path).join(', ')}. 경로를 고치거나 항목을 제거하세요.`)
@@ -782,6 +902,15 @@ ${formatList(
   declaredSources.declared.map((source) => `${source.path} (kind: ${source.kind ?? '미지정'}, inject: ${source.inject ?? '미지정'}, ${exists(source.path) ? 'exists' : 'MISSING'})`),
   '- profile.json sources[]에 선언된 비표준 위치 룰 없음',
 )}
+
+### Existing AI Rule Document Candidates
+${formatList(
+  existingAiRuleDocs.map((doc) => `${doc.rel} (${doc.declared ? 'profile.json sources[] 등록됨' : '미등록 후보'}, ${doc.reason})`),
+  '- 감지 없음',
+)}
+
+### Existing AI Rule Handling
+${renderExistingAiRuleHandling(existingAiRuleDocs)}
 
 ### Personal Standard Files
 ${formatList(personalStandardFiles)}

@@ -471,6 +471,7 @@ Options:
   --no-handoff           설치/업데이트 인수인계 요약을 자동 생성하지 않습니다.
   --no-check             설치 후 하네스 기본 검사를 자동 실행하지 않습니다.
   --embedded             스택 하네스 설치 흐름 내부에서 호출될 때 중간 안내를 줄입니다.
+  --verbose              설치 내부 명령과 진단 출력을 자세히 표시합니다.
   --with-package-json    package.json이 없을 때도 새로 만들어 harness npm 별칭을 주입합니다(기본은 비-Node 프로젝트로 보고 생성하지 않음).
   --project-node <ver>   .nvmrc가 없을 때 프로젝트 Node 버전을 사용자 확인 기반으로 .nvmrc에 기록합니다(예: 12, 12.18.4).
                          20.19 미만 버전은 dual-runtime 모드(하네스 Node와 프로젝트 Node 분리)로 동작합니다.
@@ -497,6 +498,7 @@ function parseArgs(argv) {
     noHandoff: false,
     noCheck: false,
     embedded: false,
+    verbose: false,
     withPackageJson: false,
     projectNode: null,
     fromGit: null,
@@ -538,6 +540,9 @@ function parseArgs(argv) {
         break;
       case '--embedded':
         opts.embedded = true;
+        break;
+      case '--verbose':
+        opts.verbose = true;
         break;
       case '--with-package-json':
         opts.withPackageJson = true;
@@ -1291,7 +1296,7 @@ function ensureCurrentWorkHistoryYear(target, opts) {
 
 function printConsumerCommandGuide() {
   console.log(`
-소비자 명령 빠른 안내:
+::: 소비자 명령 빠른 안내 :::
   - 현재 상태 가이드 열기
        npm run harness:guide -- --open
   - 프로젝트 구조와 로컬룰 후보 다시 스캔
@@ -1867,17 +1872,62 @@ function ensureExecutable(target, opts) {
   }
 }
 
-function runPostInstallStep(target, title, commandArgs) {
-  console.log('');
-  console.log(title);
-  console.log(`$ ${commandArgs.join(' ')}`);
+function readScanSectionLines(target, title) {
+  const rel = '.harness/session/project-scan-report.md';
+  const abs = join(target, rel);
+  if (!existsSync(abs)) return [];
 
+  const content = readFileSync(abs, 'utf8');
+  const marker = `### ${title}`;
+  const start = content.indexOf(marker);
+  if (start < 0) return [];
+
+  const afterMarker = content.slice(start + marker.length);
+  const next = afterMarker.search(/\n### |\n## /);
+  const section = (next >= 0 ? afterMarker.slice(0, next) : afterMarker).trim();
+
+  return section
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('- ') && !line.includes('감지 없음'));
+}
+
+function readExistingAiRuleCandidates(target) {
+  return readScanSectionLines(target, 'Existing AI Rule Document Candidates');
+}
+
+function runPostInstallStep(target, title, commandArgs, opts) {
+  if (opts.verbose) {
+    console.log('');
+    console.log(title);
+    console.log(`$ ${commandArgs.join(' ')}`);
+
+    const verboseResult = spawnSync(commandArgs[0], commandArgs.slice(1), {
+      cwd: target,
+      stdio: 'inherit',
+    });
+
+    return verboseResult.status === 0;
+  }
+
+  process.stdout.write(`- ${title}... `);
   const result = spawnSync(commandArgs[0], commandArgs.slice(1), {
     cwd: target,
-    stdio: 'inherit',
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
 
-  return result.status === 0;
+  if (result.status === 0) {
+    console.log('완료');
+    return true;
+  }
+
+  console.log('실패');
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
+  if (output) {
+    console.log(output);
+  }
+  return false;
 }
 
 function runPostInstallDiagnostics(target, opts) {
@@ -1890,24 +1940,27 @@ function runPostInstallDiagnostics(target, opts) {
   if (!opts.noScan) {
     result.scan = runPostInstallStep(
       target,
-      '자동 스캔: 현재 프로젝트 분석 리포트 생성',
+      '프로젝트 스캔 리포트 생성',
       [process.execPath, '.harness/bin/scan-project.mjs', '--write'],
+      opts,
     ) ? 'ok' : 'failed';
   }
 
   if (!opts.noHandoff) {
     result.handoff = runPostInstallStep(
       target,
-      '자동 인수인계: 설치/업데이트 요약 생성',
+      '프로젝트 인수인계 요약 생성',
       [process.execPath, '.harness/bin/handoff.mjs', '--write'],
+      opts,
     ) ? 'ok' : 'failed';
   }
 
   if (!opts.noCheck) {
     result.check = runPostInstallStep(
       target,
-      '자동 검사: 하네스 설치 상태 확인',
+      '하네스 기준 검사',
       [process.execPath, '.harness/bin/guard.mjs'],
+      opts,
     ) ? 'ok' : 'failed';
   }
 
@@ -1957,10 +2010,15 @@ function main() {
   const sourceIsTemp = Boolean(opts.fromGit);
 
   try {
-    console.log(`harness-seed: harness 설치 시작 -> ${TARGET}`);
-    console.log(`source: ${opts.fromGit ? `${opts.fromGit}#${opts.ref}` : 'bundled'}`);
-    if (opts.dryRun) console.log('mode: dry-run');
-    console.log('');
+    if (opts.verbose || opts.dryRun) {
+      console.log(`harness-seed: harness 설치 시작 -> ${TARGET}`);
+      console.log(`source: ${opts.fromGit ? `${opts.fromGit}#${opts.ref}` : 'bundled'}`);
+      if (opts.dryRun) console.log('mode: dry-run');
+      console.log('');
+    } else {
+      console.log('::: 공통 하네스 설치 :::');
+      console.log(`프로젝트: ${TARGET}`);
+    }
 
     const files = collectInstallFiles(sourceRoot);
     const sourcePkg = readJson(join(sourceRoot, 'package.json'), {});
@@ -1994,10 +2052,12 @@ function main() {
       const backup = backupExisting(TARGET, [...files, ...CONSUMER_PROJECT_STATE_PATHS, ...legacyManagedRootScripts], opts.dryRun);
       if (backup.count > 0) {
         console.log(`backup: ${backup.dir} (${backup.count}개 기존 파일)`);
-      } else {
+      } else if (opts.verbose || opts.dryRun) {
         console.log('backup: 기존 하네스 파일 없음');
       }
-      console.log('');
+      if (backup.count > 0 || opts.verbose || opts.dryRun) {
+        console.log('');
+      }
     }
 
     const installed = installFiles(sourceRoot, TARGET, files, opts, recognizedManifest);
@@ -2014,36 +2074,59 @@ function main() {
     const lockResult = writtenManifest ? writeHarnessLock(sourceRoot, TARGET, writtenManifest, opts) : null;
     const writtenLock = lockResult?.lock ?? null;
     const diagnostics = runPostInstallDiagnostics(TARGET, opts);
+    const existingAiRuleCandidates = readExistingAiRuleCandidates(TARGET);
 
-    console.log('');
-    console.log(`files: ${installed.added}개 추가, ${installed.updated}개 갱신, ${installed.skipped}개 보존`);
-    console.log(
-      `project state: ${opts.dryRun ? `${projectState.planned}개 생성/교체 예정` : `${projectState.added}개 추가, ${projectState.updated}개 교체, ${projectState.preserved}개 보존`}`,
-    );
-    if (pkg.skippedCreation) {
-      console.log('package.json: 없음 → 생성하지 않음 (비-Node 프로젝트로 간주). 강제로 만들려면 --with-package-json');
-    } else {
+    if (opts.verbose || opts.dryRun) {
+      console.log('');
+      console.log(`files: ${installed.added}개 추가, ${installed.updated}개 갱신, ${installed.skipped}개 보존`);
       console.log(
-        `package.json: ${pkg.created ? '신규 생성, ' : ''}scripts ${pkg.added}개 추가` +
-          (pkg.skipped.length ? `, 기존 scripts 보존 ${pkg.skipped.length}개 (${pkg.skipped.join(', ')})` : ''),
+        `project state: ${opts.dryRun ? `${projectState.planned}개 생성/교체 예정` : `${projectState.added}개 추가, ${projectState.updated}개 교체, ${projectState.preserved}개 보존`}`,
       );
-    }
-    console.log(`.gitignore: harness entry ${gitignoreAdded}개 추가`);
-    if (claudeSettings.skipped === 'parse-error') {
-      console.log('.claude/settings.json: 파싱 실패로 하네스 훅 병합을 건너뜀 (수동 확인 필요)');
-    } else if (claudeSettings.changed) {
-      console.log(`.claude/settings.json: 기존 설정 보존하고 하네스 안전 표면 병합 (hooks ${claudeSettings.hooksAdded}, deny ${claudeSettings.denyAdded}, allow ${claudeSettings.allowAdded}, env ${claudeSettings.envAdded}${claudeSettings.statusLineSet ? ', statusLine' : ''})`);
+      if (pkg.skippedCreation) {
+        console.log('package.json: 없음 → 생성하지 않음 (비-Node 프로젝트로 간주). 강제로 만들려면 --with-package-json');
+      } else {
+        console.log(
+          `package.json: ${pkg.created ? '신규 생성, ' : ''}scripts ${pkg.added}개 추가` +
+            (pkg.skipped.length ? `, 기존 scripts 보존 ${pkg.skipped.length}개 (${pkg.skipped.join(', ')})` : ''),
+        );
+      }
+      console.log(`.gitignore: harness entry ${gitignoreAdded}개 추가`);
+      if (claudeSettings.skipped === 'parse-error') {
+        console.log('.claude/settings.json: 파싱 실패로 하네스 훅 병합을 건너뜀 (수동 확인 필요)');
+      } else if (claudeSettings.changed) {
+        console.log(`.claude/settings.json: 기존 설정 보존하고 하네스 안전 표면 병합 (hooks ${claudeSettings.hooksAdded}, deny ${claudeSettings.denyAdded}, allow ${claudeSettings.allowAdded}, env ${claudeSettings.envAdded}${claudeSettings.statusLineSet ? ', statusLine' : ''})`);
+      } else {
+        console.log('.claude/settings.json: 하네스 안전 표면 이미 반영됨 (변경 없음)');
+      }
+      console.log(`eslint config: ${eslintPatch.message}`);
+      console.log(`legacy root scripts: ${opts.dryRun ? `${legacyManagedRootScripts.length}개 제거 예정` : `${migration.removed}개 제거`}`);
+      console.log(`work history: ${workHistoryYear.rel}${workHistoryYear.created ? ' 생성' : ' 준비됨'}`);
+      console.log(`install manifest: ${opts.dryRun ? 'dry-run' : `${Object.keys(writtenManifest.managedFiles).length}개 managed file 기록`}`);
+      console.log(`harness lock: ${opts.dryRun ? 'dry-run' : `${writtenLock.baseHarness.version} (${writtenLock.baseHarness.ref ?? writtenLock.baseHarness.source.type})`}`);
+      console.log(`scan: ${diagnostics.scan}`);
+      console.log(`handoff: ${diagnostics.handoff}`);
+      console.log(`check: ${diagnostics.check}`);
     } else {
-      console.log('.claude/settings.json: 하네스 안전 표면 이미 반영됨 (변경 없음)');
+      console.log('');
+      console.log('::: 설치 결과 요약 :::');
+      console.log(`  - 공통 기준 파일을 설치/갱신했습니다. (추가 ${installed.added}, 갱신 ${installed.updated}, 보존 ${installed.skipped})`);
+      console.log(`  - project state: ${projectState.added}개 추가, ${projectState.updated}개 교체, ${projectState.preserved}개 보존`);
+      if (pkg.skippedCreation) {
+        console.log('  - package.json: 없음 → 생성하지 않음. 비-Node 프로젝트는 .harness/bin/harness 명령을 사용합니다.');
+      }
+      if (['updated', 'partial', 'manual'].includes(eslintPatch.status)) {
+        console.log(`  - eslint config: ${eslintPatch.message}`);
+      }
+      if (migration.removed > 0) {
+        console.log(`  - legacy root scripts: ${migration.removed}개 제거`);
+      }
+      console.log(`  - 프로젝트 스캔 리포트와 인수인계 요약을 생성했습니다. (scan ${diagnostics.scan}, handoff ${diagnostics.handoff})`);
+      console.log(`  - 하네스 기준 검사를 실행했습니다. (check ${diagnostics.check})`);
+      if (existingAiRuleCandidates.length > 0) {
+        console.log(`  - 기존 AI 작업 룰 후보 ${existingAiRuleCandidates.length}건을 감지했습니다. 하네스는 삭제/병합하지 않고 보존합니다.`);
+        console.log('    처리 기준은 .harness/session/project-scan-report.md 와 .harness/session/handoff.md 에 기록했습니다.');
+      }
     }
-    console.log(`eslint config: ${eslintPatch.message}`);
-    console.log(`legacy root scripts: ${opts.dryRun ? `${legacyManagedRootScripts.length}개 제거 예정` : `${migration.removed}개 제거`}`);
-    console.log(`work history: ${workHistoryYear.rel}${workHistoryYear.created ? ' 생성' : ' 준비됨'}`);
-    console.log(`install manifest: ${opts.dryRun ? 'dry-run' : `${Object.keys(writtenManifest.managedFiles).length}개 managed file 기록`}`);
-    console.log(`harness lock: ${opts.dryRun ? 'dry-run' : `${writtenLock.baseHarness.version} (${writtenLock.baseHarness.ref ?? writtenLock.baseHarness.source.type})`}`);
-    console.log(`scan: ${diagnostics.scan}`);
-    console.log(`handoff: ${diagnostics.handoff}`);
-    console.log(`check: ${diagnostics.check}`);
 
     if (!opts.dryRun && lockResult?.changelog?.entries?.length) {
       const cl = lockResult.changelog;
@@ -2212,15 +2295,15 @@ function main() {
     }
 
     console.log(`
-공통 하네스 설치 완료
+::: 공통 하네스 설치 완료 :::
 
-현재 상태:
+::: 현재 상태 :::
   - 공통 개발 기준만 설치되었습니다.
   - 스택 기준은 아직 적용되지 않았습니다.
   - 맞는 스택 하네스가 있으면 추가 적용하고, 없으면 공통 기준만으로 운영해도 됩니다.
   - 다만 공통 기준만 유지한다면 그 이유를 프로젝트 판단 기록에 남기는 것이 좋습니다.
 
-다음 단계:
+::: 다음 단계 :::
   0) 새 터미널이면 프로젝트 루트에서 Node 버전 적용
        nvm use
   1) 현재 상태를 브라우저로 확인
@@ -2245,7 +2328,7 @@ function main() {
   8) 최종화 승인 후 직접 검증
        npm run harness:check
 
-문서:
+::: 문서 :::
   - CLAUDE.md
   - AGENTS.md
   - .claude/README.md

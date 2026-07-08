@@ -16,7 +16,9 @@ if [ -z "${NVM_DIR:-}" ]; then
   export NVM_DIR="$HOME/.nvm"
 fi
 if [ -s "$NVM_DIR/nvm.sh" ]; then
-  # nvm.sh는 일부 환경에서 unset 변수를 참조하므로 source 동안 -u를 잠시 끈다.
+  # nvm.sh는 일부 환경에서 unset 변수를 참조하고, npm이 주입한 prefix 환경변수가 있으면 경고 후 실패한다.
+  # 하네스 런처 안에서는 npm prefix가 필요 없으므로 nvm 로딩 전에 제거한다.
+  unset npm_config_prefix NPM_CONFIG_PREFIX PREFIX || true
   set +u
   . "$NVM_DIR/nvm.sh"
   nvm use >/dev/null 2>&1 || true
