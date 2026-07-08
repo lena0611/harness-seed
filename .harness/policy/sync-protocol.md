@@ -85,7 +85,7 @@
 - lock에 repo/ref/version 정보가 부족하면 lock source metadata와 install manifest source metadata에서 복구해 조회합니다.
 - `harness:update -- --base-only`는 공통 하네스 init에 `--source-repo`, `--source-ref`를 전달해 `.harness/harness-lock.json`과 `.harness/install-manifest.json`의 base source metadata가 `bundled`로 되돌아가지 않게 해야 합니다.
 - source ref가 `semver:*`인 경우 init은 lock/manifest에 그대로 기록하지 않고 실제 설치된 package version tag(`vX.Y.Z`)로 정규화합니다.
-- 과거 업데이트로 base source가 `bundled`로 남은 프로젝트는 stack의 `requiredBaseHarness.repo`와 현재 base version으로 `harness:outdated`가 repo/ref를 복구할 수 있어야 합니다.
+- 과거 업데이트나 `ai-standard-cli` 경유 설치로 base source가 `bundled`로 남은 프로젝트는 stack의 `requiredBaseHarness.repo` 또는 공식 공통 하네스 repo와 현재 base version으로 `harness:outdated`가 repo/ref를 복구할 수 있어야 합니다. 스택 기준이 아직 없는 공통 단독 설치도 `unavailable`로 떨어지지 않아야 합니다.
 - `init`은 공통 하네스 버전이 오를 때 이전 버전 → 새 버전 사이의 `CHANGELOG.md` 구간을 계산해 설치 직후 출력하고 `.harness/harness-lock.json`의 `lastUpdate`에 보존합니다. 소비자 프로젝트에는 본체 `CHANGELOG.md`를 복사하지 않으므로, 변경 요약은 `npm run harness:changelog`로 lastUpdate에서 다시 확인합니다. 최초 설치처럼 이전 버전이 없으면 `lastUpdate`를 기록하지 않습니다.
 - `harness:update -- --force`는 프로젝트 소유 파일을 덮어쓸 수 있으므로 `--confirm-overwrite-project-files` 없이는 중단해야 합니다.
 - 업데이트 스크립트가 target 선택, source metadata 복구, force 확인 흐름을 바꾸면 `scripts/test-init.mjs`의 설치/업데이트/force 테스트와 README의 업데이트 명령 설명을 함께 갱신합니다.

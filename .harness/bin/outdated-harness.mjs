@@ -12,6 +12,8 @@ const harnessRoot = fs.existsSync(path.join(repoRoot, '.harness'))
   : path.join(repoRoot, '.github')
 const lockPath = path.join(harnessRoot, 'harness-lock.json')
 const installManifestPath = path.join(harnessRoot, 'install-manifest.json')
+const DEFAULT_BASE_HARNESS_REPO = process.env.AI_STANDARD_BASE_HARNESS_REPO
+  ?? 'https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git'
 
 function printUsageAndExit(code = 0) {
   console.log(`Usage:
@@ -261,7 +263,10 @@ function resolveHarnessMetadata(target, installManifest, lock) {
     ? lock?.stackHarness?.requiredBaseHarness ?? {}
     : {}
   const directRepo = harness?.repo ?? harness?.source?.repo ?? source?.repo ?? spec.repo ?? null
-  const repo = directRepo ?? requiredBase.repo ?? null
+  const defaultBaseRepo = target.label === 'baseHarness' && !requiredBase.repo
+    ? DEFAULT_BASE_HARNESS_REPO
+    : null
+  const repo = directRepo ?? requiredBase.repo ?? defaultBaseRepo
   const ref = harness?.ref
     ?? harness?.source?.ref
     ?? source?.ref

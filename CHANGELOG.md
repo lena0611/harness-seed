@@ -4,6 +4,11 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.78 - 2026-07-08
+
+- `ai-standard-cli` 경유로 공통 하네스만 설치된 프로젝트에서 `npm run harness:outdated`가 `baseHarness 저장소 정보가 lock/install-manifest에 없습니다`로 `unavailable`을 출력하던 문제를 수정했습니다.
+- base source가 `bundled`이고 스택 기준이 아직 없어도 공식 공통 하네스 repo와 현재 설치 버전 태그를 복구해 outdated/update 계획을 만들도록 했습니다.
+
 ## 0.2.77 - 2026-07-08
 
 - 기존 AI 작업 룰 후보가 여러 개 있을 때 등록 예시는 `git tracked` 상태의 팀 후보를 우선 사용합니다.

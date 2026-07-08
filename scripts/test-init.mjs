@@ -1319,6 +1319,40 @@ function harnessOutdatedDetectsBaseAndStackUpdates() {
     packageVersion: '0.2.49',
     spec: 'bundled',
   }
+  lock.stackHarness = null
+  writeJson(target, '.harness/harness-lock.json', lock)
+  writeJson(target, '.harness/install-manifest.json', {
+    tool: 'harness-seed',
+    version: '0.2.49',
+    source: {
+      type: 'bundled',
+      repo: null,
+      ref: null,
+      packageVersion: '0.2.49',
+      spec: 'bundled',
+    },
+    managedFiles: {},
+  })
+
+  const envWithDefaultBaseRepo = { ...process.env, AI_STANDARD_BASE_HARNESS_REPO: baseRepo }
+  const recoveredBundledBaseOnly = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json', '--base-only'], { cwd: target, env: envWithDefaultBaseRepo }))
+  assert(recoveredBundledBaseOnly.overall === 'up-to-date', 'base-only bundled install should recover the default base repo')
+  assert(recoveredBundledBaseOnly.targets.baseHarness.repo === baseRepo, 'base-only bundled install should use the configured default base repo')
+  assert(recoveredBundledBaseOnly.targets.baseHarness.currentRef === 'v0.2.49', 'base-only bundled install should infer current ref from installed version')
+
+  const bundledBaseOnlyUpdatePlan = run('npm', ['run', '--silent', 'harness:update', '--', '--base-only', '--dry-run'], { cwd: target, env: envWithDefaultBaseRepo })
+  assert(bundledBaseOnlyUpdatePlan.includes(`npx -y git+${baseRepo}#semver:^0.2.49 init`), 'base-only update dry-run should recover default base repo for bundled installs')
+
+  lock.baseHarness.repo = null
+  lock.baseHarness.ref = null
+  lock.baseHarness.version = '0.2.49'
+  lock.baseHarness.source = {
+    type: 'bundled',
+    repo: null,
+    ref: null,
+    packageVersion: '0.2.49',
+    spec: 'bundled',
+  }
   lock.stackHarness = {
     id: 'demo-stack',
     version: '1.0.1',

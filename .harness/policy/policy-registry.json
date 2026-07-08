@@ -245,7 +245,8 @@
         "path": ".harness/project/portability-guide.md"
       },
       "documents": [
-        ".harness/project/portability-guide.md"
+        ".harness/project/portability-guide.md",
+        "README.md"
       ],
       "ownedAreas": [
         "scripts/init.mjs",

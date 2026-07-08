@@ -12,6 +12,8 @@ const harnessRoot = fs.existsSync(path.join(repoRoot, '.harness'))
   : path.join(repoRoot, '.github')
 const lockPath = path.join(harnessRoot, 'harness-lock.json')
 const installManifestPath = path.join(harnessRoot, 'install-manifest.json')
+const DEFAULT_BASE_HARNESS_REPO = process.env.AI_STANDARD_BASE_HARNESS_REPO
+  ?? 'https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git'
 
 function printUsageAndExit(code = 0) {
   console.log(`Usage:
@@ -242,6 +244,14 @@ function hydrateHarness(harness, fallbackSource = {}) {
   }
 }
 
+function hydrateBaseHarness(harness, fallbackSource = {}) {
+  const hydrated = hydrateHarness(harness, fallbackSource)
+  return {
+    ...hydrated,
+    repo: hydrated.repo ?? DEFAULT_BASE_HARNESS_REPO,
+  }
+}
+
 function buildPackageSpec(harness, opts) {
   const repo = harness?.repo ?? harness?.source?.repo
   if (!repo) {
@@ -280,7 +290,7 @@ function buildCommand(lock, opts, installManifest) {
   const fallbackSource = label === '공통 하네스' ? installManifest?.source ?? {} : {}
   const selected = hydrateHarness(
     targetKind === 'base'
-      ? lock.baseHarness
+      ? hydrateBaseHarness(lock.baseHarness, fallbackSource)
       : lock.stackHarness,
     fallbackSource,
   )
