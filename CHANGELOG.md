@@ -4,6 +4,11 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.77 - 2026-07-08
+
+- 기존 AI 작업 룰 후보가 여러 개 있을 때 등록 예시는 `git tracked` 상태의 팀 후보를 우선 사용합니다.
+- `.gitignore 적용됨` 상태의 개인/임시 룰만 감지된 경우, 실제 개인 파일 경로를 팀 기준 등록 예시로 보여주지 않고 `<team-rule-path.md>` placeholder를 사용합니다.
+
 ## 0.2.76 - 2026-07-08
 
 - 기존 AI 작업 룰 후보 리포트에 git 상태를 추가했습니다. 후보별로 `git tracked`, `.gitignore 적용됨`, `.gitignore 미적용`을 표시해 개인/임시 기준이 커밋될 위험을 바로 확인할 수 있습니다.

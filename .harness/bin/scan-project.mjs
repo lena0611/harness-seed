@@ -538,6 +538,13 @@ function renderGitSafety(doc) {
   return '.gitignore 미적용'
 }
 
+function selectRegistrationExamplePath(existingAiRuleDocs) {
+  const undeclared = existingAiRuleDocs.filter((doc) => !doc.declared)
+  const teamLike = undeclared.find((doc) => doc.gitTracked) ?? undeclared.find((doc) => !doc.gitIgnored)
+
+  return teamLike?.rel ?? '<team-rule-path.md>'
+}
+
 function renderExistingAiRuleHandling(existingAiRuleDocs) {
   if (existingAiRuleDocs.length === 0) {
     return '- 기존 AI 작업 룰 후보를 찾지 못했습니다.'
@@ -557,7 +564,7 @@ function renderExistingAiRuleRegistrationGuide(existingAiRuleDocs) {
     return '- 등록할 기존 AI 작업 룰 후보가 없습니다.'
   }
 
-  const firstUndeclared = existingAiRuleDocs.find((doc) => !doc.declared) ?? existingAiRuleDocs[0]
+  const examplePath = selectRegistrationExamplePath(existingAiRuleDocs)
 
   return `팀 전체가 따라야 하는 기준으로 확정한 문서만 \`.harness/policy/profile.json\`의 \`sources[]\`에 등록합니다. 하네스가 임의의 md를 모두 팀 기준으로 보면 일반 문서까지 오탐되므로 자동 등록하지 않습니다.
 
@@ -565,7 +572,7 @@ function renderExistingAiRuleRegistrationGuide(existingAiRuleDocs) {
 
 \`\`\`json
 {
-  "path": "${firstUndeclared.rel}",
+  "path": "${examplePath}",
   "kind": "methodology",
   "owner": "team",
   "inject": "always"

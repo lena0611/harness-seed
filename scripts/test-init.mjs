@@ -2140,6 +2140,25 @@ function scanReportsIgnoredAiRuleCandidates() {
   const report = read(target, '.harness/session/project-scan-report.md')
 
   assert(report.includes('.cursor/rules/private.mdc (미등록 후보, agent rule directory, .gitignore 적용됨)'), 'scan report should show ignored personal rule candidates')
+  assert(report.includes('"path": "<team-rule-path.md>"'), 'registration guide should not use ignored personal files as the team-rule example')
+}
+
+function scanPrefersTrackedAiRuleForRegistrationExample() {
+  const target = makeTarget()
+  fs.mkdirSync(path.join(target, '.cursor/rules'), { recursive: true })
+  fs.mkdirSync(path.join(target, 'docs/standards'), { recursive: true })
+  fs.writeFileSync(path.join(target, '.cursor/rules/private.mdc'), '# Private Rule\n\nUse my temporary prompts.\n')
+  fs.writeFileSync(path.join(target, 'docs/standards/agent-rules.md'), '# Agent Rules\n\nAlways keep existing team AI rules visible.\n')
+  fs.writeFileSync(path.join(target, '.gitignore'), '.cursor/rules/private.mdc\n')
+  run('git', ['add', 'docs/standards/agent-rules.md'], { cwd: target })
+
+  runInit(target)
+  const report = read(target, '.harness/session/project-scan-report.md')
+
+  assert(report.includes('.cursor/rules/private.mdc (미등록 후보, agent rule directory, .gitignore 적용됨)'), 'scan report should include ignored personal candidate')
+  assert(report.includes('docs/standards/agent-rules.md (미등록 후보, rule-like markdown name, git tracked)'), 'scan report should include tracked team-like candidate')
+  assert(report.includes('"path": "docs/standards/agent-rules.md"'), 'registration guide should prefer tracked team-like candidates')
+  assert(!report.includes('"path": ".cursor/rules/private.mdc"'), 'registration guide should not prefer ignored personal candidates')
 }
 
 function profileProjectSourcesDoNotTriggerInstallSyncGap() {
@@ -2244,6 +2263,7 @@ const tests = [
   scanValidatesDeclaredProjectSources,
   installReportsExistingAiRuleDocuments,
   scanReportsIgnoredAiRuleCandidates,
+  scanPrefersTrackedAiRuleForRegistrationExample,
   profileProjectSourcesDoNotTriggerInstallSyncGap,
 ]
 
