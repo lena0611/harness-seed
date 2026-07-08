@@ -15,6 +15,19 @@ function runGit(args) {
   })
 }
 
+function isGitRepository() {
+  try {
+    const result = execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+    return result === 'true'
+  } catch {
+    return false
+  }
+}
+
 function readGitConfig(key) {
   try {
     return execFileSync('git', ['config', '--get', key], {
@@ -29,6 +42,13 @@ function readGitConfig(key) {
 
 function exists(rel) {
   return fs.existsSync(path.join(repoRoot, rel))
+}
+
+if (!isGitRepository()) {
+  console.error('git 저장소가 아니라 hook을 설치하지 않았습니다.')
+  console.error('먼저 프로젝트 루트에서 git init을 실행한 뒤 다시 시도하세요:')
+  console.error('  npm run hooks:install')
+  process.exit(1)
 }
 
 const previousHooksPath = readGitConfig('core.hooksPath')

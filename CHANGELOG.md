@@ -4,6 +4,12 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.79 - 2026-07-08
+
+- `.nvmrc`가 없는 프로젝트 설치 완료 안내에서 `nvm use`를 실행하라고 잘못 안내하던 문구를 수정했습니다. 이제 `.nvmrc`가 없으면 nvm use 단계를 건너뛰고 Node 계약을 정하는 방법을 안내합니다.
+- git 저장소가 아닌 프로젝트에서 `npm run hooks:install` 실행 시 Node stack trace가 나오던 문제를 수정했습니다. 이제 `git init` 후 다시 실행하라는 짧은 안내로 실패합니다.
+- `docs/standards/agent-rules.md`처럼 명시적인 AI 룰 후보 파일이 제목만 있어도 기존 AI 작업 룰 후보로 감지되도록 수정했습니다.
+
 ## 0.2.78 - 2026-07-08
 
 - `ai-standard-cli` 경유로 공통 하네스만 설치된 프로젝트에서 `npm run harness:outdated`가 `baseHarness 저장소 정보가 lock/install-manifest에 없습니다`로 `unavailable`을 출력하던 문제를 수정했습니다.

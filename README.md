@@ -682,6 +682,7 @@ npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 - `package.json`에는 `>=20.19.0`로 기록합니다.
 - 본체 개발 레포에는 개발용 `.nvmrc`를 두며, npm/버전/lockfile 작업 전 반드시 `nvm use`를 먼저 실행합니다.
 - 하네스 패키지는 소비자 프로젝트에 자신의 Node 버전을 `.nvmrc`로 주입하지 않습니다. `.nvmrc`가 없는 프로젝트에서 `init --project-node <ver>`로 사용자가 확인해 주면 그 프로젝트의 기존 Node 버전을 `.nvmrc`로 기록합니다.
+- 설치 완료 안내는 `.nvmrc`가 있을 때만 `nvm use`를 다음 단계로 보여줍니다. `.nvmrc`가 없으면 `nvm use` 단계는 건너뛰고, Node 계약이 필요할 때 `.nvmrc` 또는 `init --project-node <ver>`를 사용하라고 안내합니다.
 - 기존 프로젝트의 `.nvmrc`는 프로젝트/Jenkins 빌드 계약으로 보고 자동 덮어쓰기하지 않습니다.
 - 기존 `.nvmrc`가 Node 20.19 이상이면 그대로 단일 런타임으로 사용합니다. 더 낮은 버전(레거시 Node 12/14/16/18)이면 **dual-runtime 모드**로 설치됩니다(0.2.63): git hook과 `.harness/bin/harness` 런처는 nvm 설치본 중 20.19 이상 최신 Node로 하네스 스크립트만 자동 전환하고, lint/test/build 등 프로젝트 검증은 `.nvmrc` Node로 실행합니다. 프로젝트 Node를 올릴 필요가 없으며, nvm과 `nvm install 20`(이상)만 필요합니다. 자세한 계약은 `.harness/project/portability-guide.md`의 "Node 런타임 계약"을 참고하세요.
 - Node 20은 2026-04-30에 EOL이므로 신규 프로젝트는 Jenkins 검증이 준비되는 대로 Node 22/24 전환을 검토합니다.
@@ -698,6 +699,7 @@ npm run standards:list
 npx -y git+<stack-harness-repo-url>#<tag> init
 npm run stack:status
 npm run templates:list      # scaffold 템플릿이 필요할 때만 조회
+git init                    # git hook을 쓸 프로젝트라면 먼저 저장소 초기화
 npm run hooks:install
 npm run harness:check
 ```

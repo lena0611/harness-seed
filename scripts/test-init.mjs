@@ -71,6 +71,17 @@ function makeTarget() {
   return target
 }
 
+function makeNoGitTarget() {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-no-git-target-'))
+  writeJson(target, 'package.json', {
+    name: 'harness-no-git-target',
+    private: true,
+    type: 'module',
+    scripts: {},
+  })
+  return target
+}
+
 function runInit(target, ...args) {
   return run(nodeBin, [path.join(repoRoot, 'scripts/init.mjs'), 'init', ...args], { cwd: target })
 }
@@ -298,6 +309,38 @@ function cleanInstallCreatesExpectedFiles() {
   const report = read(target, '.harness/session/project-scan-report.md')
   assert(report.includes('## Standards Layers'), 'scan report should include standards layers')
   assert(report.includes('## Conflict Candidates'), 'scan report should include conflict candidates')
+}
+
+function installOutputUsesConditionalNvmAndGitGuidance() {
+  const gitTarget = makeTarget()
+  const gitOutput = runInit(gitTarget, '--no-scan', '--no-handoff', '--no-check')
+
+  assert(gitOutput.includes('프로젝트 .nvmrc 없음'), 'install output should say when .nvmrc is absent')
+  assert(!gitOutput.includes('\n       nvm use\n'), 'install output should not tell users to run nvm use when .nvmrc is absent')
+  assert(gitOutput.includes('git commit/push 전 자동 검증 연결'), 'git project should still suggest hook installation')
+
+  const noGitTarget = makeNoGitTarget()
+  const noGitOutput = runInit(noGitTarget, '--no-scan', '--no-handoff', '--no-check')
+
+  assert(noGitOutput.includes('현재 git 저장소가 아니므로 건너뜁니다'), 'non-git install output should not present hook install as an immediate step')
+  assert(noGitOutput.includes('git init 후 npm run hooks:install'), 'non-git install output should explain how to enable hooks later')
+}
+
+function hooksInstallFailsClearlyOutsideGit() {
+  const target = makeNoGitTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  let failed = false
+  try {
+    run('npm', ['run', '--silent', 'hooks:install'], { cwd: target })
+  } catch (error) {
+    failed = error.status === 1
+    const output = `${error.stdout ?? ''}\n${error.stderr ?? ''}`
+    assert(output.includes('git 저장소가 아니라 hook을 설치하지 않았습니다'), 'hooks:install should fail with a clear non-git message')
+    assert(!output.includes('node:internal/errors'), 'hooks:install should not print a Node stack trace for non-git projects')
+  }
+
+  assert(failed, 'hooks:install outside git should fail with exit code 1')
 }
 
 function nonNodeInstallSkipsPackageJson() {
@@ -2164,6 +2207,18 @@ function installReportsExistingAiRuleDocuments() {
   assert(handoff.includes('## Project Rule Authoring'), 'handoff should include project rule authoring guidance')
 }
 
+function scanReportsHeadingOnlyAiRuleDocuments() {
+  const target = makeTarget()
+  fs.mkdirSync(path.join(target, 'docs/standards'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'docs/standards/agent-rules.md'), '# Agent Rules\n')
+  run('git', ['add', 'docs/standards/agent-rules.md'], { cwd: target })
+
+  runInit(target)
+  const report = read(target, '.harness/session/project-scan-report.md')
+
+  assert(report.includes('docs/standards/agent-rules.md (미등록 후보, rule-like markdown name, git tracked)'), 'heading-only agent-rules.md should still be reported as an AI rule candidate')
+}
+
 function scanReportsIgnoredAiRuleCandidates() {
   const target = makeTarget()
   fs.mkdirSync(path.join(target, '.cursor/rules'), { recursive: true })
@@ -2226,6 +2281,8 @@ function profileProjectSourcesDoNotTriggerInstallSyncGap() {
 
 const tests = [
   cleanInstallCreatesExpectedFiles,
+  installOutputUsesConditionalNvmAndGitGuidance,
+  hooksInstallFailsClearlyOutsideGit,
   nonNodeInstallSkipsPackageJson,
   optInCreatesPackageJsonForGreenfieldNode,
   launcherRunsHarnessWithoutNpm,
@@ -2296,6 +2353,7 @@ const tests = [
   buildContextMergesProfileAlwaysSources,
   scanValidatesDeclaredProjectSources,
   installReportsExistingAiRuleDocuments,
+  scanReportsHeadingOnlyAiRuleDocuments,
   scanReportsIgnoredAiRuleCandidates,
   scanPrefersTrackedAiRuleForRegistrationExample,
   profileProjectSourcesDoNotTriggerInstallSyncGap,

@@ -465,7 +465,6 @@ function hasProjectOwnedRuleContent(rel) {
 
   const projectOwned = stripHarnessManagedRegion(content)
     .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/^\s*#.*$/gm, '')
     .trim()
 
   return projectOwned.length > 0

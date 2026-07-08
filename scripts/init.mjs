@@ -1294,7 +1294,47 @@ function ensureCurrentWorkHistoryYear(target, opts) {
   return { rel, created: false };
 }
 
-function printConsumerCommandGuide() {
+function hasProjectNvmrc(target = TARGET) {
+  return existsSync(join(target, '.nvmrc'));
+}
+
+function isGitRepository(target = TARGET) {
+  const result = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+    cwd: target,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  return result.status === 0 && result.stdout.trim() === 'true';
+}
+
+function renderNodeStep(target = TARGET) {
+  if (hasProjectNvmrc(target)) {
+    return `  0) 새 터미널이면 프로젝트 루트에서 Node 버전 적용
+       nvm use`;
+  }
+
+  return `  0) 프로젝트 .nvmrc 없음
+       nvm use 단계는 건너뜁니다. Node 계약을 정하려면 .nvmrc를 추가하거나 init --project-node <version>을 사용하세요.`;
+}
+
+function renderHookStep(target = TARGET, index = 7) {
+  if (isGitRepository(target)) {
+    return `  ${index}) git hook 활성화
+       npm run hooks:install
+       이후 사용자가 승인한 git commit/push 전에 npm run harness:check가 자동 실행됩니다.`;
+  }
+
+  return `  ${index}) git hook 활성화
+       현재 git 저장소가 아니므로 건너뜁니다. 필요하면 git init 후 npm run hooks:install을 실행하세요.`;
+}
+
+function printConsumerCommandGuide(target = TARGET) {
+  const hookGuide = isGitRepository(target)
+    ? `  - git commit/push 전 자동 검증 연결
+       npm run hooks:install`
+    : `  - git hook 연결
+       현재 git 저장소가 아니면 먼저 git init 후 npm run hooks:install`
+
   console.log(`
 ::: 소비자 명령 빠른 안내 :::
   - 현재 상태 가이드 열기
@@ -1314,8 +1354,7 @@ function printConsumerCommandGuide() {
        npm run harness:update
   - 마지막 업데이트로 바뀐 공통 하네스 변경 내역 다시 보기
        npm run harness:changelog
-  - git commit/push 전 자동 검증 연결
-       npm run hooks:install
+${hookGuide}
 `);
 }
 
@@ -2304,8 +2343,7 @@ function main() {
   - 다만 공통 기준만 유지한다면 그 이유를 프로젝트 판단 기록에 남기는 것이 좋습니다.
 
 ::: 다음 단계 :::
-  0) 새 터미널이면 프로젝트 루트에서 Node 버전 적용
-       nvm use
+${renderNodeStep(TARGET)}
   1) 현재 상태를 브라우저로 확인
        npm run harness:guide -- --open
   2) 자동 생성된 프로젝트 스캔/인수인계 확인
@@ -2322,9 +2360,7 @@ function main() {
   6) 필요하면 scaffold 템플릿 후보 조회 후 적용
        npm run templates:list
        npm run template:apply -- --preset-git <repo-url> --ref <tag-or-branch>
-  7) git hook 활성화
-       npm run hooks:install
-       이후 사용자가 승인한 git commit/push 전에 npm run harness:check가 자동 실행됩니다.
+${renderHookStep(TARGET, 7)}
   8) 최종화 승인 후 직접 검증
        npm run harness:check
 
@@ -2335,7 +2371,7 @@ function main() {
   - .github/copilot-instructions.md
   - .harness/project/bootstrap.md
 `);
-    printConsumerCommandGuide();
+    printConsumerCommandGuide(TARGET);
   } finally {
     cleanupSource(sourceRoot, sourceIsTemp);
   }

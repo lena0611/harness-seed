@@ -27,6 +27,7 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 
 ## hook 설치 기준
 - `npm run hooks:install`은 `core.hooksPath`를 `.githooks`로 설정합니다.
+- git 저장소가 아닌 디렉터리에서는 hook을 설치하지 않고, `git init` 후 다시 실행하라는 짧은 안내로 실패합니다. 이때 Node stack trace를 출력하지 않습니다.
 - 기존 `.git/hooks/*` 또는 기존 `core.hooksPath`의 hook은 삭제하지 않습니다.
 - 기존 hook 경로는 `harness.previousHooksPath`에 저장하고, `.githooks/*`에서 먼저 체인 실행합니다.
 - `.github/commit-template.txt`를 git commit template로 연결합니다.
