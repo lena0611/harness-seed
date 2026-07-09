@@ -1607,7 +1607,7 @@ function scanReportSuggestsStylePresetsWhenStyleSourceMissing() {
   run('npm', ['run', 'harness:scan'], { cwd: target })
 
   const report = read(target, '.harness/session/project-scan-report.md')
-  assert(report.includes('## Style Preset Candidates'), 'scan report should include style preset candidates')
+  assert(report.includes('## Code Formatting Preset Candidates'), 'scan report should include code formatting preset candidates')
   assert(report.includes('standard-js'), 'scan report should suggest standard-js preset')
   assert(report.includes('explicit-ts'), 'scan report should suggest explicit-ts preset')
   assert(report.includes('formatter-owned'), 'scan report should suggest formatter-owned preset')
@@ -1635,12 +1635,12 @@ insert_final_newline = true
   run('npm', ['run', 'harness:scan'], { cwd: target })
 
   const report = read(target, '.harness/session/project-scan-report.md')
-  assert(report.includes('## Style Rule Draft'), 'scan report should include style rule draft')
+  assert(report.includes('## Code Formatting Rule Draft'), 'scan report should include code formatting rule draft')
   assert(report.includes('.editorconfig *: indent_style = space'), 'scan report should draft editorconfig style rules')
   assert(report.includes('.eslintrc: quote = single'), 'scan report should draft eslint quote rule')
   assert(report.includes('.eslintrc: semicolon = always'), 'scan report should draft eslint semicolon rule')
   assert(report.includes('.eslintrc: import grouping/order rule is configured'), 'scan report should draft eslint import order rule')
-  assert(!report.includes('## Style Preset Candidates'), 'scan report should not suggest presets when style sources exist')
+  assert(!report.includes('## Code Formatting Preset Candidates'), 'scan report should not suggest presets when style sources exist')
 }
 
 function workflowWorkstreamChangeDoesNotTriggerCommitPushHookPolicy() {

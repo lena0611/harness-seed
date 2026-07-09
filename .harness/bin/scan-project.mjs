@@ -359,7 +359,8 @@ function parseBiomeRules() {
 function buildStyleRuleDraft(styleGuideFiles) {
   if (styleGuideFiles.length === 0) {
     return [
-      '로컬 스타일 출처가 없습니다. 아래 Style Preset Candidates 중 하나를 선택한 뒤 실제 formatter/linter 설정과 로컬 방법론에 반영하세요.',
+      '코드 작성/포매팅 기준 출처가 없습니다. CSS 시각 스타일이 아니라 quote, semicolon, indent, trailing comma 같은 코드 포맷 기준을 말합니다.',
+      '대응: 이미 팀 formatter/linter 설정이 있다면 `.prettierrc`, `eslint.config.*`, `biome.json`, `.editorconfig` 중 해당 파일을 프로젝트에 추가하거나 확인합니다. 없다면 아래 Code Formatting Preset Candidates 중 하나를 선택해 실제 설정 파일과 `.harness/project/workflow-rules.md`에 함께 반영합니다.',
     ]
   }
 
@@ -389,14 +390,17 @@ function renderStylePresetCandidates(styleGuideFiles) {
     return ''
   }
 
-  return `## Style Preset Candidates
-로컬 스타일 출처가 없을 때만 아래 후보 중 하나를 선택합니다. 자동 적용하지 않습니다.
+  return `## Code Formatting Preset Candidates
+코드 작성/포매팅 기준 출처가 없을 때만 아래 후보 중 하나를 선택합니다. CSS 시각 스타일 후보가 아니며 자동 적용하지 않습니다.
 
 - \`standard-js\`: single quote, no semicolon, sorted imports
 - \`explicit-ts\`: semicolon yes, multiline trailing comma, sorted imports
 - \`formatter-owned\`: formatter/linter 설정을 단일 진실 출처로 사용
 
-선택한 후보는 \`.harness/project/workflow-rules.md\`, \`.harness/project/local-methodology.md\`, 실제 formatter/linter 설정에 함께 반영합니다.
+대응 방법:
+1. 이미 팀 표준 설정 파일이 있으면 해당 설정 파일을 프로젝트에 추가하거나 유지합니다.
+2. 팀 표준이 없으면 위 후보 중 하나를 선택합니다.
+3. 선택한 기준은 실제 formatter/linter 설정 파일과 \`.harness/project/workflow-rules.md\`에 함께 반영합니다.
 `
 }
 
@@ -638,7 +642,7 @@ function renderHarnessEffectSummary({ profile, pkg, sourceRoots, testRoots, exis
   }
 
   if (styleGuideFiles.length === 0) {
-    lines.push('스타일 기준은 아직 연결되지 않았습니다. 필요하면 팀 표준을 등록하거나 Style Preset Candidates 중 하나를 선택합니다.')
+    lines.push('코드 작성/포매팅 기준이 아직 확인되지 않았습니다. CSS 시각 스타일이 아니라 quote, semicolon, indent 같은 코드 포맷 기준입니다. 팀 formatter/linter 설정 파일을 확인하거나 Code Formatting Preset Candidates 중 하나를 선택합니다.')
   }
 
   if (conflictCandidates.length > 0) {
@@ -878,7 +882,7 @@ function buildConflictCandidates({ profile, pkg, testRoots, styleGuideFiles, sty
   }
 
   if (styleGuideFiles.length === 0) {
-    conflicts.push('스타일 출처가 없습니다. 스택 기준, 프로젝트 기준, 개인 기준이 서로 다른 스타일을 암묵적으로 적용할 수 있습니다.')
+    conflicts.push('코드 작성/포매팅 기준 출처가 없습니다. quote, semicolon, indent 같은 기준을 formatter/linter 설정 또는 workflow-rules.md에 연결하세요.')
   }
 
   conflicts.push(...detectStyleConflicts(styleRuleDraft))
@@ -989,7 +993,7 @@ function buildReport() {
     questions.push('기존 엔트리포인트가 로컬 방법론을 읽지 않습니다. Bridge Section Candidates를 검토하세요.')
   }
   if (styleGuideFiles.length === 0) {
-    questions.push('로컬 스타일 출처를 찾지 못했습니다. Style Preset Candidates 중 하나를 선택하거나 기존 팀 표준을 연결하세요.')
+    questions.push('코드 작성/포매팅 기준 출처를 찾지 못했습니다. 팀 formatter/linter 설정 파일을 연결하거나 Code Formatting Preset Candidates 중 하나를 선택하세요.')
   }
 
   return `# Project Scan Report
@@ -1086,7 +1090,7 @@ ${formatList(harnessVersionStatus.lines)}
 ## Conflict Candidates
 ${formatList(conflictCandidates, '- 자동 감지 기준의 충돌 후보 없음')}
 
-## Style Rule Draft
+## Code Formatting Rule Draft
 ${formatList(styleRuleDraft)}
 
 ## Suggested Verification Commands
