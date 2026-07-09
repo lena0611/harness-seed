@@ -704,7 +704,7 @@ function reinstallMigratesUnchangedSeedSessionStateToConsumerTemplates() {
   const migratedActiveContext = read(target, '.harness/session/active-context.md')
   const nextManifest = JSON.parse(read(target, '.harness/install-manifest.json'))
 
-  assert(output.includes('project state:'), 'reinstall should report project state migration')
+  assert(output.includes('프로젝트 상태 문서:'), 'reinstall should report project state migration')
   assert(migratedDecisionLog.includes('소비자 프로젝트 전용 로그'), 'unchanged seed decision log should migrate to consumer template')
   assert(!migratedDecisionLog.includes('정식 공개 전 공개 명령 정리'), 'migrated decision log should remove seed development history')
   assert(migratedActiveContext.includes('소비자 프로젝트 전용 문서'), 'unchanged seed active context should migrate to consumer template')
@@ -995,7 +995,7 @@ function externalHarnessWithoutManifestIsPreserved() {
 
   const output = runInit(target)
 
-  assert(output.includes('install manifest'), 'external harness install should still write manifest')
+  assert(output.includes('이전에 설치된 하네스 흔적이 있어 기존 파일은 보존하고 누락된 공통 기준만 보강합니다.'), 'external harness install should explain preserved existing harness files')
   assert(output.includes('브리지 섹션 추가 후보'), 'external harness install should suggest bridge section candidates')
   assert(read(target, '.harness/policy/README.md') === 'EXTERNAL HARNESS\n', 'external harness file should be preserved')
   assert(read(target, 'CLAUDE.md') === 'EXTERNAL CLAUDE\n', 'external CLAUDE.md should be preserved')
@@ -2191,12 +2191,12 @@ function installReportsExistingAiRuleDocuments() {
 
   assert(output.includes('기존 AI 작업 룰 후보 1건을 감지했습니다'), 'install output should summarize detected existing AI rule docs')
   assert(output.includes('::: 하네스가 바로 확인한 것 :::'), 'install output should show immediate harness effect summary')
-  assert(output.includes('하네스가 이 프로젝트에서 바로 확인한 것'), 'install output should explain what harness found in this project')
+  assert(output.includes('이번 설치는'), 'install output should explain what harness applied in this project')
   assert(output.includes('::: 다음 작업에서 달라지는 점 :::'), 'install output should include workflow change heading')
   assert(output.includes('작업 시작: `npm run harness:context -- "<작업 설명>"`'), 'install output should explain how future work starts')
   assert(report.includes('### Existing AI Rule Document Candidates'), 'scan report should include existing AI rule candidate section')
   assert(report.includes('## Harness Effect Summary'), 'scan report should include a project-level harness effect summary')
-  assert(report.includes('하네스가 이 프로젝트에서 바로 확인한 것'), 'effect summary should explain what harness found')
+  assert(report.includes('이번 설치는'), 'effect summary should explain what harness applied')
   assert(report.includes('## What Changes For Developers'), 'scan report should explain how developer workflow changes')
   assert(report.includes('작업 시작: `npm run harness:context -- "<작업 설명>"`'), 'workflow summary should name context command')
   assert(report.includes('작업 완료: `npm run harness:check`'), 'workflow summary should name final check command')

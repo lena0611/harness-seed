@@ -606,11 +606,11 @@ function renderHarnessEffectSummary({ profile, pkg, sourceRoots, testRoots, exis
   const ignoredAiRules = existingAiRuleDocs.filter((doc) => doc.gitIgnored)
   const unignoredAiRules = existingAiRuleDocs.filter((doc) => !doc.gitTracked && !doc.gitIgnored)
   const lines = [
-    `하네스가 이 프로젝트에서 바로 확인한 것: 소스 루트 ${sourceRoots.length ? sourceRoots.join(', ') : '미확인'}, 스택 기준 ${activeStack === 'none' ? '미선택' : activeStack}, 기존 AI 룰 후보 ${existingAiRuleDocs.length}건.`,
+    `이 프로젝트는 ${sourceRoots.length ? sourceRoots.join(', ') : '확인 필요'}를 주요 소스 루트로 사용합니다. 이번 설치는 ${activeStack === 'none' ? '공통 하네스만 적용' : `${activeStack} 스택 기준 적용`} 상태입니다. 기존 AI 룰 후보는 ${existingAiRuleDocs.length}건입니다.`,
   ]
 
   if (activeStack === 'none') {
-    lines.push('스택 기준이 아직 없어서 작업 방식이 공통 기준에만 묶입니다. 맞는 스택 하네스가 있으면 적용하고, 없으면 공통 단독 운영 사유를 decision-log에 남깁니다.')
+    lines.push('이번 설치는 공통 하네스만 적용했습니다. 맞는 스택 기준이 있으면 나중에 추가할 수 있고, 단순 운영 건이면 바로 작업을 시작해도 됩니다.')
   } else {
     lines.push(`다음 작업부터 AI와 개발자는 ${activeStack} 스택 기준을 먼저 확인하고, 프로젝트 예외는 .harness/project/*에 남깁니다.`)
   }
@@ -638,7 +638,7 @@ function renderHarnessEffectSummary({ profile, pkg, sourceRoots, testRoots, exis
   }
 
   if (styleGuideFiles.length === 0) {
-    lines.push('스타일 출처가 없어 포매팅/리뷰 기준이 흔들릴 수 있습니다. Style Preset Candidates 중 하나를 선택하거나 기존 팀 표준을 연결합니다.')
+    lines.push('스타일 기준은 아직 연결되지 않았습니다. 필요하면 팀 표준을 등록하거나 Style Preset Candidates 중 하나를 선택합니다.')
   }
 
   if (conflictCandidates.length > 0) {

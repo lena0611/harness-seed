@@ -1345,9 +1345,7 @@ function printConsumerCommandGuide(target = TARGET) {
        npm run harness:handoff
   - 큰 작업 전 읽을 문서와 스킬 좁히기
        npm run harness:context -- "<작업 설명>"
-  - 운영 업무 시작(Claude Code)
-       /운영업무
-  - 최종화 승인 후 검증
+  - 작업 완료 전 검증
        npm run harness:check
   - 업데이트 후보 확인 및 적용
        npm run harness:outdated
@@ -2076,8 +2074,8 @@ function main() {
     const forceOverwriteTargets = collectForceOverwriteTargets(TARGET, files, recognizedManifest);
 
     if (externalHarnessMode) {
-      console.log('기존 하네스가 있지만 harness-seed install manifest는 없습니다.');
-      console.log('전용 하네스일 수 있어 기존 파일은 기본적으로 보존합니다. 덮어쓰려면 --force를 사용하세요.');
+      console.log('이전에 설치된 하네스 흔적이 있어 기존 파일은 보존하고 누락된 공통 기준만 보강합니다.');
+      console.log('기존 파일을 덮어쓰지 않습니다. 의도적으로 교체하려면 --force를 사용하세요.');
       console.log('');
     }
 
@@ -2158,9 +2156,9 @@ function main() {
     } else {
       console.log('');
       console.log('::: 설치 결과 요약 :::');
-      console.log(`  - 공통 기준 파일을 설치/갱신했습니다. (추가 ${installed.added}, 갱신 ${installed.updated}, 보존 ${installed.skipped})`);
-      console.log(`  - 설치 버전: 공통 하네스 v${writtenLock.baseHarness.version}`);
-      console.log(`  - project state: ${projectState.added}개 추가, ${projectState.updated}개 교체, ${projectState.preserved}개 보존`);
+      console.log(`  - 공통 하네스 v${writtenLock.baseHarness.version}를 설치/갱신했습니다.`);
+      console.log(`  - 하네스 기준 파일: ${installed.added}개 추가, ${installed.updated}개 갱신, ${installed.skipped}개 보존`);
+      console.log(`  - 프로젝트 상태 문서: ${projectState.added}개 준비, ${projectState.updated}개 갱신, ${projectState.preserved}개 보존`);
       if (pkg.skippedCreation) {
         console.log('  - package.json: 없음 → 생성하지 않음. 비-Node 프로젝트는 .harness/bin/harness 명령을 사용합니다.');
       }
@@ -2298,7 +2296,7 @@ function main() {
     }
 
     // seed-only 문서(0.2.69) 후처리 리포트.
-    if (installed.skippedSeedOnlyDocs && installed.skippedSeedOnlyDocs.length > 0) {
+    if ((opts.verbose || opts.dryRun) && installed.skippedSeedOnlyDocs && installed.skippedSeedOnlyDocs.length > 0) {
       console.log('');
       console.log('소비자 배포 제외된 본체 전용(seed-only) 문서:');
       for (const rel of installed.skippedSeedOnlyDocs) {
@@ -2363,11 +2361,10 @@ function main() {
 ::: 공통 하네스 설치 완료 :::
 
 ::: 현재 상태 :::
-  - 공통 개발 기준만 설치되었습니다.
+  - 이번 선택: 공통 하네스만 설치했습니다.
   - 설치 버전: 공통 하네스 v${writtenLock?.baseHarness?.version ?? sourcePkg.version ?? 'dry-run'}
-  - 스택 기준은 아직 적용되지 않았습니다.
-  - 맞는 스택 하네스가 있으면 추가 적용하고, 없으면 공통 기준만으로 운영해도 됩니다.
-  - 다만 공통 기준만 유지한다면 그 이유를 프로젝트 판단 기록에 남기는 것이 좋습니다.
+  - 스택 기준은 나중에 추가할 수 있습니다.
+  - 단순 운영 건이면 지금 상태로 작업을 시작해도 됩니다.
 
 ::: 다음 단계 :::
 ${renderNodeStep(TARGET)}
@@ -2376,19 +2373,19 @@ ${renderNodeStep(TARGET)}
   2) 자동 생성된 프로젝트 스캔/인수인계 확인
        .harness/session/project-scan-report.md
        .harness/session/handoff.md
-  3) 현재 프로젝트에 맞는 스택 기준이 있는지 확인
+  3) 필요하면 현재 프로젝트에 맞는 스택 기준 확인
        npm run standards:list
        npm run stack:status
   4) 맞는 스택 기준이 있으면 해당 스택 하네스의 init 명령을 실행
        예: npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init
-  5) 맞는 스택 기준이 없으면 공통 기준만 유지하고 이유를 기록
+  5) 팀 기준으로 남길 판단이 생기면 기록
        .harness/session/decision-log.md
        또는 판단이 필요하면 .harness/session/developer-input-queue.md
   6) 필요하면 scaffold 템플릿 후보 조회 후 적용
        npm run templates:list
        npm run template:apply -- --preset-git <repo-url> --ref <tag-or-branch>
 ${renderHookStep(TARGET, 7)}
-  8) 최종화 승인 후 직접 검증
+  8) 작업 완료 전 검증
        npm run harness:check
 
 ::: 문서 :::
