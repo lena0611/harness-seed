@@ -53,9 +53,9 @@ function getChangedFiles() {
   if (output) {
     changed.push(...output
       .split(/\r?\n/)
-      .map((line) => line.slice(3).trim())
+      .map((line) => decodeGitPath(line.slice(3).trim()))
       .filter(Boolean)
-      .map((filePath) => filePath.includes(' -> ') ? filePath.split(' -> ').at(-1) : filePath))
+      .map((filePath) => filePath.includes(' -> ') ? decodeGitPath(filePath.split(' -> ').at(-1).trim()) : filePath))
   }
 
   const untracked = runGit(['ls-files', '--others', '--exclude-standard'])
@@ -64,6 +64,20 @@ function getChangedFiles() {
   }
 
   return [...new Set(changed)]
+}
+
+function decodeGitPath(filePath) {
+  if (!filePath) return filePath
+  if (!(filePath.startsWith('"') && filePath.endsWith('"'))) return filePath
+
+  try {
+    return JSON.parse(filePath)
+  } catch {
+    return filePath.slice(1, -1)
+      .replace(/\\([0-7]{3})/g, (_, octal) => String.fromCharCode(Number.parseInt(octal, 8)))
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\')
+  }
 }
 
 function hashFileIfExists(filePath) {
@@ -288,9 +302,16 @@ function runNpmScript(scriptName) {
   const result = spawnSync('npm', ['run', scriptName], {
     cwd: repoRoot,
     encoding: 'utf8',
+    shell: process.platform === 'win32',
     stdio: ['ignore', 'pipe', 'pipe'],
     env: projectSpawnEnv(),
   })
+
+  if (result.error) {
+    console.error(`설치 후 검증 실행 실패: npm run ${scriptName}`)
+    console.error(result.error.message)
+    process.exit(1)
+  }
 
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout)

@@ -35,7 +35,7 @@ GITLAB_TOKEN=<private-token> npm run standards:list
 스택 하네스 후보가 조회되면 각 후보의 설치 명령을 확인합니다.
 
 ```bash
-npx -y git+<stack-harness-repo-url>#<tag> init
+npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init
 ```
 
 기본 조회 대상:
@@ -206,7 +206,7 @@ my-stack-preset/
 일반 프로젝트 개발자는 스택 하네스의 `init`을 실행합니다.
 
 ```bash
-npx -y git+<stack-harness-repo-url>#<tag> init
+npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init
 ```
 
 스택 하네스 `init`은 일반적으로 다음 순서로 동작합니다.

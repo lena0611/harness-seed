@@ -188,6 +188,21 @@ function writeTemplateMarker(value) {
   writeJson(templateMarkerPath, value)
 }
 
+function assertSafeAssetId(id, label) {
+  if (!/^[A-Za-z0-9._-]+$/.test(String(id ?? ''))) {
+    throw new Error(`${label} 값이 안전한 경로 이름이 아닙니다: ${id}`)
+  }
+}
+
+function resolveSnapshotRoot(baseRoot, rel) {
+  const resolvedBase = path.resolve(baseRoot)
+  const resolved = path.resolve(repoRoot, rel)
+  if (resolved !== resolvedBase && !resolved.startsWith(`${resolvedBase}${path.sep}`)) {
+    throw new Error(`스냅샷 삭제 경로가 허용 루트를 벗어났습니다: ${rel}`)
+  }
+  return resolved
+}
+
 function readLock() {
   return readJson(lockPath, { version: 1 })
 }
@@ -218,6 +233,7 @@ function isTemplateManifest(manifest) {
 }
 
 function snapshotStackStandard(stackId, manifest, context) {
+  assertSafeAssetId(stackId, 'stackId')
   const snapshotRoot = path.join(appliedStacksRoot, stackId)
   fs.rmSync(snapshotRoot, { recursive: true, force: true })
   fs.mkdirSync(snapshotRoot, { recursive: true })
@@ -267,6 +283,7 @@ function templateDocs(manifest) {
 }
 
 function snapshotTemplateAsset(templateId, manifest, context) {
+  assertSafeAssetId(templateId, 'templateId')
   const snapshotRoot = path.join(appliedTemplatesRoot, templateId)
   fs.rmSync(snapshotRoot, { recursive: true, force: true })
   fs.mkdirSync(snapshotRoot, { recursive: true })
@@ -767,7 +784,7 @@ function adapterTiged(manifest) {
   try {
     console.log(`  Fetching '${ref}' via tiged into temp...`)
 
-    execFileSync('npx', ['-y', 'tiged', '--force', ref, tmpRoot], {
+    execFileSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['-y', 'tiged', '--force', ref, tmpRoot], {
       stdio: 'inherit',
     })
 
@@ -913,6 +930,7 @@ function validateTemplateRequirements(manifest, profile, lock) {
 }
 
 function commandApplyTemplate(templateId, manifest, context, profile) {
+  assertSafeAssetId(templateId, 'templateId')
   const existing = readTemplateMarker()
 
   if (existing) {
@@ -996,6 +1014,8 @@ function commandApply() {
     console.error('프리셋 manifest에 id가 없습니다.')
     process.exit(1)
   }
+
+  assertSafeAssetId(stackId, isTemplate ? 'templateId' : 'stackId')
 
   if (isTemplate) {
     commandApplyTemplate(stackId, manifest, context, profile)
@@ -1139,8 +1159,9 @@ function commandReset() {
   restoreStackLocalRules(marker.stackLocalRulesBackup)
   restoreStackProfileFields(marker.profileBackup)
   if (marker.stackSnapshot?.root) {
-    fs.rmSync(path.join(repoRoot, marker.stackSnapshot.root), { recursive: true, force: true })
-    removeEmptyParents(path.join(repoRoot, marker.stackSnapshot.root))
+    const snapshotRoot = resolveSnapshotRoot(appliedStacksRoot, marker.stackSnapshot.root)
+    fs.rmSync(snapshotRoot, { recursive: true, force: true })
+    removeEmptyParents(snapshotRoot)
   }
   clearStackHarnessLock()
   deleteMarker()
@@ -1172,8 +1193,9 @@ function commandTemplateReset() {
   restorePackageJson(marker.packageJsonBackup)
   restoreTemplateContract(marker.templateContractBackup)
   if (marker.templateSnapshot?.root) {
-    fs.rmSync(path.join(repoRoot, marker.templateSnapshot.root), { recursive: true, force: true })
-    removeEmptyParents(path.join(repoRoot, marker.templateSnapshot.root))
+    const snapshotRoot = resolveSnapshotRoot(appliedTemplatesRoot, marker.templateSnapshot.root)
+    fs.rmSync(snapshotRoot, { recursive: true, force: true })
+    removeEmptyParents(snapshotRoot)
   }
   clearTemplateLock()
   deleteTemplateMarker()

@@ -65,8 +65,33 @@
 
 ```bash
 cd my-project
-npm run standards:list
-npx -y git+<stack-harness-repo-url>#<tag> init
+npx -y git+https://git.smartscore.kr/ai-standard/agents/ai-standard-cli.git init
+```
+
+CLI가 스택 후보를 조회하고 화살표 선택 화면을 보여줍니다. GitLab 비공개 그룹 조회 권한이 필요한 환경이면 `GITLAB_TOKEN=<private-token>`을 함께 지정합니다.
+
+```bash
+GITLAB_TOKEN=<private-token> npx -y git+https://git.smartscore.kr/ai-standard/agents/ai-standard-cli.git init
+```
+
+스택 하네스 주소를 이미 알고 있으면 직접 실행할 수도 있습니다.
+
+```bash
+npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init
+```
+
+설치하면 대략 다음 항목이 생기거나 갱신됩니다. 실제 수량은 설치 완료 요약과 `--dry-run` 출력에서 확인합니다.
+
+- `.harness/` 공통 기준, 세션, 검증 스크립트
+- `CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md` 진입 문서의 하네스 관리 블록
+- `.claude/`, `.codex/`, `.githooks/` 어댑터
+- `package.json`의 `harness:*`, `stack:*`, `template:*`, `standards:list` 명령
+
+되돌릴 수 있는지 먼저 보고 싶으면 설치 후 다음 명령으로 삭제 계획만 확인합니다. 실제 삭제는 `--confirm`을 붙였을 때만 수행합니다.
+
+```bash
+npm run harness:uninstall
+npm run harness:uninstall -- --confirm
 ```
 
 스택 하네스의 `init`은 다음 순서로 동작합니다.
@@ -107,7 +132,7 @@ npm run harness:guide
 npm run standards:list
 ```
 
-`standards:list`는 적용 가능한 스택 하네스 후보와 `npx ... init` 명령을 보여줍니다. 공통 하네스가 이미 설치된 관리자/고급 흐름에서는 `npm run stack:apply -- --preset-git <repo-url> --ref <tag>`로 직접 적용할 수도 있습니다.
+`standards:list`는 공통 하네스가 설치된 뒤 사용할 수 있는 명령입니다. 적용 가능한 스택 하네스 후보와 `npx ... init` 명령을 보여줍니다. 설치 전에는 위의 `ai-standard-cli init`을 사용합니다. 공통 하네스가 이미 설치된 관리자/고급 흐름에서는 `npm run stack:apply -- --preset-git <repo-url> --ref <tag>`로 직접 적용할 수도 있습니다.
 
 ### 4. 필요한 경우 scaffold 템플릿 선택
 
@@ -577,7 +602,7 @@ npm run harness:check -- --verbose
 
 ```bash
 npm run standards:list
-npx -y git+<stack-harness-repo-url>#<tag> init
+npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init
 npm run stack:status
 npm run harness:check
 ```
@@ -594,7 +619,7 @@ GITLAB_TOKEN=<private-token> npm run standards:list
 스택 하네스 후보가 조회되면 각 후보의 설치 명령을 확인합니다.
 
 ```bash
-npx -y git+<stack-harness-repo-url>#<tag> init
+npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init
 ```
 
 `stack:apply`는 선택한 스택의 instruction을 `.harness/project/stack-preset-rules.md`에 로컬룰로 기록합니다. 스택 기준 패키지가 `source.type=none`이면 파일 복사 없이 기준 문서만 정착합니다.
@@ -650,11 +675,14 @@ npx -y git+<seed-repo-url>#vX.Y.Z init --dry-run
 npx -y git+<seed-repo-url>#vX.Y.Z init --force --confirm-overwrite-project-files
 npx -y git+<seed-repo-url>#vX.Y.Z init --no-scan --no-handoff --no-check
 npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
+npm run harness:uninstall
 ```
 
 `--no-scan`은 설치 직후 프로젝트 스캔 리포트 자동 생성을 끕니다. `--no-handoff`는 설치/업데이트 인수인계 요약 자동 생성을 끕니다. `--no-check`는 설치 직후 하네스 기본 검사 자동 실행을 끕니다.
 
 `--force`는 프로젝트 소유 문서와 출처를 알 수 없는 기존 하네스 파일까지 덮어쓸 수 있으므로 단독으로는 실행되지 않습니다. 실제 덮어쓰기는 `--confirm-overwrite-project-files`를 함께 지정해야 하며, 실행 전 덮어쓰기 위험 대상과 백업 여부를 확인합니다. 먼저 `--dry-run --force`로 계획만 확인할 수 있습니다.
+
+`harness:uninstall`은 기본이 dry-run입니다. `.harness/install-manifest.json`에 기록된 managed 파일 중 설치 이후 수정되지 않은 파일과 하네스가 주입한 `package.json` 명령만 삭제 대상으로 보여줍니다. 실제 삭제는 `npm run harness:uninstall -- --confirm`으로 실행합니다. 프로젝트 소유 문서, 로컬 수정 파일, 출처를 확인할 수 없는 파일은 보존하고 리포트합니다.
 
 보존 대상 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/project/commit-push-rules.md`, `.harness/session/active-context.md`, `.harness/session/decision-log.md`, `.harness/session/project-memory.md`, `.harness/session/developer-input-queue.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다. manifest가 없는 기존 `.harness/`, `.claude/`, `.codex/`, `CLAUDE.md`는 전용 하네스일 수 있으므로 기본 보존하고 `--force --confirm-overwrite-project-files`일 때만 덮어씁니다.
 
@@ -695,8 +723,7 @@ npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 ```bash
 mkdir my-app
 cd my-app
-npm run standards:list
-npx -y git+<stack-harness-repo-url>#<tag> init
+npx -y git+https://git.smartscore.kr/ai-standard/agents/ai-standard-cli.git init
 npm run stack:status
 npm run templates:list      # scaffold 템플릿이 필요할 때만 조회
 git init                    # git hook을 쓸 프로젝트라면 먼저 저장소 초기화

@@ -986,7 +986,8 @@ function runCheck() {
   const violations = collectViolations()
 
   if (violations.length === 0) {
-    console.log('Policy check passed')
+    console.log('Policy registry/schema check passed')
+    console.log('주의: 스택별 실제 자동 checks가 비어 있으면 업무 규칙 자체를 검증한 것은 아닙니다. 상세 기준은 harness:impact와 스택 policies.json을 확인하세요.')
     return
   }
 

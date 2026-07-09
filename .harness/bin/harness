@@ -50,6 +50,7 @@ Commands:
   outdated                   업데이트 후보 확인         (harness:outdated)
   update                     하네스 업데이트           (harness:update)
   changelog                  마지막 업데이트 변경 내역   (harness:changelog)
+  uninstall                  설치 제거 계획/실행        (harness:uninstall)
   hooks:install              git hook/커밋 템플릿 연결  (hooks:install)
   standards:list             스택 하네스 후보 조회      (standards:list)
   templates:list             scaffold 템플릿 후보 조회  (templates:list)
@@ -79,6 +80,7 @@ case "$cmd" in
   outdated)        exec node .harness/bin/outdated-harness.mjs "$@" ;;
   update)          exec node .harness/bin/update-harness.mjs "$@" ;;
   changelog)       exec node .harness/bin/changelog-delta.mjs "$@" ;;
+  uninstall)       exec node .harness/bin/uninstall-harness.mjs "$@" ;;
   hooks:install)   exec node .harness/bin/install-hooks.mjs "$@" ;;
   standards:list)  exec node .harness/bin/list-stack-standards.mjs "$@" ;;
   templates:list)  exec node .harness/bin/list-templates.mjs "$@" ;;

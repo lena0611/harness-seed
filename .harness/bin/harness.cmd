@@ -26,6 +26,7 @@ if "%CMD%"=="context"         set "SCRIPT=build-context.mjs"
 if "%CMD%"=="outdated"        set "SCRIPT=outdated-harness.mjs"
 if "%CMD%"=="update"          set "SCRIPT=update-harness.mjs"
 if "%CMD%"=="changelog"       set "SCRIPT=changelog-delta.mjs"
+if "%CMD%"=="uninstall"       set "SCRIPT=uninstall-harness.mjs"
 if "%CMD%"=="hooks:install"   set "SCRIPT=install-hooks.mjs"
 if "%CMD%"=="standards:list"  set "SCRIPT=list-stack-standards.mjs"
 if "%CMD%"=="templates:list"  set "SCRIPT=list-templates.mjs"
@@ -81,6 +82,7 @@ echo   context "<task>"           task decision context   (harness:context)
 echo   outdated                   update candidates       (harness:outdated)
 echo   update                     harness update          (harness:update)
 echo   changelog                  last update changelog   (harness:changelog)
+echo   uninstall                  uninstall plan/apply    (harness:uninstall)
 echo   hooks:install              git hooks + template    (hooks:install)
 echo   standards:list             stack harness catalog   (standards:list)
 echo   templates:list             scaffold templates      (templates:list)

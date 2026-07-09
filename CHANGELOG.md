@@ -4,6 +4,20 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.85 - 2026-07-09
+
+- clubadm 소비자 개선 요청서를 본체 로드맵의 소비자 채택 안정화 에픽으로 승격했습니다.
+- README 첫 설치 경로를 설치 전 실행 가능한 `ai-standard-cli init` 흐름으로 바꾸고, 실제 스택 하네스 예시 URL과 설치 풋프린트/제거 경로를 안내했습니다.
+- `harness:uninstall` 명령을 추가했습니다. 기본 dry-run으로 제거 계획을 보여주고, `--confirm`일 때 install-manifest 기준 managed 파일과 하네스 npm 명령만 제거합니다.
+- Claude Code 위험 차단 훅이 node 부재/파싱 실패 때 조용히 통과하지 않도록 shell 기반 deny 출력을 추가하고, `rm -fr`, long option, `find -exec rm` 등 위험 표면을 보강했습니다.
+- 배포 패키지에서 세션 운영 문서와 `.claude/settings.local.json`이 포함되지 않도록 npm `files` 제외 규칙을 보강했습니다.
+- 재설치 때 로컬 수정으로 보존된 managed 파일이 install-manifest에서 탈락하지 않도록 이전 manifest 엔트리를 승계합니다.
+- 한글/공백 파일명이 있는 변경도 검증 캐시 키에 정상 반영되도록 git quoted path 디코딩을 추가했습니다.
+- 정책 검사 통과 문구를 `Policy registry/schema check passed`로 좁혀, 스택별 실제 checks가 비어 있는 상태를 과대 해석하지 않도록 했습니다.
+- `release:version-net` 명령을 추가해 본체, Vue3 스택 하네스, cloud-front 템플릿 manifest의 base/stack/template ref 정합을 검사하거나 `--write`로 갱신할 수 있게 했습니다.
+- `apply-stack`의 스택/템플릿 id를 안전한 경로 이름으로 제한하고, reset 시 스냅샷 삭제 경로가 허용 루트를 벗어나지 못하게 했습니다.
+- Windows에서 npm/npx 실행 실패가 무음 종료되지 않도록 `guard`의 npm script 실행과 tiged 어댑터 실행을 보강했습니다.
+
 ## 0.2.84 - 2026-07-09
 
 - `스타일 기준` 문구를 `코드 작성/포매팅 기준`으로 바꿔 CSS 시각 스타일과 혼동하지 않도록 했고, formatter/linter 설정 파일을 연결하거나 preset을 선택하라는 대응을 명확히 했습니다.

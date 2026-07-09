@@ -3,6 +3,34 @@ set -euo pipefail
 
 input="$(cat 2>/dev/null || true)"
 
+json_escape() {
+  local value="${1:-}"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  value="${value//$'\n'/ }"
+  printf '%s' "$value"
+}
+
+deny() {
+  local reason
+  reason="$(json_escape "$1")"
+  printf '{\n'
+  printf '  "hookSpecificOutput": {\n'
+  printf '    "hookEventName": "PreToolUse",\n'
+  printf '    "permissionDecision": "deny",\n'
+  printf '    "permissionDecisionReason": "%s"\n' "$reason"
+  printf '  }\n'
+  printf '}\n'
+  exit 0
+}
+
+if ! command -v node >/dev/null 2>&1; then
+  if printf '%s' "$input" | grep -Eq '"(file_path|path)"[[:space:]]*:'; then
+    deny "하네스가 차단함: node를 찾지 못해 쓰기 대상 경로를 안전하게 파싱할 수 없습니다. 하네스 실행 Node를 먼저 연결하세요."
+  fi
+  exit 0
+fi
+
 target_path="$(
   HARNESS_HOOK_INPUT="$input" node -e '
 const raw = process.env.HARNESS_HOOK_INPUT || "{}";
@@ -15,20 +43,6 @@ try {
 )"
 
 [ -z "$target_path" ] && exit 0
-
-deny() {
-  HARNESS_DENY_REASON="$1" node -e '
-const reason = process.env.HARNESS_DENY_REASON || "Blocked by harness.";
-console.log(JSON.stringify({
-  hookSpecificOutput: {
-    hookEventName: "PreToolUse",
-    permissionDecision: "deny",
-    permissionDecisionReason: reason
-  }
-}, null, 2));
-'
-  exit 0
-}
 
 case "$target_path" in
   /etc/*|/usr/*|/bin/*|/sbin/*|/boot/*|/sys/*|/proc/*)

@@ -137,6 +137,7 @@ const CONSUMER_SCRIPT_NAMES = [
   'harness:outdated',
   'harness:update',
   'harness:changelog',
+  'harness:uninstall',
   'hooks:install',
   'standards:list',
   'templates:list',
@@ -1352,6 +1353,9 @@ function printConsumerCommandGuide(target = TARGET) {
        npm run harness:update
   - 마지막 업데이트로 바뀐 공통 하네스 변경 내역 다시 보기
        npm run harness:changelog
+  - 설치 제거 계획 확인 및 제거
+       npm run harness:uninstall
+       npm run harness:uninstall -- --confirm
 ${hookGuide}
 `);
 }
@@ -1395,7 +1399,7 @@ function assertForceOverwriteConfirmed(opts, targets) {
   process.exit(1);
 }
 
-function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
+function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, previousManifest = null) {
   const seedPkg = readJson(join(sourceRoot, 'package.json'), {})
   const managedFiles = {}
   const projectOwnedFiles = [...new Set([
@@ -1403,6 +1407,14 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
     ...CONSUMER_PROJECT_STATE_PATHS,
   ])].sort()
   const source = buildSourceMetadata(sourceRoot, opts, seedPkg)
+
+  for (const [rel, entry] of Object.entries(previousManifest?.managedFiles ?? {})) {
+    const normalized = toPosix(rel)
+    const abs = join(target, normalized)
+    if (!isProjectOwned(normalized) && existsSync(abs) && statSync(abs).isFile()) {
+      managedFiles[normalized] = entry
+    }
+  }
 
   for (const rel of copiedFiles) {
     const abs = join(target, rel)
@@ -1468,10 +1480,10 @@ function normalizeSourceRef(ref, repo, packageVersion) {
   return ref
 }
 
-function writeInstallManifest(sourceRoot, target, files, copiedFiles, opts) {
+function writeInstallManifest(sourceRoot, target, files, copiedFiles, opts, previousManifest = null) {
   if (opts.dryRun) return null
 
-  const manifest = buildInstallManifest(sourceRoot, target, files, copiedFiles, opts)
+  const manifest = buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, previousManifest)
   const manifestAbs = join(target, MANIFEST_PATH)
   mkdirSync(dirname(manifestAbs), { recursive: true })
   writeFileSync(manifestAbs, `${JSON.stringify(manifest, null, 2)}\n`)
@@ -1570,7 +1582,11 @@ function writeHarnessLock(sourceRoot, target, installManifest, opts) {
 
 function readJson(absPath, fallback) {
   if (!existsSync(absPath)) return fallback;
-  return JSON.parse(readFileSync(absPath, 'utf8'));
+  try {
+    return JSON.parse(readFileSync(absPath, 'utf8'));
+  } catch (error) {
+    throw new Error(`${absPath} JSON 손상: ${error.message}`);
+  }
 }
 
 function mergePackageJson(sourceRoot, target, opts) {
@@ -2115,7 +2131,7 @@ function main() {
     const gitignoreAdded = mergeGitignore(TARGET, opts);
     const eslintPatch = patchEslintConfigForHarness(TARGET, opts);
     ensureExecutable(TARGET, opts);
-    const writtenManifest = writeInstallManifest(sourceRoot, TARGET, files, installed.copiedFiles, opts);
+    const writtenManifest = writeInstallManifest(sourceRoot, TARGET, files, installed.copiedFiles, opts, recognizedManifest);
     const lockResult = writtenManifest ? writeHarnessLock(sourceRoot, TARGET, writtenManifest, opts) : null;
     const writtenLock = lockResult?.lock ?? null;
     const diagnostics = runPostInstallDiagnostics(TARGET, opts);
@@ -2164,6 +2180,9 @@ function main() {
       }
       if (['updated', 'partial', 'manual'].includes(eslintPatch.status)) {
         console.log(`  - eslint config: ${eslintPatch.message}`);
+      }
+      if (claudeSettings.skipped === 'parse-error') {
+        console.log('  - .claude/settings.json JSON 손상으로 하네스 안전 훅 병합을 건너뛰었습니다. 파일을 고친 뒤 init/update를 다시 실행하세요.');
       }
       if (migration.removed > 0) {
         console.log(`  - legacy root scripts: ${migration.removed}개 제거`);
@@ -2363,6 +2382,9 @@ function main() {
 ::: 현재 상태 :::
   - 이번 선택: 공통 하네스만 설치했습니다.
   - 설치 버전: 공통 하네스 v${writtenLock?.baseHarness?.version ?? sourcePkg.version ?? 'dry-run'}
+  - 설치/갱신된 하네스 관리 파일: ${installed.added + installed.updated}개
+  - 보존된 프로젝트 소유/로컬 수정 파일: ${installed.skipped + projectState.preserved}개
+  - package.json에 연결된 하네스 명령: ${pkg.added}개 추가${pkg.skipped.length ? `, 기존 명령 ${pkg.skipped.length}개 보존` : ''}
   - 스택 기준은 나중에 추가할 수 있습니다.
   - 단순 운영 건이면 지금 상태로 작업을 시작해도 됩니다.
 
@@ -2387,6 +2409,8 @@ ${renderNodeStep(TARGET)}
 ${renderHookStep(TARGET, 7)}
   8) 작업 완료 전 검증
        npm run harness:check
+  9) 설치를 되돌려야 하면 먼저 제거 계획 확인
+       npm run harness:uninstall
 
 ::: 문서 :::
   - CLAUDE.md

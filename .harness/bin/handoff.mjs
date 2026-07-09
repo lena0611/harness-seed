@@ -221,7 +221,7 @@ function buildReport() {
 
 \`\`\`bash
 npm run standards:list
-npx -y git+<stack-harness-repo-url>#<tag> init
+npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init
 npm run stack:status
 npm run harness:check
 \`\`\`
