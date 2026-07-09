@@ -598,6 +598,75 @@ function renderProjectRuleAuthoringGuide() {
 하네스를 인지하는 에이전트는 작업 중 반복되는 규칙, 중요한 판단, 검증 기준이 드러나면 위 문서 중 맞는 위치에 후보를 남기거나 승격합니다. 단발성 구현 메모는 프로젝트 룰로 승격하지 않고, 불확실한 내용은 decision-log 또는 developer-input-queue에 남깁니다.`
 }
 
+function renderHarnessEffectSummary({ profile, pkg, sourceRoots, testRoots, existingAiRuleDocs, styleGuideFiles, conflictCandidates }) {
+  const activeStack = profile.activeStack || 'none'
+  const hasTestScript = Boolean(pkg?.scripts?.some((name) => name.includes('test')))
+  const hasBuildScript = Boolean(pkg?.scripts?.includes('build'))
+  const trackedAiRules = existingAiRuleDocs.filter((doc) => doc.gitTracked)
+  const ignoredAiRules = existingAiRuleDocs.filter((doc) => doc.gitIgnored)
+  const unignoredAiRules = existingAiRuleDocs.filter((doc) => !doc.gitTracked && !doc.gitIgnored)
+  const lines = [
+    `하네스가 이 프로젝트에서 바로 확인한 것: 소스 루트 ${sourceRoots.length ? sourceRoots.join(', ') : '미확인'}, 스택 기준 ${activeStack === 'none' ? '미선택' : activeStack}, 기존 AI 룰 후보 ${existingAiRuleDocs.length}건.`,
+  ]
+
+  if (activeStack === 'none') {
+    lines.push('스택 기준이 아직 없어서 작업 방식이 공통 기준에만 묶입니다. 맞는 스택 하네스가 있으면 적용하고, 없으면 공통 단독 운영 사유를 decision-log에 남깁니다.')
+  } else {
+    lines.push(`다음 작업부터 AI와 개발자는 ${activeStack} 스택 기준을 먼저 확인하고, 프로젝트 예외는 .harness/project/*에 남깁니다.`)
+  }
+
+  if (existingAiRuleDocs.length > 0) {
+    const status = [
+      trackedAiRules.length ? `팀 기준 후보 ${trackedAiRules.length}건(git tracked)` : null,
+      ignoredAiRules.length ? `개인/임시 후보 ${ignoredAiRules.length}건(.gitignore 적용됨)` : null,
+      unignoredAiRules.length ? `커밋 방지 확인 필요 ${unignoredAiRules.length}건(.gitignore 미적용)` : null,
+    ].filter(Boolean).join(', ')
+    lines.push(`기존 AI 작업 룰을 지우지 않고 보존했습니다. ${status || '팀/개인 기준 여부를 확인해야 합니다.'}`)
+  } else {
+    lines.push('기존 AI 작업 룰 후보가 없어서, 새 팀 작업방식은 .harness/project/domain-rules.md, architecture-rules.md, workflow-rules.md에 기록하면 됩니다.')
+  }
+
+  if (hasTestScript || testRoots.length > 0 || hasBuildScript) {
+    lines.push(`완료 전 검증 후보를 찾았습니다: ${[
+      hasBuildScript ? 'npm run build' : null,
+      hasTestScript ? 'npm run test' : null,
+      testRoots.length ? `test root ${testRoots.join(', ')}` : null,
+      'npm run harness:check',
+    ].filter(Boolean).join(', ')}.`)
+  } else {
+    lines.push('테스트 루트나 test script가 없어 완료 기준이 사람마다 달라질 수 있습니다. 검증 전략을 선택해 workflow-rules.md 또는 decision-log.md에 남깁니다.')
+  }
+
+  if (styleGuideFiles.length === 0) {
+    lines.push('스타일 출처가 없어 포매팅/리뷰 기준이 흔들릴 수 있습니다. Style Preset Candidates 중 하나를 선택하거나 기존 팀 표준을 연결합니다.')
+  }
+
+  if (conflictCandidates.length > 0) {
+    lines.push(`지금 바로 판단할 후보 ${conflictCandidates.length}건을 Conflict Candidates와 Open Questions에 모았습니다.`)
+  } else {
+    lines.push('자동 감지 기준의 충돌 후보가 없어 현재 기준 계층은 바로 사용 가능한 상태입니다.')
+  }
+
+  return formatList(lines)
+}
+
+function renderDeveloperWorkflowChanges(pkg) {
+  const scripts = pkg?.scripts ?? []
+  const contextCommand = scripts.includes('harness:context')
+    ? '`npm run harness:context -- "<작업 설명>"`'
+    : '하네스 컨텍스트 명령'
+  const checkCommand = scripts.includes('harness:check')
+    ? '`npm run harness:check`'
+    : '하네스 검증 명령'
+
+  return formatList([
+    `작업 시작: ${contextCommand}로 작업에 필요한 기준 문서와 스킬만 좁혀 읽습니다.`,
+    '작업 중: 반복되는 판단, 도메인 규칙, 검증 기준은 .harness/project/* 또는 decision-log.md에 남깁니다.',
+    `작업 완료: ${checkCommand}로 기준 충돌, 문서 링크, 버전 상태, 프로젝트 검증을 한 번에 확인합니다.`,
+    '인수인계: .harness/session/handoff.md가 설치/업데이트 직후 확인할 결론과 다음 행동을 유지합니다.',
+  ])
+}
+
 function detectPersonalStandardFiles() {
   return listExisting([
     'CLAUDE.local.md',
@@ -937,6 +1006,20 @@ ${pkg ? `- name: ${pkg.name}
 - scripts: ${pkg.scripts.length}
 - dependencies: ${pkg.dependencies.length}
 - devDependencies: ${pkg.devDependencies.length}` : '- package.json 없음'}
+
+## Harness Effect Summary
+${renderHarnessEffectSummary({
+  profile,
+  pkg,
+  sourceRoots,
+  testRoots,
+  existingAiRuleDocs,
+  styleGuideFiles,
+  conflictCandidates,
+})}
+
+## What Changes For Developers
+${renderDeveloperWorkflowChanges(pkg)}
 
 ## Inventory
 

@@ -107,6 +107,44 @@ function readScanSection(title) {
     .map((line) => line.replace(/^-\s+/, ''))
 }
 
+function readScanHeadingLines(title) {
+  const rel = '.harness/session/project-scan-report.md'
+  if (!exists(rel)) return []
+
+  const content = fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+  const markerMatch = new RegExp(`(?:^|\\n)#{2,3} ${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`).exec(content)
+  if (!markerMatch) return []
+
+  const start = markerMatch.index + markerMatch[0].length
+  const afterMarker = content.slice(start)
+  const next = afterMarker.search(/\n#{2,3} /)
+  const section = (next >= 0 ? afterMarker.slice(0, next) : afterMarker).trim()
+
+  return section
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('- '))
+    .map((line) => line.replace(/^-\s+/, ''))
+}
+
+function renderHarnessEffectSummary() {
+  const effects = readScanHeadingLines('Harness Effect Summary')
+  const workflow = readScanHeadingLines('What Changes For Developers')
+
+  if (effects.length === 0 && workflow.length === 0) {
+    return `## Harness Effect Summary
+- 프로젝트 스캔 리포트를 아직 읽지 못했습니다. \`npm run harness:scan\` 후 다시 생성하세요.
+`
+  }
+
+  return `## Harness Effect Summary
+${formatList(effects)}
+
+## What Changes For Developers
+${formatList(workflow)}
+`
+}
+
 function renderExistingAiRuleSummary() {
   const candidates = readScanSection('Existing AI Rule Document Candidates')
 
@@ -208,6 +246,8 @@ npm run harness:check
 - scaffoldTemplate: ${template ? `${template.version ?? 'unknown'} (${template.ref ?? 'unknown'})` : 'none'}
 
 ${stackDecision}
+
+${renderHarnessEffectSummary()}
 
 ${renderExistingAiRuleSummary()}
 

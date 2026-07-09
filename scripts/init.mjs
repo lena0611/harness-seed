@@ -1917,12 +1917,12 @@ function readScanSectionLines(target, title) {
   if (!existsSync(abs)) return [];
 
   const content = readFileSync(abs, 'utf8');
-  const marker = `### ${title}`;
-  const start = content.indexOf(marker);
-  if (start < 0) return [];
+  const markerRe = new RegExp(`(?:^|\\n)#{2,3} ${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`);
+  const marker = markerRe.exec(content);
+  if (!marker) return [];
 
-  const afterMarker = content.slice(start + marker.length);
-  const next = afterMarker.search(/\n### |\n## /);
+  const afterMarker = content.slice(marker.index + marker[0].length);
+  const next = afterMarker.search(/\n#{2,3} /);
   const section = (next >= 0 ? afterMarker.slice(0, next) : afterMarker).trim();
 
   return section
@@ -1933,6 +1933,14 @@ function readScanSectionLines(target, title) {
 
 function readExistingAiRuleCandidates(target) {
   return readScanSectionLines(target, 'Existing AI Rule Document Candidates');
+}
+
+function readHarnessEffectSummary(target) {
+  return readScanSectionLines(target, 'Harness Effect Summary');
+}
+
+function readDeveloperWorkflowChanges(target) {
+  return readScanSectionLines(target, 'What Changes For Developers');
 }
 
 function runPostInstallStep(target, title, commandArgs, opts) {
@@ -2114,6 +2122,8 @@ function main() {
     const writtenLock = lockResult?.lock ?? null;
     const diagnostics = runPostInstallDiagnostics(TARGET, opts);
     const existingAiRuleCandidates = readExistingAiRuleCandidates(TARGET);
+    const harnessEffectSummary = readHarnessEffectSummary(TARGET);
+    const developerWorkflowChanges = readDeveloperWorkflowChanges(TARGET);
 
     if (opts.verbose || opts.dryRun) {
       console.log('');
@@ -2162,6 +2172,21 @@ function main() {
       }
       console.log(`  - 프로젝트 스캔 리포트와 인수인계 요약을 생성했습니다. (scan ${diagnostics.scan}, handoff ${diagnostics.handoff})`);
       console.log(`  - 하네스 기준 검사를 실행했습니다. (check ${diagnostics.check})`);
+      if (harnessEffectSummary.length > 0) {
+        console.log('');
+        console.log('::: 하네스가 바로 확인한 것 :::');
+        for (const line of harnessEffectSummary.slice(0, 5)) {
+          console.log(`  - ${line.replace(/^-\s+/, '')}`);
+        }
+        console.log('    자세한 기준과 다음 행동은 .harness/session/project-scan-report.md 와 .harness/session/handoff.md 에 있습니다.');
+      }
+      if (developerWorkflowChanges.length > 0) {
+        console.log('');
+        console.log('::: 다음 작업에서 달라지는 점 :::');
+        for (const line of developerWorkflowChanges.slice(0, 4)) {
+          console.log(`  - ${line.replace(/^-\s+/, '')}`);
+        }
+      }
       if (existingAiRuleCandidates.length > 0) {
         console.log(`  - 기존 AI 작업 룰 후보 ${existingAiRuleCandidates.length}건을 감지했습니다. 하네스는 삭제/병합하지 않고 보존합니다.`);
         console.log('    팀 기준 등록과 개인용 gitignore/tracked 처리 기준은 .harness/session/project-scan-report.md 와 .harness/session/handoff.md 에 기록했습니다.');
