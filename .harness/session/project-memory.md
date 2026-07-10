@@ -20,7 +20,7 @@
 ## 공통 하네스 구성
 - `.harness/session/`: 세션 컨텍스트 복구
 - `.harness/project/`: 프로젝트 목적/범위 + 부트스트랩 인터뷰 + 이식 가이드
-- `.harness/policy/`: 정책↔코드 양방향 동기화, SYNC GAP 검출, waiver
+- `.harness/policy/`: 정책↔코드 연결 기준, 한쪽 변경 검토 후보 분석, 명시적 강제 정책의 waiver
 - `.harness/documentation/`: 문서 인덱싱/분리 규칙, doc-link 무결성
 - `.harness/style/`: 코딩 스타일 검증
 - `.harness/stacks/`: 외부 프리셋 계약과 적용 방법 문서

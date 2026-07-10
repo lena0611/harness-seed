@@ -43,4 +43,4 @@
 ## 마지막 검증
 - 외부 프리셋 fixture로 `npm run stack:apply` → `npm run stack:reset` 통과
 - `npm run harness:check` (lint/test/build 스킵) 통과
-- 스택 격리 검사, doc-link 무결성, SYNC GAP, 정책 위반 검사 모두 OK
+- 스택 격리 검사, doc-link 무결성, 기준 동기화 후보 분석, 정책 위반 검사 모두 OK

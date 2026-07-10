@@ -1,5 +1,11 @@
 # 결정 로그
 
+## 2026-07-10 - 기계적 한쪽 변경 신호를 비차단 검토 후보로 재정의
+- 배경: 기존 `SYNC GAP`은 연결된 문서와 코드 중 한쪽 파일만 변경됐는지 비교할 뿐 의미 불일치를 판정하지 못하면서, 명칭과 strict 차단 동작은 실제 결함처럼 받아들이게 했다. 일반 API 구현 수정이나 주석 변경도 문서 수정 또는 decision-log 기록이 필요한 것처럼 부담을 만들었다.
+- 결정: 사용자 출력은 `기준 동기화 검토 후보 (의미 불일치 판정 아님)`로 바꾼다. 구조·공개 계약·팀 기준이 실제로 바뀐 경우에만 연결 문서를 갱신하고, 일반 구현·버그 수정·내부 리팩터링·주석/문구 변경은 별도 조치와 기록 없이 진행한다.
+- 강제 경계: 일반 정책의 `severity/enforcement`와 기계적 후보의 강도를 분리한다. 기본 후보는 strict에서도 비차단이며, 반드시 확인해야 하는 정책만 `syncEnforcement: hook|block`을 명시한다.
+- 호환성: impact summary의 기존 `syncGaps/syncGapLevels`는 소비 도구 호환을 위해 유지하고 `syncReviewCandidates/syncReviewLevels`를 함께 기록한다.
+
 ## 2026-06-25 - 본체 전용 Spec Authority 로드맵 seed-only 기록
 - 배경: 사용자가 기획 정책/기능 스펙이 스트림성으로 흩어져 코드가 최종 기준점이 되는 문제를 지적하고, 스펙을 권위 원본으로 둔 외부 spec repo 연계 하네스 에픽을 다음 작업 로드맵으로 남기되 소비자 프로젝트에는 배포하지 말라고 지시했다.
 - 결정: 로드맵은 소비자 운영 기준이 아니라 harness-seed 본체의 제품 방향이므로 `.harness/project/body-roadmap.md` seed-only 문서로 둔다. 소비자 프로젝트에는 파일 본문을 배포하지 않으며, 코드 repo에 spec 본문을 vendoring하지 않고 외부 spec repo commit/ref만 lock으로 남기는 방향을 에픽 기준으로 기록한다.

@@ -444,7 +444,7 @@ npm run harness:check
 | --- | --- | --- |
 | Node 버전 검사 | `.harness/bin/check-node-version.mjs` | 공통 하네스 명령을 실행할 수 있는 Node 범위인지 확인합니다. 스택별 추가 런타임 요구사항은 해당 스택 하네스의 기준을 따릅니다. |
 | 기준 영향도/가드 | `.harness/bin/policy-harness.mjs guard` | 변경 파일이 어떤 개발 기준, 세션 기준, 스택 계약에 영향을 주는지 분석합니다. |
-| SYNC GAP 탐지 | `policy-harness.mjs guard` 내부 | 문서만 바뀌었는지, 코드만 바뀌었는지 감지합니다. `trigger files`, `matched rules`, `needed action`, `can ignore when`을 함께 보여주고 `blocking`, `action required`, `review suggested`, `info`로 나눕니다. install manifest와 해시가 일치하는 본체 baseline 갱신은 소비자 로컬룰 변경이 아니므로 sync gap 계산에서 제외합니다. |
+| 기준 동기화 검토 후보 | `policy-harness.mjs guard` 내부 | 연결된 문서와 코드 중 한쪽만 바뀐 파일 경로 신호를 보여줍니다. 의미 불일치 판정이 아니므로 일반 구현 변경은 조치 없이 넘어가고, 구조·계약·팀 기준이 실제로 바뀐 경우에만 연결 문서를 갱신합니다. install manifest와 해시가 일치하는 본체 baseline 갱신은 후보 계산에서 제외합니다. |
 | 문서 링크/레지스트리 검사 | `.harness/bin/doc-link-check.mjs` | 하네스 문서 registry, 마크다운 링크, 코드 경로 참조가 유효한지 확인합니다. |
 | 하네스 버전 확인 | `.harness/harness-lock.json`, stack manifest | 적용된 스택 하네스가 요구하는 공통 하네스 버전과 현재 설치된 버전이 맞는지 확인합니다. |
 | seed init 테스트 | `.harness-seed-mode`일 때 `scripts/test-init.mjs` | 하네스시드 본체 저장소에서만 init/reinstall/reset 흐름을 smoke test합니다. 일반 적용 프로젝트에서는 보통 실행되지 않습니다. |
@@ -456,7 +456,7 @@ npm run harness:check
 
 lint/test/build는 스택이 적용되어 추적 가능한 `.harness/stacks/.applied/<stack>/manifest.json` 스냅샷이 있을 때 실행됩니다. `.harness/.stack-applied.json`은 머신 로컬 마커이므로 fresh clone, worktree, CI에서 없을 수 있고, 이때도 `profile.json`의 `activeStack`과 커밋된 스택 스냅샷으로 적용 상태를 복원합니다. `activeStack`은 있는데 스냅샷을 찾지 못하면 검증을 조용히 건너뛰지 않고 실패로 처리합니다.
 
-변경 파일 출력은 기본적으로 feature/source, 로컬 하네스, 설정, 하네스 baseline으로 그룹화합니다. 설치 직후처럼 성공/실패만 빠르게 보고 싶을 때는 `--brief`를 씁니다. `--brief`에서는 lint/test/build가 성공하면 한 줄로 요약하고, 실패했을 때만 원문 로그와 원인 후보를 보여줍니다. 설치 baseline 파일 전체가 필요할 때만 상세 옵션을 사용합니다. 하네스 업데이트로 본체 baseline 문서만 갱신된 경우에는 `Harness baseline update notice`로 안내하고, 소비자 프로젝트가 앱 코드나 decision-log를 억지로 추가하지 않아도 되도록 정책 sync gap 후보에서 제외합니다.
+변경 파일 출력은 기본적으로 feature/source, 로컬 하네스, 설정, 하네스 baseline으로 그룹화합니다. 설치 직후처럼 성공/실패만 빠르게 보고 싶을 때는 `--brief`를 씁니다. `--brief`에서는 lint/test/build가 성공하면 한 줄로 요약하고, 실패했을 때만 원문 로그와 원인 후보를 보여줍니다. 설치 baseline 파일 전체가 필요할 때만 상세 옵션을 사용합니다. 하네스 업데이트로 본체 baseline 문서만 갱신된 경우에는 `Harness baseline update notice`로 안내하고 기준 동기화 후보에서 제외합니다.
 
 같은 git tree와 같은 검증 계획이 이미 통과했으면 `.harness/generated/check-cache.json`을 사용해 lint/test/build 반복을 줄입니다. `pre-commit`은 전체 검증을 실행하고, `pre-push`는 `npm run harness:check -- --fast`로 test/build 반복을 줄입니다.
 
@@ -466,9 +466,9 @@ lint/test/build는 스택이 적용되어 추적 가능한 `.harness/stacks/.app
 Harness check summary
 결과: 통과
 필수 조치: 없음
-주의: SYNC GAP review suggested 1건
+주의: 없음
 수동 조치: 없음
-추천 조치: 중요 경로 추천 검증 1건 확인
+추천 조치: 기준 동기화 후보 1건 중 구조·계약 변경만 확인, 중요 경로 추천 검증 1건 확인
 검증: lint, test, build 통과
 ```
 
@@ -486,7 +486,7 @@ npm run harness:check -- --verbose
 | `bootstrap` | 프로젝트 초입 또는 하네스 첫 적용 직후 | TBD와 초기 기준 추가를 정보성 안내로 봅니다. |
 | `active` | 일반 개발 중 | 기준 후보와 decision-log 기록을 권장합니다. |
 | `maintenance` | 안정화된 운영/유지보수 프로젝트 | 변경 영향도, 예외, 회귀 위험을 더 중요하게 봅니다. |
-| `strict` | CI, 릴리스, 보호 브랜치 | SYNC GAP과 기준 누락을 실패 기준으로 봅니다. 보통 `harness:check:strict`와 함께 씁니다. |
+| `strict` | CI, 릴리스, 보호 브랜치 | 자동 검증 실패와 명시적으로 강제한 동기화 후보를 실패 기준으로 봅니다. 일반적인 한쪽 변경 후보는 비차단 검토로 유지합니다. |
 
 ## 비표준 위치 룰 등록 (`profile.json` `sources[]`)
 
@@ -563,7 +563,7 @@ npm run harness:check -- --verbose
 | `npm run policy:impact` | 변경 파일이 어떤 기준과 연결되는지 확인 |
 | `npm run policy:check` | 현재 기준 위반 여부 확인 |
 | `npm run policy:guard` | 영향 분석과 기준 위반 검사를 함께 실행 |
-| `npm run policy:guard:strict` | SYNC GAP을 실패로 취급하는 엄격 검사 |
+| `npm run policy:guard:strict` | 자동 검증 실패와 `syncEnforcement`로 강제한 동기화 후보를 실패로 취급하는 엄격 검사 |
 | `npm run docs:check` | 문서 레지스트리, 링크, 코드 경로 검사 |
 | `npm run docs:check:strict` | 문서 검사 실패를 CI 실패 기준으로 사용 |
 

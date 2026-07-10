@@ -27,7 +27,7 @@
 
 - [ ] `npm run harness:impact`로 영향 범위를 먼저 확인한다. (`harness:check`는 최종화 승인 후)
 - [ ] [ai-standard-guiding-policy.md](../policy/ai-standard-guiding-policy.md) 위배 여부를 확인한다.
-- [ ] 정책 문서(`.harness/policy/**`)만 바꾸는 경우, 그 정책을 강제하는 코드도 함께 봐야 하는지 판단한다(SYNC GAP). 코드 변경이 불필요하면 사유를 [decision-log.md](../session/decision-log.md)에 남긴다.
+- [ ] 정책 문서(`.harness/policy/**`)만 바꾸는 경우, 실제 실행 계약도 바뀌었는지 확인한다. 설명 보강이면 코드 수정이나 decision-log 기록 없이 진행한다.
 
 ## 2단계 — 구현과 동기화
 

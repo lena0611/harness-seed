@@ -22,6 +22,7 @@
 | `status` | `draft`, `active`, `deprecated`, `superseded`, `experimental` |
 | `severity` | `info`, `warning`, `error`, `blocker` |
 | `enforcement` | `inform`, `trigger`, `hook`, `block` |
+| `syncEnforcement` | 선택 필드. 한쪽 변경 후보를 강제할 때만 `review`, `hook`, `block` 중 하나를 선언. 기본값은 `review` |
 | `waiverAllowed` | 예외 기록을 허용하는지 여부 |
 | `owner` | 정책 소유 저장소 또는 조직 |
 | `source` | 원본 문서/저장소/경로 |
@@ -39,7 +40,7 @@
 3. `source`로 원본 문서와 저장소를 추적할 수 있는가?
 4. `documents`, `ownedAreas`, `triggerPaths`가 양방향 검토를 만들되 과도한 경고를 만들지 않는가?
 5. 자동 검사 가능 여부가 `checks`에 명시되어 있는가?
-6. `enforcement`와 `severity`가 분리되어 있는가?
+6. `enforcement`와 `severity`가 분리되어 있고, 기계적 한쪽 변경을 강제해야 할 때만 `syncEnforcement`를 별도로 선언했는가?
 7. 예외를 허용한다면 `waiverAllowed`가 true이고 `waivers.json`에 기록할 수 있는가?
 8. 만료되거나 대체될 정책은 `status`, `supersedes`로 추적되는가?
 9. 프로젝트별 적용 상태는 별도 lock 또는 profile에서 추적할 수 있는가?

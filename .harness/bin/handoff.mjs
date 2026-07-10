@@ -280,7 +280,7 @@ ${readManualActionsSummary()}
 | --- | --- |
 | 변경 파일 | 기능 코드, 설정, 하네스 문서, 생성 파일 구분 |
 | 검증 결과 | \`harness:check\`, lint, test, build, 스택별 검증 |
-| 정책 영향 | SYNC GAP 등급과 조치 여부 |
+| 정책 영향 | 기준 동기화 후보 중 실제 구조·계약 변경 여부 |
 | 중요 경로 | \`critical-paths.md\` 매칭 여부 |
 | 수동 조치 | secret, Pages, capability 등 사용자 처리 필요 여부 |
 | 배포 필요 | 배포/릴리스/마이그레이션 필요 여부 |

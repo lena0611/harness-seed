@@ -1706,13 +1706,13 @@ function harnessBaselineDocUpdateDoesNotTriggerSyncGap() {
 
   const baselineImpact = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'impact', '--verbose'], { cwd: target })
   assert(baselineImpact.includes('Harness baseline update notice'), 'baseline update should be announced as baseline notice')
-  assert(!baselineImpact.includes('SYNC GAP review summary'), 'managed baseline doc update should not trigger sync gap summary')
+  assert(!baselineImpact.includes('기준 동기화 검토 후보'), 'managed baseline doc update should not trigger a sync review candidate')
   assert(!baselineImpact.includes('common.runtime.minimum-node'), 'managed baseline doc update should not trigger runtime policy review')
 
   fs.appendFileSync(baselinePath, '\n## Local project edit\n- 프로젝트가 직접 수정한 런타임 기준입니다.\n')
   const localImpact = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'impact', '--verbose'], { cwd: target })
   assert(localImpact.includes('common.runtime.minimum-node'), 'local edit to same document should still trigger runtime policy review')
-  assert(localImpact.includes('SYNC GAP'), 'local edit to same document should still be reviewed for sync gaps')
+  assert(localImpact.includes('기준 동기화 검토 후보'), 'local edit to same document should still create a sync review candidate')
 }
 
 function guardDerivesAppliedStackFromTrackedSnapshotWhenMarkerMissing() {
@@ -2288,7 +2288,7 @@ function profileProjectSourcesDoNotTriggerInstallSyncGap() {
   writeJson(target, '.harness/policy/profile.json', profile)
 
   const impact = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'impact'], { cwd: target })
-  assert(!impact.includes('SYNC GAP review summary'), 'project-owned profile sources should not create a sync gap')
+  assert(!impact.includes('기준 동기화 검토 후보'), 'project-owned profile sources should not create a sync review candidate')
   assert(!impact.includes('common.install.preserve-project-owned-files'), 'project-owned profile edits must not trigger install preserve source policy')
 }
 

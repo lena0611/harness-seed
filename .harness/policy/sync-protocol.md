@@ -15,20 +15,20 @@
 
 하네스 본체 저장소에서 세부 원인 분석이 필요하면 `policy:impact`, `policy:check`, `docs:check` 같은 내부 npm script를 별도로 사용할 수 있습니다.
 
-## SYNC GAP 처리
-- `harness:impact` 또는 `policy:impact` 출력에 `SYNC GAP` 블록이 보이면 한쪽(문서 또는 소스)만 변경된 상태라는 뜻입니다.
-- 출력은 `trigger files`, `matched rules`, `needed action`, `can ignore when`을 함께 보여줘야 합니다.
-- 등급은 `blocking`, `action required`, `review suggested`, `info`로 나눕니다.
-- `.harness/install-manifest.json`의 managed hash와 일치하는 하네스 baseline/generated 파일은 본체 업데이트 산출물로 분류하고 정책 sync gap 계산에서 제외합니다.
-- 같은 문서를 소비자 프로젝트가 직접 수정해 manifest hash와 달라진 경우에는 로컬 하네스 변경으로 보고 기존처럼 정책 매칭과 sync gap 검토를 수행합니다.
-- 기본 동작: `review suggested`와 `info`는 로컬 `harness:check`를 실패시키지 않습니다.
-- CI나 `strict` 모드에서는 남아 있는 갭을 실패 기준으로 봅니다.
-- `.harness/policy/profile.json`의 `harnessMode`가 `bootstrap`이면 초기 설치나 스택 기준 추가에서 생긴 갭은 정보성 안내로 낮춰 볼 수 있습니다.
-- `harnessMode`가 `strict`이면 `harness:check`도 strict 검증처럼 해석합니다.
-- 해결 옵션:
-  1. 반대편을 같이 갱신해 갭을 닫는다.
-  2. 의도된 단방향 변경이면 `decision-log.md`에 사유를 남기고 필요 시 `waivers.json`에 등록한다.
-  3. 기준 매핑이 잘못된 경우 `policy-registry.json`의 `documents`/`triggerPaths`를 수정한다.
+## 기준 동기화 검토 후보 처리
+- `harness:impact` 또는 `policy:impact`의 `기준 동기화 검토 후보`는 연결된 문서와 코드 중 한쪽만 변경됐다는 파일 경로 신호입니다. 코드와 문서의 의미 불일치를 판정한 결과가 아닙니다.
+- 일반 구현, 버그 수정, 내부 리팩터링, 주석/문구 변경처럼 구조·계약·팀 기준을 바꾸지 않은 변경은 문서 수정이나 `decision-log` 기록 없이 진행해도 됩니다.
+- 구조, 공개 계약, 팀 공통 작업 기준이 실제로 바뀐 경우에만 연결된 문서 또는 구현을 함께 갱신합니다.
+- 출력은 `trigger files`, `matched rules`, `needed action`, `can ignore when`을 함께 보여줘 사용자가 후보를 빠르게 제외할 수 있어야 합니다.
+- 등급은 `blocking`, `action required`, `review suggested`, `info`로 나누지만, 기본값은 비차단 `review suggested`입니다.
+- 일반 정책의 `severity`와 `enforcement`는 정책 자체의 강도이며 기계적 동기화 후보의 강도로 사용하지 않습니다.
+- 동기화 확인을 반드시 강제해야 하는 정책만 `syncEnforcement`를 별도로 선언합니다. 허용값은 `review`(기본값), `hook`, `block`입니다.
+- `strict` 모드에서도 기본 검토 후보는 실패로 취급하지 않습니다. `syncEnforcement: hook` 또는 `block`이 명시된 후보만 실패로 처리합니다.
+- `.harness/install-manifest.json`의 managed hash와 일치하는 하네스 baseline/generated 파일은 본체 업데이트 산출물로 분류하고 검토 후보 계산에서 제외합니다.
+- 같은 문서를 소비자 프로젝트가 직접 수정해 manifest hash와 달라진 경우에는 로컬 하네스 변경으로 보고 정책 매칭과 검토 후보를 계산합니다.
+- `.harness/policy/profile.json`의 `harnessMode`가 `bootstrap`이면 초기 설치나 스택 기준 추가에서 생긴 후보를 `info`로 표시합니다.
+- `decision-log`와 waiver는 지속되는 구조 판단이나 명시적 강제 정책의 예외에만 사용합니다.
+- 기준 매핑이 반복적으로 무관한 파일을 깨우면 `policy-registry.json` 또는 스택 `policies.json`의 `documents`/`triggerPaths`를 좁힙니다.
 
 ## 정책 매칭 범위
 - `documents`는 정책을 설명하는 기준 문서입니다.
@@ -43,7 +43,7 @@
 - 에이전트가 직접 처리할 수 없는 외부 콘솔, secret, capability, Pages 설정은 `.harness/session/manual-actions.md`에 남깁니다.
 
 ## 반복 검증 완화
-- `harness:check`는 같은 git tree가 이미 통과했으면 `.harness/generated/check-cache.json`을 사용해 **전체 검증(정책 SYNC GAP, doc-link, seed-mode의 test-init, 스택 lint/test/build)을 통째로 스킵**합니다(0.2.70). 이들은 모두 git tree의 결정론적 함수이므로 "같은 tree면 결과가 같다"가 보장되어 검증 신뢰성을 해치지 않습니다. 캐시 키는 검사 모드(strict/default) + HEAD + 변경/핵심 파일 해시 + 스택 상태(`validationCacheKey`)이며, tree가 1비트라도 바뀌면 미스되어 전체 재검증합니다. 강제 재검증은 `--no-cache`.
+- `harness:check`는 같은 git tree가 이미 통과했으면 `.harness/generated/check-cache.json`을 사용해 **전체 검증(기준 동기화 후보 분석, doc-link, seed-mode의 test-init, 스택 lint/test/build)을 통째로 스킵**합니다(0.2.70). 이들은 모두 git tree의 결정론적 함수이므로 "같은 tree면 결과가 같다"가 보장되어 검증 신뢰성을 해치지 않습니다. 캐시 키는 검사 모드(strict/default) + HEAD + 변경/핵심 파일 해시 + 스택 상태(`validationCacheKey`)이며, tree가 1비트라도 바뀌면 미스되어 전체 재검증합니다. 강제 재검증은 `--no-cache`.
 - `full` 통과 캐시는 `fast` 요청이 재사용합니다(full ⊇ fast). 따라서 `pre-commit`(full)이 통과하면 직후 `pre-push`(fast)와 양쪽 원격(GitHub/GitLab) push, 태그 push는 같은 tree라 캐시 히트로 재검증을 건너뜁니다(릴리스 1회 검증 5회 → 1회). 반대로 `fast` 캐시는 `full` 요청을 만족시키지 않습니다(test/build를 빠뜨리므로 재검증).
 - `pre-commit`은 `.harness/bin/harness check`로 전체 검사를 실행합니다(npm 프로젝트의 `npm run harness:check`와 동일 검사, 비-Node 프로젝트에서도 동작).
 - `pre-push`는 `.harness/bin/harness check --fast`를 실행하되, commit 직후 같은 tree면 위 캐시로 즉시 통과합니다. 캐시가 없을 때만 정책·문서·버전·lint 중심으로 확인합니다.

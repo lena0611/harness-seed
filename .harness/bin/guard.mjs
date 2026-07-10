@@ -91,7 +91,7 @@ function hashFileIfExists(filePath) {
 
 function validationCacheKey(scriptNames) {
   const hash = crypto.createHash('sha256')
-  // strict/default는 검사 강도가 달라(strict는 SYNC GAP을 실패 처리) 키로 분리한다.
+  // strict/default는 명시적 syncEnforcement와 다른 엄격 검사의 강도가 달라 키로 분리한다.
   // fast/full은 키에 넣지 않고 캐시 레코드의 mode로 구분한다 — full 통과는 fast를 포함(full ⊇ fast)하므로
   // commit(full) 직후 push(fast)가 같은 tree면 full 캐시를 재사용할 수 있다(아래 히트 판정 참고).
   hash.update(`mode:${strictMode ? 'strict' : 'default'}\n`)
@@ -541,6 +541,8 @@ function readImpactSummary() {
   return readJson(impactSummaryPath, {
     syncGaps: 0,
     syncGapLevels: {},
+    syncReviewCandidates: 0,
+    syncReviewLevels: {},
     policyTriggered: 0,
     codeTriggered: 0,
   })
@@ -548,16 +550,17 @@ function readImpactSummary() {
 
 function printConsumerSummary({ validationResults, edgeResult, criticalResult, cacheHit = false, stackSkipped = false, failedReason = null }) {
   const impact = readImpactSummary()
-  const levels = impact.syncGapLevels ?? {}
+  const levels = impact.syncReviewLevels && Object.keys(impact.syncReviewLevels).length > 0
+    ? impact.syncReviewLevels
+    : impact.syncGapLevels ?? {}
   const requiredCount = (levels.blocking ?? 0) + (levels['action required'] ?? 0) + (failedReason ? 1 : 0)
   const suggestedCount = levels['review suggested'] ?? 0
-  const infoCount = levels.info ?? 0
   const openManualActions = countOpenManualActions()
   const passedValidations = validationResults.filter((item) => item.status === 'passed').map((item) => item.scriptName)
   const recommendedActions = []
 
   if (suggestedCount > 0) {
-    recommendedActions.push(`SYNC GAP review suggested ${suggestedCount}건 검토`)
+    recommendedActions.push(`기준 동기화 후보 ${suggestedCount}건 중 구조·계약 변경만 확인`)
   }
   if (criticalResult.recommendations.length > 0) {
     recommendedActions.push(`중요 경로 추천 검증 ${criticalResult.recommendations.length}건 확인`)
@@ -565,15 +568,12 @@ function printConsumerSummary({ validationResults, edgeResult, criticalResult, c
   if (edgeResult.status === 'warning') {
     recommendedActions.push('Supabase Edge Function 검증 명령 추가')
   }
-  if (infoCount > 0) {
-    recommendedActions.push(`정보성 기준 갭 ${infoCount}건 참고`)
-  }
 
   console.log('')
   console.log('Harness check summary')
   console.log(`결과: ${failedReason ? '실패' : requiredCount === 0 ? '통과' : '조치 필요'}`)
   console.log(`필수 조치: ${requiredCount === 0 ? '없음' : `${requiredCount}건`}`)
-  console.log(`주의: ${suggestedCount === 0 ? '없음' : `SYNC GAP review suggested ${suggestedCount}건`}`)
+  console.log('주의: 없음')
   console.log(`수동 조치: ${openManualActions === 0 ? '없음' : `${openManualActions}건 (.harness/session/manual-actions.md 확인)`}`)
   console.log(`추천 조치: ${recommendedActions.length === 0 ? '없음' : recommendedActions.join(', ')}`)
   console.log(`검증: ${cacheHit ? '캐시 재사용' : passedValidations.length > 0 ? `${passedValidations.join(', ')} 통과` : stackSkipped ? '스택 미적용으로 lint/test/build 스킵' : '실행된 프로젝트 검증 없음'}`)

@@ -500,7 +500,7 @@
         title: '영향/충돌 정리',
         summary: '코드, 문서, 설정, 검증에 어떤 영향이 있는지 먼저 분류합니다.',
         developer: ['작업이 여러 영역을 건드리면 검증 범위도 같이 넓힙니다.'],
-        agent: ['변경 후보를 feature, config, harness, generated로 나눠 봅니다.', '문서만 또는 코드만 바뀌는 SYNC GAP 후보를 확인합니다.'],
+        agent: ['변경 후보를 feature, config, harness, generated로 나눠 봅니다.', '문서나 코드 한쪽만 바뀐 후보 중 실제 기준 변경만 확인합니다.'],
         commands: ['npm run harness:impact'],
         files: ['.harness/policy/policy-registry.json', '.harness/project/architecture-rules.md', '.harness/project/workflow-rules.md'],
         fallback: ['의도적인 예외는 waiver나 decision-log에 남깁니다.']
@@ -554,7 +554,7 @@
         title: '문서-코드 동기화',
         summary: '기준만 바뀌었는지, 코드만 바뀌었는지 확인하고 필요한 반대편을 보강합니다.',
         developer: ['규칙을 바꿨다면 구현이나 예외 기록이 함께 있는지 확인합니다.'],
-        agent: ['SYNC GAP을 상황별 severity로 해석합니다.', '의도적이면 decision-log 또는 waiver에 근거를 남깁니다.'],
+        agent: ['한쪽 변경 신호는 의미 불일치 판정이 아님을 전제로 해석합니다.', '일반 구현 변경은 기록 없이 진행하고 지속되는 구조 판단만 decision-log에 남깁니다.'],
         commands: ['npm run harness:impact', 'npm run harness:check  # 최종 검증만 요청했거나 hook 미설치/우회 시'],
         files: ['.harness/project/*.md', '.harness/session/decision-log.md', '.harness/policy/waivers.json'],
         fallback: ['초기 설치나 스택 적용 직후의 문서 추가는 정보성으로 해석합니다.']

@@ -322,6 +322,7 @@ function validatePolicyRegistry(registry) {
   const validStatuses = new Set(['draft', 'active', 'deprecated', 'superseded', 'experimental'])
   const validSeverities = new Set(['info', 'warning', 'error', 'blocker'])
   const validEnforcement = new Set(['inform', 'trigger', 'hook', 'block'])
+  const validSyncEnforcement = new Set(['review', 'hook', 'block'])
 
   for (const policy of registry.policies ?? []) {
     const requiredBasicFields = ['id', 'title', 'documents', 'ownedAreas']
@@ -369,6 +370,14 @@ function validatePolicyRegistry(registry) {
         rule: 'policy-registry-v3-schema',
         file: `${harnessRootRel}/policy/policy-registry.json`,
         message: `policy '${policy.id ?? '(unknown)'}' triggerPaths must be a non-empty array when provided`,
+      })
+    }
+
+    if (policy.syncEnforcement !== undefined && !validSyncEnforcement.has(policy.syncEnforcement)) {
+      violations.push({
+        rule: 'policy-registry-v3-schema',
+        file: `${harnessRootRel}/policy/policy-registry.json`,
+        message: `policy '${policy.id ?? '(unknown)'}' has invalid syncEnforcement '${policy.syncEnforcement}'`,
       })
     }
 
@@ -689,7 +698,7 @@ function printHarnessBaselineNotice(changedGroups) {
 
   console.log('Harness baseline update notice:')
   console.log('- install manifest 기준으로 본체가 관리하는 baseline/generated 파일 변경입니다.')
-  console.log('- 소비자 프로젝트가 직접 고친 로컬룰이 아니므로 정책 sync gap 계산에서는 제외합니다.')
+  console.log('- 소비자 프로젝트가 직접 고친 로컬룰이 아니므로 기준 동기화 후보 계산에서는 제외합니다.')
   console.log('- 같은 파일을 의도적으로 프로젝트 규칙으로 수정했다면 manifest 해시와 달라져 Local harness updates로 분류됩니다.')
 
   if (showBaseline || verboseMode) {
@@ -721,50 +730,55 @@ function writeImpactSummary(summary) {
   }
 }
 
-function policyActionLevel(policy, informational) {
-  if (informational || policy.severity === 'info' || policy.enforcement === 'inform') {
+function syncReviewLevel(policy, informational) {
+  if (informational) {
     return 'info'
   }
 
-  if (strictMode || policy.severity === 'blocker' || policy.enforcement === 'block') {
+  if (policy.syncEnforcement === 'block') {
     return 'blocking'
   }
 
-  if (policy.severity === 'error' || policy.enforcement === 'hook') {
+  if (policy.syncEnforcement === 'hook') {
     return 'action required'
   }
 
   return 'review suggested'
 }
 
+function syncReviewLevelLabel(level) {
+  return {
+    blocking: '차단',
+    'action required': '확인 필수',
+    'review suggested': '가볍게 확인',
+    info: '참고',
+  }[level] ?? level
+}
+
 function actionMessage(level, side) {
   if (level === 'blocking') {
-    return '반대편 변경을 함께 반영하거나, 허용된 경우 waiver/decision-log에 예외 근거를 남겨야 합니다.'
+    return '이 기준은 동기화를 명시적으로 강제합니다. 연결 문서/구현을 반영하거나 잘못된 매핑을 좁히세요.'
   }
 
   if (level === 'action required') {
-    return '관련 기준 또는 구현 변경을 확인하고, 누락이면 함께 수정하세요.'
+    return '이 기준은 동기화 확인을 필수로 지정했습니다. 구조·계약 변경 여부를 확인하고 필요한 쪽만 반영하세요.'
   }
 
   if (level === 'review suggested') {
     return side === 'document-only'
-      ? '문서 기준만 바뀐 의도적 변경인지 확인하세요. 구현이 필요 없으면 decision-log에 이유를 남기면 됩니다.'
-      : '구현만 바뀐 의도적 변경인지 확인하세요. 반복 규칙이면 project rule 또는 decision-log에 남기면 됩니다.'
+      ? '문서가 실제 구현 변경을 요구하는 기준 변경인지 확인하세요. 설명 보강이면 구현 수정이 필요 없습니다.'
+      : '코드가 구조·계약·팀 기준을 바꾼 변경인지 확인하세요. 일반 구현 변경이면 문서 수정이 필요 없습니다.'
   }
 
-  return '초기 설치, rules-only 스택 적용, 생성 파일 갱신처럼 기준만 추가되는 상황이면 참고용입니다.'
+  return '초기 설치, rules-only 스택 적용, 생성 파일 갱신에서 생긴 참고용 연결 신호입니다.'
 }
 
-function ignoreMessage(policy, side) {
+function ignoreMessage(side) {
   if (side === 'document-only') {
-    return '새 기준을 기록했지만 이번 커밋에서 구현 변경이 필요 없고, 그 이유가 decision-log 또는 문서 본문에 남아 있을 때'
+    return '설명 보강, 예시 수정, 문구 정리처럼 구현 계약을 바꾸지 않은 문서 변경일 때'
   }
 
-  if (policy.waiverAllowed) {
-    return '단발성 구현 변경이거나 별도 검증으로 대체했고 waiver/decision-log에 근거를 남겼을 때'
-  }
-
-  return '이 정책은 waiver를 허용하지 않습니다. 매칭이 잘못되었다면 정책의 triggerPaths/documents를 좁혀야 합니다.'
+  return '일반 구현, 버그 수정, 리팩터링 내부 정리, 주석/문구 변경처럼 팀 기준을 바꾸지 않았을 때'
 }
 
 function printProjectRuleCandidateReminder(changedGroups) {
@@ -853,9 +867,7 @@ function runImpact() {
       syncGaps.push({
         id: policy.id,
         title: policy.title,
-        severity: policy.severity ?? 'warning',
-        enforcement: policy.enforcement ?? 'trigger',
-        waiverAllowed: Boolean(policy.waiverAllowed),
+        syncEnforcement: policy.syncEnforcement ?? 'review',
         side: documentChanged ? 'document-only' : 'source-only',
         documents,
         ownedAreas,
@@ -870,10 +882,10 @@ function runImpact() {
 
   if (policyTriggered.length > 0) {
     if (briefMode && !verboseMode) {
-      console.log(`Policy document changes require source review: ${policyTriggered.length}개 기준 영향`)
+      console.log(`변경 문서와 연결된 구현 기준: ${policyTriggered.length}개`)
       console.log('')
     } else {
-      console.log('Policy document changes require source review:')
+      console.log('변경 문서와 연결된 구현 기준:')
 
       for (const item of policyTriggered) {
         console.log(`- [${item.id}] ${item.title}`)
@@ -891,10 +903,10 @@ function runImpact() {
 
   if (codeTriggered.length > 0) {
     if (briefMode && !verboseMode) {
-      console.log(`Source changes require policy review: ${codeTriggered.length}개 기준 영향`)
+      console.log(`변경 코드와 연결된 기준 문서: ${codeTriggered.length}개`)
       console.log('')
     } else {
-      console.log('Source changes require policy review:')
+      console.log('변경 코드와 연결된 기준 문서:')
 
       for (const item of codeTriggered) {
         console.log(`- [${item.id}] ${item.title}`)
@@ -914,9 +926,9 @@ function runImpact() {
     console.log('등록된 정책-코드 매핑에 걸리는 변경은 없습니다.')
   }
 
-  const informational = !strictMode && isInformationalSyncGap(changedGroups, harnessMode)
+  const informational = isInformationalSyncGap(changedGroups, harnessMode)
   for (const gap of syncGaps) {
-    syncGapLevels[policyActionLevel(gap, informational)]++
+    syncGapLevels[syncReviewLevel(gap, informational)]++
   }
 
   writeImpactSummary({
@@ -929,54 +941,54 @@ function runImpact() {
     codeTriggered: codeTriggered.length,
     syncGaps: syncGaps.length,
     syncGapLevels,
+    syncReviewCandidates: syncGaps.length,
+    syncReviewLevels: syncGapLevels,
   })
 
   if (syncGaps.length > 0) {
     console.log('')
-    console.log(informational
-      ? 'SYNC GAP info (초기 설치/스택 적용 직후라면 정상일 수 있음):'
-      : strictMode
-        ? 'SYNC GAP blocking summary (strict 모드에서는 기준-코드 불일치를 실패로 봅니다):'
-        : 'SYNC GAP review summary (조치 필요와 참고용을 구분해 확인하세요):')
+    console.log('기준 동기화 검토 후보 (의미 불일치 판정 아님):')
+    console.log('- 연결된 문서와 코드 중 한쪽이 변경됐다는 파일 경로 신호입니다.')
+    console.log('- 구조·계약·팀 기준이 실제로 바뀐 경우에만 반대쪽 갱신이 필요합니다.')
 
     if (briefMode && !verboseMode) {
-      console.log(`- ${syncGaps.length}개 기준에서 한쪽 변경이 감지되었습니다.`)
+      console.log(`- ${syncGaps.length}개 연결 기준에서 한쪽 변경이 감지되었습니다.`)
       console.log('- 상세 기준과 파일 목록은 npm run harness:impact 또는 npm run harness:check -- --verbose 로 확인하세요.')
     } else {
-      console.log('  severity summary:')
+      console.log('  후보 등급:')
       for (const level of ['blocking', 'action required', 'review suggested', 'info']) {
         if (syncGapLevels[level]) {
-          console.log(`  - ${level}: ${syncGapLevels[level]}`)
+          console.log(`  - ${syncReviewLevelLabel(level)}: ${syncGapLevels[level]}`)
         }
       }
 
       for (const gap of syncGaps) {
         const sideLabel = gap.side === 'document-only' ? '문서만 변경됨' : '소스만 변경됨'
-        const level = policyActionLevel(gap, informational)
-        console.log(`- [${level}] [${gap.id}] ${gap.title} — ${sideLabel}`)
-        console.log(`  policy: severity=${gap.severity}, enforcement=${gap.enforcement}, waiverAllowed=${gap.waiverAllowed}`)
-        console.log('  trigger files:')
+        const level = syncReviewLevel(gap, informational)
+        console.log(`- [${syncReviewLevelLabel(level)}] [${gap.id}] ${gap.title} — ${sideLabel}`)
+        console.log(`  동기화 강제 설정: ${gap.syncEnforcement}`)
+        console.log('  변경 파일:')
         console.log(formatFileList(gap.triggeredFiles))
-        console.log('  matched rules:')
+        console.log('  매칭 경로:')
         console.log(formatFileList(gap.matchedRules))
-        console.log('  related documents:')
+        console.log('  연결 문서:')
         console.log(informational && !showBaseline ? formatFileSummary(gap.documents) : formatFileList(gap.documents))
-        console.log('  review scope:')
+        console.log('  연결 구현 범위:')
         console.log(informational && !showBaseline ? formatFileSummary(gap.ownedAreas) : formatFileList(gap.ownedAreas))
-        console.log(`  needed action: ${actionMessage(level, gap.side)}`)
-        console.log(`  can ignore when: ${ignoreMessage(gap, gap.side)}`)
+        console.log(`  판단 기준: ${actionMessage(level, gap.side)}`)
+        console.log(`  조치 없음 조건: ${ignoreMessage(gap.side)}`)
       }
     }
 
     console.log('')
     if (informational) {
       console.log('안내: 설치 baseline 또는 rules-only 스택 기준이 처음 추가된 상황이면 정상입니다.')
-      console.log('업무 기능 변경 중이라면 관련 코드, decision-log, waiver 반영 여부를 확인하세요.')
     } else {
-      console.log('해결: 반대편을 함께 갱신하거나, 의도적이라면 waiver/decision-log에 기록하세요.')
+      console.log('판단: 구조·계약·팀 기준 변경이면 연결 문서를 갱신하고, 일반 구현 변경이면 별도 조치 없이 진행합니다.')
     }
+    console.log('decision-log/waiver는 지속되는 구조 판단이나 명시적 강제 정책의 예외에만 사용합니다.')
 
-    if (strictMode) {
+    if (strictMode && (syncGapLevels.blocking > 0 || syncGapLevels['action required'] > 0)) {
       process.exitCode = 1
     }
   }
