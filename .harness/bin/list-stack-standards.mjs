@@ -1,8 +1,16 @@
 #!/usr/bin/env node
 
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 const gitlabUrl = process.env.HARNESS_GITLAB_URL ?? 'https://git.smartscore.kr'
 const groupPath = process.env.HARNESS_STACK_STANDARD_GROUP ?? 'ai-standard/harnesses'
 const token = process.env.GITLAB_TOKEN ?? process.env.HARNESS_GITLAB_TOKEN
+const remoteMode = process.argv.slice(2).includes('--remote')
+const registryPath = path.join(__dirname, '..', 'stacks', 'registry.json')
 const excludedProjects = new Set(
   (process.env.HARNESS_STACK_STANDARD_EXCLUDE ?? 'harness-seed')
     .split(',')
@@ -14,23 +22,57 @@ function encodeGroupPath(value) {
   return value.split('/').map(encodeURIComponent).join('%2F')
 }
 
-function printManualFallback() {
-  console.log('스택 하네스 목록을 자동 조회하지 못했습니다.')
+function readRegistry() {
+  try {
+    const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'))
+    return Array.isArray(registry.stacks) ? registry.stacks : []
+  } catch {
+    return []
+  }
+}
+
+function printStackList(stacks, heading) {
+  console.log(heading)
   console.log('')
-  console.log('사내 GitLab 스택 하네스 조회 설정을 확인하세요.')
+
+  for (const stack of stacks) {
+    console.log(`- ${stack.title ?? stack.id}`)
+    if (stack.description) console.log(`  ${stack.description}`)
+    console.log(`  repo: ${stack.repo}`)
+    console.log(`  기준: ${stack.ref ?? '저장소 기본 브랜치'}`)
+    console.log(`  설치: npx -y git+${stack.repo}${stack.ref ? `#${stack.ref}` : ''} init`)
+    console.log(`  적용: npm run stack:apply -- --preset-git ${stack.repo}${stack.ref ? ` --ref ${stack.ref}` : ''}`)
+  }
+
+  console.log('')
+  console.log('목록 조회에는 GitLab 토큰이 필요 없습니다. private 스택을 설치할 때만 해당 저장소의 Git 읽기 권한이 필요합니다.')
+}
+
+function printRemoteFallback(stacks, status = null) {
+  console.log('원격 스택 조회를 완료하지 못해 배포된 승인 목록을 표시합니다.')
+  if (status) console.log(`  GitLab API 응답: ${status}`)
+  console.log('')
+  printStackList(stacks, '승인된 스택 하네스 목록')
+  console.log('')
+  console.log('관리자용 원격 조회 설정:')
   console.log('  HARNESS_GITLAB_URL=https://git.smartscore.kr')
   console.log('  HARNESS_STACK_STANDARD_GROUP=ai-standard/harnesses')
-  console.log('  GITLAB_TOKEN=<private-token>   # 비공개 그룹이거나 API 권한이 필요하면 설정')
-  console.log('')
-  console.log('스택 하네스 후보가 조회되면 다음 형식으로 설치하세요.')
-  console.log('  npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init')
-  console.log('')
-  console.log('공통 하네스가 이미 설치된 관리자/고급 흐름에서는 스택 기준을 직접 지정할 수 있습니다.')
-  console.log('  npm run stack:apply -- --preset-git <repo-url> --ref <tag-or-branch>')
-  console.log('  npm run stack:apply -- --preset-path <local-standard-dir>')
+  console.log('  GITLAB_TOKEN=<read_api token> npm run standards:list -- --remote')
 }
 
 async function main() {
+  const stacks = readRegistry()
+
+  if (!remoteMode) {
+    if (stacks.length === 0) {
+      console.error(`배포된 스택 레지스트리를 읽을 수 없습니다: ${registryPath}`)
+      process.exit(1)
+    }
+
+    printStackList(stacks, '승인된 스택 하네스 목록')
+    return
+  }
+
   const url = new URL(`/api/v4/groups/${encodeGroupPath(groupPath)}/projects`, gitlabUrl)
   url.searchParams.set('include_subgroups', 'true')
   url.searchParams.set('per_page', '100')
@@ -41,38 +83,31 @@ async function main() {
   try {
     response = await fetch(url, { headers })
   } catch {
-    printManualFallback()
+    printRemoteFallback(stacks)
     process.exit(0)
   }
 
   if (!response.ok) {
-    printManualFallback()
+    printRemoteFallback(stacks, response.status)
     process.exit(0)
   }
 
   const projects = await response.json()
-  const stackStandards = Array.isArray(projects)
+  const remoteStacks = Array.isArray(projects)
     ? projects.filter((project) => !excludedProjects.has(project.path))
     : []
 
-  if (stackStandards.length === 0) {
-    console.log(`스택 기준 그룹에 후보 프로젝트가 없습니다: ${groupPath}`)
-    console.log(`제외 프로젝트: ${[...excludedProjects].join(', ') || '(none)'}`)
+  if (remoteStacks.length === 0) {
+    printRemoteFallback(stacks)
     return
   }
 
-  console.log(`Stack standards from ${groupPath}`)
-  console.log('')
-
-  for (const project of stackStandards) {
-    const name = project.path_with_namespace ?? project.name
-    const repo = project.http_url_to_repo ?? project.web_url
-    const ref = project.tag_list?.[0] ?? project.default_branch ?? 'main'
-    console.log(`- ${name}`)
-    console.log(`  repo: ${repo}`)
-    console.log(`  install: npx -y git+${repo}#${ref} init`)
-    console.log(`  apply: npm run stack:apply -- --preset-git ${repo} --ref ${ref}`)
-  }
+  printStackList(remoteStacks.map((project) => ({
+    id: project.path,
+    title: project.path_with_namespace ?? project.name,
+    repo: project.http_url_to_repo ?? project.web_url,
+    ref: project.tag_list?.[0] ?? project.default_branch ?? null,
+  })), `원격 스택 하네스 목록 (${groupPath})`)
 }
 
 main()

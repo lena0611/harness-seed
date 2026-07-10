@@ -81,7 +81,7 @@
 - 본체(seed-mode) 전용 문서는 소비자 프로젝트에 배포하지 않습니다(0.2.69). 내용이 하네스 본체의 개발/배포/거버넌스 절차라 설치된 소비자 프로젝트에는 무의미한 문서(현재 `.harness/project/body-release-checklist.md`)가 대상입니다. `init`은 타깃에 `.harness-seed-mode` 마커가 없으면(=소비자) `SEED_ONLY_DOC_PATHS` 문서를 복사하지 않고, 이전 버전이 설치한 기존본은 manifest 기록 sha와 일치(미수정)할 때 정리하며 수정됐거나 출처를 확인할 수 없으면 보존하고 안내합니다. 마커가 있으면(=본체) 본체 개발에 필요하므로 그대로 둡니다. 이 문서들은 `document-registry.json`에도 등록하지 않아(소비자에서 "registry엔 있는데 파일 없음" 오탐 방지) `doc-link-check`가 본체에서 orphan으로 보지 않습니다(`seedOnlyDocs` 예외). 목록이 바뀌면 `scripts/init.mjs`의 `SEED_ONLY_DOC_PATHS`, `.harness/bin/doc-link-check.mjs`의 `seedOnlyDocs`, `document-registry.json`, `scripts/test-init.mjs`의 seed-only 회귀를 함께 갱신합니다.
 - `.claude/settings.json`은 project-owned로 보존하되, 회사 공통 필수 차단 기준인 에이전트 안전 훅이 소비자에서 무력화되지 않도록 `init`이 하네스의 안전 표면(hooks, permissions.deny/allow, env, statusLine)을 기존 설정에 멱등·비파괴로 병합합니다(기존 값은 덮지 않고, statusLine은 없을 때만 설정). 소비자가 의도적으로 제거한 항목을 되살릴 수 있으므로, 원치 않으면 설치 후 제거하고 사유를 남깁니다.
 - `harness:outdated`는 공통 하네스와 스택 하네스를 함께 검사하고, 둘 중 하나라도 업데이트 후보가 있으면 전체 상태를 `outdated`로 표시합니다. 공통만 보려면 `--base-only`, 스택만 보려면 `--stack-only`를 사용합니다.
-- `harness:update` 기본 동작은 스택 하네스 업데이트입니다. 공통 하네스만 업데이트할 때는 `--base-only`를 명시합니다.
+- `harness:update` 기본 동작은 스택 하네스와 공통 하네스를 차례로 업데이트합니다. 하나만 업데이트할 때는 `--stack-only` 또는 `--base-only`를 명시합니다.
 - lock에 repo/ref/version 정보가 부족하면 lock source metadata와 install manifest source metadata에서 복구해 조회합니다.
 - `harness:update -- --base-only`는 공통 하네스 init에 `--source-repo`, `--source-ref`를 전달해 `.harness/harness-lock.json`과 `.harness/install-manifest.json`의 base source metadata가 `bundled`로 되돌아가지 않게 해야 합니다.
 - source ref가 `semver:*`인 경우 init은 lock/manifest에 그대로 기록하지 않고 실제 설치된 package version tag(`vX.Y.Z`)로 정규화합니다.
@@ -92,7 +92,7 @@
 - 프로젝트 소유 파일 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/project/critical-paths.md`, `.harness/session/active-context.md`, `.harness/session/manual-actions.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다.
 - `stack:apply`는 활성 스택 instructions를 `.harness/project/stack-preset-rules.md`에 로컬룰로 반영해야 합니다.
 - 외부 프리셋은 `profile.json`의 `stackManifest` 또는 `stack:apply -- --preset-path <dir>`로 연결하며, manifest 상대 경로는 manifest 위치 기준으로 해석합니다.
-- 원격 템플릿 후보 조회는 `.harness/bin/list-templates.mjs`가 담당하며, 기본 대상은 사내 GitLab의 `ai-standard/stacks` 그룹입니다.
+- `standards:list`와 `templates:list`는 배포물의 `.harness/stacks/registry.json`, `.harness/templates/registry.json`에 있는 승인 후보를 표시하므로 소비자는 GitLab 토큰이 필요 없습니다. 원격 GitLab 조회는 관리자만 각각 `--remote` 옵션으로 실행합니다.
 - 세미콜론, quote, import 정렬 같은 구체 스타일 값은 공통 하네스가 아니라 로컬 방법론 또는 스택 프리셋 로컬 규칙에서 다룹니다.
 - 설치/업데이트 UX가 바뀌면 README의 init 사용법과 보존 기준 설명도 함께 갱신합니다.
 - 어댑터 설치 항목이 바뀌면 `scripts/init.mjs`, `scripts/test-init.mjs`, `package.json` files 목록, README의 어댑터 설명을 함께 갱신합니다.

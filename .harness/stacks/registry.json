@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "stacks": [
+    {
+      "id": "vue3-vite-pinia-router",
+      "title": "Vue 3 + Vite + Pinia + Vue Router",
+      "description": "Vue 3, Vite, Pinia, Vue Router 프로젝트용 기술 작업 기준입니다.",
+      "repo": "https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git",
+      "ref": "v0.1.47"
+    }
+  ]
+}

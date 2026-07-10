@@ -10,7 +10,7 @@
 ## 사용 가능한 스택 기준
 - `none` — 공통 하네스만 사용
 - 사내 스택 기준 — `npm run standards:list`, `--preset-path`, `--preset-git`, `stackManifest`로 연결
-- scaffold 템플릿 — `npm run templates:list`로 조회한 뒤 `template:apply`로 별도 적용
+- scaffold 템플릿 — 토큰 없이 `npm run templates:list`로 승인 목록을 조회한 뒤 `template:apply`로 별도 적용
 
 ## 활성 스택 결정
 - `.harness/policy/profile.json`의 `activeStack`이 단일 진실 출처입니다.

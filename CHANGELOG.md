@@ -4,6 +4,12 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.87 - 2026-07-10
+
+- `standards:list`와 `templates:list`가 private GitLab API를 기본 호출하지 않고, 배포물에 포함된 승인 레지스트리를 표시하도록 바꿨습니다. 사람과 에이전트 모두 토큰 없이 목록을 볼 수 있고, 실제 private 저장소 설치 때만 기존 Git 읽기 권한이 필요합니다.
+- 관리자만 `--remote` 옵션과 `read_api` 토큰으로 원격 GitLab 그룹을 직접 조회할 수 있습니다.
+- 기본 `harness:update`가 스택만 갱신한 뒤 base를 outdated로 남기지 않도록, 스택과 공통 하네스를 같은 호환 범위에서 함께 갱신합니다. 한쪽만 갱신할 때는 `--stack-only`, `--base-only`를 사용합니다.
+
 ## 0.2.86 - 2026-07-10
 
 - 기계적인 문서/코드 한쪽 변경 감지를 `SYNC GAP` 대신 `기준 동기화 검토 후보`로 안내합니다. 의미 불일치 판정이 아니며 일반 구현 변경은 문서 수정이나 decision-log 없이 진행할 수 있습니다.

@@ -1,30 +1,72 @@
 #!/usr/bin/env node
 
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 const gitlabUrl = process.env.HARNESS_GITLAB_URL ?? 'https://git.smartscore.kr'
 const groupPath = process.env.HARNESS_TEMPLATE_GROUP ?? 'ai-standard/stacks'
 const token = process.env.GITLAB_TOKEN ?? process.env.HARNESS_GITLAB_TOKEN
+const remoteMode = process.argv.slice(2).includes('--remote')
+const registryPath = path.join(__dirname, '..', 'templates', 'registry.json')
 
 function encodeGroupPath(value) {
   return value.split('/').map(encodeURIComponent).join('%2F')
 }
 
-function printManualFallback() {
-  console.log('템플릿 목록을 자동 조회하지 못했습니다.')
+function readRegistry() {
+  try {
+    const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'))
+    return Array.isArray(registry.templates) ? registry.templates : []
+  } catch {
+    return []
+  }
+}
+
+function printTemplateList(templates, heading) {
+  console.log(heading)
   console.log('')
-  console.log('사내 GitLab 스택 템플릿 조회 설정을 확인하세요.')
+
+  for (const template of templates) {
+    console.log(`- ${template.title ?? template.id}`)
+    if (template.description) console.log(`  ${template.description}`)
+    if (template.requiredStackHarness?.id) console.log(`  대상 스택: ${template.requiredStackHarness.id}`)
+    console.log(`  repo: ${template.repo}`)
+    console.log(`  기준: ${template.ref ?? '저장소 기본 브랜치'}`)
+    console.log(`  적용: npm run template:apply -- --preset-git ${template.repo}${template.ref ? ` --ref ${template.ref}` : ''}`)
+  }
+
+  console.log('')
+  console.log('목록 조회에는 GitLab 토큰이 필요 없습니다. private 템플릿을 적용할 때만 해당 저장소의 Git 읽기 권한이 필요합니다.')
+}
+
+function printRemoteFallback(templates, status = null) {
+  console.log('원격 템플릿 조회를 완료하지 못해 배포된 승인 목록을 표시합니다.')
+  if (status) console.log(`  GitLab API 응답: ${status}`)
+  console.log('')
+  printTemplateList(templates, '승인된 템플릿 목록')
+  console.log('')
+  console.log('관리자용 원격 조회 설정:')
   console.log('  HARNESS_GITLAB_URL=https://git.smartscore.kr')
   console.log('  HARNESS_TEMPLATE_GROUP=ai-standard/stacks')
-  console.log('  GITLAB_TOKEN=<private-token>   # 비공개 그룹이거나 API 권한이 필요하면 설정')
-  console.log('')
-  console.log('현재 등록된 템플릿 후보 예시입니다. 적용 전 템플릿 저장소 README와 manifest 계약을 확인하세요.')
-  console.log('  https://git.smartscore.kr/ai-standard/stacks/cloud-front-admin-template')
-  console.log('')
-  console.log('다른 템플릿을 알고 있다면 직접 지정할 수 있습니다.')
-  console.log('  npm run template:apply -- --preset-git <repo-url> --ref <tag-or-branch>')
-  console.log('  npm run template:apply -- --preset-path <local-preset-dir>')
+  console.log('  GITLAB_TOKEN=<read_api token> npm run templates:list -- --remote')
 }
 
 async function main() {
+  const templates = readRegistry()
+
+  if (!remoteMode) {
+    if (templates.length === 0) {
+      console.error(`배포된 템플릿 레지스트리를 읽을 수 없습니다: ${registryPath}`)
+      process.exit(1)
+    }
+
+    printTemplateList(templates, '승인된 템플릿 목록')
+    return
+  }
+
   const url = new URL(`/api/v4/groups/${encodeGroupPath(groupPath)}/projects`, gitlabUrl)
   url.searchParams.set('include_subgroups', 'true')
   url.searchParams.set('simple', 'true')
@@ -36,32 +78,27 @@ async function main() {
   try {
     response = await fetch(url, { headers })
   } catch {
-    printManualFallback()
+    printRemoteFallback(templates)
     process.exit(0)
   }
 
   if (!response.ok) {
-    printManualFallback()
+    printRemoteFallback(templates, response.status)
     process.exit(0)
   }
 
   const projects = await response.json()
   if (!Array.isArray(projects) || projects.length === 0) {
-    console.log(`템플릿 그룹에 프로젝트가 없습니다: ${groupPath}`)
+    printRemoteFallback(templates)
     return
   }
 
-  console.log(`Scaffold templates from ${groupPath}`)
-  console.log('')
-
-  for (const project of projects) {
-    const name = project.path_with_namespace ?? project.name
-    const repo = project.http_url_to_repo ?? project.web_url
-    const ref = project.tag_list?.[0] ?? project.default_branch ?? '<tag-or-branch>'
-    console.log(`- ${name}`)
-    console.log(`  repo: ${repo}`)
-    console.log(`  apply: npm run template:apply -- --preset-git ${repo} --ref ${ref}`)
-  }
+  printTemplateList(projects.map((project) => ({
+    id: project.path,
+    title: project.path_with_namespace ?? project.name,
+    repo: project.http_url_to_repo ?? project.web_url,
+    ref: project.tag_list?.[0] ?? project.default_branch ?? null,
+  })), `원격 템플릿 목록 (${groupPath})`)
 }
 
 main()

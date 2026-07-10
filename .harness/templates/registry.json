@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "templates": [
+    {
+      "id": "cloud-front-admin-template",
+      "title": "Cloud Front Admin Template",
+      "description": "클라우드 포털 인증, 권한, 서버 주도 메뉴를 사용하는 관리자형 업무 앱 템플릿입니다.",
+      "repo": "https://git.smartscore.kr/ai-standard/stacks/cloud-front-admin-template.git",
+      "ref": "v0.1.2",
+      "requiredStackHarness": {
+        "id": "vue3-vite-pinia-router",
+        "minVersion": "0.1.47"
+      }
+    }
+  ]
+}

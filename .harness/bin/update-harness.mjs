@@ -25,7 +25,7 @@ Options:
   --range <semver-range>    SemVer range를 직접 지정합니다. 예: ^1.0.0
   --ref <ref>               git branch/tag/sha를 직접 지정합니다.
   --base-only               스택 하네스 없이 공통 하네스만 업데이트합니다.
-  --stack-only              스택 하네스만 업데이트합니다. 기본 동작과 같지만 의도를 명확히 합니다.
+  --stack-only              스택 하네스만 업데이트합니다.
   --force                   하네스 설치 시 프로젝트 소유 파일까지 덮어씁니다.
   --confirm-overwrite-project-files
                             --force 덮어쓰기 위험을 인지했음을 명시합니다.
@@ -38,7 +38,7 @@ Options:
   --no-check                업데이트 후 하네스 기본 검사 자동 실행을 끕니다.
   -h, --help                도움말을 출력합니다.
 
-기본 동작은 현재 lock에 기록된 스택 하네스를 같은 major 범위 안에서 최신으로 다시 실행합니다.
+기본 동작은 현재 lock에 기록된 스택 하네스와 공통 하네스를 같은 호환 범위 안에서 차례로 업데이트합니다.
 공통 하네스만 업데이트하려면 npm run harness:update -- --base-only 를 사용합니다.
 `)
   process.exit(code)
@@ -280,12 +280,11 @@ function buildSourceMetadataArgs(harness, opts, targetKind) {
   return sourceArgs
 }
 
-function buildCommand(lock, opts, installManifest) {
-  if (opts.stackOnly && !lock.stackHarness) {
+function buildCommand(lock, opts, installManifest, targetKind) {
+  if (targetKind === 'stack' && !lock.stackHarness) {
     throw new Error('stackHarness 정보가 lock에 없습니다. 스택 하네스 init을 먼저 실행하세요.')
   }
 
-  const targetKind = opts.baseOnly || !lock.stackHarness ? 'base' : 'stack'
   const label = targetKind === 'base' ? '공통 하네스' : '스택 하네스'
   const fallbackSource = label === '공통 하네스' ? installManifest?.source ?? {} : {}
   const selected = hydrateHarness(
@@ -305,6 +304,18 @@ function buildCommand(lock, opts, installManifest) {
     command: 'npx',
     args: ['-y', packageSpec, 'init', ...buildSourceMetadataArgs(selected, opts, targetKind), ...opts.forwarded],
   }
+}
+
+function updateTargets(lock, opts) {
+  if (opts.baseOnly || !lock.stackHarness) {
+    return ['base']
+  }
+
+  if (opts.stackOnly || opts.ref || opts.range) {
+    return ['stack']
+  }
+
+  return ['stack', 'base']
 }
 
 function run(command, args) {
@@ -353,20 +364,28 @@ function main() {
     process.exit(1)
   }
 
-  const plan = buildCommand(lock, opts, installManifest)
-  const label = opts.baseOnly || !lock.stackHarness ? '공통 하네스' : '스택 하네스'
+  const targets = updateTargets(lock, opts)
+  const plans = targets.map((targetKind) => ({
+    targetKind,
+    plan: buildCommand(lock, opts, installManifest, targetKind),
+  }))
 
   console.log('Harness update')
-  console.log(`  target: ${label}`)
-  console.log(`  current: ${plan.selected?.id ?? 'unknown'} ${plan.selected?.version ?? 'unknown'}${plan.selected?.ref ? ` (${plan.selected.ref})` : ''}`)
   console.log(`  strategy: ${opts.range ? `range ${opts.range}` : opts.ref ? `ref ${opts.ref}` : opts.strategy}`)
 
-  if (opts.dryRun) {
+  for (const { targetKind, plan } of plans) {
+    const label = targetKind === 'base' ? '공통 하네스' : '스택 하네스'
+    console.log(`  target: ${label}`)
+    console.log(`  current: ${plan.selected?.id ?? 'unknown'} ${plan.selected?.version ?? 'unknown'}${plan.selected?.ref ? ` (${plan.selected.ref})` : ''}`)
     console.log(`  command: ${[plan.command, ...plan.args].join(' ')}`)
-    return
   }
 
-  run(plan.command, plan.args)
+  if (opts.dryRun) return
+
+  for (const { plan } of plans) {
+    run(plan.command, plan.args)
+  }
+
   printConsumerCommandGuide()
 }
 

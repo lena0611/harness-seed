@@ -20,17 +20,13 @@
 공통 하네스의 실행 로직은 소비자 프로젝트 루트의 `scripts/`에 드러내지 않고 `.harness/bin/` 아래에 둡니다. 스택 하네스의 사용자-facing `scripts/init.mjs`는 해당 스택 저장소의 설치 진입점으로만 두고, 적용 대상 프로젝트에는 공통 하네스 런타임을 `.harness/bin/` 형태로 정착시킵니다.
 
 ## 스택 하네스 후보 조회
-사내 GitLab에서는 `ai-standard/harnesses` 하위 저장소를 스택 하네스 후보로 조회합니다.
+소비자 프로젝트는 하네스 배포물에 포함된 승인 스택 레지스트리에서 후보를 조회합니다. 목록 조회에는 GitLab 토큰이 필요 없습니다.
 
 ```bash
 npm run standards:list
 ```
 
-비공개 그룹이면 토큰을 함께 전달합니다.
-
-```bash
-GITLAB_TOKEN=<private-token> npm run standards:list
-```
+목록은 누구나 볼 수 있지만 private 스택을 실제 설치하려면 해당 저장소의 Git 읽기 권한이 필요합니다. 원격 GitLab 그룹을 관리 목적으로 조회할 때만 `npm run standards:list -- --remote`와 `GITLAB_TOKEN`을 사용합니다.
 
 스택 하네스 후보가 조회되면 각 후보의 설치 명령을 확인합니다.
 
@@ -42,28 +38,24 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-route
 - GitLab URL: `https://git.smartscore.kr`
 - 그룹: `ai-standard/harnesses`
 
-필요하면 환경변수로 바꿉니다.
+관리자 원격 조회 대상은 환경변수로 바꿀 수 있습니다.
 
 ```bash
 HARNESS_GITLAB_URL=https://git.example.com \
 HARNESS_STACK_STANDARD_GROUP=ai-standard/harnesses \
-npm run standards:list
+npm run standards:list -- --remote
 ```
 
 ## scaffold 템플릿 후보 조회
 scaffold 템플릿은 업무 파일을 생성하거나 복사할 수 있는 별도 자산입니다. 스택 기준만 적용하려는 경우에는 필요하지 않습니다.
 
-사내 GitLab에서는 `ai-standard/stacks` 하위 저장소를 템플릿 후보로 조회합니다.
+소비자 프로젝트는 하네스 배포물에 포함된 승인 템플릿 레지스트리에서 후보를 조회합니다. 목록 조회에는 GitLab 토큰이 필요 없습니다.
 
 ```bash
 npm run templates:list
 ```
 
-비공개 그룹이면 토큰을 함께 전달합니다.
-
-```bash
-GITLAB_TOKEN=<private-token> npm run templates:list
-```
+목록은 누구나 볼 수 있지만 private 템플릿을 실제 적용하려면 해당 저장소의 Git 읽기 권한이 필요합니다. 원격 GitLab 그룹을 관리 목적으로 조회할 때만 `npm run templates:list -- --remote`와 `GITLAB_TOKEN`을 사용합니다.
 
 현재 등록된 템플릿 후보 예시입니다. 실제 적용 방법은 해당 템플릿 저장소의 README와 manifest 계약을 먼저 확인합니다.
 
@@ -77,12 +69,12 @@ npm run template:apply -- --preset-git https://git.smartscore.kr/ai-standard/sta
 - GitLab URL: `https://git.smartscore.kr`
 - 그룹: `ai-standard/stacks`
 
-필요하면 환경변수로 바꿉니다.
+관리자 원격 조회 대상은 환경변수로 바꿀 수 있습니다.
 
 ```bash
 HARNESS_GITLAB_URL=https://git.example.com \
 HARNESS_TEMPLATE_GROUP=ai-standard/stacks \
-npm run templates:list
+npm run templates:list -- --remote
 ```
 
 권장 그룹 구조:

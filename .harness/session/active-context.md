@@ -29,8 +29,8 @@
 - `.harness/project/bootstrap.md` — 신규 프로젝트 인터뷰
 - `.harness/project/portability-guide.md` — 이식 절차
 - `.harness/bin/apply-stack.mjs` — 외부 스택 기준과 scaffold 템플릿 적용 런타임
-- `.harness/bin/list-stack-standards.mjs` — 원격 스택 하네스 후보 조회
-- `.harness/bin/list-templates.mjs` — 원격 템플릿 후보 조회
+- `.harness/bin/list-stack-standards.mjs` — 배포된 승인 스택 후보 조회, 관리자용 원격 조회
+- `.harness/bin/list-templates.mjs` — 배포된 승인 템플릿 후보 조회, 관리자용 원격 조회
 - `.harness/bin/guard.mjs` — 미적용 시 lint/test/build 자동 스킵
 - `.harness/bin/doc-link-check.mjs` — scaffold 경로 자동 제외 + 활성 스택 fallback
 
