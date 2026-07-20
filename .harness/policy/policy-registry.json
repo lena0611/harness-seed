@@ -342,7 +342,7 @@
     },
     {
       "id": "common.template.contract-bridge",
-      "title": "Scaffold templates must use a contract bridge, not overwrite project rules",
+      "title": "Product templates must use a contract bridge and expose project gaps without overwriting existing code",
       "layer": "common",
       "category": "template",
       "status": "active",
@@ -359,11 +359,14 @@
       ],
       "ownedAreas": [
         ".harness/bin/apply-stack.mjs",
+        ".harness/bin/check-template-contract.mjs",
         ".harness/project/template-contract.md",
-        ".harness/templates/.applied/**"
+        ".harness/templates/.applied/**",
+        ".harness/session/template-gap-report.md"
       ],
       "checks": [
         "npm run template:status",
+        "npm run template:gap",
         "node scripts/test-init.mjs",
         "npm run harness:check"
       ],
@@ -422,8 +425,7 @@
         "path": ".harness/project/commit-push-rules.md"
       },
       "documents": [
-        ".harness/project/commit-push-rules.md",
-        ".harness/project/standards-layers.md"
+        ".harness/project/commit-push-rules.md"
       ],
       "ownedAreas": [
         ".githooks/**",

@@ -31,6 +31,7 @@ const harnessScriptNames = [
   'template:status',
   'template:apply',
   'template:reset',
+  'template:gap',
 ]
 
 function readJson(absPath, fallback = null) {

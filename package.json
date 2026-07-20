@@ -1,6 +1,6 @@
 {
   "name": "harness-seed",
-  "version": "0.2.87",
+  "version": "0.2.88",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"
@@ -18,6 +18,7 @@
     "!.harness/templates/.applied/**",
     "!.harness/session/project-scan-report.md",
     "!.harness/session/handoff.md",
+    "!.harness/session/template-gap-report.md",
     "!.harness/session/task-context.md",
     "!.harness/session/decision-log.md",
     "!.harness/session/active-context.md",
@@ -79,6 +80,7 @@
     "stack:status": "npm run node:check --silent && node .harness/bin/apply-stack.mjs --status",
     "template:apply": "npm run node:check --silent && node .harness/bin/apply-stack.mjs --template",
     "template:reset": "npm run node:check --silent && node .harness/bin/apply-stack.mjs --template-reset",
-    "template:status": "npm run node:check --silent && node .harness/bin/apply-stack.mjs --template-status"
+    "template:status": "npm run node:check --silent && node .harness/bin/apply-stack.mjs --template-status",
+    "template:gap": "npm run node:check --silent && node .harness/bin/check-template-contract.mjs --write"
   }
 }

@@ -15,6 +15,7 @@ outputs/
 .harness/.stack-applied.json
 .harness/session/project-scan-report.md
 .harness/session/handoff.md
+.harness/session/template-gap-report.md
 .harness/session/task-context.md
 .harness/generated/
 .harness-backup/

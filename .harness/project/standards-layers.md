@@ -7,8 +7,8 @@
 | 계층 | 범위 | 예시 위치 | 커밋 여부 | 역할 |
 | --- | --- | --- | --- | --- |
 | 회사 공통 기준 | 모든 프로젝트 공통 | `.harness/`, `CLAUDE.md`, `AGENTS.md` | 커밋 | 스택과 무관한 개발 흐름, 검증 절차, 세션 운영 기준 |
-| 스택 기준 | 특정 개발 스택 | `.harness/project/stack-preset-rules.md`, 외부 stack manifest | 커밋 | 공통 흐름을 특정 기술 스택의 구조와 명령으로 해석 |
-| 템플릿 사용 계약 | 선택한 scaffold 템플릿 | `.harness/project/template-contract.md`, 템플릿 저장소의 개발 가이드 | 커밋 | 생성된 코드 묶음이 동작하기 위해 필요한 사용 계약을 프로젝트에 연결 |
+| 스택 기준 | 특정 개발 스택 | `.harness/project/stack-preset-rules.md`, 외부 stack manifest | 커밋 | 공통 흐름을 프레임워크와 런타임 조합의 기술 구조와 명령으로 해석. 제품 유형 계약은 포함하지 않음 |
+| 템플릿 사용 계약 | 선택한 제품/scaffold 템플릿 | `.harness/project/template-contract.md`, 템플릿 저장소의 개발 가이드 | 커밋 | 관리자 앱 등 제품 유형과 생성 코드가 요구하는 계약을 프로젝트에 연결하고 갭을 검사 |
 | 프로젝트 기준 | 현재 저장소 팀 기준 | `.harness/project/*.md`, 기존 전용 하네스 문서 | 커밋 | 도메인, 아키텍처, 릴리스, 팀 관례 |
 | 개인 기준 | 개인 작업 선호 | `CLAUDE.local.md`, `.claude/settings.local.json`, 개인 로컬 방법론 파일 | 커밋하지 않음 | 개인 도구 설정과 선호. 팀 기준을 바꾸지 않음 |
 

@@ -33,6 +33,7 @@ const isTemplateMode = args.includes('--template')
 const isTemplateReset = args.includes('--template-reset')
 const isTemplateStatus = args.includes('--template-status')
 const isEmbedded = args.includes('--embedded')
+const isContractOnly = args.includes('--contract-only')
 const tempRoots = []
 const PROJECT_RUNTIME_CONTRACT_FILES = new Set([
   '.nvmrc',
@@ -102,11 +103,13 @@ function readProfile() {
   return readJson(profilePath, { activeStack: 'none' })
 }
 
-function fetchPresetGit(repoUrl, ref = 'main') {
+function fetchPresetGit(repoUrl, ref = null) {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-preset-git-'))
   tempRoots.push(tmpRoot)
 
-  const cloneArgs = ['clone', '--depth=1', '--branch', ref, repoUrl, tmpRoot]
+  const cloneArgs = ['clone', '--depth=1']
+  if (ref) cloneArgs.push('--branch', ref)
+  cloneArgs.push(repoUrl, tmpRoot)
   execFileSync('git', cloneArgs, { stdio: 'inherit' })
   return tmpRoot
 }
@@ -114,7 +117,7 @@ function fetchPresetGit(repoUrl, ref = 'main') {
 function resolvePresetManifestPath(stackId, profile) {
   const cliPresetPath = getArgValue('--preset-path')
   const cliPresetGit = getArgValue('--preset-git')
-  const cliRef = getArgValue('--ref') ?? 'main'
+  const cliRef = getArgValue('--ref') ?? null
   const configuredManifest = profile.stackManifest
 
   if (cliPresetGit) {
@@ -370,9 +373,13 @@ function buildTemplateMetadata(templateId, manifest, context, templateSnapshot) 
     manifestVersion: manifest.version ?? null,
     manifestPath: templateSnapshot.manifestPath,
     guideRoot: manifest.template?.guideRoot ?? manifest.guideRoot ?? null,
+    guidePath: (manifest.template?.guideRoot ?? manifest.guideRoot)
+      ? path.posix.join(templateSnapshot.root, manifest.template?.guideRoot ?? manifest.guideRoot)
+      : null,
     docs: templateDocs(manifest),
     requiredStackHarness: manifest.requiredStackHarness ?? null,
     requiredBaseHarness: manifest.baseHarness ?? null,
+    applicationMode: isContractOnly ? 'contract-only' : 'scaffold',
   }
 }
 
@@ -632,9 +639,12 @@ function renderTemplateContract(templateId, manifest, templateSnapshot) {
     `- templateId: \`${templateId}\``,
     `- version: ${manifest.version ?? manifest.template?.version ?? 'TBD'}`,
     `- manifest: \`${templateSnapshot.manifestPath}\``,
-    `- guideRoot: ${guideRoot ? `\`${guideRoot}\`` : 'TBD'}`,
+    `- applicationMode: \`${isContractOnly ? 'contract-only' : 'scaffold'}\``,
+    `- guideRoot: ${guideRoot ? `\`${path.posix.join(templateSnapshot.root, guideRoot)}\`` : 'TBD'}`,
     '',
-    '이 섹션은 scaffold 템플릿이 생성한 코드와 템플릿 개발 가이드를 프로젝트 하네스에 연결하는 브리지입니다.',
+    isContractOnly
+      ? '이 섹션은 기존 업무 코드를 바꾸지 않고 선택한 제품 템플릿의 계약과 개발 가이드를 프로젝트 하네스에 연결하는 브리지입니다.'
+      : '이 섹션은 제품 템플릿이 생성한 코드와 템플릿 개발 가이드를 프로젝트 하네스에 연결하는 브리지입니다.',
     '템플릿 가이드 전체는 템플릿 저장소가 소유하며, 현재 프로젝트에서 추가하거나 바꾼 판단만 이 파일의 관리 섹션 밖 또는 다른 `.harness/project/*` 문서에 기록합니다.',
   ]
 
@@ -650,8 +660,16 @@ function renderTemplateContract(templateId, manifest, templateSnapshot) {
     lines.push('')
     lines.push('### 템플릿 개발 가이드')
     for (const doc of docs) {
-      lines.push(`- \`${doc}\``)
+      lines.push(`- \`${path.posix.join(templateSnapshot.root, doc)}\``)
     }
+  }
+
+  if ((manifest.contractChecks ?? []).length > 0) {
+    lines.push('')
+    lines.push('### 계약 갭 검사')
+    lines.push(`- 선언된 검사: ${manifest.contractChecks.length}개`)
+    lines.push('- 현재 프로젝트 비교: `npm run template:gap`')
+    lines.push('- 상세 리포트: `.harness/session/template-gap-report.md`')
   }
 
   lines.push('')
@@ -888,9 +906,10 @@ function commandStatus() {
 
   if (templateMarker || lock.scaffoldTemplate) {
     console.log('')
-    console.log('Scaffold template')
+    console.log('Product template contract')
     if (lock.scaffoldTemplate) {
       console.log(`  template: ${lock.scaffoldTemplate.id ?? 'unknown'} ${lock.scaffoldTemplate.version ?? 'unknown'}${lock.scaffoldTemplate.ref ? ` (${lock.scaffoldTemplate.ref})` : ''}`)
+      console.log(`  mode: ${lock.scaffoldTemplate.applicationMode ?? 'scaffold'}`)
       if (lock.scaffoldTemplate.requiredStackHarness?.id) {
         console.log(`  requiredStack: ${lock.scaffoldTemplate.requiredStackHarness.id}`)
       }
@@ -934,14 +953,14 @@ function commandApplyTemplate(templateId, manifest, context, profile) {
   const existing = readTemplateMarker()
 
   if (existing) {
-    console.error(`이미 scaffold 템플릿이 적용되어 있습니다 (templateId=${existing.templateId}). 먼저 npm run template:reset 실행 후 다시 시도하세요.`)
+    console.error(`이미 템플릿 계약이 연결되어 있습니다 (templateId=${existing.templateId}). 먼저 npm run template:reset 실행 후 다시 시도하세요.`)
     process.exit(1)
   }
 
   const lockBefore = readLock()
   validateTemplateRequirements(manifest, profile, lockBefore)
 
-  const sourceType = manifest.source?.type ?? 'local'
+  const sourceType = isContractOnly ? 'none' : (manifest.source?.type ?? 'local')
   const adapter = SOURCE_ADAPTERS[sourceType]
 
   if (!adapter) {
@@ -949,7 +968,7 @@ function commandApplyTemplate(templateId, manifest, context, profile) {
     process.exit(1)
   }
 
-  console.log(`Applying scaffold template '${templateId}' (source.type=${sourceType})...`)
+  console.log(`${isContractOnly ? 'Linking template contract' : 'Applying scaffold template'} '${templateId}' (source.type=${sourceType})...`)
   const result = adapter(manifest, context)
   const copiedFiles = result.copied
   const packageBackup = mergePackageJson(result.packageMergeData)
@@ -964,6 +983,7 @@ function commandApplyTemplate(templateId, manifest, context, profile) {
     manifestPath: templateSnapshot.manifestPath,
     sourceManifestPath: toPosix(path.relative(repoRoot, context.manifestPath)),
     source: manifest.source,
+    applicationMode: scaffoldTemplate.applicationMode,
     copiedFiles,
     packageJsonBackup: packageBackup,
     templateContractBackup,
@@ -971,23 +991,39 @@ function commandApplyTemplate(templateId, manifest, context, profile) {
     scaffoldTemplate,
   })
 
-  console.log(`Applied scaffold template. ${copiedFiles.length} file(s) copied.`)
+  if (isContractOnly) {
+    console.log('Template contract linked. 프로젝트 업무 코드는 복사하지 않았습니다.')
+  } else {
+    console.log(`Applied scaffold template. ${copiedFiles.length} file(s) copied.`)
+  }
   console.log('')
   console.log('Template contract bridge')
   console.log(`  - ${templateContractRel}`)
   console.log(`  - ${templateSnapshot.manifestPath}`)
   if (scaffoldTemplate.guideRoot) {
-    console.log(`  - guideRoot: ${scaffoldTemplate.guideRoot}`)
+    console.log(`  - guideRoot: ${scaffoldTemplate.guidePath ?? scaffoldTemplate.guideRoot}`)
   }
   if (lock.scaffoldTemplate?.version) {
     console.log(`harness lock: template=${lock.scaffoldTemplate.version}`)
   }
+  execFileSync(process.execPath, [path.join(harnessRoot, 'bin', 'check-template-contract.mjs'), '--write', '--brief'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+  })
+  execFileSync(process.execPath, [path.join(harnessRoot, 'bin', 'scan-project.mjs'), '--write'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+  })
+  execFileSync(process.execPath, [path.join(harnessRoot, 'bin', 'handoff.mjs'), '--write'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+  })
   console.log('다음 단계:')
   console.log('  1. 템플릿 개발 가이드 확인')
-  console.log(`     ${scaffoldTemplate.guideRoot ?? '템플릿 README'}`)
+  console.log(`     ${scaffoldTemplate.guidePath ?? scaffoldTemplate.guideRoot ?? '템플릿 README'}`)
   console.log(`  2. ${templateContractRel} 확인`)
-  console.log('  3. npm install')
-  console.log('  4. npm run harness:check')
+  if (!isContractOnly) console.log('  3. npm install')
+  console.log(`  ${isContractOnly ? '3' : '4'}. npm run harness:check`)
 }
 
 function commandApply() {
@@ -1095,7 +1131,7 @@ function commandTemplateStatus() {
   const marker = readTemplateMarker()
   const lock = readLock()
 
-  console.log('Scaffold template status')
+  console.log('Template contract status')
   if (!marker && !lock.scaffoldTemplate) {
     console.log('  applied: no')
     return
@@ -1103,8 +1139,9 @@ function commandTemplateStatus() {
 
   if (lock.scaffoldTemplate) {
     console.log(`  template: ${lock.scaffoldTemplate.id ?? 'unknown'} ${lock.scaffoldTemplate.version ?? 'unknown'}${lock.scaffoldTemplate.ref ? ` (${lock.scaffoldTemplate.ref})` : ''}`)
+    console.log(`  mode: ${lock.scaffoldTemplate.applicationMode ?? 'scaffold'}`)
     if (lock.scaffoldTemplate.guideRoot) {
-      console.log(`  guideRoot: ${lock.scaffoldTemplate.guideRoot}`)
+      console.log(`  guideRoot: ${lock.scaffoldTemplate.guidePath ?? lock.scaffoldTemplate.guideRoot}`)
     }
     if (lock.scaffoldTemplate.manifestPath) {
       console.log(`  manifestPath: ${lock.scaffoldTemplate.manifestPath}`)
@@ -1174,7 +1211,7 @@ function commandTemplateReset() {
   const marker = readTemplateMarker()
 
   if (!marker) {
-    console.log('적용된 scaffold 템플릿이 없습니다.')
+    console.log('연결된 템플릿 계약이 없습니다.')
     return
   }
 

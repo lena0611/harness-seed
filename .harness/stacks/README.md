@@ -4,9 +4,9 @@
 
 ## 정의
 - **공통 하네스**: 세션 복구, 기준 동기화, 문서 인덱싱, 스타일 출처 감지, doc-link 검사 등 어떤 프레임워크에서도 동일하게 쓰는 설치 엔진과 인프라.
-- **스택 하네스**: 공통 하네스를 내부 베이스로 설치하거나 업데이트한 뒤, 특정 프레임워크, 런타임, 디자인 패턴에 맞춘 기준을 프로젝트 로컬룰로 정착시키는 사용자-facing 진입점.
+- **스택 하네스**: 공통 하네스를 내부 베이스로 설치하거나 업데이트한 뒤, 특정 프레임워크와 런타임 조합의 기술 기준을 프로젝트 로컬룰로 정착시키는 사용자-facing 진입점. 관리자 앱, 회사 소개 사이트 같은 제품 유형 계약은 포함하지 않습니다.
 - **스택 기준**: 스택 하네스가 제공하는 instruction 문서와 기준 매핑.
-- **스택 템플릿**: 실제 프로젝트 scaffold 파일 묶음. 기준과 분리될 수 있습니다.
+- **제품 템플릿**: 관리자 앱, 콘텐츠 사이트처럼 제품 유형별 scaffold와 사용 계약을 소유하는 자산. 코드 적용 없이 계약만 연결할 수도 있습니다.
 
 ## 기본 상태
 | id | 설명 | status |
@@ -38,16 +38,16 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-route
 - GitLab URL: `https://git.smartscore.kr`
 - 그룹: `ai-standard/harnesses`
 
-관리자 원격 조회 대상은 환경변수로 바꿀 수 있습니다.
+필요하면 환경변수로 바꿉니다.
 
 ```bash
 HARNESS_GITLAB_URL=https://git.example.com \
 HARNESS_STACK_STANDARD_GROUP=ai-standard/harnesses \
-npm run standards:list -- --remote
+npm run standards:list
 ```
 
-## scaffold 템플릿 후보 조회
-scaffold 템플릿은 업무 파일을 생성하거나 복사할 수 있는 별도 자산입니다. 스택 기준만 적용하려는 경우에는 필요하지 않습니다.
+## 제품 템플릿 후보 조회
+제품 템플릿은 업무 파일을 생성하거나 복사하고, 해당 코드가 전제하는 제품 유형별 계약을 제공하는 별도 자산입니다. 스택 기준만 적용하려는 경우에는 필요하지 않습니다.
 
 소비자 프로젝트는 하네스 배포물에 포함된 승인 템플릿 레지스트리에서 후보를 조회합니다. 목록 조회에는 GitLab 토큰이 필요 없습니다.
 
@@ -63,18 +63,18 @@ npm run templates:list
 npm run template:apply -- --preset-git https://git.smartscore.kr/ai-standard/stacks/cloud-front-admin-template.git --ref <tag-or-branch>
 ```
 
-템플릿을 적용하면 코드와 템플릿 개발 가이드는 프로젝트에 복사되고, `.harness/project/template-contract.md`에는 템플릿 사용 계약 브리지가 생성됩니다. 템플릿 가이드 전체를 프로젝트 로컬룰로 다시 복사하지 않고, 프로젝트별 예외와 보충 규칙만 `.harness/project/*`에 남깁니다.
+빈 프로젝트에서는 템플릿 코드를 적용하고, 기존 프로젝트에서는 `--contract-only`로 코드 복사 없이 계약과 개발 가이드 스냅샷만 연결합니다. 두 경우 모두 `.harness/project/template-contract.md`가 생성되고 `npm run template:gap`이 현재 구현과 구조화된 템플릿 계약을 비교합니다.
 
 기본 조회 대상:
 - GitLab URL: `https://git.smartscore.kr`
 - 그룹: `ai-standard/stacks`
 
-관리자 원격 조회 대상은 환경변수로 바꿀 수 있습니다.
+필요하면 환경변수로 바꿉니다.
 
 ```bash
 HARNESS_GITLAB_URL=https://git.example.com \
 HARNESS_TEMPLATE_GROUP=ai-standard/stacks \
-npm run templates:list -- --remote
+npm run templates:list
 ```
 
 권장 그룹 구조:
@@ -243,9 +243,13 @@ scaffold 템플릿은 스택 기준과 분리해서 적용합니다.
 ```bash
 npm run template:apply -- --preset-path ../my-scaffold-template
 npm run template:apply -- --preset-git <repo-url> --ref <tag-or-branch>
+npm run template:apply -- --preset-git <repo-url> --contract-only
+npm run template:gap
 ```
 
-`template:apply`는 템플릿 manifest의 `requiredStackHarness`가 현재 적용된 스택 하네스와 맞는지 확인한 뒤 파일을 복사하고, `.harness/project/template-contract.md`와 `.harness/templates/.applied/<template-id>/manifest.json`에 출처를 남깁니다. 템플릿을 되돌릴 때는 `npm run template:reset`, 적용 상태만 확인할 때는 `npm run template:status`를 사용합니다.
+`template:apply`는 템플릿 manifest의 `requiredStackHarness`가 현재 적용된 스택 하네스와 맞는지 확인합니다. 일반 적용은 scaffold를 복사하고, `--contract-only`는 업무 코드를 바꾸지 않고 계약만 연결합니다. 두 방식 모두 `.harness/project/template-contract.md`와 `.harness/templates/.applied/<template-id>/manifest.json`에 출처를 남기고 `.harness/session/template-gap-report.md`를 생성합니다.
+
+템플릿 manifest의 `contractChecks`는 각 제품 계약에 대해 근거 문서와 기대 경로, 의존성, npm script를 구조화해 선언합니다. `npm run template:gap`은 이 선언과 현재 프로젝트를 비교하고 필수·권장 갭을 구분해 안내합니다. 템플릿 자체의 문서 연결이 깨진 경우에는 검사 실패로 처리하지만, 기존 프로젝트의 계약 갭은 도입 과정에서 해결하거나 예외로 기록할 수 있도록 리포트합니다.
 
 적용 후에는 `npm run harness:check`로 공통 하네스 문서, 기준, 링크, 적용된 스택 상태를 함께 확인합니다.
 

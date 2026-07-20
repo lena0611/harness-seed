@@ -147,6 +147,7 @@ const CONSUMER_SCRIPT_NAMES = [
   'template:status',
   'template:apply',
   'template:reset',
+  'template:gap',
 ];
 
 function parseNodeVersion(version) {
@@ -694,6 +695,7 @@ function shouldIncludeInstallFile(relPath) {
     [
       '.harness/session/project-scan-report.md',
       '.harness/session/handoff.md',
+      '.harness/session/template-gap-report.md',
       '.harness/session/task-context.md',
       '.harness/install-manifest.json',
       '.harness/harness-lock.json',
@@ -1751,6 +1753,7 @@ function mergeGitignore(target, opts) {
     '.harness/generated/',
     '.harness/session/project-scan-report.md',
     '.harness/session/handoff.md',
+    '.harness/session/template-gap-report.md',
     '.harness-backup/',
     'CLAUDE.local.md',
     '.harness/project/personal-methodology.local.md',

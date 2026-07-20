@@ -55,7 +55,7 @@ Commands:
   standards:list             스택 하네스 후보 조회      (standards:list)
   templates:list             scaffold 템플릿 후보 조회  (templates:list)
   stack:apply | stack:reset | stack:status
-  template:apply | template:reset | template:status
+  template:apply | template:reset | template:status | template:gap
 EOF
 }
 
@@ -90,6 +90,7 @@ case "$cmd" in
   template:apply)  exec node .harness/bin/apply-stack.mjs --template "$@" ;;
   template:reset)  exec node .harness/bin/apply-stack.mjs --template-reset "$@" ;;
   template:status) exec node .harness/bin/apply-stack.mjs --template-status "$@" ;;
+  template:gap)    exec node .harness/bin/check-template-contract.mjs --write "$@" ;;
   *)
     echo "알 수 없는 명령: $cmd" >&2
     echo "" >&2

@@ -19,6 +19,7 @@ const markerPath = path.join(harnessRoot, '.stack-applied.json')
 const lockPath = path.join(harnessRoot, 'harness-lock.json')
 const checkCachePath = path.join(harnessRoot, 'generated/check-cache.json')
 const impactSummaryPath = path.join(harnessRoot, 'generated/policy-impact-summary.json')
+const templateGapSummaryPath = path.join(harnessRoot, 'generated/template-gap-summary.json')
 const profilePath = path.join(harnessRoot, harnessRoot.endsWith('.harness') ? 'policy/profile.json' : 'policy-harness/profile.json')
 const strictMode = forwardedArgs.includes('--strict') || (() => {
   try {
@@ -556,6 +557,7 @@ function printConsumerSummary({ validationResults, edgeResult, criticalResult, c
   const requiredCount = (levels.blocking ?? 0) + (levels['action required'] ?? 0) + (failedReason ? 1 : 0)
   const suggestedCount = levels['review suggested'] ?? 0
   const openManualActions = countOpenManualActions()
+  const templateGap = readJson(templateGapSummaryPath, { selected: false, gaps: 0, invalid: 0 })
   const passedValidations = validationResults.filter((item) => item.status === 'passed').map((item) => item.scriptName)
   const recommendedActions = []
 
@@ -568,12 +570,17 @@ function printConsumerSummary({ validationResults, edgeResult, criticalResult, c
   if (edgeResult.status === 'warning') {
     recommendedActions.push('Supabase Edge Function 검증 명령 추가')
   }
+  if (templateGap.selected && templateGap.gaps > 0) {
+    recommendedActions.push(`템플릿 계약 갭 ${templateGap.gaps}건 확인 (${templateGap.report})`)
+  }
 
   console.log('')
   console.log('Harness check summary')
   console.log(`결과: ${failedReason ? '실패' : requiredCount === 0 ? '통과' : '조치 필요'}`)
   console.log(`필수 조치: ${requiredCount === 0 ? '없음' : `${requiredCount}건`}`)
-  console.log('주의: 없음')
+  const warnings = []
+  if (templateGap.selected && templateGap.gaps > 0) warnings.push(`템플릿 계약 갭 ${templateGap.gaps}건`)
+  console.log(`주의: ${warnings.length === 0 ? '없음' : warnings.join(', ')}`)
   console.log(`수동 조치: ${openManualActions === 0 ? '없음' : `${openManualActions}건 (.harness/session/manual-actions.md 확인)`}`)
   console.log(`추천 조치: ${recommendedActions.length === 0 ? '없음' : recommendedActions.join(', ')}`)
   console.log(`검증: ${cacheHit ? '캐시 재사용' : passedValidations.length > 0 ? `${passedValidations.join(', ')} 통과` : stackSkipped ? '스택 미적용으로 lint/test/build 스킵' : '실행된 프로젝트 검증 없음'}`)
@@ -787,6 +794,7 @@ run('node', ['.harness/bin/policy-harness.mjs', 'guard', ...forwardedArgs])
 const edgeResult = runSupabaseEdgeFunctionChecks(scripts)
 const criticalResult = printCriticalPathReview()
 run('node', ['.harness/bin/doc-link-check.mjs', ...forwardedArgs])
+run('node', ['.harness/bin/check-template-contract.mjs', ...(strictMode ? ['--strict'] : [])])
 checkHarnessVersionLock()
 
 if (fs.existsSync(path.join(repoRoot, '.harness-seed-mode')) && fs.existsSync(path.join(repoRoot, 'scripts/test-init.mjs'))) {

@@ -132,7 +132,9 @@ npm run standards:list
 
 ### 4. 필요한 경우 scaffold 템플릿 선택
 
-기존 프로젝트에 기준만 적용하는 경우에는 scaffold 템플릿이 필요하지 않을 수 있습니다. 새 프로젝트의 기본 파일 묶음이 필요할 때만 템플릿 목록을 확인합니다.
+CLI 기본 설치는 기술 스택을 적용한 뒤 그 스택과 호환되는 제품 템플릿을 이어서 보여줍니다. 회사 소개 사이트나 자체 구조를 쓰는 프로젝트는 `템플릿 없이 진행`을 선택할 수 있습니다.
+
+기존 프로젝트에서 템플릿을 선택하면 업무 코드를 복사하지 않고 계약만 연결해 현재 구현과의 갭을 검사합니다. 빈 프로젝트에서는 scaffold를 적용합니다.
 
 ```bash
 npm run templates:list
@@ -144,9 +146,11 @@ npm run templates:list
 
 ```bash
 npm run template:apply -- --preset-git <template-repo-url> --ref <tag-or-branch>
+npm run template:apply -- --preset-git <template-repo-url> --contract-only
+npm run template:gap
 ```
 
-템플릿의 전체 개발 가이드는 템플릿 저장소가 소유하고, 적용 프로젝트에는 `.harness/project/template-contract.md` 브리지만 생성됩니다. 프로젝트별 예외나 추가 규칙은 `domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`에 남깁니다. commit/push hook 자체의 운영 기준은 `commit-push-rules.md`에 따로 둡니다.
+템플릿의 전체 개발 가이드는 템플릿 저장소가 소유하고, 적용 프로젝트에는 `.harness/project/template-contract.md` 브리지와 `.harness/session/template-gap-report.md`가 생성됩니다. 프로젝트별 예외나 추가 규칙은 `domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`에 남깁니다. commit/push hook 자체의 운영 기준은 `commit-push-rules.md`에 따로 둡니다.
 
 ### 5. 완료 승인 뒤 검증과 커밋 차단 연결
 
@@ -546,9 +550,10 @@ npm run harness:check -- --verbose
 | `npm run stack:status` | 활성 스택, 적용 상태, 공통/스택 하네스 버전 확인 |
 | `npm run stack:apply` | 선택한 스택 기준을 로컬룰로 적용 |
 | `npm run stack:reset` | 적용된 스택 기준 관리 섹션과 스택 산출물 제거 |
-| `npm run template:status` | 적용된 scaffold 템플릿, 계약 브리지, 복사 파일 상태 확인 |
-| `npm run template:apply` | 선택한 scaffold 템플릿을 적용하고 `template-contract.md` 브리지 생성 |
-| `npm run template:reset` | 적용된 scaffold 템플릿 산출물과 계약 브리지 되돌림 |
+| `npm run template:status` | 연결된 제품 템플릿, 적용 모드, 계약 브리지, 복사 파일 상태 확인 |
+| `npm run template:apply` | 선택한 템플릿을 적용하고 계약 브리지 생성. 기존 프로젝트는 `--contract-only`로 코드 복사 없이 연결 |
+| `npm run template:gap` | 템플릿의 구조화된 계약과 현재 프로젝트의 문서·구조 갭 검사 |
+| `npm run template:reset` | 적용된 템플릿 산출물과 계약 브리지 되돌림 |
 
 설치와 업데이트가 끝나면 위 명령 중 소비자 프로젝트에서 자주 쓰는 가이드, 스캔, 인수인계, 작업 컨텍스트, 운영 업무, 검증, 업데이트, hook 연결 명령을 빠른 안내로 다시 출력합니다.
 
@@ -623,7 +628,7 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-route
 
 스택 하네스는 자체 `init` 명령을 제공하는 것이 기본입니다. 공통 하네스가 이미 설치된 관리자/고급 흐름에서는 `npm run stack:apply -- --preset-path ../my-stack-standard` 또는 `npm run stack:apply -- --preset-git <repo-url> --ref <tag-or-branch>`를 직접 사용할 수 있습니다. 프로젝트에 고정하려면 `.harness/policy/profile.json`의 `stackManifest`에 적용 스냅샷 `manifest.json` 경로를 기록합니다.
 
-scaffold 템플릿은 업무 파일을 생성하거나 복사할 수 있는 별도 자산입니다. 스택 기준만 적용하려는 경우에는 필요하지 않습니다. 새 프로젝트의 기본 파일 묶음이 필요할 때만 `ai-standard/stacks` 하위 저장소를 조회합니다.
+제품 템플릿은 업무 파일과 관리자 앱 같은 제품 유형별 계약을 소유하는 별도 자산입니다. 스택 기준만 적용하려는 경우에는 선택하지 않습니다. CLI는 스택 설치 후 `requiredStackHarness`가 일치하는 템플릿만 보여줍니다.
 
 ```bash
 npm run templates:list
@@ -635,9 +640,11 @@ npm run templates:list
 
 ```bash
 npm run template:apply -- --preset-git https://git.smartscore.kr/ai-standard/stacks/cloud-front-admin-template.git --ref <tag-or-branch>
+npm run template:apply -- --preset-git https://git.smartscore.kr/ai-standard/stacks/cloud-front-admin-template.git --contract-only
+npm run template:gap
 ```
 
-scaffold 템플릿의 개발 가이드는 프로젝트 로컬룰 전체로 복사하지 않습니다. 템플릿을 적용하면 `.harness/project/template-contract.md`가 생성되어 템플릿 저장소의 가이드와 현재 프로젝트 하네스를 연결합니다. 현재 프로젝트에서 템플릿 계약을 다르게 해석하거나 예외를 두면 관리 섹션 밖 또는 다른 `.harness/project/*` 문서에 기록합니다.
+제품 템플릿의 개발 가이드는 프로젝트 로컬룰 전체로 복사하지 않습니다. 템플릿을 적용하거나 계약만 연결하면 `.harness/project/template-contract.md`가 생성되어 템플릿 가이드 스냅샷과 현재 프로젝트 하네스를 연결합니다. `template:gap` 결과를 수용하지 않는 항목은 관리 섹션 밖, `decision-log.md` 또는 다른 `.harness/project/*` 문서에 기록합니다.
 
 권장 그룹 구조는 다음과 같습니다.
 

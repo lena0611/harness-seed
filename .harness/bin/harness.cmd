@@ -36,6 +36,7 @@ if "%CMD%"=="stack:status"    set "SCRIPT=apply-stack.mjs" & set "PRE=--status"
 if "%CMD%"=="template:apply"  set "SCRIPT=apply-stack.mjs" & set "PRE=--template"
 if "%CMD%"=="template:reset"  set "SCRIPT=apply-stack.mjs" & set "PRE=--template-reset"
 if "%CMD%"=="template:status" set "SCRIPT=apply-stack.mjs" & set "PRE=--template-status"
+if "%CMD%"=="template:gap"    set "SCRIPT=check-template-contract.mjs" & set "PRE=--write"
 
 if "%SCRIPT%"=="" (
   echo Unknown command: %CMD% 1>&2
@@ -87,5 +88,5 @@ echo   hooks:install              git hooks + template    (hooks:install)
 echo   standards:list             stack harness catalog   (standards:list)
 echo   templates:list             scaffold templates      (templates:list)
 echo   stack:apply ^| stack:reset ^| stack:status
-echo   template:apply ^| template:reset ^| template:status
+echo   template:apply ^| template:reset ^| template:status ^| template:gap
 exit /b 0

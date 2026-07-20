@@ -77,6 +77,7 @@ const dynamicArtifactPaths = new Set([
   'CLAUDE.local.md',
   '.harness/session/project-scan-report.md',
   '.harness/session/handoff.md',
+  '.harness/session/template-gap-report.md',
   '.harness/session/task-context.md',
   '.harness/install-manifest.json',
   '.harness/harness-lock.json',

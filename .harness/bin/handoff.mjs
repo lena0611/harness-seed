@@ -200,6 +200,7 @@ function buildReport() {
     scripts.includes('harness:impact') ? '`npm run harness:impact`' : null,
     scripts.includes('harness:check') ? '`npm run harness:check`' : null,
     scripts.includes('harness:update') ? '`npm run harness:update`' : null,
+    scripts.includes('template:gap') ? '`npm run template:gap`' : null,
   ].filter(Boolean)
 
   const stackDecision = needsStackDecision
@@ -243,7 +244,7 @@ npm run harness:check
 - activeStack: ${activeStack}
 - baseHarness: ${baseHarness ? `${baseHarness.version ?? 'unknown'} (${baseHarness.ref ?? baseHarness.source?.type ?? 'unknown'})` : 'unknown'}
 - stackHarness: ${stackHarness ? `${stackHarness.version ?? 'unknown'} (${stackHarness.ref ?? 'unknown'})` : 'none'}
-- scaffoldTemplate: ${template ? `${template.version ?? 'unknown'} (${template.ref ?? 'unknown'})` : 'none'}
+- productTemplate: ${template ? `${template.id ?? 'unknown'} ${template.version ?? 'unknown'} (${template.applicationMode ?? 'scaffold'})` : 'none'}
 
 ${stackDecision}
 
@@ -255,6 +256,7 @@ ${renderProjectRuleAuthoringGuide()}
 
 ## Read First
 - \`.harness/session/project-scan-report.md\`: 현재 프로젝트 구조, 스택, 스타일, 충돌 후보
+${template ? '- `.harness/session/template-gap-report.md`: 선택한 제품 템플릿 계약과 현재 구현의 갭' : ''}
 - \`.harness/project/standards-layers.md\`: 기준 우선순위와 충돌 해석
 - \`.harness/policy/context-protocol.md\`: 모든 문서를 한 번에 읽지 않는 컨텍스트 운용 원칙
 - \`.harness/documentation/guide/index.html\`: 클릭형 개발자 가이드
