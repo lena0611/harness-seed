@@ -22,7 +22,7 @@ function run(args, env = {}) {
 const consumerOutput = run([])
 assert.match(consumerOutput, /승인된 템플릿 목록/)
 assert.match(consumerOutput, /Cloud Front 관리자형 업무 앱 템플릿/)
-assert.match(consumerOutput, /--ref v0\.2\.0/)
+assert.match(consumerOutput, /--ref v0\.2\.1/)
 assert.doesNotMatch(consumerOutput, /GITLAB_TOKEN/)
 assert.doesNotMatch(consumerOutput, /GitLab API/)
 

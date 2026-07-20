@@ -4,7 +4,7 @@
 - 배경: `standards:list`와 `templates:list`가 private GitLab 그룹 API를 기본 호출해, 일반 사용자와 에이전트가 목록을 보려면 `GITLAB_TOKEN`을 직접 설정해야 하는 구조였다.
 - 결정: 소비자 기본 경로는 `.harness/stacks/registry.json`, `.harness/templates/registry.json`의 승인 후보만 읽는다. 목록 메타데이터는 private 저장소 내용이 아니므로 토큰 없이 배포한다. 실제 설치는 사용자의 기존 GitLab Git 읽기 권한으로 수행한다.
 - 관리자 경로: 원격 그룹의 현재 상태 확인은 `standards:list -- --remote`, `templates:list -- --remote`로 분리하고 `GITLAB_TOKEN`은 이 경로에서만 사용한다.
-- 배포 레지스트리: 공통 하네스 `v0.2.88` 배포에서 Vue 기술 스택과 Cloud Front Admin Template의 `v0.2.0` ref 및 호환 기준을 함께 갱신한다.
+- 배포 레지스트리: 공통 하네스 `v0.2.89` 배포에서 Vue 기술 스택과 Cloud Front Admin Template의 `v0.2.1` ref 및 호환 기준을 함께 갱신한다.
 - 업데이트 경로: 기본 `harness:update`는 스택을 갱신한 뒤 공통 하네스도 같은 호환 범위에서 갱신한다. 그래야 새 본체 기능이 base outdated 상태로 남지 않는다.
 
 ## 2026-07-10 - 기계적 한쪽 변경 신호를 비차단 검토 후보로 재정의
@@ -18,7 +18,7 @@
 - 결정: 스택 하네스는 프레임워크와 런타임 조합의 제품 중립 기술 기준만 소유한다. 관리자 앱 같은 제품 유형별 인증, 권한, 메뉴, 화면 골격은 `cloud-front-admin-template`이 코드와 개발 가이드와 함께 소유한다.
 - 설치 흐름: CLI는 기술 스택 설치 후 `requiredStackHarness`가 일치하는 제품 템플릿을 선택하게 한다. 기존 프로젝트에서는 scaffold를 복사하지 않고 `contract-only`로 계약만 연결하며, 빈 프로젝트에서만 scaffold를 적용한다.
 - 검증: 템플릿 manifest의 `contractChecks`가 근거 문서와 기대 경로, 의존성, npm script를 선언하고, 하네스는 `.harness/session/template-gap-report.md`에 현재 프로젝트와의 갭을 기록한다. 템플릿 자체의 문서 연결 오류는 실패시키고 프로젝트의 도입 갭은 필수/권장으로 리포트한다.
-- 버전 경계: 구버전 적용기가 `--contract-only`를 무시해 scaffold를 복사할 위험을 막기 위해 공통 하네스 `0.2.88`, Vue 기술 스택 `0.2.0`, Cloud Front Admin 템플릿 `0.2.0`, CLI `0.2.0`으로 호환 경계를 올린다.
+- 버전 경계: 구버전 적용기가 `--contract-only`를 무시해 scaffold를 복사할 위험을 막기 위해 공통 하네스 `0.2.89`, Vue 기술 스택 `0.2.1`, Cloud Front Admin 템플릿 `0.2.1`, CLI `0.2.0`으로 호환 경계를 올린다.
 
 ## 2026-06-25 - 본체 전용 Spec Authority 로드맵 seed-only 기록
 - 배경: 사용자가 기획 정책/기능 스펙이 스트림성으로 흩어져 코드가 최종 기준점이 되는 문제를 지적하고, 스펙을 권위 원본으로 둔 외부 spec repo 연계 하네스 에픽을 다음 작업 로드맵으로 남기되 소비자 프로젝트에는 배포하지 말라고 지시했다.

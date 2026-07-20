@@ -6,7 +6,7 @@
       "title": "Vue 3 + Vite + Pinia + Vue Router 기술 스택",
       "description": "제품 유형과 무관하게 Vue 3, Vite, Pinia, Vue Router 프로젝트에 적용하는 기술 기준입니다.",
       "repo": "https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git",
-      "ref": "v0.2.0"
+      "ref": "v0.2.1"
     }
   ]
 }

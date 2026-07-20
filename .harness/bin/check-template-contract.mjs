@@ -148,7 +148,10 @@ function renderReport(template, mode, results, manifestRel) {
   ]
 
   if (results.length === 0) {
-    lines.push('## 검사 불가', '', '- template manifest에 `contractChecks`가 없습니다.')
+    lines.push('## 구조화된 계약 미선언', '')
+    lines.push('- template manifest에 `contractChecks`가 없습니다.')
+    lines.push('- 기존 템플릿과의 호환을 위해 현재 프로젝트 갭 검사는 건너뜁니다.')
+    lines.push('- 템플릿 소유자는 근거 문서와 프로젝트 기대값을 `contractChecks`로 선언해 검사를 활성화할 수 있습니다.')
     return `${lines.join('\n')}\n`
   }
 
@@ -184,7 +187,7 @@ console.log('Template contract gap check')
 if (!template?.manifestPath) {
   console.log('  selected: none')
   console.log('  result: skipped')
-  writeSummary({ selected: false, matched: 0, gaps: 0, requiredGaps: 0, recommendedGaps: 0, invalid: 0 })
+  writeSummary({ selected: false, contractChecks: 0, matched: 0, gaps: 0, requiredGaps: 0, recommendedGaps: 0, invalid: 0 })
   process.exit(0)
 }
 
@@ -214,16 +217,7 @@ const results = declaredChecks.length > 0
     snapshotRoot,
     declaredDocs,
   }))
-  : [{
-    id: 'template-contract-checks',
-    title: '구조화된 템플릿 계약',
-    severity: 'required',
-    docs: [],
-    status: 'invalid',
-    invalidReasons: ['template manifest에 contractChecks가 없습니다.'],
-    gapReasons: [],
-    remediation: '템플릿 소유자가 근거 문서와 프로젝트 기대값을 contractChecks로 선언해야 합니다.',
-  }]
+  : []
 const mode = template.applicationMode ?? marker.applicationMode ?? 'scaffold'
 const manifestRel = toPosix(path.relative(repoRoot, manifestPath))
 const report = renderReport(template, mode, results, manifestRel)
@@ -237,6 +231,7 @@ writeSummary({
   selected: true,
   templateId: template.id,
   mode,
+  contractChecks: declaredChecks.length,
   matched,
   gaps,
   requiredGaps,
@@ -247,9 +242,14 @@ writeSummary({
 
 console.log(`  template: ${template.id}`)
 console.log(`  mode: ${mode}`)
-console.log(`  matched: ${matched}`)
-console.log(`  gaps: ${gaps}${requiredGaps > 0 ? ` (required ${requiredGaps})` : ''}`)
-console.log(`  contract errors: ${invalid}`)
+if (declaredChecks.length === 0) {
+  console.log('  contract checks: not declared')
+  console.log('  result: skipped')
+} else {
+  console.log(`  matched: ${matched}`)
+  console.log(`  gaps: ${gaps}${requiredGaps > 0 ? ` (required ${requiredGaps})` : ''}`)
+  console.log(`  contract errors: ${invalid}`)
+}
 
 for (const result of results.filter((item) => item.status !== 'matched')) {
   console.log(`  - [${result.status === 'gap' ? result.severity : 'invalid'}] ${result.title ?? result.id}`)

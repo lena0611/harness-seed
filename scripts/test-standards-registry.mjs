@@ -22,7 +22,7 @@ function run(args, env = {}) {
 const consumerOutput = run([])
 assert.match(consumerOutput, /승인된 스택 하네스 목록/)
 assert.match(consumerOutput, /Vue 3 \+ Vite \+ Pinia \+ Vue Router/)
-assert.match(consumerOutput, /#v0\.2\.0 init/)
+assert.match(consumerOutput, /#v0\.2\.1 init/)
 assert.doesNotMatch(consumerOutput, /GITLAB_TOKEN/)
 assert.doesNotMatch(consumerOutput, /GitLab API/)
 
