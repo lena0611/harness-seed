@@ -4,6 +4,7 @@
 
 ## 마지막 세션 마감 상태 (2026-08-04)
 - 현재 본체 버전: **0.2.91** — score-print 개선요청 2차(배너 관례 표준화 + P2 번복 커밋 승격 + P1 뒤집기 기록 lint). 최종 검증 통과(회귀 87종, 첫 실행 무수정 통과) 후 릴리스. 직전 0.2.90은 1차(P4 출력 요약 + P3 이력 노이즈 + doc-link fail-open 수정).
+- 0.2.91 push/배포 완료: 양쪽 원격(origin/main + company/master = `d11aace`) + 태그 `v0.2.91` 양쪽, Policy Guard success(47s). CLI `ai-standard-cli` **0.2.2**로 README base ref 예시 v0.2.91 반영(GitLab master `4940667` + 태그, check + 21 tests). 스택 `baseHarness.minVersion` 추종 불필요(스택이 의존할 신규 계약 없음 — 배너 관례는 세션 문서 관례).
 - 0.2.90 push/배포 완료: 양쪽 원격(origin/main + company/master = `17ff14a`) + 태그 `v0.2.90` 양쪽, GitHub Actions Policy Guard success(54s). CLI `ai-standard-cli` **0.2.1**로 README base ref 예시 v0.2.90 반영(GitLab master `8282135` + 태그, check + 21 tests). ※ CLI 0.2.0부터 base ref 기본 고정이 없어(env/--ref 없으면 최신 설치) 신규 설치는 코드 변경 없이도 0.2.90을 받는다 — 이번 CLI 반영은 문서 예시 최신화. 스택 하네스 `baseHarness.minVersion` 추종은 불필요(0.2.90에 스택이 의존할 신규 계약 없음).
 - score-print 개선요청(2026-08-04) 판정: **6건 중 5건 수용, P1 축소 수용, 거부 없음.** 원문 `consumer-reviews/SCORE_PRINT_HARNESS_IMPROVEMENT_REQUEST_2026-08-04.md`, 판정 근거 decision-log 2026-08-04, 차수 계획 body-roadmap "score-print 신호 회복과 차단 승격" 에픽.
 - 1차(0.2.90) 내용: guard 경로 기본 요약 출력(`summaryMode`, 154줄→약 30줄, `--verbose` 전개, `확인 필수/차단` 후보는 요약에서도 상세) + decision-log 계열 백틱 코드 경로 "역사 참조" 분류(`isHistoryLogPath`, dead code-path 제외, 마크다운 링크는 유지, 동적 아카이브 orphan 예외) + doc-link 통과 1줄. 회귀 6종 추가(총 83종). 짝 문서 `indexing-rules.md` §8.
@@ -15,7 +16,8 @@
   - 정책 documents는 종합 문서가 아니라 "주제 전용 문서"로 두는 게 과매칭 노이즈 예방 원칙(0.2.70).
 
 ## ★ 후속 과제
-- **score-print 2차 (0.2.91, 차단 승격) — 구현 완료, 최종 검증/배포 대기**: 배너 관례 표준화(session/README.md) + P2 번복 커밋 승격 + P1 뒤집기 기록 lint. 회귀 4종 추가(총 87종). ⚠️ 주의: decision-log에 감지 리터럴(금지 이모지+폐기/번복, 뒤집기 대괄호 토큰)을 서술 용도로 쓰면 그 커밋이 자기 감지를 오발한다 — 관례 설명은 서술로 적을 것.
+- **score-print 3차 (지속가능성) — 미착수**: P5 decision-log 현행/이력 2계층 실행 장치(관례는 `/decision` 스킬에 이미 있음 — 임계 안내, harness:context 현행 우선 로드, CLAUDE.md 읽기 순서) + P6 로컬룰 승격 시 "문서 규칙 vs 실행 가능한 검증" 분기(Project rule candidate check 문구, enforcement-ladder, workflow-rules, 스킬). 상세는 body-roadmap 에픽.
+- ⚠️ 본체 decision-log 작성 주의(0.2.91부터): 감지 리터럴(금지 이모지+폐기/번복 조합, 뒤집기 대괄호 토큰)을 서술 용도로 쓰면 그 커밋이 자기 감지를 오발한다 — 관례 설명은 서술로 적을 것. 실제 배너/뒤집기 기록은 정상 사용.
 - **ai-standard/docs 동반 갱신(미완)**: 정책 원문의 충돌 리포팅 선택지에 "권고 뒤집기 기록 의무" 반영 — 별도 저장소 작업.
 - **score-print 3차 (지속가능성)**: P5 decision-log 현행/이력 2계층 실행 장치(관례는 `/decision` 스킬에 이미 있음 — 임계 안내, harness:context 현행 우선 로드, CLAUDE.md 읽기 순서) + P6 로컬룰 승격 시 "문서 규칙 vs 실행 가능한 검증" 분기(Project rule candidate check 문구, enforcement-ladder, workflow-rules, 스킬).
 - clubadm P0 잔여: P0-3(harnessMode 라이프사이클)·P0-4(commit/release 행위충돌 표면화)는 축소 형태(문서/read-only)로만 후속 후보. P0-2·P0-5는 거부 확정(오해 기반, decision-log 2026-06-25).
