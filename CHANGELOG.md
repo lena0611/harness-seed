@@ -4,6 +4,18 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.90 - 2026-08-04
+
+- score-print 실사용 피드백(base 0.2.89, 2026-08-04 접수)의 노이즈 제거 요청 2건(P3·P4)을 반영했습니다. 공통 진단은 "고칠 수 없는 경고와 과다 출력이 신호를 죽여, 진짜 경고까지 무시하게 된다"입니다. 요청서 원문은 `consumer-reviews/SCORE_PRINT_HARNESS_IMPROVEMENT_REQUEST_2026-08-04.md`, 6건 전체 판정과 후속 차수는 decision-log와 본체 로드맵에 있습니다.
+- guard 경로(`harness:check`, git hook)의 기본 출력이 요약 모드가 됩니다(P4). 실측 152~154줄 → 약 30줄. 변경 파일 그룹·정책 연결은 개수 한 줄로, 동기화 검토 후보는 등급별 건수 한 줄로 요약하고, 전체 파일 매핑은 `--verbose` 또는 상세 진입점 `npm run harness:impact`에서 봅니다. `harness:impact`의 기본 상세 출력과 기존 `--brief` 플래그 거동은 그대로입니다.
+- 단 `syncEnforcement: hook|block`으로 명시 강제된 `확인 필수`/`차단` 동기화 후보는 요약 모드에서도 상세(연결 문서, 변경 파일, 판단 기준)를 그대로 펼치며, strict 실패 시 실패 원인 상세가 함께 출력됩니다. 요약이 필수 조치 신호를 가리지 않습니다.
+- doc-link 검사는 통과 시 1줄로 끝납니다.
+- decision-log와 그 아카이브(`decision-log-*.md`, `thread-handoff-*.md`)의 백틱 코드 경로를 라이브 참조가 아닌 "역사 참조"로 분류해 dead code-path 검사에서 제외했습니다(P3). append-only 이력이 언급한 삭제된 경로가 고칠 수 없는 경고로 매 커밋 반복되던 노이즈를 제거합니다. 이력 문서 안의 마크다운 링크 검사와 살아있는 문서(active-context, project-memory, 기준 문서)의 코드 경로 검사는 유지됩니다.
+- `/decision` 관례가 안내하는 동적 이름의 decision-log 아카이브(`decision-log-2026H1.md` 등)가 생성 즉시 orphan 문서로 경고되던 관례-검사기 모순을 함께 수정했습니다(아카이브는 orphan 검사 제외).
+- doc-link 검사가 심볼릭 링크 경로(macOS `/var`→`/private/var`, tmpdir, 심링크된 프로젝트 디렉토리)에서 직접 실행 가드의 경로 비교 불일치로 조용히 건너뛰어지던 fail-open 결함을 수정했습니다(0.2.68 회귀). 이런 환경의 소비자는 그동안 숨겨져 있던 doc-link 경고가 이번 버전부터 실제로 보일 수 있습니다. 직접 실행 판별은 `changelog-delta.mjs`와 같은 realpath 비교로 통일했습니다.
+- init smoke test에 이력 로그 분류 단위, 소비자 e2e(역사 참조 무경고·살아있는 문서 dead 경로 계속 검출·아카이브 orphan 예외), doc-link 1줄 통과, guard 요약 기본/`--verbose` 상세, `확인 필수` 후보 요약 내 상세+strict 실패 회귀 6종을 추가했습니다. 총 83종. 신규 e2e에 긍정 단언을 포함해 기존 부정 단언만으로는 빈 출력에도 통과하던 doc-link e2e의 무검증 상태를 함께 해소했습니다.
+- 짝 문서로 `.harness/documentation/indexing-rules.md`에 이력 로그 예외 규칙(§8 역사 참조)을 명문화했습니다.
+
 ## 0.2.89 - 2026-07-20
 
 - `contractChecks`가 아직 없는 기존 템플릿은 적용을 막지 않고 `template:gap`에서 `구조화된 계약 미선언`으로 리포트합니다. 구조화된 계약을 선언한 템플릿만 현재 프로젝트 갭을 검사합니다.

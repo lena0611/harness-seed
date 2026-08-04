@@ -38,3 +38,10 @@
   - 디렉토리 예시: trailing slash로 끝나는 경로(`.github/workflows/`, `.harness/policy/`)는 "이런 위치를 보라"는 안내이지 파일 링크가 아닙니다.
   - 본체 CI 어댑터: `.github/workflows/` 하위는 소비자 프로젝트에 기본 주입되지 않으므로 소비자 환경에 없을 수 있어 검사하지 않습니다(본체에선 실제 존재하므로 검사해도 통과).
 - 구체 파일 참조(`.harness/bin/guard.mjs` 등)는 계속 검사 대상입니다. 이 규칙이 바뀌면 `scripts/test-init.mjs`의 `isIgnorableCodePathClassifiesExamplesAndCiPaths`/`consumerDocLinkCheckIgnoresCiExamplePaths` 회귀를 함께 갱신합니다.
+
+## 8. 이력 로그 문서 예외 (역사 참조)
+- `decision-log.md`와 그 아카이브(`decision-log-*.md`, `thread-handoff-*.md`)는 append-only 이력 문서입니다. 과거 항목이 언급한 코드 경로는 파일이 삭제된 뒤에도 남는 것이 정상이므로, 이 문서들의 백틱 코드 경로는 **역사 참조**로 분류하고 라이브 무결성 검사를 하지 않습니다(`isHistoryLogPath`).
+- 근거: 고칠 수 없는 경고(이력이라 지울 수 없고, 코드 복원도 무의미)가 매 커밋 반복되면 출력을 읽지 않는 습관이 생겨 진짜 신호까지 죽습니다(score-print 실사용 피드백 2026-08-04 P3).
+- 마크다운 형식 링크(대괄호 텍스트 + 괄호 경로)는 이력 문서에서도 계속 검사합니다(탐색용 링크는 살아 있어야 합니다). 이 규칙 문서 자체가 링크 문법 예시를 리터럴로 적으면 그 예시가 broken link로 검출되므로 서술로 풀어 적습니다.
+- 아카이브 파일명(`decision-log-2026H1.md` 등)은 동적이라 `document-registry.json`에 사전 등록할 수 없으므로 orphan 검사에서도 제외합니다.
+- `active-context.md`, `project-memory.md` 같은 살아있는 세션 문서는 현재 상태를 서술하므로 계속 검사 대상입니다. 이 경계가 바뀌면 `scripts/test-init.mjs`의 이력 로그 회귀를 함께 갱신합니다.

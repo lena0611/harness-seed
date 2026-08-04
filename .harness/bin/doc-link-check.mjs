@@ -219,6 +219,12 @@ function findOrphans(registered) {
       continue
     }
 
+    // decision-log 아카이브는 파일명이 동적이라 registry에 사전 등록할 수 없다.
+    // (decision-log.md 자체는 registry에 등록되어 있어 이 분기에 도달하지 않는다.)
+    if (isHistoryLogPath(file)) {
+      continue
+    }
+
     if (file.startsWith('.github/ISSUE_TEMPLATE/')) {
       continue
     }
@@ -269,6 +275,18 @@ export function isIgnorableCodePath(target) {
   return false
 }
 
+// 이력 로그 문서 판별. decision-log와 그 아카이브(/decision 관례: decision-log-YYYYH1.md,
+// thread-handoff-YYYY-MM-DD.md)는 append-only 이력이라, 과거 항목이 언급한 코드 경로는
+// 파일이 삭제된 뒤에도 남는 것이 정상이다(역사 참조 ≠ 라이브 참조).
+// - 백틱 코드 경로는 무결성 검사에서 제외한다. 고칠 수 없는 경고가 매 커밋 쌓이면
+//   출력 자체를 읽지 않게 되어 진짜 신호까지 죽는다(score-print 2026-08-04 P3).
+// - `[텍스트](경로)` 마크다운 링크는 탐색용이므로 계속 검사한다.
+// - 아카이브 파일명은 동적이라 document-registry에 사전 등록할 수 없으므로 orphan 검사도 제외한다.
+// - active-context, project-memory 같은 살아있는 세션 문서는 현재 상태 서술이므로 계속 검사한다.
+export function isHistoryLogPath(rel) {
+  return /^(?:\.harness|\.github)\/session\/(?:decision-log(?:-[^/]+)?|thread-handoff-[^/]+)\.md$/.test(rel)
+}
+
 function stripFence(text) {
   return text.replace(/```[\s\S]*?```/g, '')
 }
@@ -315,6 +333,11 @@ function findBrokenLinks() {
       if (!exists(resolved)) {
         broken.push({ file, target, resolved })
       }
+    }
+
+    // 이력 로그의 백틱 코드 경로는 역사 참조라 라이브 무결성 검사 대상이 아니다.
+    if (isHistoryLogPath(file)) {
+      continue
     }
 
     for (const match of text.matchAll(codePathPattern)) {
@@ -379,13 +402,18 @@ function main() {
   const broken = findBrokenLinks()
   const stackViolations = findStackIsolationViolations()
 
-  let hasIssue = false
+  const hasIssue = orphans.length > 0 || missing.length > 0 || broken.length > 0 || stackViolations.length > 0
+
+  // \ud1b5\uacfc \uc2dc\uc5d0\ub294 1\uc904\ub85c \ub05d\ub0b8\ub2e4. \ub9e4 \ucee4\ubc0b \ucd9c\ub825\uc5d0\uc11c \uc2e0\ud638 \ub300 \uc7a1\uc74c\ube44\ub97c \uc9c0\ud0a4\ub294 \uac83\uc774 \ubaa9\uc801\uc774\ub2e4(P4).
+  if (!hasIssue) {
+    console.log('Doc link / registry check OK: \ub808\uc9c0\uc2a4\ud2b8\ub9ac \uc77c\uad00\uc131, \ub9c1\ud06c, \ucf54\ub4dc \uacbd\ub85c \ucc38\uc870 \ubaa8\ub450 \uc720\ud6a8\ud569\ub2c8\ub2e4.')
+    return
+  }
 
   console.log('Doc link / registry check')
   console.log('')
 
   if (orphans.length > 0) {
-    hasIssue = true
     console.log('Orphan markdown files (registry\uc5d0 \uc5c6\uc74c):')
     for (const f of orphans) {
       console.log(`  - ${f}`)
@@ -394,7 +422,6 @@ function main() {
   }
 
   if (missing.length > 0) {
-    hasIssue = true
     console.log('Registry\uc5d0\ub294 \uc788\uc9c0\ub9cc \ud30c\uc77c\uc774 \uc874\uc7ac\ud558\uc9c0 \uc54a\uc74c:')
     for (const f of missing) {
       console.log(`  - ${f}`)
@@ -403,7 +430,6 @@ function main() {
   }
 
   if (broken.length > 0) {
-    hasIssue = true
     console.log('Broken link / dead code path reference:')
     for (const b of broken) {
       console.log(`  - ${b.file} -> ${b.target} (resolved: ${b.resolved}${b.kind ? `, ${b.kind}` : ''})`)
@@ -412,7 +438,6 @@ function main() {
   }
 
   if (stackViolations.length > 0) {
-    hasIssue = true
     console.log('Stack isolation violation (\ud55c \uc2a4\ud0dd \ud3f4\ub354\uac00 \ub2e4\ub978 \uc2a4\ud0dd \ud3f4\ub354\ub97c \ucc38\uc870\ud568):')
     for (const v of stackViolations) {
       console.log(`  - ${v.file} -> ${stacksRel}/${v.otherStack}/`)
@@ -420,17 +445,27 @@ function main() {
     console.log('')
   }
 
-  if (!hasIssue) {
-    console.log('OK: \ub808\uc9c0\uc2a4\ud2b8\ub9ac \uc77c\uad00\uc131, \ub9c1\ud06c, \ucf54\ub4dc \uacbd\ub85c \ucc38\uc870 \ubaa8\ub450 \uc720\ud6a8\ud569\ub2c8\ub2e4.')
-    return
-  }
-
   if (strictMode) {
     process.exitCode = 1
   }
 }
 
-// 직접 실행할 때만 검사를 돌린다. 테스트가 isIgnorableCodePath를 import할 때는 부작용이 없어야 한다.
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+// 직접 실행할 때만 검사를 돌린다. 테스트가 분류 함수를 import할 때는 부작용이 없어야 한다.
+// tmpdir(/var → /private/var) 같은 심볼릭 링크 경로에서도 동작하도록 realpath로 비교한다
+// (changelog-delta.mjs의 invokedDirectly와 같은 패턴). path.resolve 단독 비교는 심링크 경로에서
+// 어긋나 main()이 조용히 건너뛰어져 검사가 fail-open으로 꺼졌다.
+function invokedDirectly() {
+  const entry = process.argv[1]
+  if (!entry) {
+    return false
+  }
+  try {
+    return fs.realpathSync(entry) === fs.realpathSync(__filename)
+  } catch {
+    return path.resolve(entry) === __filename
+  }
+}
+
+if (invokedDirectly()) {
   main()
 }

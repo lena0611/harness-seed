@@ -26,6 +26,11 @@ const strictMode = args.includes('--strict') || (() => {
 const briefMode = args.includes('--brief')
 const verboseMode = args.includes('--verbose') || args.includes('--all-files')
 const showBaseline = args.includes('--show-baseline') || verboseMode
+// P4(score-print 2026-08-04): guard 경로(harness:check, git hook)의 기본 출력은 요약이다.
+// 커밋마다 152줄에서 조치 항목 2줄을 찾게 만들면 결국 출력을 읽지 않게 된다.
+// 상세 전개는 --verbose 또는 상세 진입점인 harness:impact로 옮긴다.
+// 단, '차단/확인 필수' 동기화 후보와 실패 원인은 요약 모드에서도 상세를 편다.
+const summaryMode = !verboseMode && (briefMode || mode === 'guard')
 
 function readProfile() {
   if (!fs.existsSync(profilePath)) {
@@ -627,7 +632,7 @@ function printChangedFileGroups(changedFiles) {
   console.log(`  harness baseline/generated changes: ${baselineCount}`)
   console.log('')
 
-  if (briefMode && !verboseMode && !showBaseline) {
+  if (summaryMode && !showBaseline) {
     console.log('Changed files brief:')
     console.log(`  feature source changes: ${groups.feature.length}`)
     console.log(`  local harness updates: ${groups.localHarness.length}`)
@@ -693,6 +698,12 @@ function policyRelevantChangedFiles(changedFiles, changedGroups) {
 function printHarnessBaselineNotice(changedGroups) {
   const baselineCount = changedGroups.baseline.length + changedGroups.generated.length
   if (baselineCount === 0) {
+    return
+  }
+
+  if (summaryMode && !showBaseline) {
+    console.log(`Harness baseline update notice: 본체 관리 baseline/generated 변경 ${baselineCount}건은 기준 동기화 후보 계산에서 제외했습니다.`)
+    console.log('')
     return
   }
 
@@ -785,11 +796,17 @@ function printProjectRuleCandidateReminder(changedGroups) {
   const sourceChangeCount = changedGroups.feature.length + changedGroups.harnessScripts.length + changedGroups.config.length + changedGroups.other.length
   const localHarnessChangeCount = changedGroups.localHarness.length
 
-  if (briefMode && changedGroups.feature.length === 0 && changedGroups.harnessScripts.length === 0 && changedGroups.other.length === 0) {
+  if (summaryMode && changedGroups.feature.length === 0 && changedGroups.harnessScripts.length === 0 && changedGroups.other.length === 0) {
     return
   }
 
   if (sourceChangeCount === 0 && localHarnessChangeCount === 0) {
+    return
+  }
+
+  if (summaryMode) {
+    console.log('Project rule candidate check: 반복 규칙/구조 결정/검증 절차가 생겼으면 .harness/project/* 로컬룰 승격을 검토하세요. (안내 상세: --verbose)')
+    console.log('')
     return
   }
 
@@ -881,7 +898,7 @@ function runImpact() {
   }
 
   if (policyTriggered.length > 0) {
-    if (briefMode && !verboseMode) {
+    if (summaryMode) {
       console.log(`변경 문서와 연결된 구현 기준: ${policyTriggered.length}개`)
       console.log('')
     } else {
@@ -902,7 +919,7 @@ function runImpact() {
   }
 
   if (codeTriggered.length > 0) {
-    if (briefMode && !verboseMode) {
+    if (summaryMode) {
       console.log(`변경 코드와 연결된 기준 문서: ${codeTriggered.length}개`)
       console.log('')
     } else {
@@ -951,9 +968,38 @@ function runImpact() {
     console.log('- 연결된 문서와 코드 중 한쪽이 변경됐다는 파일 경로 신호입니다.')
     console.log('- 구조·계약·팀 기준이 실제로 바뀐 경우에만 반대쪽 갱신이 필요합니다.')
 
-    if (briefMode && !verboseMode) {
-      console.log(`- ${syncGaps.length}개 연결 기준에서 한쪽 변경이 감지되었습니다.`)
-      console.log('- 상세 기준과 파일 목록은 npm run harness:impact 또는 npm run harness:check -- --verbose 로 확인하세요.')
+    const printGapDetail = (gap) => {
+      const sideLabel = gap.side === 'document-only' ? '문서만 변경됨' : '소스만 변경됨'
+      const level = syncReviewLevel(gap, informational)
+      console.log(`- [${syncReviewLevelLabel(level)}] [${gap.id}] ${gap.title} — ${sideLabel}`)
+      console.log(`  동기화 강제 설정: ${gap.syncEnforcement}`)
+      console.log('  변경 파일:')
+      console.log(formatFileList(gap.triggeredFiles))
+      console.log('  매칭 경로:')
+      console.log(formatFileList(gap.matchedRules))
+      console.log('  연결 문서:')
+      console.log(informational && !showBaseline ? formatFileSummary(gap.documents) : formatFileList(gap.documents))
+      console.log('  연결 구현 범위:')
+      console.log(informational && !showBaseline ? formatFileSummary(gap.ownedAreas) : formatFileList(gap.ownedAreas))
+      console.log(`  판단 기준: ${actionMessage(level, gap.side)}`)
+      console.log(`  조치 없음 조건: ${ignoreMessage(gap.side)}`)
+    }
+
+    // '차단/확인 필수'는 정책이 syncEnforcement로 명시 강제한 후보라 요약 모드에서도 상세를 편다.
+    // 나머지는 개수와 상세 경로만 안내해 신호 대 잡음비를 지킨다.
+    const mustActGaps = syncGaps.filter((gap) => ['blocking', 'action required'].includes(syncReviewLevel(gap, informational)))
+
+    if (summaryMode) {
+      const advisorySummary = ['review suggested', 'info']
+        .filter((level) => syncGapLevels[level] > 0)
+        .map((level) => `${syncReviewLevelLabel(level)} ${syncGapLevels[level]}건`)
+        .join(', ')
+      if (advisorySummary) {
+        console.log(`- ${advisorySummary} — 상세 기준과 파일 목록은 npm run harness:impact 또는 npm run harness:check -- --verbose 로 확인하세요.`)
+      }
+      for (const gap of mustActGaps) {
+        printGapDetail(gap)
+      }
     } else {
       console.log('  후보 등급:')
       for (const level of ['blocking', 'action required', 'review suggested', 'info']) {
@@ -963,30 +1009,19 @@ function runImpact() {
       }
 
       for (const gap of syncGaps) {
-        const sideLabel = gap.side === 'document-only' ? '문서만 변경됨' : '소스만 변경됨'
-        const level = syncReviewLevel(gap, informational)
-        console.log(`- [${syncReviewLevelLabel(level)}] [${gap.id}] ${gap.title} — ${sideLabel}`)
-        console.log(`  동기화 강제 설정: ${gap.syncEnforcement}`)
-        console.log('  변경 파일:')
-        console.log(formatFileList(gap.triggeredFiles))
-        console.log('  매칭 경로:')
-        console.log(formatFileList(gap.matchedRules))
-        console.log('  연결 문서:')
-        console.log(informational && !showBaseline ? formatFileSummary(gap.documents) : formatFileList(gap.documents))
-        console.log('  연결 구현 범위:')
-        console.log(informational && !showBaseline ? formatFileSummary(gap.ownedAreas) : formatFileList(gap.ownedAreas))
-        console.log(`  판단 기준: ${actionMessage(level, gap.side)}`)
-        console.log(`  조치 없음 조건: ${ignoreMessage(gap.side)}`)
+        printGapDetail(gap)
       }
     }
 
-    console.log('')
     if (informational) {
+      console.log('')
       console.log('안내: 설치 baseline 또는 rules-only 스택 기준이 처음 추가된 상황이면 정상입니다.')
-    } else {
+    } else if (!summaryMode || mustActGaps.length > 0) {
+      // 요약 모드에서 '가볍게 확인'만 있으면 판단 안내를 반복하지 않는다(헤더가 이미 같은 내용을 담는다).
+      console.log('')
       console.log('판단: 구조·계약·팀 기준 변경이면 연결 문서를 갱신하고, 일반 구현 변경이면 별도 조치 없이 진행합니다.')
+      console.log('decision-log/waiver는 지속되는 구조 판단이나 명시적 강제 정책의 예외에만 사용합니다.')
     }
-    console.log('decision-log/waiver는 지속되는 구조 판단이나 명시적 강제 정책의 예외에만 사용합니다.')
 
     if (strictMode && (syncGapLevels.blocking > 0 || syncGapLevels['action required'] > 0)) {
       process.exitCode = 1

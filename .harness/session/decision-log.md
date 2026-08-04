@@ -1,5 +1,21 @@
 # 결정 로그
 
+## 2026-08-04 - score-print 개선요청 판정: 5건 수용, P1 축소 수용
+- 배경: score-print(base 0.2.89, vue3 스택 0.1.47) 실사용 피드백 접수. 회귀 4건 중 2건은 하네스가 옳은 신호(비권장 판정, sync 후보)를 줬는데 노이즈에 묻혀 에이전트가 무시했다. 원문은 `consumer-reviews/SCORE_PRINT_HARNESS_IMPROVEMENT_REQUEST_2026-08-04.md`, 차수 계획은 body-roadmap의 "score-print 신호 회복과 차단 승격" 에픽.
+- 판정: P3(이력 참조 노이즈)·P4(출력 요약)·P2(번복 커밋 승격)·P5(decision-log 2계층)·P6(불변식→실행 검증 유도) 수용, P1(비권장 뒤집기 기록 강제) 축소 수용. 거부 없음. clubadm 건과 달리 오해 기반 요청이 없었던 이유는 요청서가 코드 동작을 정확히 관찰했기 때문(--brief 미노출, syncEnforcement 미인지 정도가 정보 격차였고 방향은 유효).
+- P1 축소 근거: "하네스가 생성/집계하는 감사 결과"라는 전제가 사실과 다름 — 본체는 감사를 생성하지 않는다(에이전트 세션 산출물). 기계 강제 가능 범위는 ①뒤집기 엔트리 관례+필수 필드 표준화, ②기록된 엔트리의 필수 필드 lint까지. 기록 의무 자체는 프롬프트 계층에 남고, 정책 원문은 `ai-standard/docs` 동반 갱신.
+- 순서 결정: 노이즈 제거(P4+P3)를 차단 승격(P2+P1)보다 먼저 한다. 신호 신뢰가 회복되어야 승격된 경고가 읽히기 때문(요청서 스스로 지적한 인과: P3·P4 노이즈가 P2 무시의 원인). P2+P1은 폐기/번복 배너 관례의 본체 표준화가 선행 조건이며 같은 decision-log diff 스캐너를 공유하므로 한 릴리스로 묶는다.
+
+## 2026-08-04 - 1차(0.2.90): guard 요약 기본 + 이력 로그 역사 참조 분류
+- 결정 1 (P4): 요약을 hook 옵션이 아니라 guard 모드의 기본값으로 뒤집는다(`summaryMode = briefMode || mode === 'guard'`, `--verbose`로 전개). hook 스크립트에 `--brief`를 심는 방식은 수동 `harness:check` 호출이 여전히 152줄로 남아 문제를 반만 풀기 때문. `harness:impact`는 상세 진입점으로 기본 상세를 유지하고, 기존 `--brief` 플래그는 하위 호환으로 남긴다.
+- 결정 2 (P4 예외): `syncEnforcement: hook|block`의 '확인 필수/차단' 후보는 요약 모드에서도 상세를 편다. 요약이 필수 조치 신호를 가리면 P2(신호 무시)를 되레 악화시킨다. strict 실패 시 실패 원인 상세가 출력에 포함되는 것을 회귀로 고정.
+- 결정 3 (P3): 요청서의 1안(배너 아래 항목만 건너뛰기) 대신 2안(문서 단위 "역사 참조" 분류)을 채택. 배너-항목 경계 파싱은 마크다운 구조 가정에 취약하고, decision-log는 문서 전체가 append-only 이력이라 문서 단위 분류가 견고하다. 백틱 코드 경로만 제외하고 마크다운 형식 링크는 탐색용이라 계속 검사(링크 문법을 리터럴 예시로 적으면 그 예시 자체가 검출되므로 문서에는 서술로 적는다). 살아있는 세션 문서(active-context, project-memory)는 계속 검사.
+- 결정 4 (P3 부수 발견): `/decision` 스킬이 안내하는 동적 아카이브(`decision-log-2026H1.md` 등)가 생성 즉시 orphan 경고를 내는 관례-검사기 모순을 발견, `isHistoryLogPath`로 orphan 예외에 포함. 3차(P5) 착수 전에 아카이브 관례를 따라도 벌점이 없도록 선행 수정.
+- 결정 5 (최종 검증 중 발견한 fail-open 결함 수정): 0.2.68의 doc-link 직접 실행 가드가 `path.resolve(argv[1]) === __filename` 단순 비교라, 심볼릭 링크 경로(macOS `/var`→`/private/var`, tmpdir, 심링크된 프로젝트 디렉토리)에서 main()이 조용히 건너뛰어져 **doc-link 검사 전체가 무음으로 꺼졌다**. 기존 소비자 e2e doc-link 회귀 2종(0.2.68/0.2.69)은 부정 단언뿐이라 빈 출력에도 통과해 이 결함을 놓쳤고, 이번 1차의 긍정 단언 회귀가 처음 노출했다. `changelog-delta.mjs`의 realpath 비교 패턴(invokedDirectly)으로 통일해 수정. 교훈: 직접 실행 가드는 realpath 비교가 표준이고, e2e 출력 검증에는 긍정 단언을 최소 1개 포함한다.
+- 부수 회귀 수정: indexing-rules §8과 이 로그의 초안이 마크다운 링크 문법을 리터럴 예시로 적어 그 예시 자체가 broken link로 검출됐다. 링크 문법은 서술로 풀어 적는다.
+- 측정: 실변경 커밋 기준 impact 출력 154줄 → 요약 30줄. doc-link 통과는 3줄 → 1줄.
+- 짝 갱신: `indexing-rules.md` §8(역사 참조), CHANGELOG 0.2.90, 회귀 6종(총 83종).
+
 ## 2026-07-10 - 소비자 스택·템플릿 조회를 배포 레지스트리로 전환
 - 배경: `standards:list`와 `templates:list`가 private GitLab 그룹 API를 기본 호출해, 일반 사용자와 에이전트가 목록을 보려면 `GITLAB_TOKEN`을 직접 설정해야 하는 구조였다.
 - 결정: 소비자 기본 경로는 `.harness/stacks/registry.json`, `.harness/templates/registry.json`의 승인 후보만 읽는다. 목록 메타데이터는 private 저장소 내용이 아니므로 토큰 없이 배포한다. 실제 설치는 사용자의 기존 GitLab Git 읽기 권한으로 수행한다.

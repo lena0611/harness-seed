@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { isIgnorableCodePath } from '../.harness/bin/doc-link-check.mjs'
+import { isHistoryLogPath, isIgnorableCodePath } from '../.harness/bin/doc-link-check.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const repoRoot = path.resolve(path.dirname(__filename), '..')
@@ -2292,6 +2292,175 @@ function profileProjectSourcesDoNotTriggerInstallSyncGap() {
   assert(!impact.includes('common.install.preserve-project-owned-files'), 'project-owned profile edits must not trigger install preserve source policy')
 }
 
+function gitCommitAll(target, message) {
+  run('git', ['add', '.'], { cwd: target })
+  run('git', [
+    '-c',
+    'user.name=Harness Test',
+    '-c',
+    'user.email=harness-test@example.invalid',
+    'commit',
+    '--quiet',
+    '-m',
+    message,
+  ], { cwd: target })
+}
+
+// 이력 로그 예외(0.2.90, score-print P3): decision-log 계열의 백틱 코드 경로는 역사 참조라
+// 라이브 무결성 검사에서 제외한다. 살아있는 세션/기준 문서는 계속 검사한다.
+function historyLogPathClassifiesDecisionLogFamily() {
+  assert(isHistoryLogPath('.harness/session/decision-log.md'), 'decision-log is a history log')
+  assert(isHistoryLogPath('.harness/session/decision-log-2026H1.md'), 'decision-log archive is a history log')
+  assert(isHistoryLogPath('.harness/session/thread-handoff-2026-08-04.md'), 'thread handoff snapshot is a history log')
+  assert(isHistoryLogPath('.github/session/decision-log.md'), 'legacy .github harness root decision-log is a history log')
+  assert(!isHistoryLogPath('.harness/session/active-context.md'), 'living session state doc must still be checked')
+  assert(!isHistoryLogPath('.harness/session/project-memory.md'), 'project memory must still be checked')
+  assert(!isHistoryLogPath('.harness/project/domain-rules.md'), 'standards docs must still be checked')
+}
+
+function consumerDocLinkCheckSkipsDecisionLogHistoryPaths() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  // 이력 항목이 언급하는 삭제된 소스 경로(역사 참조)는 dead code path로 잡히면 안 된다.
+  // 반면 이력 문서 안에서도 마크다운 링크는 탐색용이라 계속 검사되어야 한다.
+  fs.appendFileSync(
+    path.join(target, '.harness/session/decision-log.md'),
+    '\n## 2026-08-04 구조 정리\n- `src/apis/system.js`를 제거하고 호출부를 정리했다.\n- [폐기 설계](../project/removed-design.md) 참조.\n',
+  )
+  fs.writeFileSync(
+    path.join(target, '.harness/session/decision-log-2026H1.md'),
+    '# 결정 로그 아카이브 (2026 상반기)\n\n- `src/store/settings.js`를 폐기했다.\n',
+  )
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(!out.includes('src/apis/system.js'), 'decision-log history code path must not be reported as dead reference')
+  assert(!out.includes('src/store/settings.js'), 'decision-log archive code path must not be reported as dead reference')
+  assert(!out.includes('decision-log-2026H1.md'), 'dynamically named decision-log archive must not be reported as orphan')
+  assert(out.includes('removed-design.md'), 'markdown links inside history logs must still be checked')
+}
+
+function consumerDocLinkCheckStillFlagsLiveDocDeadPaths() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  // 이력 예외가 살아있는 기준 문서의 진짜 dead 참조까지 가리면 안 된다.
+  fs.appendFileSync(
+    path.join(target, '.harness/project/domain-rules.md'),
+    '\n## 규칙 근거\n- 판정 구현: `src/rules/engine.js`\n',
+  )
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(out.includes('src/rules/engine.js'), 'live standards docs must still flag dead code paths')
+  assert(out.includes('code-path'), 'dead reference should keep the code-path kind label')
+}
+
+// 통과 시 1줄 출력(0.2.90, score-print P4): 신호 대 잡음비를 위해 clean 결과는 요약 한 줄로 끝낸다.
+function docLinkCheckPrintsSingleLineWhenClean() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  const lines = out.trim().split('\n')
+  assert(lines.length === 1, `clean doc-link check should print a single line, got ${lines.length}: ${out}`)
+  assert(lines[0].includes('OK'), 'clean doc-link check line should state OK')
+}
+
+// guard 요약 기본(0.2.90, score-print P4): guard 경로의 기본 출력은 요약이고 상세는 --verbose.
+// 픽스처 주의: 문서가 정책의 documents에만 있어야 한쪽 변경 gap이 생긴다.
+// workflow-rules.md는 local-rule.promotion의 documents와 ownedAreas 양쪽에 있어 gap이 되지 않는다.
+// portability-guide.md는 minimum-node의 documents에만 있어 로컬 수정 시 document-only 후보가 된다
+// (harnessBaselineDocUpdateDoesNotTriggerSyncGap의 검증된 픽스처와 동일).
+function guardModeDefaultsToSummaryImpactOutput() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  gitCommitAll(target, 'baseline')
+
+  fs.appendFileSync(
+    path.join(target, '.harness/project/portability-guide.md'),
+    '\n## Local project edit\n- 프로젝트가 직접 수정한 런타임 기준입니다.\n',
+  )
+
+  const summary = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(summary.includes('기준 동기화 검토 후보'), 'summary output should keep the sync candidate header')
+  assert(/(가볍게 확인|참고) \d+건/.test(summary), 'summary output should aggregate advisory candidates as counts')
+  assert(!summary.includes('연결 문서:'), 'default guard output must not expand advisory candidate detail')
+  assert(!summary.includes('trigger files:'), 'default guard output must not expand per-policy file mappings')
+  assert(summary.includes('--verbose'), 'summary output should point to the detailed path')
+
+  const detailed = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard', '--verbose'], { cwd: target })
+  assert(detailed.includes('연결 문서:'), '--verbose should expand candidate detail')
+  assert(detailed.includes('[common.runtime.minimum-node]'), '--verbose should name the linked policy')
+}
+
+// guard 요약 예외(0.2.90): syncEnforcement가 hook/block인 '확인 필수/차단' 후보는
+// 요약 모드에서도 상세를 펴고, strict에서는 실패 원인 상세와 함께 실패한다.
+function makeSyncHookPreset() {
+  const preset = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-sync-hook-preset-test-'))
+
+  fs.mkdirSync(path.join(preset, 'instructions'), { recursive: true })
+  fs.writeFileSync(path.join(preset, 'instructions/rules.md'), '# Sync Hook Demo\n\n계약 문서 동기화를 명시 강제하는 데모 스택 기준.\n')
+  fs.writeFileSync(path.join(preset, 'manifest.json'), JSON.stringify({
+    id: 'sync-hook-demo',
+    title: 'Sync Hook Demo',
+    framework: {
+      runtime: 'demo',
+    },
+    designPattern: ['Sync Hook Stack Standard'],
+    instructions: ['instructions/rules.md'],
+    policiesFile: 'policies.json',
+    checksKey: null,
+    source: {
+      type: 'none',
+    },
+  }, null, 2))
+  fs.writeFileSync(path.join(preset, 'policies.json'), JSON.stringify({
+    version: 1,
+    stackId: 'sync-hook-demo',
+    policies: [
+      {
+        id: 'stack.demo.contract-sync',
+        title: 'Contract doc must follow src changes',
+        documents: ['docs/contract.md'],
+        ownedAreas: ['src/**'],
+        syncEnforcement: 'hook',
+      },
+    ],
+  }, null, 2))
+
+  return preset
+}
+
+function guardSummaryStillDetailsMustActSyncCandidates() {
+  const target = makeTarget()
+  const preset = makeSyncHookPreset()
+
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
+  fs.mkdirSync(path.join(target, 'docs'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'docs/contract.md'), '# 계약 문서\n')
+  gitCommitAll(target, 'baseline')
+
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/app.js'), 'export const demo = 1\n')
+
+  const summary = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(summary.includes('[확인 필수] [stack.demo.contract-sync]'), 'hook-enforced candidate must surface as 확인 필수 in summary mode')
+  assert(summary.includes('연결 문서:'), 'must-act candidate must expand detail even in summary mode')
+  assert(summary.includes('docs/contract.md'), 'must-act detail should include the linked contract document')
+
+  let failed = false
+  let combined = ''
+  try {
+    run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard', '--strict'], { cwd: target })
+  } catch (error) {
+    failed = true
+    combined = `${error.stdout ?? ''}${error.stderr ?? ''}`
+  }
+  assert(failed, 'strict mode must fail when a hook-enforced sync candidate is open')
+  assert(combined.includes('[확인 필수] [stack.demo.contract-sync]'), 'strict failure output must include the failing candidate detail')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   installOutputUsesConditionalNvmAndGitGuidance,
@@ -2370,6 +2539,12 @@ const tests = [
   scanReportsIgnoredAiRuleCandidates,
   scanPrefersTrackedAiRuleForRegistrationExample,
   profileProjectSourcesDoNotTriggerInstallSyncGap,
+  historyLogPathClassifiesDecisionLogFamily,
+  consumerDocLinkCheckSkipsDecisionLogHistoryPaths,
+  consumerDocLinkCheckStillFlagsLiveDocDeadPaths,
+  docLinkCheckPrintsSingleLineWhenClean,
+  guardModeDefaultsToSummaryImpactOutput,
+  guardSummaryStillDetailsMustActSyncCandidates,
 ]
 
 console.log('Init smoke tests')

@@ -23,6 +23,26 @@
 - install-manifest 기반 제거 명령을 dry-run 기본으로 제공합니다.
 - 정책 검사 통과 문구를 스키마/정합성 통과로 좁혀 표현합니다.
 
+## Epic: score-print 신호 회복과 차단 승격
+
+### 배경
+2026-08-04 score-print 실사용 피드백(base 0.2.89 / vue3 스택 0.1.47)이 `consumer-reviews/SCORE_PRINT_HARNESS_IMPROVEMENT_REQUEST_2026-08-04.md`로 접수되었습니다. 총평은 "기억·연속성 A급, 예방 C급" — 회귀 4건을 하네스가 못 막았고, 그중 2건은 하네스가 옳은 신호를 줬는데 노이즈에 묻혀 에이전트가 무시했습니다. 공통 뿌리 두 축: ①노이즈가 신호를 죽인다(P2·P3·P4), ②조언을 차단으로 승격해야 한다(P1·P6).
+
+### 판정 (2026-08-04)
+6건 중 5건 수용, P1 축소 수용, 거부 없음. 상세 근거는 decision-log 2026-08-04.
+
+### 차수 계획
+1. **1차 (0.2.90, 노이즈 제거) — 진행**: P4 guard 출력 기본 요약(152줄→약 30줄, `--verbose`로 상세, 확인 필수/차단 후보는 요약에서도 상세 유지) + P3 decision-log 계열 백틱 코드 경로 "역사 참조" 분류(dead code-path 검사 제외, 마크다운 링크는 유지, 동적 아카이브 orphan 예외).
+2. **2차 (차단 승격)**: 폐기/번복 배너 관례를 본체 표준으로 승격·문서화(score-print 자체 관례를 표준화 — 요청서 "최고 자산" 지목) → P2 정책 번복 커밋 감지(현행 decision-log diff의 추가 라인에서 배너 마커 감지 시 그 커밋의 동기화 후보를 '확인 필수'로 승격, strict 시 차단) + P1 비권장 뒤집기 엔트리 필수 필드(`근거 반박:` 등) lint. 두 기능은 같은 decision-log diff 스캐너를 공유.
+   - 주의: 감지 범위는 현행 `decision-log.md` 한 파일로 한정(아카이브 파일로의 이동이 배너 "추가"로 오인되는 함정 방지).
+   - P1 축소 사유: 본체는 감사·리뷰 결과를 생성/집계하지 않으므로(에이전트 세션 산출물) "감사 발생 자체" 감지는 불가. 기록 관례 표준화 + 기록된 엔트리의 필수 필드 lint까지가 기계 강제 범위이고, 기록 의무 자체는 프롬프트 계층(CLAUDE.md/session-start-alert). 정책 원문 반영은 `ai-standard/docs` 동반 작업.
+3. **3차 (지속가능성)**: P5 decision-log 현행/이력 2계층 — 관례는 `/decision` 스킬에 이미 있으므로 실행 장치를 채움(임계 넘김 안내, harness:context 현행 우선 로드, CLAUDE.md 읽기 순서 조정) + P6 로컬룰 승격 시 "문서 규칙 vs 실행 가능한 검증(테스트/CI 가드)" 분기 질문(Project rule candidate check 문구, enforcement-ladder, workflow-rules, /decision·/harness-scan 스킬).
+
+### 비목표
+- 요약 모드가 `syncEnforcement` 강제 후보나 실패 원인을 가리지 않습니다(필수 신호는 항상 상세).
+- 이력 예외를 살아있는 문서(active-context, project-memory, 기준 문서)로 넓히지 않습니다.
+- 배너 마커 감지를 표준 관례 문서화 없이 휴리스틱으로 도입하지 않습니다.
+
 ## Epic: Spec Authority 기반 스펙-코드 싱크 하네스
 
 ### 배경
