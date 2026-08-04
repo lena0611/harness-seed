@@ -596,6 +596,11 @@ function printConsumerSummary({ validationResults, edgeResult, criticalResult, c
   if (failedReason) {
     console.log(`실패 사유: ${failedReason}`)
   }
+  // 차단 옵트인 표면화(0.2.94, score-print 검수 후속): 필수 조치가 경고에 머무는 기본 모드에서
+  // 차단으로 승격하는 방법을 그 순간에만 안내한다(조치 없는 커밋에는 출력하지 않음).
+  if (!strictMode && !failedReason && requiredCount > 0) {
+    console.log('참고: 필수 조치는 strict 모드(.harness/policy/profile.json의 harnessMode: strict)에서 커밋 차단으로 승격됩니다.')
+  }
   if (criticalResult.recommendations.length > 0) {
     console.log('중요 경로 추천 검증:')
     for (const recommendation of criticalResult.recommendations) {

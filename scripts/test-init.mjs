@@ -2387,6 +2387,9 @@ function guardModeDefaultsToSummaryImpactOutput() {
   assert(!summary.includes('연결 문서:'), 'default guard output must not expand advisory candidate detail')
   assert(!summary.includes('trigger files:'), 'default guard output must not expand per-policy file mappings')
   assert(summary.includes('--verbose'), 'summary output should point to the detailed path')
+  // P4 잔여 압축(0.2.94): 요약 모드의 변경 파일 분류는 한 줄이다.
+  assert(/Changed files: user \d+/.test(summary), 'summary mode should compress changed-file groups to one line')
+  assert(!summary.includes('Changed files brief:'), 'summary mode must not print the old two-block breakdown')
 
   const detailed = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard', '--verbose'], { cwd: target })
   assert(detailed.includes('연결 문서:'), '--verbose should expand candidate detail')
@@ -2584,6 +2587,8 @@ function guardLintsOverrideEntryRebuttalField() {
   const guardOut = runGuard(target)
   assert(guardOut.includes('필수 조치: 1건'), 'guard summary must count the missing rebuttal as required action')
   assert(guardOut.includes('결과: 조치 필요'), 'guard summary result should demand action for missing rebuttal')
+  // 차단 옵트인 표면화(0.2.94): 필수 조치가 있을 때만 strict 승격 안내가 나온다.
+  assert(guardOut.includes('harnessMode: strict'), 'guard summary should surface the strict escalation hint when required actions exist')
 
   let failed = false
   try {

@@ -695,24 +695,26 @@ function printChangedFileGroups(changedFiles) {
   const userChangeCount = groups.feature.length + groups.localHarness.length + groups.harnessScripts.length + groups.config.length + groups.other.length
   const baselineCount = groups.baseline.length + groups.generated.length
 
+  // P4 잔여 압축(0.2.94, score-print 검수 후속): 요약 모드의 변경 파일 분류는 14줄 두 블록 대신
+  // 0이 아닌 그룹만 담은 한 줄로 줄인다. 상세는 --verbose 또는 harness:impact.
+  if (summaryMode && !showBaseline) {
+    const breakdownParts = [
+      ['feature', groups.feature.length],
+      ['local harness', groups.localHarness.length],
+      ['scripts', groups.harnessScripts.length],
+      ['config', groups.config.length],
+      ['other', groups.other.length],
+    ].filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`)
+    const breakdown = breakdownParts.length > 0 ? ` (${breakdownParts.join(', ')})` : ''
+    console.log(`Changed files: user ${userChangeCount}${breakdown}, baseline/generated ${baselineCount} — 상세: npm run harness:impact 또는 --verbose`)
+    console.log('')
+    return groups
+  }
+
   console.log('Changed files summary:')
   console.log(`  user project changes: ${userChangeCount}`)
   console.log(`  harness baseline/generated changes: ${baselineCount}`)
   console.log('')
-
-  if (summaryMode && !showBaseline) {
-    console.log('Changed files brief:')
-    console.log(`  feature source changes: ${groups.feature.length}`)
-    console.log(`  local harness updates: ${groups.localHarness.length}`)
-    console.log(`  harness script/entrypoint changes: ${groups.harnessScripts.length}`)
-    console.log(`  config changes: ${groups.config.length}`)
-    console.log(`  other project changes: ${groups.other.length}`)
-    console.log(`  harness baseline/generated changes: ${baselineCount}`)
-    console.log('')
-    console.log('상세 파일 목록은 npm run harness:impact 또는 npm run harness:check -- --verbose 로 확인하세요.')
-    console.log('')
-    return groups
-  }
 
   console.log('Feature source changes')
   console.log(formatFileList(groups.feature))
