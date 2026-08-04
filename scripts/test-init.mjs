@@ -2602,6 +2602,50 @@ function guardLintsOverrideEntryRebuttalField() {
   assert(!fixed.includes('권고 뒤집기 기록 검사'), 'override entry with rebuttal must not be reported')
 }
 
+// decision-log 임계 안내(0.2.92, score-print P5): 임계(400줄) 초과 상태에서 "그 파일을 만진"
+// 커밋에만 아카이브 분리를 안내한다. 초과 상태여도 안 만진 커밋에는 반복 안내하지 않는다.
+function guardNudgesDecisionLogArchiveWhenOversizedAndTouched() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  gitCommitAll(target, 'baseline')
+
+  // 임계 미만에서 만진 경우: 안내 없음.
+  fs.appendFileSync(path.join(target, '.harness/session/decision-log.md'), '\n## 2026-08-04 - 작은 결정\n- 내용.\n')
+  const small = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(!small.includes('Decision log size notice'), 'under-threshold decision-log must not trigger the archive nudge')
+
+  // 임계 초과 + 만진 커밋: 안내 + guard 요약 추천 조치.
+  const filler = Array.from({ length: 420 }, (_, i) => `- 이력 항목 ${i}`).join('\n')
+  fs.appendFileSync(path.join(target, '.harness/session/decision-log.md'), `\n## 2026-08-04 - 누적 이력\n${filler}\n`)
+  const touched = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(touched.includes('Decision log size notice'), 'oversized decision-log touched in this change must trigger the archive nudge')
+  const guardOut = runGuard(target)
+  assert(guardOut.includes('아카이브로 분리'), 'guard summary should recommend archive split for oversized decision-log')
+
+  // 임계 초과 상태여도 이번 변경이 decision-log를 안 만졌으면 안내하지 않는다(반복 노이즈 금지).
+  gitCommitAll(target, 'oversized log')
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/app.js'), 'export const demo = 1\n')
+  const untouched = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(!untouched.includes('Decision log size notice'), 'oversized but untouched decision-log must not repeat the nudge')
+}
+
+// 승격 분기(0.2.92, score-print P6): 로컬룰 승격 안내가 "문서 규칙 vs 실행 가능한 검증" 분기를 묻는다.
+function promotionReminderAsksExecutableGuardBranch() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  gitCommitAll(target, 'baseline')
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/app.js'), 'export const demo = 1\n')
+
+  const summary = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(summary.includes('테스트/CI 가드'), 'summary promotion reminder should mention executable guards')
+
+  const detailed = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard', '--verbose'], { cwd: target })
+  assert(detailed.includes('런타임 불변식'), 'verbose promotion reminder should name runtime invariants')
+  assert(detailed.includes('실행 가능한 검증으로 만들 것인가'), 'verbose promotion reminder should ask the doc-vs-guard question')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   installOutputUsesConditionalNvmAndGitGuidance,
@@ -2690,6 +2734,8 @@ const tests = [
   guardDoesNotEscalateProseWithoutBannerEmoji,
   guardNoticesLogOnlyReversalCommit,
   guardLintsOverrideEntryRebuttalField,
+  guardNudgesDecisionLogArchiveWhenOversizedAndTouched,
+  promotionReminderAsksExecutableGuardBranch,
 ]
 
 console.log('Init smoke tests')

@@ -26,7 +26,7 @@
 
 ## 세션 재개 시 추가 확인
 - `.harness/session/project-memory.md`
-- `.harness/session/decision-log.md`
+- `.harness/session/decision-log.md` (현행 유효 결정만 유지 — `decision-log-*` 아카이브는 특정 결정의 배경이 필요할 때만 읽습니다)
 - `.harness/session/developer-input-queue.md`
 
 ## 작업별로 골라 읽는 기준

@@ -354,6 +354,25 @@ function analyzeDecisionLogChanges() {
   }
 }
 
+// P5(0.2.92, score-print): 로그가 선형 증가하는데 압축 메커니즘이 없으면 세션 읽기 비용이 계속 커진다.
+// 임계를 넘긴 decision-log를 "이번에 만진" 커밋에서만 아카이브 분리를 안내한다(매 커밋 반복 안내는
+// P3식 노이즈가 되므로 금지). 분리 관례는 .harness/session/README.md "결정 로그 작성 관례".
+const DECISION_LOG_LINE_THRESHOLD = 400
+
+function analyzeDecisionLogSize(changedFiles) {
+  const logRel = `${harnessRootRel}/session/decision-log.md`
+  const abs = path.join(repoRoot, logRel)
+  if (!fs.existsSync(abs)) {
+    return { oversized: false }
+  }
+
+  const lines = fs.readFileSync(abs, 'utf8').split('\n').length
+  return {
+    oversized: lines > DECISION_LOG_LINE_THRESHOLD && changedFiles.includes(logRel),
+    lines,
+  }
+}
+
 function collectViolations() {
   const registry = readRegistry()
   const stack = readActiveStack()
@@ -861,14 +880,16 @@ function printProjectRuleCandidateReminder(changedGroups) {
   }
 
   if (summaryMode) {
-    console.log('Project rule candidate check: 반복 규칙/구조 결정/검증 절차가 생겼으면 .harness/project/* 로컬룰 승격을 검토하세요. (안내 상세: --verbose)')
+    console.log('Project rule candidate check: 반복 규칙/구조 결정/검증 절차가 생겼으면 .harness/project/* 로컬룰 승격을 검토하고, 런타임 불변식은 문서 대신 테스트/CI 가드로 만드세요. (안내 상세: --verbose)')
     console.log('')
     return
   }
 
   console.log('Project rule candidate check:')
   console.log('- 이번 변경에서 반복되는 도메인 규칙, 구조 결정, 검증/리뷰 절차가 생겼는지 확인하세요.')
-  console.log('- 확정 가능한 내용은 .harness/project/domain-rules.md, architecture-rules.md, workflow-rules.md에 기록합니다.')
+  console.log('- 승격 전에 먼저 물으세요: 이 규칙은 문서로 남길 것인가, 실행 가능한 검증으로 만들 것인가?')
+  console.log('- 사람이 매번 기억해야 지켜지는 런타임 불변식(예: 동적 클래스 safelist 등록)은 문서 규칙으로는 못 막습니다. 테스트/CI/lint 가드로 표현해 누락을 빌드 실패로 만드세요.')
+  console.log('- 확정 가능한 문서 규칙은 .harness/project/domain-rules.md, architecture-rules.md, workflow-rules.md에 기록합니다.')
   console.log('- 확신이 없거나 팀 선택이 필요하면 .harness/session/developer-input-queue.md에 질문으로 남기고, 선택 이유는 decision-log.md에 남깁니다.')
   console.log('')
 }
@@ -1000,7 +1021,7 @@ function runImpact() {
   }
 
   const informational = isInformationalSyncGap(changedGroups, harnessMode)
-  const logFindings = analyzeDecisionLogChanges()
+  const logFindings = { ...analyzeDecisionLogChanges(), ...analyzeDecisionLogSize(changedFiles) }
   for (const gap of syncGaps) {
     syncGapLevels[syncReviewLevel(gap, informational, logFindings.reversalDetected)]++
   }
@@ -1035,6 +1056,13 @@ function runImpact() {
     console.log('권고 뒤집기 기록 검사:')
     console.log('- [확인 필수] decision-log에 [권고 뒤집기] 항목이 추가됐지만 같은 변경에 근거 반박: 필드가 없습니다.')
     console.log('- 뒤집은 권고의 근거를 무엇으로 반박했는지 해당 항목에 남기세요. 관례: .harness/session/README.md')
+  }
+
+  if (logFindings.oversized) {
+    console.log('')
+    console.log(`Decision log size notice: decision-log.md가 ${logFindings.lines}줄입니다(안내 임계 ${DECISION_LOG_LINE_THRESHOLD}줄).`)
+    console.log('- 폐기/번복/종결된 항목과 오래된 이력을 decision-log-YYYYH1.md 같은 날짜 아카이브로 옮기고, 현행 파일에는 유효 결정만 남기세요.')
+    console.log('- 분리 절차: .harness/session/README.md "결정 로그 작성 관례". 아카이브 파일은 orphan/코드 경로 검사에서 자동 제외됩니다.')
   }
 
   if (syncGaps.length > 0) {

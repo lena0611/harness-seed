@@ -567,6 +567,9 @@ function printConsumerSummary({ validationResults, edgeResult, criticalResult, c
   if (decisionLog.reversalDetected) {
     recommendedActions.push('정책 번복 커밋 — 연결 계약 문서에 반대 서술이 없는지 확인')
   }
+  if (decisionLog.oversized) {
+    recommendedActions.push(`decision-log ${decisionLog.lines}줄 — 폐기/오래된 항목을 아카이브로 분리`)
+  }
   if (suggestedCount > 0) {
     recommendedActions.push(`기준 동기화 후보 ${suggestedCount}건 중 구조·계약 변경만 확인`)
   }

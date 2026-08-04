@@ -33,10 +33,10 @@
 
 ### 차수 계획
 1. **1차 (0.2.90, 노이즈 제거) — 배포 완료 (2026-08-04)**: P4 guard 출력 기본 요약(152줄→약 30줄, `--verbose`로 상세, 확인 필수/차단 후보는 요약에서도 상세 유지) + P3 decision-log 계열 백틱 코드 경로 "역사 참조" 분류(dead code-path 검사 제외, 마크다운 링크는 유지, 동적 아카이브 orphan 예외) + doc-link 직접 실행 가드 fail-open 수정(덤).
-2. **2차 (0.2.91, 차단 승격) — 구현 완료, 검증 대기**: 폐기/번복 배너 관례를 본체 표준으로 승격·문서화(session/README.md "결정 로그 작성 관례" — score-print 자체 관례를 표준화, 요청서 "최고 자산" 지목) → P2 정책 번복 커밋 감지(현행 decision-log diff의 추가 라인에서 배너 마커 감지 시 그 커밋의 동기화 후보를 '확인 필수'로 승격, strict 시 차단) + P1 비권장 뒤집기 엔트리 필수 필드(`근거 반박:` 등) lint. 두 기능은 같은 decision-log diff 스캐너를 공유.
+2. **2차 (0.2.91, 차단 승격) — 배포 완료 (2026-08-04)**: 폐기/번복 배너 관례를 본체 표준으로 승격·문서화(session/README.md "결정 로그 작성 관례" — score-print 자체 관례를 표준화, 요청서 "최고 자산" 지목) → P2 정책 번복 커밋 감지(현행 decision-log diff의 추가 라인에서 배너 마커 감지 시 그 커밋의 동기화 후보를 '확인 필수'로 승격, strict 시 차단) + P1 비권장 뒤집기 엔트리 필수 필드(`근거 반박:` 등) lint. 두 기능은 같은 decision-log diff 스캐너를 공유.
    - 주의: 감지 범위는 현행 `decision-log.md` 한 파일로 한정(아카이브 파일로의 이동이 배너 "추가"로 오인되는 함정 방지).
    - P1 축소 사유: 본체는 감사·리뷰 결과를 생성/집계하지 않으므로(에이전트 세션 산출물) "감사 발생 자체" 감지는 불가. 기록 관례 표준화 + 기록된 엔트리의 필수 필드 lint까지가 기계 강제 범위이고, 기록 의무 자체는 프롬프트 계층(CLAUDE.md/session-start-alert). 정책 원문 반영은 `ai-standard/docs` 동반 작업.
-3. **3차 (지속가능성)**: P5 decision-log 현행/이력 2계층 — 관례는 `/decision` 스킬에 이미 있으므로 실행 장치를 채움(임계 넘김 안내, harness:context 현행 우선 로드, CLAUDE.md 읽기 순서 조정) + P6 로컬룰 승격 시 "문서 규칙 vs 실행 가능한 검증(테스트/CI 가드)" 분기 질문(Project rule candidate check 문구, enforcement-ladder, workflow-rules, /decision·/harness-scan 스킬).
+3. **3차 (0.2.92, 지속가능성) — 구현 완료, 검증 대기**: P5 decision-log 현행/이력 2계층 실행 장치 — 분리 관례 명문화(session/README) + 임계 400줄 안내(만진 커밋에만, 비차단) + CLAUDE.md 재개 순서 "현행만" 명시 + 본체 로그 분리 dogfood(500줄→47줄, 아카이브 458줄). 자동 이동 도구는 마크다운 파싱 취약성으로 비도입. harness:context는 registry 기반이라 이미 현행만 로드(추가 구현 불요 판정). + P6 승격 분기 — enforcement-ladder 판단 순서 0번(정본), project-harness-guide 승격 표, session-start-alert 14번, Project rule candidate check 문구.
 
 ### 비목표
 - 요약 모드가 `syncEnforcement` 강제 후보나 실패 원인을 가리지 않습니다(필수 신호는 항상 상세).
