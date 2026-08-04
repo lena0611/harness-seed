@@ -546,6 +546,7 @@ function readImpactSummary() {
     syncReviewLevels: {},
     policyTriggered: 0,
     codeTriggered: 0,
+    decisionLog: {},
   })
 }
 
@@ -554,13 +555,18 @@ function printConsumerSummary({ validationResults, edgeResult, criticalResult, c
   const levels = impact.syncReviewLevels && Object.keys(impact.syncReviewLevels).length > 0
     ? impact.syncReviewLevels
     : impact.syncGapLevels ?? {}
-  const requiredCount = (levels.blocking ?? 0) + (levels['action required'] ?? 0) + (failedReason ? 1 : 0)
+  const decisionLog = impact.decisionLog ?? {}
+  const requiredCount = (levels.blocking ?? 0) + (levels['action required'] ?? 0)
+    + (decisionLog.overrideMissingRebuttal ? 1 : 0) + (failedReason ? 1 : 0)
   const suggestedCount = levels['review suggested'] ?? 0
   const openManualActions = countOpenManualActions()
   const templateGap = readJson(templateGapSummaryPath, { selected: false, gaps: 0, invalid: 0 })
   const passedValidations = validationResults.filter((item) => item.status === 'passed').map((item) => item.scriptName)
   const recommendedActions = []
 
+  if (decisionLog.reversalDetected) {
+    recommendedActions.push('정책 번복 커밋 — 연결 계약 문서에 반대 서술이 없는지 확인')
+  }
   if (suggestedCount > 0) {
     recommendedActions.push(`기준 동기화 후보 ${suggestedCount}건 중 구조·계약 변경만 확인`)
   }

@@ -305,6 +305,55 @@ function isIgnoredPolicyChange(filePath) {
   )
 }
 
+function runGitSafe(argsToRun) {
+  try {
+    return runGit(argsToRun)
+  } catch {
+    return ''
+  }
+}
+
+// P2/P1(0.2.91, score-print): 현행 decision-log의 이번 변경 diff에서 추가된 라인만 스캔한다.
+// 아카이브(decision-log-*.md)로의 항목 이동이 배너 "추가"로 오인되지 않도록 현행 파일 한 개만 본다.
+// diff 범위는 getChangedFiles와 같은 우선순위: --base/--head → 작업 트리(diff HEAD) → 직전 커밋(HEAD~1..HEAD).
+function decisionLogAddedLines() {
+  const logRel = `${harnessRootRel}/session/decision-log.md`
+  const base = getArgValue('--base')
+  const head = getArgValue('--head')
+
+  let diff = ''
+  if (base && head && !/^0+$/.test(base)) {
+    diff = runGitSafe(['diff', base, head, '--', logRel])
+  } else {
+    diff = runGitSafe(['diff', 'HEAD', '--', logRel])
+    if (!diff.trim() && getWorkingTreeChangedFiles().length === 0) {
+      // 커밋 직후 검사(작업 트리 clean)면 마지막 커밋 범위를 본다.
+      diff = runGitSafe(['diff', 'HEAD~1', 'HEAD', '--', logRel])
+    }
+  }
+
+  return diff
+    .split('\n')
+    .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+    .map((line) => line.slice(1))
+}
+
+// 배너 감지 계약(.harness/session/README.md "결정 로그 작성 관례"):
+// - ⛔ 이모지 + 폐기/번복이 판별자다. 본문 서술("폐기했다")은 감지하지 않아 과다 승격을 막는다.
+// - [권고 뒤집기] 항목이 추가되면 같은 diff에 `근거 반박:` 필드가 있어야 한다.
+function analyzeDecisionLogChanges() {
+  const added = decisionLogAddedLines()
+  const reversalLines = added.filter((line) => /⛔\s*(폐기|번복)/.test(line))
+  const overrideLines = added.filter((line) => line.includes('[권고 뒤집기]'))
+  const hasRebuttal = added.some((line) => line.includes('근거 반박:'))
+
+  return {
+    reversalDetected: reversalLines.length > 0,
+    overrideEntries: overrideLines.length,
+    overrideMissingRebuttal: overrideLines.length > 0 && !hasRebuttal,
+  }
+}
+
 function collectViolations() {
   const registry = readRegistry()
   const stack = readActiveStack()
@@ -741,7 +790,14 @@ function writeImpactSummary(summary) {
   }
 }
 
-function syncReviewLevel(policy, informational) {
+function syncReviewLevel(policy, informational, reversalEscalated = false) {
+  // 정책 번복 커밋(P2)은 informational 완화보다 우선한다. 폐기/번복 시점이야말로
+  // 연결 계약 문서에 반대 서술이 남기 가장 쉬운 지점이라 이 커밋에서만 확인을 강제한다.
+  // 번복이 아닐 때의 등급 순서(informational이 block/hook보다 우선)는 0.2.86 거동을 그대로 유지한다.
+  if (reversalEscalated) {
+    return policy.syncEnforcement === 'block' ? 'blocking' : 'action required'
+  }
+
   if (informational) {
     return 'info'
   }
@@ -944,8 +1000,9 @@ function runImpact() {
   }
 
   const informational = isInformationalSyncGap(changedGroups, harnessMode)
+  const logFindings = analyzeDecisionLogChanges()
   for (const gap of syncGaps) {
-    syncGapLevels[syncReviewLevel(gap, informational)]++
+    syncGapLevels[syncReviewLevel(gap, informational, logFindings.reversalDetected)]++
   }
 
   writeImpactSummary({
@@ -960,7 +1017,25 @@ function runImpact() {
     syncGapLevels,
     syncReviewCandidates: syncGaps.length,
     syncReviewLevels: syncGapLevels,
+    decisionLog: logFindings,
   })
+
+  if (logFindings.reversalDetected) {
+    console.log('')
+    console.log('정책 번복 감지 (decision-log 배너 추가):')
+    console.log('- 이번 변경의 decision-log에 폐기/번복 배너(⛔)가 추가되었습니다.')
+    console.log('- 연결 계약/기준 문서에 반대 서술이 남아 있지 않은지 확인하세요. 폐기 결정은 문서-코드 불일치가 가장 잘 생기는 지점입니다.')
+    if (syncGaps.length > 0) {
+      console.log('- 이번 실행의 기준 동기화 검토 후보를 확인 필수로 승격합니다.')
+    }
+  }
+
+  if (logFindings.overrideMissingRebuttal) {
+    console.log('')
+    console.log('권고 뒤집기 기록 검사:')
+    console.log('- [확인 필수] decision-log에 [권고 뒤집기] 항목이 추가됐지만 같은 변경에 근거 반박: 필드가 없습니다.')
+    console.log('- 뒤집은 권고의 근거를 무엇으로 반박했는지 해당 항목에 남기세요. 관례: .harness/session/README.md')
+  }
 
   if (syncGaps.length > 0) {
     console.log('')
@@ -970,7 +1045,7 @@ function runImpact() {
 
     const printGapDetail = (gap) => {
       const sideLabel = gap.side === 'document-only' ? '문서만 변경됨' : '소스만 변경됨'
-      const level = syncReviewLevel(gap, informational)
+      const level = syncReviewLevel(gap, informational, logFindings.reversalDetected)
       console.log(`- [${syncReviewLevelLabel(level)}] [${gap.id}] ${gap.title} — ${sideLabel}`)
       console.log(`  동기화 강제 설정: ${gap.syncEnforcement}`)
       console.log('  변경 파일:')
@@ -987,7 +1062,7 @@ function runImpact() {
 
     // '차단/확인 필수'는 정책이 syncEnforcement로 명시 강제한 후보라 요약 모드에서도 상세를 편다.
     // 나머지는 개수와 상세 경로만 안내해 신호 대 잡음비를 지킨다.
-    const mustActGaps = syncGaps.filter((gap) => ['blocking', 'action required'].includes(syncReviewLevel(gap, informational)))
+    const mustActGaps = syncGaps.filter((gap) => ['blocking', 'action required'].includes(syncReviewLevel(gap, informational, logFindings.reversalDetected)))
 
     if (summaryMode) {
       const advisorySummary = ['review suggested', 'info']
@@ -1013,7 +1088,7 @@ function runImpact() {
       }
     }
 
-    if (informational) {
+    if (informational && !logFindings.reversalDetected) {
       console.log('')
       console.log('안내: 설치 baseline 또는 rules-only 스택 기준이 처음 추가된 상황이면 정상입니다.')
     } else if (!summaryMode || mustActGaps.length > 0) {
@@ -1026,6 +1101,11 @@ function runImpact() {
     if (strictMode && (syncGapLevels.blocking > 0 || syncGapLevels['action required'] > 0)) {
       process.exitCode = 1
     }
+  }
+
+  // 권고 뒤집기 기록 누락은 동기화 후보와 별개로 strict에서 실패한다(P1, 차단 승격).
+  if (strictMode && logFindings.overrideMissingRebuttal) {
+    process.exitCode = 1
   }
 }
 

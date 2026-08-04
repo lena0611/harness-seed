@@ -2461,6 +2461,147 @@ function guardSummaryStillDetailsMustActSyncCandidates() {
   assert(combined.includes('[확인 필수] [stack.demo.contract-sync]'), 'strict failure output must include the failing candidate detail')
 }
 
+// 정책 번복 승격(0.2.91, score-print P2): 현행 decision-log diff에 ⛔ 폐기/번복 배너가 추가된
+// 커밋은 그 실행의 동기화 검토 후보를 '확인 필수'로 승격한다. ⛔ 없는 본문 서술은 승격하지 않는다.
+function makeSyncReviewPreset() {
+  const preset = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-sync-review-preset-test-'))
+
+  fs.mkdirSync(path.join(preset, 'instructions'), { recursive: true })
+  fs.writeFileSync(path.join(preset, 'instructions/rules.md'), '# Sync Review Demo\n\n기본 등급(가볍게 확인) 동기화 후보를 만드는 데모 스택 기준.\n')
+  fs.writeFileSync(path.join(preset, 'manifest.json'), JSON.stringify({
+    id: 'sync-review-demo',
+    title: 'Sync Review Demo',
+    framework: {
+      runtime: 'demo',
+    },
+    designPattern: ['Sync Review Stack Standard'],
+    instructions: ['instructions/rules.md'],
+    policiesFile: 'policies.json',
+    checksKey: null,
+    source: {
+      type: 'none',
+    },
+  }, null, 2))
+  fs.writeFileSync(path.join(preset, 'policies.json'), JSON.stringify({
+    version: 1,
+    stackId: 'sync-review-demo',
+    policies: [
+      {
+        id: 'stack.demo.contract-review',
+        title: 'Contract doc should follow src changes',
+        documents: ['docs/contract.md'],
+        ownedAreas: ['src/**'],
+      },
+    ],
+  }, null, 2))
+
+  return preset
+}
+
+function setupSyncReviewTarget() {
+  const target = makeTarget()
+  const preset = makeSyncReviewPreset()
+
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
+  fs.mkdirSync(path.join(target, 'docs'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'docs/contract.md'), '# 계약 문서\n')
+  gitCommitAll(target, 'baseline')
+
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/app.js'), 'export const demo = 1\n')
+  return target
+}
+
+function guardEscalatesSyncCandidatesOnReversalCommit() {
+  const target = setupSyncReviewTarget()
+  fs.appendFileSync(
+    path.join(target, '.harness/session/decision-log.md'),
+    '\n## 2026-08-04 - 인쇄 후 첫화면 복귀 ⛔ 번복됨(2026-08-04, 현재 화면 유지로 대체)\n- 새 결정: 인쇄 후 현재 화면을 유지한다.\n',
+  )
+
+  const summary = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(summary.includes('정책 번복 감지'), 'reversal banner in decision-log diff must be announced')
+  assert(summary.includes('[확인 필수] [stack.demo.contract-review]'), 'reversal commit must escalate default review candidates to 확인 필수')
+  assert(summary.includes('연결 문서:'), 'escalated candidate must expand detail in summary mode')
+
+  let failed = false
+  let combined = ''
+  try {
+    run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard', '--strict'], { cwd: target })
+  } catch (error) {
+    failed = true
+    combined = `${error.stdout ?? ''}${error.stderr ?? ''}`
+  }
+  assert(failed, 'strict mode must fail on a reversal commit with open sync candidates')
+  assert(combined.includes('정책 번복 감지'), 'strict failure output must explain the reversal escalation')
+}
+
+function guardDoesNotEscalateProseWithoutBannerEmoji() {
+  const target = setupSyncReviewTarget()
+  fs.appendFileSync(
+    path.join(target, '.harness/session/decision-log.md'),
+    '\n## 2026-08-04 - 구형 API 정리\n- 레거시 목 API를 폐기했다. 관련 결정을 번복 없이 유지한다.\n',
+  )
+
+  const summary = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(!summary.includes('정책 번복 감지'), 'prose 폐기/번복 mentions without ⛔ must not trigger reversal escalation')
+  assert(!summary.includes('[확인 필수]'), 'default review candidate must stay advisory without a reversal banner')
+  assert(/가볍게 확인 \d+건/.test(summary), 'default review candidate should remain a summarized advisory count')
+}
+
+function guardNoticesLogOnlyReversalCommit() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  gitCommitAll(target, 'baseline')
+  fs.appendFileSync(
+    path.join(target, '.harness/session/decision-log.md'),
+    '\n## 2026-08-04 - 세션 수명 30일 ⛔ 폐기됨(2026-08-04, 1일로 축소)\n- 새 결정: 세션 수명은 1일.\n',
+  )
+
+  // 동기화 후보가 없는 로그 단독 번복 커밋: 안내는 나오되 실패하지 않는다(strict 포함).
+  const summary = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(summary.includes('정책 번복 감지'), 'log-only reversal commit should still print the reversal notice')
+  const strict = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard', '--strict'], { cwd: target })
+  assert(strict.includes('정책 번복 감지'), 'strict log-only reversal should print the notice without failing')
+}
+
+// 권고 뒤집기 기록 검사(0.2.91, score-print P1 축소): [권고 뒤집기] 항목이 추가되면
+// 같은 diff에 근거 반박: 필드가 있어야 한다. 없으면 확인 필수, strict에서는 실패.
+function guardLintsOverrideEntryRebuttalField() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  gitCommitAll(target, 'baseline')
+  fs.appendFileSync(
+    path.join(target, '.harness/session/decision-log.md'),
+    '\n## 2026-08-04 - CSS purge 채택 [권고 뒤집기]\n- 번들 감사가 purge를 비권장했지만 채택한다.\n',
+  )
+
+  const summary = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(summary.includes('권고 뒤집기 기록 검사'), 'override entry without rebuttal must be reported')
+  assert(summary.includes('근거 반박'), 'override finding should name the missing field')
+
+  const guardOut = runGuard(target)
+  assert(guardOut.includes('필수 조치: 1건'), 'guard summary must count the missing rebuttal as required action')
+  assert(guardOut.includes('결과: 조치 필요'), 'guard summary result should demand action for missing rebuttal')
+
+  let failed = false
+  try {
+    run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard', '--strict'], { cwd: target })
+  } catch {
+    failed = true
+  }
+  assert(failed, 'strict mode must fail when an override entry lacks the rebuttal field')
+
+  // 같은 diff에 근거 반박을 채우면 검사는 통과한다.
+  fs.appendFileSync(
+    path.join(target, '.harness/session/decision-log.md'),
+    '- 근거 반박: 키오스크 전 화면을 E2E 스냅샷으로 커버해 safelist 누락이 빌드에서 실패한다.\n',
+  )
+  const fixed = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard', '--strict'], { cwd: target })
+  assert(!fixed.includes('권고 뒤집기 기록 검사'), 'override entry with rebuttal must not be reported')
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   installOutputUsesConditionalNvmAndGitGuidance,
@@ -2545,6 +2686,10 @@ const tests = [
   docLinkCheckPrintsSingleLineWhenClean,
   guardModeDefaultsToSummaryImpactOutput,
   guardSummaryStillDetailsMustActSyncCandidates,
+  guardEscalatesSyncCandidatesOnReversalCommit,
+  guardDoesNotEscalateProseWithoutBannerEmoji,
+  guardNoticesLogOnlyReversalCommit,
+  guardLintsOverrideEntryRebuttalField,
 ]
 
 console.log('Init smoke tests')

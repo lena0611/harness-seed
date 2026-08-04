@@ -27,6 +27,8 @@
 - `.harness/install-manifest.json`의 managed hash와 일치하는 하네스 baseline/generated 파일은 본체 업데이트 산출물로 분류하고 검토 후보 계산에서 제외합니다.
 - 같은 문서를 소비자 프로젝트가 직접 수정해 manifest hash와 달라진 경우에는 로컬 하네스 변경으로 보고 정책 매칭과 검토 후보를 계산합니다.
 - `.harness/policy/profile.json`의 `harnessMode`가 `bootstrap`이면 초기 설치나 스택 기준 추가에서 생긴 후보를 `info`로 표시합니다.
+- **정책 번복 커밋 승격(0.2.91)**: 현행 `decision-log.md`의 이번 변경 diff에 `⛔ 폐기됨`/`⛔ 번복됨` 배너가 추가되면 그 실행의 모든 검토 후보를 최소 `action required`로 승격하고 상세를 펼칩니다(strict에서는 실패). 폐기/번복은 연결 계약 문서에 반대 서술이 남기 가장 쉬운 지점이라, 이 커밋에서만 "일반 구현 변경 → 조치 없음" 경로를 막습니다. ⛔ 이모지가 판별자이므로 본문 서술("폐기했다")은 승격을 만들지 않으며, 아카이브 파일 이동도 감지하지 않습니다(현행 파일만 스캔). 배너/뒤집기 관례는 `.harness/session/README.md`.
+- **권고 뒤집기 기록 검사(0.2.91)**: 이번 변경 diff에 `[권고 뒤집기]` 토큰이 추가됐는데 같은 diff에 `근거 반박:` 필드가 없으면 `확인 필수`로 보고하고 strict에서는 실패합니다.
 - `decision-log`와 waiver는 지속되는 구조 판단이나 명시적 강제 정책의 예외에만 사용합니다.
 - 기준 매핑이 반복적으로 무관한 파일을 깨우면 `policy-registry.json` 또는 스택 `policies.json`의 `documents`/`triggerPaths`를 좁힙니다.
 
