@@ -3,7 +3,7 @@
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
 ## 마지막 세션 마감 상태 (2026-08-04)
-- 현재 본체 버전: **0.2.92** — score-print 개선요청 3차(P5 로그 2계층 장치 + P6 승격 분기 + 본체 로그 분리 dogfood). 최종 검증 통과(회귀 89종, 첫 실행 무수정 통과) 후 릴리스. **score-print 6건 반영 완료** (0.2.90 노이즈 제거 / 0.2.91 차단 승격 / 0.2.92 지속가능성).
+- 현재 본체 버전: **0.2.93** — 정책 원문 뒤집기 기록 의무 참조 동기화 + `/하네스업데이트` 스킬 실사용 개선(낡은 기본 동작 설명 수정). 문서 릴리스. 직전: 0.2.92 3차(P5+P6), 0.2.91 2차(P2+P1), 0.2.90 1차(P4+P3) — **score-print 6건 반영 완료**.
 - 0.2.92 push/배포 완료: 양쪽 원격(origin/main + company/master = `3615592`) + 태그 `v0.2.92` 양쪽, Policy Guard success(51s). CLI `ai-standard-cli` **0.2.3**로 README base ref 예시 v0.2.92 반영(GitLab master `c837da4` + 태그, check + 21 tests). 스택 `baseHarness.minVersion` 추종 불필요(3연속 릴리스 모두 스택 의존 신규 계약 없음). 직전 배포: 0.2.91(`d11aace`, CLI 0.2.2), 0.2.90(`17ff14a`, CLI 0.2.1).
 - 0.2.90 push/배포 완료: 양쪽 원격(origin/main + company/master = `17ff14a`) + 태그 `v0.2.90` 양쪽, GitHub Actions Policy Guard success(54s). CLI `ai-standard-cli` **0.2.1**로 README base ref 예시 v0.2.90 반영(GitLab master `8282135` + 태그, check + 21 tests). ※ CLI 0.2.0부터 base ref 기본 고정이 없어(env/--ref 없으면 최신 설치) 신규 설치는 코드 변경 없이도 0.2.90을 받는다 — 이번 CLI 반영은 문서 예시 최신화. 스택 하네스 `baseHarness.minVersion` 추종은 불필요(0.2.90에 스택이 의존할 신규 계약 없음).
 - score-print 개선요청(2026-08-04) 판정: **6건 중 5건 수용, P1 축소 수용, 거부 없음.** 원문 `consumer-reviews/SCORE_PRINT_HARNESS_IMPROVEMENT_REQUEST_2026-08-04.md`, 판정 근거 decision-log 2026-08-04, 차수 계획 body-roadmap "score-print 신호 회복과 차단 승격" 에픽.
@@ -18,7 +18,8 @@
 ## ★ 후속 과제
 - **score-print 3차 (0.2.92, 지속가능성) — 구현 완료, 최종 검증/배포 대기**: P5 임계 안내(400줄, 만진 커밋에만)+분리 관례+본체 로그 dogfood 분리(현행 47줄/아카이브 458줄) + P6 승격 분기(enforcement-ladder 0번 정본). 회귀 2종 추가(총 89종). 이것으로 score-print 6건 반영 완료 — 남은 동반 작업은 ai-standard/docs 정책 원문뿐.
 - ⚠️ 본체 decision-log 작성 주의(0.2.91부터): 감지 리터럴(금지 이모지+폐기/번복 조합, 뒤집기 대괄호 토큰)을 서술 용도로 쓰면 그 커밋이 자기 감지를 오발한다 — 관례 설명은 서술로 적을 것. 실제 배너/뒤집기 기록은 정상 사용.
-- **ai-standard/docs 동반 갱신(미완)**: 정책 원문의 충돌 리포팅 선택지에 "권고 뒤집기 기록 의무" 반영 — 별도 저장소 작업.
+- **ai-standard/docs 동반 갱신 — 완료(2026-08-04)**: 원문 master `279a5d2`에 뒤집기 기록 의무 반영(push 완료). 본체 참조 요약 동기화는 **0.2.93 준비 중(미커밋, 문서만)**.
+- ai-standard-docs의 이전 세션 미커밋 수정(템플릿 계약 분리 문구)은 사용자 승인으로 별도 커밋 완료(`854b523`). 원문 저장소 작업 트리 클린(.idea/ IDE 메타만 untracked).
 - **score-print 3차 (지속가능성)**: P5 decision-log 현행/이력 2계층 실행 장치(관례는 `/decision` 스킬에 이미 있음 — 임계 안내, harness:context 현행 우선 로드, CLAUDE.md 읽기 순서) + P6 로컬룰 승격 시 "문서 규칙 vs 실행 가능한 검증" 분기(Project rule candidate check 문구, enforcement-ladder, workflow-rules, 스킬).
 - clubadm P0 잔여: P0-3(harnessMode 라이프사이클)·P0-4(commit/release 행위충돌 표면화)는 축소 형태(문서/read-only)로만 후속 후보. P0-2·P0-5는 거부 확정(오해 기반, decision-log 2026-06-25).
 
