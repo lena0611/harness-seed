@@ -125,6 +125,18 @@ const SEED_ONLY_DOC_PATHS = new Set([
   '.harness/project/body-roadmap.md',
 ]);
 
+// 세션 이력 아카이브(0.2.95): decision-log 2계층 관례(0.2.92)로 본체 자신의 아카이브
+// (decision-log-2026H1.md 등)가 생기면서, 어떤 제외 목록에도 없어 일반 managed 파일로
+// 소비자에 복사되는 회귀가 발생했다(clubadm 보고 — "하네스 팀 회의록 458줄").
+// 파일명이 동적이라 열거로는 재발을 못 막으므로 패턴으로 차단한다.
+// 현행 decision-log.md는 CONSUMER_PROJECT_STATE_PATHS가 소비자 템플릿으로 대체하므로 제외.
+// (.harness/bin/doc-link-check.mjs isHistoryLogPath와 같은 계열)
+const SESSION_HISTORY_LOG_PATTERN = /^\.harness\/session\/(?:decision-log-[^/]+|thread-handoff-[^/]+)\.md$/;
+
+function isSessionHistoryLog(rel) {
+  return SESSION_HISTORY_LOG_PATTERN.test(rel);
+}
+
 const CONSUMER_SCRIPT_NAMES = [
   'harness:guide',
   'harness:scan',
@@ -708,7 +720,10 @@ function shouldIncludeInstallFile(relPath) {
 function isProjectOwned(relPath) {
   const rel = toPosix(relPath);
   if (rel === MANIFEST_PATH) return false;
-  return PROJECT_OWNED_PATHS.has(rel) || PROJECT_OWNED_PREFIXES.some((prefix) => rel.startsWith(prefix));
+  // 세션 이력 아카이브(0.2.95, clubadm 요청 2): decision-log.md가 project-owned인 것과 동일하게
+  // 그 아카이브도 project-owned로 분류한다. 관례(decision-log-YYYYH1.md)를 따르는 소비자 아카이브가
+  // managed 복원 대상과 경로 충돌해 본체 이력으로 덮어써지는 유실 경로를 계약으로 차단한다.
+  return PROJECT_OWNED_PATHS.has(rel) || PROJECT_OWNED_PREFIXES.some((prefix) => rel.startsWith(prefix)) || isSessionHistoryLog(rel);
 }
 
 function isManagedByManifest(manifest, relPath) {
@@ -887,9 +902,9 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     const projectOwned = isProjectOwned(rel);
     const managed = isManagedByManifest(manifest, rel);
 
-    // seed-only 문서는 소비자(마커 없음) 타깃에 배포하지 않는다. 기존 설치본 제거는 removeSeedOnlyDocs가 담당.
-    // 본체(마커 있음) 타깃에는 그대로 복사한다(본체 개발에 필요).
-    if (!seedModeTarget && SEED_ONLY_DOC_PATHS.has(toPosix(rel))) {
+    // seed-only 문서와 본체 세션 이력 아카이브는 소비자(마커 없음) 타깃에 배포하지 않는다.
+    // 기존 설치본 제거는 removeSeedOnlyDocs가 담당. 본체(마커 있음) 타깃에는 그대로 복사한다(본체 개발에 필요).
+    if (!seedModeTarget && (SEED_ONLY_DOC_PATHS.has(toPosix(rel)) || isSessionHistoryLog(toPosix(rel)))) {
       if (opts.dryRun) {
         console.log(`[dry-run] skip(seed-only) ${rel}`);
       }
@@ -1056,6 +1071,39 @@ function removeSeedOnlyDocs(target, manifest, opts) {
       rmSync(abs, { force: true });
     }
     result.removed.push(rel);
+  }
+
+  // 동적 이름의 세션 이력 아카이브(0.2.95)도 같은 규칙으로 정리한다. 이전 버전이 배포한
+  // 미수정본(manifest sha 일치)만 제거하고, 소비자가 자기 아카이브로 덮어쓴 경우는 보존 + 안내한다.
+  // manifest에 기록이 없는 파일은 소비자 자신의 정상 산출물이므로 건드리지도, 보고하지도 않는다.
+  const sessionDir = join(target, '.harness/session');
+  if (existsSync(sessionDir)) {
+    for (const name of readdirSync(sessionDir)) {
+      const rel = `.harness/session/${name}`;
+      if (!isSessionHistoryLog(rel)) {
+        continue;
+      }
+
+      const abs = join(target, rel);
+      if (!statSync(abs).isFile()) {
+        continue;
+      }
+
+      const recordedSha = manifest?.managedFiles?.[rel]?.sha256;
+      if (!recordedSha) {
+        continue;
+      }
+
+      if (sha256(abs) !== recordedSha) {
+        result.preservedModified.push(rel);
+        continue;
+      }
+
+      if (!opts.dryRun) {
+        rmSync(abs, { force: true });
+      }
+      result.removed.push(rel);
+    }
   }
 
   return result;
@@ -1410,6 +1458,9 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, prev
   ])].sort()
   const source = buildSourceMetadata(sourceRoot, opts, seedPkg)
 
+  // 세션 이력 아카이브(0.2.95)는 isProjectOwned가 project-owned로 분류하므로 아래 승계 조건에서
+  // 자동 제외된다 — (1) 소비자가 자기 아카이브로 덮어쓴 파일이 영구히 "로컬 수정 managed"로 잡히는 것과
+  // (2) 수동 삭제된 파일의 stale 엔트리가 함께 정리된다.
   for (const [rel, entry] of Object.entries(previousManifest?.managedFiles ?? {})) {
     const normalized = toPosix(rel)
     const abs = join(target, normalized)

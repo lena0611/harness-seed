@@ -4,6 +4,15 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.95 - 2026-08-04
+
+- **회귀 수정(중요)**: 0.2.92에서 본체가 자기 결정 로그를 `decision-log-2026H1.md`(458줄)로 분리하면서, 이 파일이 어떤 배포 제외 목록에도 없어 **본체 개발 이력이 소비자 프로젝트에 복사**됐습니다(clubadm 실사용 보고 — "하네스 팀 회의록이 들어왔다"). 0.2.92~0.2.94 업데이트를 받은 프로젝트가 영향 대상입니다.
+- 세션 이력 아카이브(`.harness/session/decision-log-*.md`, `thread-handoff-*.md`)를 열거 목록이 아니라 **패턴으로** 소비자 배포에서 차단합니다(`SESSION_HISTORY_LOG_PATTERN` + npm files 제외 글롭). 앞으로 본체가 아카이브를 몇 개를 만들든 다시 새지 않습니다.
+- 기존 소비자 정리: 이전 버전이 배포한 미수정본은 업데이트 시 제거하고, 소비자가 자기 아카이브로 덮어쓴 경우(score-print 사례)는 보존하며 manifest 승계에서 제외해 프로젝트 소유로 재분류합니다(더 이상 "로컬 수정 managed"로 잡히지 않음). manifest 기록이 없는 소비자 자신의 아카이브는 건드리지도 보고하지도 않습니다. 수동 삭제된 경우의 stale manifest 엔트리도 승계에서 정리됩니다.
+- clubadm 개선요청서(2026-08-04, `consumer-reviews/CLUBADM_HARNESS_IMPROVEMENT_REQUEST_2026-08-04_ARCHIVE_LEAK.md`)의 요청 3건을 전부 수용했습니다. 특히 요청 2가 짚은 **관례 파일명 선점으로 인한 소비자 이력 유실 경로**(0.2.92가 권장한 `decision-log-YYYYH1.md` 관례를 따르면 본체 managed 파일과 경로 충돌 → 다음 업데이트가 소비자 결정 이력을 본체 이력으로 덮어쓸 수 있는 구조)를 막기 위해, 세션 이력 아카이브를 `isProjectOwned` 분류에 패턴으로 포함해 manifest의 `projectOwnedFiles` 계약으로 선언합니다. 관례가 안내하는 파일명은 이제 managed와 충돌할 수 없습니다.
+- doc-link `seedOnlyDocs` 추가(요청 1의 일부)는 불필요 판정: 아카이브는 0.2.90의 `isHistoryLogPath`가 이미 orphan/코드 경로 검사에서 제외하고, 본체 decision-log의 아카이브 링크는 소비자에 배포되지 않는 파일(소비자 템플릿으로 대체) 안에만 있어 exists 오탐 경로가 없습니다.
+- init smoke test에 회귀 3종(소비자 미배포+manifest 미기록+project-owned 계약 선언, 미수정 배포본 제거+stale 엔트리 정리, 소비자 소유본 보존+재분류+무보고)을 추가했습니다. 총 92종. 짝 문서로 `sync-protocol.md`에 "본체 세션 산출물 배포 차단은 열거가 아니라 패턴" 규칙을 명문화했습니다.
+
 ## 0.2.94 - 2026-08-04
 
 - score-print 4차 후속(0.2.93 업데이트 후 대조 검수에서 지적된 잔여 2건): 요약 출력 추가 압축과 차단 옵트인 표면화입니다. 검수 결과는 P1~P6 전부 충족이었고, 이 릴리스로 score-print 개선요청 사이클을 종결합니다.

@@ -2084,6 +2084,59 @@ function reinstallPreservesModifiedSeedOnlyDoc() {
   assert(output.includes('보존한'), 'should report preserved seed-only doc')
 }
 
+// 세션 이력 아카이브 배포 차단(0.2.95): 본체의 decision-log 아카이브가 소비자에 복사되던 회귀(clubadm 보고).
+const SEED_HISTORY_LOG = '.harness/session/decision-log-2026H1.md'
+
+function consumerInstallExcludesSessionHistoryLogs() {
+  const target = makeTarget()
+  runInit(target)
+  assert(!exists(target, SEED_HISTORY_LOG), 'seed session history archive must not be installed to a consumer project')
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  assert(!manifest.managedFiles[SEED_HISTORY_LOG], 'seed session history archive must not appear in consumer install manifest')
+  // clubadm 요청 2: 관례 파일명이 managed와 충돌할 수 없도록 project-owned 계약으로 선언된다.
+  assert(manifest.projectOwnedFiles.includes(SEED_HISTORY_LOG), 'session history archive path must be declared project-owned in the manifest contract')
+}
+
+function updateRemovesSeedDistributedHistoryLogWhenUnmodified() {
+  const target = makeTarget()
+  runInit(target)
+  // 옛 버전(0.2.92~0.2.94)이 배포해 둔 상태를 시뮬: 파일 + manifest에 미수정 sha 기록.
+  const body = '# 본체 아카이브 (옛 버전이 배포한 상태 시뮬)\n\n- 본체 이력 항목.\n'
+  fs.writeFileSync(path.join(target, SEED_HISTORY_LOG), body)
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  manifest.managedFiles[SEED_HISTORY_LOG] = { sha256: sha256Text(body) }
+  writeJson(target, '.harness/install-manifest.json', manifest)
+
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  assert(!exists(target, SEED_HISTORY_LOG), 'unmodified seed-distributed history archive should be removed on update')
+  const after = JSON.parse(read(target, '.harness/install-manifest.json'))
+  assert(!after.managedFiles[SEED_HISTORY_LOG], 'stale manifest entry for the removed archive must not carry over')
+}
+
+function updatePreservesConsumerOwnedHistoryLog() {
+  const target = makeTarget()
+  runInit(target)
+  // 소비자가 옛 배포본을 자기 아카이브로 덮어쓴 상태(score-print 사례): sha 불일치 + manifest 엔트리 잔존.
+  const consumerBody = '# 결정 로그 아카이브 (소비자 자신의 이관본)\n\n- 소비자 프로젝트의 이력 항목.\n'
+  fs.writeFileSync(path.join(target, SEED_HISTORY_LOG), consumerBody)
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  manifest.managedFiles[SEED_HISTORY_LOG] = { sha256: sha256Text('# 본체가 배포했던 원본\n') }
+  writeJson(target, '.harness/install-manifest.json', manifest)
+  // 소비자가 처음부터 직접 만든 아카이브(manifest 기록 없음)는 어떤 보고에도 등장하면 안 된다.
+  const ownArchive = '.harness/session/thread-handoff-2026-08-04.md'
+  fs.writeFileSync(path.join(target, ownArchive), '# 소비자 스레드 핸드오프\n')
+
+  const output = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  assert(read(target, SEED_HISTORY_LOG) === consumerBody, 'consumer-overwritten history archive must be preserved verbatim')
+  assert(exists(target, ownArchive), 'consumer-created archive must be untouched')
+  const after = JSON.parse(read(target, '.harness/install-manifest.json'))
+  assert(!after.managedFiles[SEED_HISTORY_LOG], 'preserved consumer archive must be dropped from managed entries (project-owned reclassification)')
+  assert(!after.managedFiles[ownArchive], 'consumer-created archive must never enter managed entries')
+  assert(!output.includes(ownArchive), 'consumer-created archive must not be reported at all')
+}
+
 function seedModeTargetKeepsSeedOnlyDocs() {
   const target = makeTarget()
   // seed-mode 마커가 있으면 본체 타깃으로 간주 → seed-only 문서를 그대로 설치한다.
@@ -2714,6 +2767,9 @@ const tests = [
   isIgnorableCodePathClassifiesExamplesAndCiPaths,
   consumerDocLinkCheckIgnoresCiExamplePaths,
   consumerInstallExcludesSeedOnlyDocs,
+  consumerInstallExcludesSessionHistoryLogs,
+  updateRemovesSeedDistributedHistoryLogWhenUnmodified,
+  updatePreservesConsumerOwnedHistoryLog,
   consumerDocLinkCheckHandlesAbsentSeedOnlyDoc,
   reinstallRemovesPreexistingSeedOnlyDocWhenUnmodified,
   reinstallPreservesModifiedSeedOnlyDoc,

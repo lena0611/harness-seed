@@ -1,6 +1,6 @@
 {
   "name": "harness-seed",
-  "version": "0.2.94",
+  "version": "0.2.95",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"
@@ -21,6 +21,8 @@
     "!.harness/session/template-gap-report.md",
     "!.harness/session/task-context.md",
     "!.harness/session/decision-log.md",
+    "!.harness/session/decision-log-*.md",
+    "!.harness/session/thread-handoff-*.md",
     "!.harness/session/active-context.md",
     "!.harness/session/next-session-reminder.md",
     "!.harness/session/developer-input-queue.md",
