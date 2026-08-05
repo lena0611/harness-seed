@@ -101,7 +101,8 @@
   ```
 
 ### 스택 하네스
-- [ ] 각 스택 하네스가 새 본체 버전(`baseHarness.minVersion`/`range`)을 따라와야 하는지 판단한다(필요 시 각 스택 저장소에서 반영).
+- [ ] **스택 manifest의 `baseHarness.ref`는 신규 설치가 받는 base 버전을 고정한다** — "기존 소비자에 강제 업그레이드가 필요한가(minVersion)"만 보지 말고, **"신규 프로젝트가 낡은 base로 깔리게 되는가(ref)"를 함께 판단**한다. consumer-facing 본체 릴리스가 쌓이는 동안 ref를 방치하면 신규 설치가 구버전으로 시작한다(2026-08-05 실증: 0.2.89→0.2.95 6릴리스 방치로 신규 설치가 0.2.89로 깔림).
+- [ ] 스택 ref 범프 시 한 세트: 본체 릴리스 태그 push → `npm run release:version-net -- --write`(스택·템플릿 manifest 갱신) → 스택 저장소 버전 bump+check+커밋("공통 하네스 호환 버전 갱신")+태그+push → 템플릿 저장소 동일 → 본체 `stacks/templates registry.json` ref 갱신 → `release:version-net` 재실행으로 all-ok 확인.
 - [ ] 여러 소비 프로젝트 자동 MR 전파는 향후 `ai-standard-cli`가 담당한다. 현재는 통지/기록만 한다.
 
 ## 7단계 — 기록
