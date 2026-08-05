@@ -2704,6 +2704,14 @@ function promotionReminderAsksExecutableGuardBranch() {
   assert(detailed.includes('실행 가능한 검증으로 만들 것인가'), 'verbose promotion reminder should ask the doc-vs-guard question')
 }
 
+// 레지스트리 회귀 게이트 편입(0.2.96): test:standards-registry / test:template-registry가
+// test-init(=pre-commit 게이트) 밖에 있어, 레지스트리 ref 범프로 픽스처가 깨져도 훅이 통과했다
+// (2026-08-05 실증 — 파이프에 가린 수동 실행 실패가 그대로 커밋됨). 게이트 안으로 옮긴다.
+function approvedRegistryListingsStayConsistent() {
+  run(nodeBin, [path.join(repoRoot, 'scripts/test-standards-registry.mjs')])
+  run(nodeBin, [path.join(repoRoot, 'scripts/test-template-registry.mjs')])
+}
+
 const tests = [
   cleanInstallCreatesExpectedFiles,
   installOutputUsesConditionalNvmAndGitGuidance,
@@ -2797,6 +2805,7 @@ const tests = [
   guardLintsOverrideEntryRebuttalField,
   guardNudgesDecisionLogArchiveWhenOversizedAndTouched,
   promotionReminderAsksExecutableGuardBranch,
+  approvedRegistryListingsStayConsistent,
 ]
 
 console.log('Init smoke tests')

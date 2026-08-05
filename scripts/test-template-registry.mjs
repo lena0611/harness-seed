@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(scriptRoot, '..')
 const listTemplates = path.join(repoRoot, '.harness/bin/list-templates.mjs')
+// 기대 ref는 하드코딩하지 않고 진실 출처(registry.json)에서 읽는다(test-standards-registry와 동일 원칙).
+const templatesRegistry = JSON.parse(readFileSync(path.join(repoRoot, '.harness/templates/registry.json'), 'utf8'))
+const adminTemplateRef = templatesRegistry.templates.find((template) => template.id === 'cloud-front-admin-template').ref
+
+function escapeRegExp(value) {
+  return value.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
+}
 
 function run(args, env = {}) {
   const result = spawnSync(process.execPath, [listTemplates, ...args], {
@@ -22,7 +30,7 @@ function run(args, env = {}) {
 const consumerOutput = run([])
 assert.match(consumerOutput, /승인된 템플릿 목록/)
 assert.match(consumerOutput, /Cloud Front 관리자형 업무 앱 템플릿/)
-assert.match(consumerOutput, /--ref v0\.2\.1/)
+assert.match(consumerOutput, new RegExp(`--ref ${escapeRegExp(adminTemplateRef)}`))
 assert.doesNotMatch(consumerOutput, /GITLAB_TOKEN/)
 assert.doesNotMatch(consumerOutput, /GitLab API/)
 
