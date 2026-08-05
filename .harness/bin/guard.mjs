@@ -845,6 +845,20 @@ if (stackState.markerMissing) {
   console.log(`${path.relative(repoRoot, markerPath)} 마커는 없지만 추적된 스택 스냅샷이 있어 lint/test/build를 계속 실행합니다.`)
 }
 
+// 의존성 미설치 감지(0.2.97): node_modules 없이 npm script 검증을 실행하면
+// `run-s: command not found` 같은 원인 불명 실패로 보인다(신규 설치 온보딩 실측 2회).
+// 게이트는 정직하게 실패하되, 원인과 다음 행동을 명확히 말한다.
+const plannedNpmStages = stagePlan.filter((entry) => entry.planned && !entry.raw)
+const declaresDependencies = Object.keys(pkg.dependencies ?? {}).length > 0 || Object.keys(pkg.devDependencies ?? {}).length > 0
+if (plannedNpmStages.length > 0 && declaresDependencies && !fs.existsSync(path.join(repoRoot, 'node_modules'))) {
+  console.error('')
+  console.error('프로젝트 검증 실패: node_modules가 없습니다 (의존성 미설치).')
+  console.error(`package.json에 의존성이 선언되어 있지만 설치되지 않아 ${plannedNpmStages.map((entry) => entry.stage).join('/')} 도구를 찾을 수 없습니다.`)
+  console.error('해결: npm install 실행 후 npm run harness:check')
+  console.error('하네스 설치와 기준 검사는 이 단계와 별개로 정상이며, 위 실패는 프로젝트 의존성 문제입니다.')
+  process.exit(1)
+}
+
 if (fastMode && stagePlan.some((entry) => entry.declared && entry.skipInFast)) {
   console.log('')
   console.log('Fast check mode: test/build 단계는 건너뜁니다. 전체 검증은 harness check 또는 npm run harness:check 로 실행하세요.')

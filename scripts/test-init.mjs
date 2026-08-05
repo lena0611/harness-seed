@@ -2704,6 +2704,33 @@ function promotionReminderAsksExecutableGuardBranch() {
   assert(detailed.includes('실행 가능한 검증으로 만들 것인가'), 'verbose promotion reminder should ask the doc-vs-guard question')
 }
 
+// 의존성 미설치 진단(0.2.97): node_modules 없이 검증하면 `run-s: command not found` 같은
+// 원인 불명 실패로 보이던 것을 명확한 진단+다음 행동 안내로 바꾼다(신규 설치 온보딩 실측 2회).
+function guardExplainsMissingNodeModulesInsteadOfRawToolError() {
+  const target = makeTarget()
+  const preset = makeRulesOnlyPreset()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
+
+  const pkg = JSON.parse(read(target, 'package.json'))
+  pkg.scripts.lint = 'run-s lint:*'
+  pkg.devDependencies = { 'npm-run-all2': '^7.0.0' }
+  writeJson(target, 'package.json', pkg)
+
+  let failed = false
+  let combined = ''
+  try {
+    runGuard(target, '--no-cache')
+  } catch (error) {
+    failed = true
+    combined = `${error.stdout ?? ''}${error.stderr ?? ''}`
+  }
+  assert(failed, 'guard must still fail when dependencies are not installed')
+  assert(combined.includes('node_modules가 없습니다'), 'failure must name the real cause (dependencies not installed)')
+  assert(combined.includes('npm install'), 'failure must tell the next action')
+  assert(!combined.includes('command not found'), 'raw tool-not-found error must not be the visible diagnosis')
+}
+
 // 레지스트리 회귀 게이트 편입(0.2.96): test:standards-registry / test:template-registry가
 // test-init(=pre-commit 게이트) 밖에 있어, 레지스트리 ref 범프로 픽스처가 깨져도 훅이 통과했다
 // (2026-08-05 실증 — 파이프에 가린 수동 실행 실패가 그대로 커밋됨). 게이트 안으로 옮긴다.
@@ -2805,6 +2832,7 @@ const tests = [
   guardLintsOverrideEntryRebuttalField,
   guardNudgesDecisionLogArchiveWhenOversizedAndTouched,
   promotionReminderAsksExecutableGuardBranch,
+  guardExplainsMissingNodeModulesInsteadOfRawToolError,
   approvedRegistryListingsStayConsistent,
 ]
 
