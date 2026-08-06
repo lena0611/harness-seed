@@ -19,6 +19,16 @@
 - 실제 비밀값은 저장소에 커밋하지 않습니다.
 - 설정 계약이 바뀌면 project harness와 session harness에 반영합니다.
 
+## specEnforcement (.harness/policy/profile.json)
+
+기획 문서 연동의 집행 등급입니다. 소유는 프로젝트이며, 기획문서연동을 쓰지 않는 프로젝트에는 어떤 값이든 영향이 없습니다.
+
+- 값 도메인: `"advisory"`(기본, 필드 부재 포함) | `"gate"`.
+- `advisory`: 커밋 검증에서 참고 정보만 표시합니다. push에서는 아무것도 하지 않습니다.
+- `gate`: pre-push 게이트가 **push되는 커밋(tip)의 snapshot**(profile/spec-sources/spec-lock/spec-map)을 기준으로, push 범위 코드에 매핑된 기획 문서의 어긋남을 차단하고 정산을 요구합니다. 연동 정합 문제도 커밋 검증에서 차단으로 승격됩니다.
+- 그 외 값 또는 profile JSON 파싱 실패: push 게이트가 **fail-closed**로 중단합니다. 조용히 advisory로 낮추지 않습니다 — 설정 오류는 고쳐서 커밋하는 것이 유일한 통과 경로입니다.
+- 판정은 push되는 커밋의 값 기준이므로 작업 트리의 미커밋 편집은 게이트에 영향을 주지 않습니다.
+
 ## 하네스 메타데이터 계약
 - `.harness/harness-lock.json`과 `.harness/install-manifest.json`의 source metadata는 하네스 업데이트 감지를 위한 설정 계약입니다.
 - 공통 하네스가 git source로 설치 또는 업데이트되면 `repo`, `ref`, `packageVersion`, `spec`을 git source 기준으로 기록합니다.

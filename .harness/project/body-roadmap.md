@@ -51,7 +51,9 @@
 
 > **1차 구현 배포 상태 (2026-08-05, 0.2.99)**: spec-sources/spec-lock/spec-map + `harness:spec:fetch|status` + 컨텍스트 주입 + 커밋 advisory + `/기획문서연동` 스킬. 설계 변경 — 기획팀은 어떤 계약도 지지 않으므로(사용자 확정) 아래 "제안 구조"의 기획측 registry.json은 폐기, 연결고리는 전부 코드 저장소 소유. 상세는 decision-log 2026-08-05. 남은 것: high-risk 차단, spec-change-request, acceptance criteria-테스트 연결.
 >
-> **2차 구현 상태 (2026-08-06, 0.2.99 합본)**: 푸시 정산 게이트 — 리더/노티 없는 운영 모델(사용자 설계): 각자 로컬 기획 기준으로 개발, push 순간 내 범위만 정산. `specEnforcement: "gate"` 옵트인, fail-open, 내 몫만 settle(`harness:spec:settle`), fetch에 `--cache-only`/`--at-lock` 분리, 연동 정합 검사 doc-link 편입, CI 백스톱 견본(스킬 6절). 상세는 decision-log 2026-08-06 결정 7~11. 남은 것: high-risk 스펙별 차단 등급, spec-change-request 역방향 흐름, acceptance criteria-테스트 연결.
+> **2차 구현 상태 (2026-08-06, 0.2.99 합본)**: 푸시 정산 게이트 — 리더/노티 없는 운영 모델(사용자 설계): 각자 로컬 기획 기준으로 개발, push 순간 내 범위만 정산. `specEnforcement: "gate"` 옵트인, fail-open, 내 몫만 settle(`harness:spec:settle`), fetch에 `--cache-only`/`--at-lock` 분리, 연동 정합 검사 doc-link 편입, CI 백스톱 견본(스킬 6절). 상세는 decision-log 2026-08-06 결정 7~11.
+>
+> **정합 패치 (2026-08-06, 0.2.100)**: 외부 교차 리뷰 2회 반영 — lock v2(문서별 sha+commit, selector, v1 검증 승격), 비파괴 fetch 기본(--move-baseline 분리), --at-lock 정확 집합 복원, push tip snapshot 판정(작업 트리 배제, 대상 원격 스코프, fail-closed 경계), 훅 stdin 버퍼링·tip lock 가드, 관리 등록 4문서. 상세는 decision-log 결정 12~16. **gate 옵트인 안내는 이 버전부터.** 남은 것: high-risk 스펙별 차단 등급, spec-change-request 역방향 흐름, acceptance criteria-테스트 연결.
 
 ### 배경
 현재 회사의 기획 정책, 세부 기능 정책, 기능 스펙은 문서, 메신저, 회의, 이슈 등 스트림성 정보로 흩어지기 쉽습니다. 시간이 지나면 코드와 현재 동작이 사실상 최종 기준점이 되고, 기획팀 입장에서는 의도된 정책과 구현된 동작의 경계가 흐려집니다.

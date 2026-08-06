@@ -26,18 +26,42 @@ harness_dual_node_activate
 # 낮은 Node에서 ESM 크래시 대신 업그레이드 안내가 나오도록 첫 node 호출 전에 버전을 검사한다.
 node .harness/bin/check-node-version.mjs
 
-# 기존 프로젝트 pre-push hook이 있으면 먼저 실행 (dual-runtime 전환 전의 PATH로 실행됨)
-node .harness/bin/run-previous-hook.mjs pre-push "$@"
+# pre-push stdin(push ref 목록)은 한 번만 읽어 이전 훅과 spec 게이트 양쪽에 같은 내용을 재전달한다.
+# 이전 훅이 stdin을 소비하면 게이트가 빈 입력을 받는 문제(0.2.100)의 방지다.
+HARNESS_PUSH_STDIN="$(cat 2>/dev/null || true)"
+export HARNESS_PUSH_STDIN
 
-# 기획 문서 푸시 정산 게이트(0.2.99 2차): 기획문서연동을 쓰고 specEnforcement=gate로 옵트인한
-# 프로젝트에서만 동작한다. spec-lock.json이 없으면(미연동) 스크립트 실행 자체를 하지 않아
-# 기존 프로젝트의 push 동작에 어떤 영향도 없다. stdin(push ref 목록)은 이 게이트만 사용한다.
-if [ -f .harness/spec-lock.json ]; then
-  node .harness/bin/spec-push-gate.mjs "$@"
-fi
+# 기존 프로젝트 pre-push hook이 있으면 먼저 실행 (dual-runtime 전환 전의 PATH로 실행됨)
+printf '%s' "$HARNESS_PUSH_STDIN" | node .harness/bin/run-previous-hook.mjs pre-push "$@"
 
 # P3(2026-06-09): npm/package.json 없는 비-Node 프로젝트에서도 동작하도록 npm 대신 harness 런처를 호출한다.
 .harness/bin/harness check --fast
+
+# 기획 문서 푸시 정산 게이트(0.2.99 도입, 0.2.100 스냅샷 판정): 실행 조건은
+# "작업 트리에 spec-lock이 있거나, push되는 어느 tip에든 spec-lock이 커밋되어 있을 때"다.
+# 미연동 프로젝트는 node 기동 없이 여기서 끝나고(무영향), tip 검사는 작업 트리에서 lock을
+# 지워 게이트를 건너뛰는 우회를 막는다. 판정 자체는 게이트가 push tip snapshot으로 한다.
+HARNESS_RUN_SPEC_GATE=0
+if [ -f .harness/spec-lock.json ]; then
+  HARNESS_RUN_SPEC_GATE=1
+else
+  while IFS=' ' read -r _lref _lsha _rref _rsha; do
+    [ -n "${_lsha:-}" ] || continue
+    case "$_lsha" in
+      *[!0]*) ;;
+      *) continue ;;
+    esac
+    if git cat-file -e "${_lsha}:.harness/spec-lock.json" 2>/dev/null; then
+      HARNESS_RUN_SPEC_GATE=1
+      break
+    fi
+  done <<HARNESS_PUSH_EOF
+$HARNESS_PUSH_STDIN
+HARNESS_PUSH_EOF
+fi
+if [ "$HARNESS_RUN_SPEC_GATE" = "1" ]; then
+  node .harness/bin/spec-push-gate.mjs "$@"
+fi
 
 # 시드 모드 전용 원격 동기화 가드(비차단): GitHub/GitLab 같은 다중 원격이 어긋나지 않게 알림.
 # .harness-seed-mode가 없는 소비자 프로젝트에서는 no-op. push를 막지 않는다.

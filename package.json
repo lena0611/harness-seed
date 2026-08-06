@@ -1,6 +1,6 @@
 {
   "name": "harness-seed",
-  "version": "0.2.99",
+  "version": "0.2.100",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"

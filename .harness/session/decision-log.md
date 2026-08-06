@@ -2,6 +2,16 @@
 
 > 현행 유효 결정만 유지합니다(안내 임계 400줄). 이력 아카이브: [2026 상반기](./decision-log-2026H1.md)
 
+## 2026-08-06 - 기획 문서 연동 정합 패치 (0.2.100, 외부 교차 리뷰 2회 반영)
+- 경위: 0.2.99 배포 직후 외부 리뷰(코덱스)가 settle·게이트의 정합 구멍을 지적 → 계획서 왕복 2회(조건부 승인) → 당일 패치. 현장 lock 0개 시점이라 스키마 전환 비용이 없는 마지막 창이었다.
+- 결정 12 (lock v2 + 읽기 순수성): 문서별 {sha, commit}과 selector를 기록한다. v1은 읽기 경로(status/doc-link/build-context/커밋 검증)가 무수정·무네트워크로 메모리 해석만 하고, 변경 명령(settle, fetch --move-baseline)이 기준 commit 내용 검증 후 승격한다. 검증 불일치는 이력 탐색 없이 결정적 중단 — "확인된 소비자에는 없음" 전제의 상태라 재생성 안내가 올바른 UX(리뷰 합의). provenance는 git blob id가 아니라 git show 내용에 sha256을 적용해 비교한다(blob id ≠ content hash).
+- 결정 13 (비파괴 fetch 기본): lock이 있으면 무인자 fetch = cache-only. 기준 이동은 --move-baseline [--source <id>]뿐이고, 신규 소스도 자동 편입하지 않는다. 이동하지 않는 소스의 lock 항목은 바이트 단위 보존(회귀로 고정). "받아오기와 기준 올리기가 한 명령"이던 철수-사고 표면의 소멸.
+- 결정 14 (스냅샷 판정): 게이트 입력 4종(profile/sources/lock/map)을 push되는 tip에서 git show로 읽는다. 작업 트리는 판정에서 배제 — 미커밋 조작 우회 불가, 정산 lock 미커밋 push는 자연 차단. drift도 fetch된 git 객체 내용 직접 해시(작업 트리 캐시 배제; 게이트가 판정 직전 캐시를 강제 덮으므로 손편집 잔존 없음). 새 ref 범위는 --remotes=<대상원격>만 제외 — 종전 전체 원격 제외는 양원격(우리 표준) 새 브랜치 push에서 게이트 전체 우회 결함이었다. 내 최초 "백업 원격 중복 실행" 보류 근거는 오판이었음을 기록한다.
+- 결정 15 (fail-closed 경계): 커밋된 설정 오류(enforcement 오값·JSON 파싱 실패)와 로컬 git 계산 실패는 차단, 네트워크(기획 저장소 접근)만 fail-open. 잘못된 source 선언(중복/위험 id)은 조용한 필터링 없이 전체 invalid — 모든 소비자(fetch/settle/status/정합/게이트)가 같은 판정을 공유한다.
+- 결정 16 (훅 가드): stdin 1회 버퍼링 후 이전 훅·게이트 재전달(이전 훅의 stdin 소비 대비). 실행 조건은 "작업 트리 lock 존재 OR push tip별 cat-file -e" — 미연동 프로젝트 node 기동 0 유지(사용자 제약) + 작업 트리 lock 삭제 우회 차단. 이 방식은 리뷰가 제시한 개선안으로, 내 HEAD-기반 OR-가드보다 우회 표면이 없다.
+- 구현 중 잡은 것: --at-lock이 정확한 lock 파일 집합을 복원하도록 재작성(삭제 정산 문서·이전 수화 잔재의 부활 방지 — 리뷰 조건 1), 캐시 저장소 origin 검증·재클론(선언 repo 변경 은폐 결함), 게이트 캐시 경로의 containment 검증(rmSync 경로 탈출), status의 캐시 부재+일치 동시 출력 모순, uninstall의 spec 스크립트 3종 누락, 테스트 러너 run()의 input이 stdio[0]='ignore'에 막혀 전달되지 않던 것(실측으로 발견 — 훅 e2e가 거짓 통과하던 원인).
+- 관리 등록: policy-registry `common.spec.link-integrity`(표면 12종 동기화 계약), config-contract specEnforcement, automation-coverage 3행, critical-paths 연동 파일. 이로써 spec 표면 한쪽만 바뀌면 harness:impact가 동기화 후보로 잡는다(직전 리뷰의 관리 결함 지적 수용).
+
 ## 2026-08-06 - 0.2.99 배포와 동반 범프 (스택 v0.2.6 · 템플릿 v0.2.5)
 - 본체 v0.2.99 `a3b5611` 양원격+태그 배포. 동반 범프에서 결함 태그 2개가 나와 **참조 없이 다음 번호로 대체**했다(0.2.96 스택 v0.2.2 선례): 스택 **v0.2.5 참조 금지**(수동 편집이 자기 참조 키를 `stackHarness.ref` 대신 없던 `source.ref`에 써서 태그 안 stackHarness.ref가 v0.2.4로 남음 — apply-stack이 lock에 기록하고 outdated가 비교하는 계약 필드라 신규 설치마다 영구 업데이트 오탐이 생기는 결함) → **v0.2.6**으로 대체. 템플릿 **v0.2.4 참조 금지**(결함 스택 v0.2.5를 requiredStackHarness로 참조) → **v0.2.5**로 대체. 두 결함 태그 모두 seed 레지스트리가 가리킨 적이 없어(레지스트리 갱신 커밋 전) 소비자 노출 0을 확인했다.
 - 교훈: 스택/템플릿 manifest의 자기 참조 키는 저장소마다 다르다(`stackHarness.ref` vs `template.ref`+`range`, 그리고 package.json version이 version-net의 기대값 원천) — 동반 범프는 수동 편집 대신 **version-net --write 실행 → 남는 자기 참조·package.json만 확인**의 순서로. 결함 태그의 참조 금지 기록은 이 항목이 원본.

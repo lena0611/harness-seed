@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { normalizeSelector, readSpecState, selectorsEqual } from './spec-sync.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -397,64 +398,59 @@ function findStackIsolationViolations() {
   return violations
 }
 
-// 기획 문서 연동 정합(0.2.99 2차, 오프라인): 커밋된 연동 상태(선언/기준/매핑)가 자기모순이 없는지 본다.
-// npm ci가 lock↔package.json 정합을 검사하는 것의 대응물이다. 미연동 프로젝트는 대상이 아니다.
+// 기획 문서 연동 정합(0.2.99 도입, 0.2.100 확장, 오프라인): 커밋된 연동 상태(선언/기준/매핑)가
+// 자기모순이 없는지 본다. npm ci가 lock↔package.json 정합을 검사하는 것의 대응물이다.
+// 검증·파싱은 spec-sync의 공용 API를 그대로 써서 fetch/settle/push 게이트와 판정이 갈리지 않는다.
+// 미연동 프로젝트는 대상이 아니다. 잘못된 선언은 걸러내지 않고 전체를 invalid로 만든다.
 export function findSpecLinkInconsistencies() {
   if (harnessRootRel !== '.harness') return []
+  if (!fs.existsSync(path.join(harnessRoot, 'spec-sources.json'))) return []
 
-  const sourcesPath = path.join(harnessRoot, 'spec-sources.json')
-  if (!fs.existsSync(sourcesPath)) return []
-
-  const readJsonSafe = (absPath) => {
-    try {
-      return JSON.parse(fs.readFileSync(absPath, 'utf8'))
-    } catch {
-      return null
-    }
+  let state
+  try {
+    state = readSpecState()
+  } catch (error) {
+    return [`기획 연동 상태를 읽지 못했습니다: ${String(error.message ?? error).split('\n')[0]}`]
   }
+  if (!state.declared) return []
 
   const issues = []
-  const config = readJsonSafe(sourcesPath)
-  const sources = (Array.isArray(config?.sources) ? config.sources : []).filter((source) => source && source.repo && source.id)
-  if (config && sources.length === 0) {
-    issues.push('spec-sources.json에 유효한 source(id, repo)가 없습니다 — 선언을 완성하거나 파일을 제거하세요.')
-  }
-  if (!config) {
-    issues.push('spec-sources.json을 JSON으로 읽지 못했습니다 — 형식을 확인하세요.')
+
+  if (!state.valid) {
+    issues.push(...state.errors.map((message) => `spec-sources.json: ${message}`))
+    return issues
   }
 
-  const lock = readJsonSafe(path.join(harnessRoot, 'spec-lock.json'))
-  const lockSources = lock?.sources ?? {}
-
-  for (const source of sources) {
-    if (!lockSources[source.id]) {
-      issues.push(`source '${source.id}' — 선언은 있지만 기준 시점(spec-lock)이 없습니다. npm run harness:spec:fetch 로 기준을 만드세요.`)
+  for (const source of state.sources) {
+    const recorded = state.lock.sources[source.id]
+    if (!recorded) {
+      issues.push(`source '${source.id}' — 선언은 있지만 기준 시점(spec-lock)이 없습니다. npm run harness:spec:fetch${state.lock.exists ? ` -- --move-baseline --source ${source.id}` : ''} 로 기준을 만드세요.`)
+      continue
+    }
+    if (recorded.repo && recorded.repo !== source.repo) {
+      issues.push(`source '${source.id}' — 선언 repo와 기준 기록이 다릅니다 (기준: ${recorded.repo}). 저장소 이전이면 --move-baseline --source ${source.id} 로 기준을 재생성하세요.`)
+    }
+    if ((recorded.ref ?? null) !== (source.ref ?? null)) {
+      issues.push(`source '${source.id}' — 선언 ref(${source.ref ?? '기본'})와 기준 기록(${recorded.ref ?? '기본'})이 다릅니다. 기준 재생성(--move-baseline --source) 검토 대상입니다.`)
+    }
+    if (recorded.selector && !selectorsEqual(recorded.selector, normalizeSelector(source))) {
+      issues.push(`source '${source.id}' — include/exclude 선언이 기준 기록과 다릅니다. 문서 선정 범위가 바뀌었으면 --move-baseline --source ${source.id} 로 기준을 재생성하세요.`)
     }
   }
-  for (const lockId of Object.keys(lockSources)) {
-    if (!sources.some((source) => source.id === lockId)) {
+
+  for (const lockId of Object.keys(state.lock.sources)) {
+    if (!state.sources.some((source) => source.id === lockId)) {
       issues.push(`spec-lock의 source '${lockId}' — 선언(spec-sources.json)에서 사라졌습니다. lock에서 제거하거나 선언을 복원하세요.`)
     }
   }
 
+  for (const collision of state.collisions) {
+    issues.push(`경로 충돌: '${collision.rel}' 이 여러 소스(${collision.sourceIds.join(', ')})에 있습니다 — 활성 소스 전역에서 문서 상대경로는 유일해야 합니다. include/exclude로 겹침을 없애세요.`)
+  }
+
   const lockFiles = new Set(
-    Object.values(lockSources).flatMap((recorded) => Object.keys(recorded?.files ?? {})),
+    Object.values(state.lock.sources).flatMap((recorded) => Object.keys(recorded?.files ?? {})),
   )
-
-  const specMapPath = path.join(harnessRoot, 'project', 'spec-map.md')
-  if (!fs.existsSync(specMapPath)) return issues
-
-  // spec-map 표 파싱은 spec-sync.readSpecMapEntries와 같은 관례(TBD/예시 행 제외).
-  const entries = fs.readFileSync(specMapPath, 'utf8')
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith('|') && !line.includes('---') && !/기획 문서/.test(line))
-    .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
-    .filter((cells) => cells.length >= 2)
-    .map(([spec, code]) => ({
-      spec: spec.replaceAll('`', '').trim(),
-      codePaths: code.split(',').map((item) => item.replaceAll('`', '').trim()).filter(Boolean),
-    }))
-    .filter((entry) => entry.spec && !entry.spec.startsWith('예:') && entry.spec !== 'TBD')
 
   const specCodePathExists = (mapPath) => {
     const starIndex = mapPath.indexOf('*')
@@ -466,7 +462,7 @@ export function findSpecLinkInconsistencies() {
     return probe === '' || probe === '.' ? true : fs.existsSync(path.join(repoRoot, probe))
   }
 
-  for (const entry of entries) {
+  for (const entry of state.entries) {
     if (lockFiles.size > 0 && !lockFiles.has(entry.spec)) {
       issues.push(`spec-map: '${entry.spec}' — 기준(spec-lock)에 없는 기획 문서입니다. 경로 오타이거나 폐기된 문서면 행을 정리하세요.`)
     }

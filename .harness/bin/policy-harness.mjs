@@ -396,7 +396,10 @@ function analyzeSpecLink(changedFiles) {
     const cacheDir = path.join(harnessRoot, 'generated', 'spec-cache', sourceId)
     if (!fs.existsSync(cacheDir)) continue
 
-    for (const [rel, recordedSha] of Object.entries(recorded?.files ?? {})) {
+    for (const [rel, lockedValue] of Object.entries(recorded?.files ?? {})) {
+      // lock v1은 sha 문자열, v2는 {sha, commit} — advisory는 둘 다 메모리에서만 해석한다.
+      const recordedSha = typeof lockedValue === 'string' ? lockedValue : lockedValue?.sha
+      if (!recordedSha) continue
       const abs = path.join(cacheDir, rel)
       if (!fs.existsSync(abs)) {
         changedSpecs.push({ rel, kind: '삭제' })

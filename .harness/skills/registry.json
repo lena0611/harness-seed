@@ -1029,14 +1029,16 @@
       ],
       "commands": [
         "npm run harness:spec:status",
-        "npm run harness:spec:fetch",
+        "npm run harness:spec:fetch -- --cache-only",
+        "npm run harness:spec:settle",
         "npm run harness:context -- \"<작업 설명>\""
       ],
       "outputs": [
         "관련 기획 문서 후보",
         "기획 문서와 구현 코드 매핑",
-        "기준 시점 이후 기획 변경 목록",
-        "매핑 없는 기획 문서 또는 코드 영역"
+        "기준 시점 이후 미정산 기획 변경 목록",
+        "매핑 없는 기획 문서 또는 코드 영역",
+        "정산(내 몫만 기준 전진) 결과"
       ],
       "records": [
         ".harness/project/spec-map.md",

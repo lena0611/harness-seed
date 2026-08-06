@@ -13,6 +13,7 @@
 | `src/integrations/**` | 외부 시스템 연동 변경은 인증, 데이터 계약, 장애 처리에 영향을 줍니다. | 통합 검증, 수동 조치 확인 |
 | `src/security/**` | 인증, 권한, 보안 정책 변경은 차단 기준으로 검토해야 합니다. | 보안 리뷰, 관련 테스트 |
 | `ios/**` | 네이티브 capability나 권한 설정이 앱 실행에 영향을 줍니다. | 로컬 빌드, 수동 확인 |
+| `.harness/spec-sources.json`, `.harness/spec-lock.json`, `.harness/project/spec-map.md` | 기획 문서 연동의 선언·기준·매핑입니다. 잘못 바뀌면 push 정산 게이트와 정합 판정이 조용히 틀립니다(기획문서연동 사용 프로젝트). | `harness:spec:status`, doc-link 정합 검사, decision-log |
 
 ## 운영 원칙
 

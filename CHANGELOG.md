@@ -4,6 +4,22 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.100 - 2026-08-06
+
+- **기획 문서 연동 정합 패치(Spec Authority 안정화)**: 0.2.99의 settle·push 게이트가 가진 정합 구멍을 외부 교차 리뷰(2회) 반영으로 막았습니다. 아직 현장 lock이 없는 시점의 패치라 소비자 마이그레이션 부담이 없습니다. gate 옵트인은 이 버전부터 안내합니다.
+- **lock 스키마 v2**: 문서별 `{sha, commit}`과 소스별 selector(include/exclude 사본)를 기록합니다. 내 몫만 정산한 혼합 기준을 문서 단위로 재현할 수 있고, 선언 변경(repo/ref/선정 범위)이 정합 검사에 걸립니다. v1 lock은 읽기 경로(status/커밋 검증/컨텍스트)가 **수정·네트워크 없이** 메모리에서만 해석하고, 변경 명령(settle, fetch --move-baseline)이 각 문서를 기준 commit 내용과 검증한 뒤 승격합니다 — 검증 불일치는 이력 탐색 없이 결정적으로 중단하고 기준 재생성을 안내합니다.
+- **fetch 계약을 비파괴 기본으로**: lock이 있으면 무인자 `harness:spec:fetch`는 캐시만 갱신합니다(기준 불변). 팀 기준 이동은 `--move-baseline`(전체) / `--move-baseline --source <id>`(해당 소스만·신규 소스 편입)로만 일어나며, 다른 소스의 lock 항목은 바이트 단위로 유지됩니다. 무인자 fetch가 기준을 만드는 것은 최초 연동(lock 부재)뿐입니다.
+- **`--at-lock`을 정확한 집합 복원으로 재작성**: base checkout 후 lock에 없는 selector 대상 파일(삭제 정산분, 이전 수화 잔재)을 제거하고, 모든 lock 문서를 **문서별 기록 commit에서** `git show`로 수화한 뒤 sha까지 검증합니다. 혼합 기준 수화 직후 status가 "일치"를 보고하는 것이 수용 기준입니다(0.2.99에서는 정산 문서가 "변경"으로 역표시되는 자기모순이 있었음).
+- **settle provenance 검증**: 기준 전진 전에 캐시 파일 해시가 캐시 HEAD의 git 객체 내용 해시와 일치하는지 확인합니다(git blob id가 아니라 `git show` 내용에 같은 sha256을 적용). 손편집된 캐시는 기준에 들어갈 수 없습니다. 여러 소스에 같은 경로가 있으면 정산을 거부합니다(모호성).
+- **push 게이트를 push tip snapshot 판정으로 재작성**: profile·spec-sources·spec-lock·spec-map을 **push되는 커밋에서** `git show`로 읽습니다. 작업 트리의 미커밋 편집(매핑 삭제, 등급 강등, lock 조작)으로 우회할 수 없고, 정산 lock을 커밋에 안 넣은 push는 tip의 옛 기준으로 자연 차단됩니다. drift 비교도 작업 트리 캐시 파일이 아니라 fetch된 git 객체 내용을 직접 해시합니다.
+- **새 ref 범위를 push 대상 원격 기준으로**: `--remotes=<대상원격>`만 제외합니다. 종전(전체 원격 제외)은 양원격 운영에서 반대쪽 원격에 이미 있는 커밋을 새 브랜치로 push할 때 게이트가 통째로 우회되는 결함이었습니다.
+- **fail-closed 원칙 명문화**: 커밋된 설정 오류(specEnforcement 오값, snapshot JSON 파싱 실패)와 로컬 git 계산 실패는 push를 차단합니다 — 조용한 advisory 강등 없음. fail-open은 기획 저장소 네트워크 접근 실패에만 적용됩니다. 잘못된 source 선언(중복/위험 id)은 조용히 걸러내지 않고 전체 상태를 invalid로 만듭니다(모든 명령·검사 공통).
+- **pre-push 훅 견고화**: stdin(ref 목록)을 한 번 버퍼링해 이전 훅과 게이트 양쪽에 재전달합니다(이전 훅이 stdin을 소비해도 게이트가 정상 입력을 받음). 게이트 실행 조건은 "작업 트리 lock 존재 **또는** push되는 tip에 lock 커밋됨"(ref별 `git cat-file -e`) — 미연동 프로젝트는 여전히 node 기동 없이 끝나고, 작업 트리에서 lock을 지워 게이트를 건너뛰는 우회는 막힙니다.
+- **캐시 저장소 안전성**: 선언 repo가 바뀌면(저장소 이전) 기존 origin을 계속 fetch하지 않고 검증 후 새 repo로 재클론합니다. 캐시 삭제·생성 경로에 source id 검증 + cacheRoot containment 검증을 추가했습니다(위험 id의 경로 탈출 차단).
+- **정합 검사 확장**: 선언↔기준의 repo/ref/selector 비교, 유령 소스, 소스 간 경로 충돌(전역 상대경로 유일 계약), id 중복·안전성. status는 캐시가 없을 때 "기준과 캐시 일치"를 주장하지 않습니다.
+- **관리 등록**: policy-registry에 spec 동기화 계약(`common.spec.link-integrity` — 구현 표면 12종), config-contract에 specEnforcement 계약, automation-coverage에 spec 검사 3행, critical-paths에 연동 파일 경로를 등재했습니다. uninstall이 `harness:spec:*` package script를 제거합니다(dangling 방지). `/기획문서연동` 스킬에 새 명령 계약과 수명주기 절차 6종(소스 제거/전체 해제/선언 변경/v1→v2/재수화/uninstall)을 문서화했습니다.
+- 회귀 13종 추가 + 기존 spec 회귀 7종을 새 계약으로 갱신(총 116종): 혼합 기준 at-lock 재현, 정산 미커밋 push 차단, 작업 트리 조작 무력화, 소스 스코프 바이트 보존, v1 순수성·승격·중단, 대상 원격 스코프, 훅 stdin 버퍼링·tip lock 검사, fail-closed 2종, 선언 invalid 전파, repo 이전 재클론, selector 드리프트, uninstall 스크립트 정리, status 모순, 경로 충돌 거부.
+
 ## 0.2.99 - 2026-08-06
 
 - **기획 문서 연동(Spec Authority 1차)**: 기획팀이 관리하는 외부 문서 저장소(`ai-standard/policies/<프로젝트>`)를 개발 기준으로 연결합니다. 기획팀은 코드도 하네스도 몰라도 됩니다 — 평범한 markdown만 쓰면 파일 경로가 곧 사양 식별자이고, 연결·매핑·기준 시점은 전부 개발 저장소가 소유합니다.

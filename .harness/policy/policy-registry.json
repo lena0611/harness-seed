@@ -16,10 +16,32 @@
       "ownedAreas",
       "checks"
     ],
-    "layers": ["common", "stack", "template", "project", "personal"],
-    "statuses": ["draft", "active", "deprecated", "superseded", "experimental"],
-    "severities": ["info", "warning", "error", "blocker"],
-    "enforcement": ["inform", "trigger", "hook", "block"]
+    "layers": [
+      "common",
+      "stack",
+      "template",
+      "project",
+      "personal"
+    ],
+    "statuses": [
+      "draft",
+      "active",
+      "deprecated",
+      "superseded",
+      "experimental"
+    ],
+    "severities": [
+      "info",
+      "warning",
+      "error",
+      "blocker"
+    ],
+    "enforcement": [
+      "inform",
+      "trigger",
+      "hook",
+      "block"
+    ]
   },
   "policies": [
     {
@@ -49,8 +71,14 @@
         "npm run harness:check"
       ],
       "conflictsWith": [],
-      "supersedes": ["policy-harness"],
-      "tags": ["db-ready", "schema", "registry"]
+      "supersedes": [
+        "policy-harness"
+      ],
+      "tags": [
+        "db-ready",
+        "schema",
+        "registry"
+      ]
     },
     {
       "id": "common.guiding-policy.source-trace",
@@ -82,7 +110,11 @@
       ],
       "conflictsWith": [],
       "supersedes": [],
-      "tags": ["source", "docs", "traceability"]
+      "tags": [
+        "source",
+        "docs",
+        "traceability"
+      ]
     },
     {
       "id": "common.policy.sync-gap",
@@ -121,8 +153,14 @@
         "npm run harness:check:strict"
       ],
       "conflictsWith": [],
-      "supersedes": ["policy-harness"],
-      "tags": ["sync", "guard", "trace"]
+      "supersedes": [
+        "policy-harness"
+      ],
+      "tags": [
+        "sync",
+        "guard",
+        "trace"
+      ]
     },
     {
       "id": "common.documentation.registry-integrity",
@@ -151,8 +189,14 @@
         "npm run harness:check"
       ],
       "conflictsWith": [],
-      "supersedes": ["documentation-harness"],
-      "tags": ["docs", "registry", "links"]
+      "supersedes": [
+        "documentation-harness"
+      ],
+      "tags": [
+        "docs",
+        "registry",
+        "links"
+      ]
     },
     {
       "id": "common.context.generated-not-source",
@@ -186,7 +230,11 @@
       ],
       "conflictsWith": [],
       "supersedes": [],
-      "tags": ["context", "generated", "truth-source"]
+      "tags": [
+        "context",
+        "generated",
+        "truth-source"
+      ]
     },
     {
       "id": "common.install.preserve-project-owned-files",
@@ -228,7 +276,11 @@
       ],
       "conflictsWith": [],
       "supersedes": [],
-      "tags": ["install", "update", "preserve"]
+      "tags": [
+        "install",
+        "update",
+        "preserve"
+      ]
     },
     {
       "id": "common.install.force-overwrite-confirmation",
@@ -263,7 +315,11 @@
       ],
       "conflictsWith": [],
       "supersedes": [],
-      "tags": ["force", "overwrite", "confirmation"]
+      "tags": [
+        "force",
+        "overwrite",
+        "confirmation"
+      ]
     },
     {
       "id": "common.runtime.minimum-node",
@@ -303,7 +359,11 @@
       ],
       "conflictsWith": [],
       "supersedes": [],
-      "tags": ["node", "runtime", "install"]
+      "tags": [
+        "node",
+        "runtime",
+        "install"
+      ]
     },
     {
       "id": "common.stack.bundle-integrity",
@@ -337,8 +397,14 @@
         "npm run harness:check"
       ],
       "conflictsWith": [],
-      "supersedes": ["stack-preset"],
-      "tags": ["stack", "manifest", "isolation"]
+      "supersedes": [
+        "stack-preset"
+      ],
+      "tags": [
+        "stack",
+        "manifest",
+        "isolation"
+      ]
     },
     {
       "id": "common.template.contract-bridge",
@@ -372,7 +438,11 @@
       ],
       "conflictsWith": [],
       "supersedes": [],
-      "tags": ["template", "contract", "bridge"]
+      "tags": [
+        "template",
+        "contract",
+        "bridge"
+      ]
     },
     {
       "id": "common.agent.visible-trace",
@@ -408,7 +478,11 @@
       ],
       "conflictsWith": [],
       "supersedes": [],
-      "tags": ["agent", "trace", "reasoning"]
+      "tags": [
+        "agent",
+        "trace",
+        "reasoning"
+      ]
     },
     {
       "id": "common.hooks.commit-push-check",
@@ -439,7 +513,11 @@
       ],
       "conflictsWith": [],
       "supersedes": [],
-      "tags": ["hook", "commit", "push"]
+      "tags": [
+        "hook",
+        "commit",
+        "push"
+      ]
     },
     {
       "id": "common.agent.skill-selection",
@@ -475,7 +553,12 @@
       ],
       "conflictsWith": [],
       "supersedes": [],
-      "tags": ["agent", "skill", "context", "reading-set"]
+      "tags": [
+        "agent",
+        "skill",
+        "context",
+        "reading-set"
+      ]
     },
     {
       "id": "common.local-rule.promotion",
@@ -513,7 +596,11 @@
       ],
       "conflictsWith": [],
       "supersedes": [],
-      "tags": ["local-rule", "learning", "promotion"]
+      "tags": [
+        "local-rule",
+        "learning",
+        "promotion"
+      ]
     },
     {
       "id": "project.critical-paths.review",
@@ -551,7 +638,55 @@
       ],
       "conflictsWith": [],
       "supersedes": [],
-      "tags": ["critical-path", "project-risk", "manual-review"]
+      "tags": [
+        "critical-path",
+        "project-risk",
+        "manual-review"
+      ]
+    },
+    {
+      "id": "common.spec.link-integrity",
+      "title": "Planning spec link must stay consistent across its surfaces",
+      "layer": "common",
+      "category": "spec-authority",
+      "status": "active",
+      "severity": "warning",
+      "enforcement": "hook",
+      "waiverAllowed": true,
+      "owner": "ai-standard/harness-seed",
+      "source": {
+        "type": "local",
+        "path": ".claude/commands/기획문서연동.md"
+      },
+      "documents": [
+        ".claude/commands/기획문서연동.md",
+        ".harness/project/spec-map.md",
+        ".harness/project/config-contract.md",
+        ".harness/policy/automation-coverage.md"
+      ],
+      "ownedAreas": [
+        ".harness/bin/spec-sync.mjs",
+        ".harness/bin/spec-push-gate.mjs",
+        ".harness/bin/doc-link-check.mjs",
+        ".harness/bin/build-context.mjs",
+        ".harness/bin/policy-harness.mjs",
+        ".harness/bin/uninstall-harness.mjs",
+        ".githooks/pre-push",
+        ".harness/skills/registry.json",
+        "scripts/init.mjs",
+        "scripts/test-init.mjs"
+      ],
+      "checks": [
+        "npm run harness:check",
+        "node scripts/test-init.mjs spec"
+      ],
+      "conflictsWith": [],
+      "supersedes": [],
+      "tags": [
+        "spec",
+        "planning",
+        "sync"
+      ]
     }
   ]
 }
