@@ -1,6 +1,6 @@
 {
   "name": "harness-seed",
-  "version": "0.2.98",
+  "version": "0.2.99",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"
@@ -72,6 +72,9 @@
     "docs:check": "npm run node:check --silent && node .harness/bin/doc-link-check.mjs",
     "docs:check:strict": "npm run node:check --silent && node .harness/bin/doc-link-check.mjs --strict",
     "release:version-net": "npm run node:check --silent && node scripts/sync-version-net.mjs",
+    "harness:spec:fetch": "npm run node:check --silent && node .harness/bin/spec-sync.mjs fetch",
+    "harness:spec:status": "npm run node:check --silent && node .harness/bin/spec-sync.mjs status",
+    "harness:spec:settle": "npm run node:check --silent && node .harness/bin/spec-sync.mjs settle",
     "harness:outdated": "npm run node:check --silent && node .harness/bin/outdated-harness.mjs",
     "harness:update": "npm run node:check --silent && node .harness/bin/update-harness.mjs",
     "harness:changelog": "npm run node:check --silent && node .harness/bin/changelog-delta.mjs",

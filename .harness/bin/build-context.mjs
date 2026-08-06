@@ -99,6 +99,71 @@ function readProfileSources() {
   }
 }
 
+// 기획 문서 연동(0.2.99): 캐시에 받아둔 외부 기획 문서 중 이번 작업과 관련된 것만 후보로 올린다.
+// 네트워크를 쓰지 않는다(캐시가 없으면 조용히 건너뛴다). 본문은 캐시에만 있고 저장소에 복사하지 않는다.
+//
+// 대상 문서 목록은 캐시를 훑지 않고 spec-lock.json의 files에서 읽는다. 캐시는 clone 산출물이라
+// include/exclude로 걸러지지 않은 파일(README, archive 등)까지 들어 있고, 필터는 fetch 시점에만
+// 적용되기 때문이다. lock을 단일 출처로 삼아야 "무엇이 현재 사양인가"가 한 곳에서 정해진다.
+function selectSpecCandidates(tokens, limitCount) {
+  if (tokens.length === 0 || !exists('.harness/spec-lock.json')) return []
+
+  let lock
+  try {
+    lock = JSON.parse(read('.harness/spec-lock.json'))
+  } catch {
+    return []
+  }
+  if (!lock?.sources) return []
+
+  const specMap = readSpecMapEntries()
+  const candidates = []
+
+  for (const [sourceId, recorded] of Object.entries(lock.sources)) {
+    const cacheDir = path.join(harnessRoot, 'generated', 'spec-cache', sourceId)
+    if (!fs.existsSync(cacheDir)) continue
+
+    for (const rel of Object.keys(recorded?.files ?? {})) {
+      const abs = path.join(cacheDir, rel)
+      if (!fs.existsSync(abs)) continue
+
+      let content
+      try {
+        content = fs.readFileSync(abs, 'utf8')
+      } catch {
+        continue
+      }
+
+      const haystack = `${rel}\n${content}`.toLowerCase()
+      const matched = tokens.filter((token) => haystack.includes(token))
+      if (matched.length === 0) continue
+
+      const relText = rel.toLowerCase()
+      const score = matched.reduce((sum, token) => sum + (relText.includes(token) ? 6 : 2), 0)
+      const linked = specMap.filter((entry) => entry.spec === rel).flatMap((entry) => entry.codePaths)
+      candidates.push({ source: sourceId, file: rel, score, matched: [...new Set(matched)], linked })
+    }
+  }
+
+  return candidates
+    .sort((a, b) => b.score - a.score || a.file.localeCompare(b.file))
+    .slice(0, limitCount)
+}
+
+function readSpecMapEntries() {
+  if (!exists('.harness/project/spec-map.md')) return []
+  return read('.harness/project/spec-map.md')
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('|') && !line.includes('---') && !/기획 문서/.test(line))
+    .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
+    .filter((cells) => cells.length >= 2)
+    .map(([spec, code]) => ({
+      spec: spec.replaceAll('`', '').trim(),
+      codePaths: code.split(',').map((item) => item.replaceAll('`', '').trim()).filter(Boolean),
+    }))
+    .filter((entry) => entry.spec && entry.spec !== 'TBD')
+}
+
 function readRegistryFiles() {
   if (!exists('.harness/documentation/document-registry.json')) {
     return []
@@ -320,6 +385,7 @@ function renderContext() {
     .sort((a, b) => b.score - a.score || a.file.localeCompare(b.file))
   const candidates = uniqueByFile([...contextEntries, ...keywordCandidates])
     .slice(0, Number.isFinite(limit) && limit > 0 ? limit : 12)
+  const specCandidates = selectSpecCandidates(tokens, 5)
   const generated = generatedFiles.filter(exists)
 
   const lines = []
@@ -366,9 +432,35 @@ function renderContext() {
     }
   }
 
+  // 기획 문서 연동을 쓰지 않는 프로젝트에는 이 섹션 자체를 만들지 않는다(연동은 선택 사항이며 닦달하지 않는다).
+  const specConfigured = exists('.harness/spec-lock.json')
+  if (specConfigured) {
+  lines.push('')
+  lines.push('## Related Specs')
+  lines.push('')
+  if (specCandidates.length === 0) {
+    lines.push('- 이번 작업과 매칭되는 기획 문서를 찾지 못했습니다. 연동 상태는 `npm run harness:spec:status`로 확인합니다.')
+  } else {
+    lines.push('기획 문서는 코드보다 상위 기준입니다. 구현 전에 아래 문서를 먼저 읽습니다.')
+    lines.push('')
+    for (const item of specCandidates) {
+      const cachePath = `.harness/generated/spec-cache/${item.source}/${item.file}`
+      lines.push(`- ${item.file} (matched: ${item.matched.join(', ')})`)
+      lines.push(`  - 본문: ${cachePath}`)
+      if (item.linked.length > 0) {
+        lines.push(`  - 연결 구현: ${item.linked.join(', ')}`)
+      } else {
+        lines.push('  - 연결 구현: 미매핑 — 구현 후 `.harness/project/spec-map.md`에 기록합니다.')
+      }
+    }
+  }
+  }
   lines.push('')
   lines.push('## Decision Rules')
   lines.push('')
+  if (specConfigured) {
+    lines.push('- 기획 문서와 코드가 다르면 기본 판정은 코드 drift입니다. 기획 문서를 임의로 고치지 않습니다.')
+  }
   lines.push('- 사용자 명시 지시와 회사 공통 필수 차단 기준을 먼저 확인합니다.')
   lines.push('- 프로젝트 기준이 스택/템플릿 기준보다 구체적이면 프로젝트 기준을 우선합니다.')
   lines.push('- 생성 컨텍스트는 기준이 아니며 원본 문서와 실제 코드가 우선합니다.')

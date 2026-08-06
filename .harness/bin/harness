@@ -47,6 +47,9 @@ Commands:
   guide                      현재 상태 가이드          (harness:guide)
   sync                       판단 컨텍스트 동기화       (harness:sync)
   context "<작업 설명>"       작업별 판단 컨텍스트       (harness:context)
+  spec:fetch                 기획 문서 가져오기         (harness:spec:fetch)
+  spec:status                기획 문서 연동 상태        (harness:spec:status)
+  spec:settle                기획 변경 정산(내 몫만)     (harness:spec:settle)
   outdated                   업데이트 후보 확인         (harness:outdated)
   update                     하네스 업데이트           (harness:update)
   changelog                  마지막 업데이트 변경 내역   (harness:changelog)
@@ -77,6 +80,9 @@ case "$cmd" in
   guide)           exec node .harness/bin/harness-guide.mjs "$@" ;;
   sync)            exec node .harness/bin/sync-context.mjs "$@" ;;
   context)         exec node .harness/bin/build-context.mjs "$@" ;;
+  spec:fetch)      exec node .harness/bin/spec-sync.mjs fetch "$@" ;;
+  spec:status)     exec node .harness/bin/spec-sync.mjs status "$@" ;;
+  spec:settle)     exec node .harness/bin/spec-sync.mjs settle "$@" ;;
   outdated)        exec node .harness/bin/outdated-harness.mjs "$@" ;;
   update)          exec node .harness/bin/update-harness.mjs "$@" ;;
   changelog)       exec node .harness/bin/changelog-delta.mjs "$@" ;;

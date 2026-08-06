@@ -81,6 +81,9 @@ const dynamicArtifactPaths = new Set([
   '.harness/session/task-context.md',
   '.harness/install-manifest.json',
   '.harness/harness-lock.json',
+  // 기획 문서 연동(0.2.99): 연결/기준 시점 파일은 /기획문서연동 실행 시점에 생성된다.
+  '.harness/spec-sources.json',
+  '.harness/spec-lock.json',
   // npx init 진입점은 사용자 프로젝트에 복사하지 않는다. 시드 결정 로그의
   // 역사적 참조는 사용자 프로젝트에서도 broken reference로 취급하지 않는다.
   'scripts/init.mjs',
@@ -394,6 +397,95 @@ function findStackIsolationViolations() {
   return violations
 }
 
+// 기획 문서 연동 정합(0.2.99 2차, 오프라인): 커밋된 연동 상태(선언/기준/매핑)가 자기모순이 없는지 본다.
+// npm ci가 lock↔package.json 정합을 검사하는 것의 대응물이다. 미연동 프로젝트는 대상이 아니다.
+export function findSpecLinkInconsistencies() {
+  if (harnessRootRel !== '.harness') return []
+
+  const sourcesPath = path.join(harnessRoot, 'spec-sources.json')
+  if (!fs.existsSync(sourcesPath)) return []
+
+  const readJsonSafe = (absPath) => {
+    try {
+      return JSON.parse(fs.readFileSync(absPath, 'utf8'))
+    } catch {
+      return null
+    }
+  }
+
+  const issues = []
+  const config = readJsonSafe(sourcesPath)
+  const sources = (Array.isArray(config?.sources) ? config.sources : []).filter((source) => source && source.repo && source.id)
+  if (config && sources.length === 0) {
+    issues.push('spec-sources.json에 유효한 source(id, repo)가 없습니다 — 선언을 완성하거나 파일을 제거하세요.')
+  }
+  if (!config) {
+    issues.push('spec-sources.json을 JSON으로 읽지 못했습니다 — 형식을 확인하세요.')
+  }
+
+  const lock = readJsonSafe(path.join(harnessRoot, 'spec-lock.json'))
+  const lockSources = lock?.sources ?? {}
+
+  for (const source of sources) {
+    if (!lockSources[source.id]) {
+      issues.push(`source '${source.id}' — 선언은 있지만 기준 시점(spec-lock)이 없습니다. npm run harness:spec:fetch 로 기준을 만드세요.`)
+    }
+  }
+  for (const lockId of Object.keys(lockSources)) {
+    if (!sources.some((source) => source.id === lockId)) {
+      issues.push(`spec-lock의 source '${lockId}' — 선언(spec-sources.json)에서 사라졌습니다. lock에서 제거하거나 선언을 복원하세요.`)
+    }
+  }
+
+  const lockFiles = new Set(
+    Object.values(lockSources).flatMap((recorded) => Object.keys(recorded?.files ?? {})),
+  )
+
+  const specMapPath = path.join(harnessRoot, 'project', 'spec-map.md')
+  if (!fs.existsSync(specMapPath)) return issues
+
+  // spec-map 표 파싱은 spec-sync.readSpecMapEntries와 같은 관례(TBD/예시 행 제외).
+  const entries = fs.readFileSync(specMapPath, 'utf8')
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('|') && !line.includes('---') && !/기획 문서/.test(line))
+    .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
+    .filter((cells) => cells.length >= 2)
+    .map(([spec, code]) => ({
+      spec: spec.replaceAll('`', '').trim(),
+      codePaths: code.split(',').map((item) => item.replaceAll('`', '').trim()).filter(Boolean),
+    }))
+    .filter((entry) => entry.spec && !entry.spec.startsWith('예:') && entry.spec !== 'TBD')
+
+  const specCodePathExists = (mapPath) => {
+    const starIndex = mapPath.indexOf('*')
+    if (starIndex === -1) {
+      return fs.existsSync(path.join(repoRoot, mapPath))
+    }
+    const prefix = mapPath.slice(0, starIndex)
+    const probe = prefix.endsWith('/') ? prefix.slice(0, -1) : path.dirname(prefix)
+    return probe === '' || probe === '.' ? true : fs.existsSync(path.join(repoRoot, probe))
+  }
+
+  for (const entry of entries) {
+    if (lockFiles.size > 0 && !lockFiles.has(entry.spec)) {
+      issues.push(`spec-map: '${entry.spec}' — 기준(spec-lock)에 없는 기획 문서입니다. 경로 오타이거나 폐기된 문서면 행을 정리하세요.`)
+    }
+    if (entry.codePaths.length > 0 && !entry.codePaths.some(specCodePathExists)) {
+      issues.push(`spec-map: '${entry.spec}' → ${entry.codePaths.join(', ')} — 구현 경로가 저장소에 없습니다. 파일 이동/이름 변경을 반영하세요.`)
+    }
+  }
+
+  return issues
+}
+
+function readSpecEnforcement() {
+  try {
+    return JSON.parse(fs.readFileSync(profilePath, 'utf8'))?.specEnforcement ?? 'advisory'
+  } catch {
+    return 'advisory'
+  }
+}
+
 function main() {
   const registry = readRegistry()
   const registered = collectRegisteredFiles(registry)
@@ -401,8 +493,9 @@ function main() {
   const missing = findMissingFromRegistry(registered)
   const broken = findBrokenLinks()
   const stackViolations = findStackIsolationViolations()
+  const specIssues = findSpecLinkInconsistencies()
 
-  const hasIssue = orphans.length > 0 || missing.length > 0 || broken.length > 0 || stackViolations.length > 0
+  const hasIssue = orphans.length > 0 || missing.length > 0 || broken.length > 0 || stackViolations.length > 0 || specIssues.length > 0
 
   // \ud1b5\uacfc \uc2dc\uc5d0\ub294 1\uc904\ub85c \ub05d\ub0b8\ub2e4. \ub9e4 \ucee4\ubc0b \ucd9c\ub825\uc5d0\uc11c \uc2e0\ud638 \ub300 \uc7a1\uc74c\ube44\ub97c \uc9c0\ud0a4\ub294 \uac83\uc774 \ubaa9\uc801\uc774\ub2e4(P4).
   if (!hasIssue) {
@@ -443,6 +536,20 @@ function main() {
       console.log(`  - ${v.file} -> ${stacksRel}/${v.otherStack}/`)
     }
     console.log('')
+  }
+
+  if (specIssues.length > 0) {
+    console.log('\uae30\ud68d \ubb38\uc11c \uc5f0\ub3d9 \uc815\ud569 \ubb38\uc81c (\uc120\uc5b8\u2194\uae30\uc900\u2194\ub9e4\ud551\u2194\ucf54\ub4dc):')
+    for (const issue of specIssues) {
+      console.log(`  - ${issue}`)
+    }
+    console.log('')
+  }
+
+  // \uc815\ud569 \ubb38\uc81c\ub294 push \uac8c\uc774\ud2b8/advisory\uc758 \ud310\uc815 \uc815\ud655\ub3c4\ub97c \uc9c1\uc811 \uae68\ub728\ub9ac\ubbc0\ub85c,
+  // \uac8c\uc774\ud2b8\ub97c \uc635\ud2b8\uc778(specEnforcement=gate)\ud55c \ud504\ub85c\uc81d\ud2b8\uc5d0\uc11c\ub294 strict\uac00 \uc544\ub2c8\uc5b4\ub3c4 \ucc28\ub2e8\ud55c\ub2e4.
+  if (specIssues.length > 0 && readSpecEnforcement() === 'gate') {
+    process.exitCode = 1
   }
 
   if (strictMode) {

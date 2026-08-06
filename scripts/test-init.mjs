@@ -2731,6 +2731,303 @@ function guardExplainsMissingNodeModulesInsteadOfRawToolError() {
   assert(!combined.includes('command not found'), 'raw tool-not-found error must not be the visible diagnosis')
 }
 
+// 기획 문서 연동(0.2.99): 외부 기획 저장소 fetch → lock 기록 → 컨텍스트 주입 → 커밋 advisory.
+// 로컬 git 저장소를 기획 저장소로 써서 네트워크 없이 전 흐름을 검증한다.
+function makePlanningRepo() {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-planning-repo-'))
+  run('git', ['init', '--quiet', '--initial-branch', 'master'], { cwd: repo })
+  fs.mkdirSync(path.join(repo, 'features'), { recursive: true })
+  fs.mkdirSync(path.join(repo, 'archive'), { recursive: true })
+  fs.writeFileSync(path.join(repo, 'README.md'), '# 기획 저장소 안내\n')
+  fs.writeFileSync(path.join(repo, 'features/로그인.md'), '# 로그인\n\n사용자가 계정으로 로그인하는 기능의 사양입니다.\n\n## 확인 기준\n- 올바른 계정이면 첫 화면으로 이동한다.\n')
+  fs.writeFileSync(path.join(repo, 'archive/구버전.md'), '# 폐기된 사양\n')
+  gitCommitAll(repo, '기획 초안')
+  return repo
+}
+
+function setupSpecLinkedTarget() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const planning = makePlanningRepo()
+  writeJson(target, '.harness/spec-sources.json', {
+    version: 1,
+    sources: [{ id: 'planning', repo: planning, ref: 'master', include: ['**/*.md'], exclude: ['**/README.md', 'archive/**'] }],
+  })
+  run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'fetch'], { cwd: target })
+  return { target, planning }
+}
+
+function specSyncFetchRecordsLockAndDetectsChanges() {
+  const { target, planning } = setupSpecLinkedTarget()
+
+  const lock = JSON.parse(read(target, '.harness/spec-lock.json'))
+  const files = Object.keys(lock.sources.planning.files)
+  assert(files.includes('features/로그인.md'), 'lock should record included spec files')
+  assert(!files.some((rel) => rel.endsWith('README.md')), 'excluded README must not enter the lock')
+  assert(!files.some((rel) => rel.startsWith('archive/')), 'excluded archive must not enter the lock')
+
+  // 기획 저장소가 바뀌면 fetch가 변경으로 보고하고 lock을 새 기준으로 옮긴다.
+  fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 잠금 정책이 추가되었다.\n')
+  gitCommitAll(planning, '기획 수정')
+  const refetch = run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'fetch'], { cwd: target })
+  assert(refetch.includes('변경 1'), 'refetch should report one changed spec document')
+
+  const status = run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'status'], { cwd: target })
+  assert(status.includes('기준 시점과 캐시가 일치합니다'), 'status after fetch should be in sync')
+}
+
+function buildContextInjectsRelatedSpecs() {
+  const { target } = setupSpecLinkedTarget()
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/build-context.mjs'), '--stdout', '로그인 기능 수정'], { cwd: target })
+  assert(out.includes('## Related Specs'), 'agent context should have a related specs section')
+  assert(out.includes('features/로그인.md'), 'matching spec document should be injected')
+  assert(!out.includes('archive/구버전.md'), 'excluded archive doc must not be injected')
+  assert(out.includes('코드 drift'), 'spec-first decision rule should be stated')
+}
+
+function guardShowsSpecAdvisoryForMappedCodeChange() {
+  const { target } = setupSpecLinkedTarget()
+
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '# 기획 문서 매핑',
+    '',
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/**` | |',
+    '',
+  ].join('\n'))
+  gitCommitAll(target, 'baseline')
+
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/login.js'), 'export const login = () => {}\n')
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(out.includes('기획 문서 연동 참고'), 'mapped code change should surface the spec advisory')
+  assert(out.includes('features/로그인.md'), 'advisory should name the linked spec document')
+
+  // 캐시 문서가 기준 시점과 달라지면(기획 갱신을 받은 상태) 변경 건수를 알려준다 — 네트워크 없이.
+  fs.appendFileSync(path.join(target, '.harness/generated/spec-cache/planning/features/로그인.md'), '\n- 캐시만 바뀐 상태.\n')
+  const out2 = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(out2.includes('기획 문서 1건'), 'changed cached spec should be counted in the advisory')
+}
+
+// ── 기획 문서 연동 2차(0.2.99): 푸시 정산 게이트 ──
+// fetch(팀 기준 이동) / --cache-only(캐시만) / --at-lock(수화) / settle(내 몫만 전진)의 분리와,
+// push 게이트의 차단·정산·침묵, 연동 정합 검사를 검증한다.
+
+function specTargetProfile(target, patch) {
+  const rel = '.harness/policy/profile.json'
+  const profile = JSON.parse(read(target, rel))
+  writeJson(target, rel, { ...profile, ...patch })
+}
+
+function addOriginRemote(target) {
+  const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-origin-'))
+  run('git', ['init', '--bare', '--quiet', '--initial-branch', 'master'], { cwd: remote })
+  run('git', ['remote', 'add', 'origin', remote], { cwd: target })
+  return remote
+}
+
+function pushWithoutHooks(target) {
+  run('git', ['-c', 'core.hooksPath=.git/hooks-disabled', 'push', '--quiet', 'origin', 'HEAD:master'], { cwd: target })
+}
+
+function specFetchCacheOnlyDoesNotMoveTeamBaseline() {
+  const { target, planning } = setupSpecLinkedTarget()
+  const lockBefore = read(target, '.harness/spec-lock.json')
+
+  fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 잠금 정책이 추가되었다.\n')
+  gitCommitAll(planning, '기획 수정')
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'fetch', '--cache-only'], { cwd: target })
+  assert(out.includes('기준 이동 없음'), 'cache-only fetch must announce that the baseline did not move')
+  assert(out.includes('미정산'), 'cache-only fetch should report unsettled changes against the baseline')
+  assert(read(target, '.harness/spec-lock.json') === lockBefore, 'cache-only fetch must not rewrite spec-lock.json')
+
+  const status = run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'status'], { cwd: target })
+  assert(status.includes('[변경] features/로그인.md'), 'status should list the unsettled planning change')
+}
+
+function specFetchAtLockRehydratesCacheAtBaseline() {
+  const { target, planning } = setupSpecLinkedTarget()
+  const lockBefore = read(target, '.harness/spec-lock.json')
+
+  fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 기준 이후에 추가된 문장.\n')
+  gitCommitAll(planning, '기획 수정')
+  fs.rmSync(path.join(target, '.harness/generated/spec-cache'), { recursive: true, force: true })
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'fetch', '--at-lock'], { cwd: target })
+  assert(out.includes('수화'), 'at-lock fetch should describe itself as rehydration')
+  assert(read(target, '.harness/spec-lock.json') === lockBefore, 'at-lock fetch must not rewrite spec-lock.json')
+
+  const cached = read(target, '.harness/generated/spec-cache/planning/features/로그인.md')
+  assert(!cached.includes('기준 이후에 추가된 문장'), 'at-lock cache must contain the baseline version, not the latest')
+
+  const status = run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'status'], { cwd: target })
+  assert(status.includes('기준 시점과 캐시가 일치합니다'), 'after rehydration the cache must match the baseline')
+}
+
+function specSettleAdvancesOnlyMyScopedDocs() {
+  const { target, planning } = setupSpecLinkedTarget()
+
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '# 기획 문서 매핑',
+    '',
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/login/**` | 담당: A팀 |',
+    '',
+  ].join('\n'))
+  gitCommitAll(target, 'baseline')
+
+  // 기획이 내 문서(로그인)와 남의 신규 문서(결제)를 함께 바꿨다.
+  fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 잠금 정책이 추가되었다.\n')
+  fs.writeFileSync(path.join(planning, 'features/결제.md'), '# 결제\n\n결제 사양입니다.\n')
+  gitCommitAll(planning, '기획 수정')
+  run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'fetch', '--cache-only'], { cwd: target })
+
+  fs.mkdirSync(path.join(target, 'src/login'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/login/login.js'), 'export const login = () => {}\n')
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'settle'], { cwd: target })
+  assert(out.includes('[정산] features/로그인.md'), 'settle should advance the doc mapped to my changed code')
+
+  const lock = JSON.parse(read(target, '.harness/spec-lock.json'))
+  const cachedSha = sha256Text(read(target, '.harness/generated/spec-cache/planning/features/로그인.md'))
+  assert(lock.sources.planning.files['features/로그인.md'] === cachedSha, 'settled doc hash must equal the current cache hash')
+  assert(!('features/결제.md' in lock.sources.planning.files), 'unrelated new doc must stay unsettled in the baseline')
+
+  const status = run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'status'], { cwd: target })
+  assert(status.includes('[추가] features/결제.md'), 'unsettled new doc must remain visible in status as the discovery net')
+}
+
+function specPushGateBlocksDriftThenPassesAfterSettle() {
+  const { target, planning } = setupSpecLinkedTarget()
+
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '# 기획 문서 매핑',
+    '',
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/**` | |',
+    '',
+  ].join('\n'))
+  specTargetProfile(target, { specEnforcement: 'gate' })
+  gitCommitAll(target, 'baseline')
+  const remote = addOriginRemote(target)
+  pushWithoutHooks(target)
+
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/login.js'), 'export const login = () => {}\n')
+  gitCommitAll(target, 'feature')
+
+  // push되기 전에 기획이 먼저 움직였다 — 게이트가 잡아야 하는 상황.
+  fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 잠금 정책이 추가되었다.\n')
+  gitCommitAll(planning, '기획 수정')
+
+  const localSha = run('git', ['rev-parse', 'HEAD'], { cwd: target }).trim()
+  const remoteSha = run('git', ['rev-parse', 'origin/master'], { cwd: target }).trim()
+  const stdinLine = `refs/heads/master ${localSha} refs/heads/master ${remoteSha}\n`
+  const gateEnv = { ...process.env, HARNESS_PUSH_STDIN: stdinLine }
+  const lockBefore = read(target, '.harness/spec-lock.json')
+
+  let blocked = false
+  let combined = ''
+  try {
+    run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], { cwd: target, env: gateEnv })
+  } catch (error) {
+    blocked = true
+    combined = `${error.stdout ?? ''}${error.stderr ?? ''}`
+  }
+  assert(blocked, 'push gate must block when a mapped spec changed after the baseline')
+  assert(combined.includes('push 중단'), 'gate block message should say the push was stopped')
+  assert(combined.includes('features/로그인.md'), 'gate block message should name the drifted spec document')
+  assert(combined.includes('harness:spec:settle'), 'gate block message should point to the settle command')
+  assert(read(target, '.harness/spec-lock.json') === lockBefore, 'a blocked gate must not move the team baseline')
+
+  const settleOut = run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'settle'], { cwd: target })
+  assert(settleOut.includes('[정산] features/로그인.md'), 'settle should cover the docs mapped to the outgoing commits')
+
+  const rerun = run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], { cwd: target, env: gateEnv })
+  assert(rerun.includes('기획 정산 통과'), 'gate should pass with a one-line trace after settlement')
+}
+
+function specPushGateStaysSilentWithoutOptIn() {
+  // 미연동 프로젝트: 게이트 스크립트가 실행되더라도 완전한 무음이어야 한다.
+  const unlinked = makeTarget()
+  runInit(unlinked, '--no-scan', '--no-handoff', '--no-check')
+  const silent = run(nodeBin, [path.join(unlinked, '.harness/bin/spec-push-gate.mjs'), 'origin', 'https://example.invalid/repo.git'], {
+    cwd: unlinked,
+    env: { ...process.env, HARNESS_PUSH_STDIN: 'refs/heads/master 1111111111111111111111111111111111111111 refs/heads/master 0000000000000000000000000000000000000000\n' },
+  })
+  assert(silent.trim() === '', 'unlinked project must see zero gate output')
+
+  // 연동됐지만 기본(advisory) 등급: 기획이 변해도 push에서는 아무것도 하지 않는다.
+  const { target, planning } = setupSpecLinkedTarget()
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/**` | |',
+  ].join('\n'))
+  gitCommitAll(target, 'baseline')
+  fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 잠금 정책.\n')
+  gitCommitAll(planning, '기획 수정')
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/login.js'), 'export const login = () => {}\n')
+  gitCommitAll(target, 'feature')
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', 'unused'], {
+    cwd: target,
+    env: { ...process.env, HARNESS_PUSH_STDIN: '' },
+  })
+  assert(out.trim() === '', 'advisory-grade project must see zero gate output at push')
+}
+
+function specLinkConsistencyCheckFlagsBrokenDeclarations() {
+  const { target } = setupSpecLinkedTarget()
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/login.js'), 'export const login = () => {}\n')
+
+  // 기준(lock)에 없는 기획 문서를 가리키는 매핑 행 — 오타/폐기 잔재.
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/없는문서.md` | `src/**` | |',
+  ].join('\n'))
+
+  const advisoryOut = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(advisoryOut.includes('기준(spec-lock)에 없는 기획 문서'), 'consistency check should flag a map row pointing at a non-baseline doc')
+
+  // 게이트 옵트인 프로젝트에서는 정합 깨짐이 차단이다 — 게이트 판정의 입력이 spec-map이기 때문.
+  specTargetProfile(target, { specEnforcement: 'gate' })
+  let failed = false
+  try {
+    run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  } catch (error) {
+    failed = true
+    const combined = `${error.stdout ?? ''}${error.stderr ?? ''}`
+    assert(combined.includes('기준(spec-lock)에 없는 기획 문서'), 'blocking run should still print the actionable reason')
+  }
+  assert(failed, 'gate-grade project must fail the check on spec-map inconsistencies')
+
+  // 구현 경로가 사라진 매핑 — 리팩터링 후 spec-map 미갱신.
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/ghost/**` | |',
+  ].join('\n'))
+  let deadPathFailed = false
+  try {
+    run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  } catch (error) {
+    deadPathFailed = true
+    const combined = `${error.stdout ?? ''}${error.stderr ?? ''}`
+    assert(combined.includes('구현 경로가 저장소에 없습니다'), 'dead implementation path should be named with its fix')
+  }
+  assert(deadPathFailed, 'gate-grade project must fail on dead implementation paths in spec-map')
+}
+
 // 레지스트리 회귀 게이트 편입(0.2.96): test:standards-registry / test:template-registry가
 // test-init(=pre-commit 게이트) 밖에 있어, 레지스트리 ref 범프로 픽스처가 깨져도 훅이 통과했다
 // (2026-08-05 실증 — 파이프에 가린 수동 실행 실패가 그대로 커밋됨). 게이트 안으로 옮긴다.
@@ -2833,12 +3130,25 @@ const tests = [
   guardNudgesDecisionLogArchiveWhenOversizedAndTouched,
   promotionReminderAsksExecutableGuardBranch,
   guardExplainsMissingNodeModulesInsteadOfRawToolError,
+  specSyncFetchRecordsLockAndDetectsChanges,
+  buildContextInjectsRelatedSpecs,
+  guardShowsSpecAdvisoryForMappedCodeChange,
+  specFetchCacheOnlyDoesNotMoveTeamBaseline,
+  specFetchAtLockRehydratesCacheAtBaseline,
+  specSettleAdvancesOnlyMyScopedDocs,
+  specPushGateBlocksDriftThenPassesAfterSettle,
+  specPushGateStaysSilentWithoutOptIn,
+  specLinkConsistencyCheckFlagsBrokenDeclarations,
   approvedRegistryListingsStayConsistent,
 ]
 
-console.log('Init smoke tests')
+// 인자를 주면 이름에 그 문자열을 포함한 테스트만 돌린다(개발 반복용). 게이트(pre-commit)는 무인자 전체 실행.
+const nameFilter = process.argv[2]
+const selectedTests = nameFilter ? tests.filter((test) => test.name.includes(nameFilter)) : tests
 
-for (const test of tests) {
+console.log(nameFilter ? `Init smoke tests (filter: ${nameFilter}, ${selectedTests.length}/${tests.length})` : 'Init smoke tests')
+
+for (const test of selectedTests) {
   test()
   console.log(`  OK ${test.name}`)
 }

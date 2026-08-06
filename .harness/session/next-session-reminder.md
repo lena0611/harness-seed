@@ -2,8 +2,12 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
-## 마지막 세션 마감 상태 (2026-08-05)
-- 현재 본체 버전: **0.2.98** — 라이프사이클 가이드를 0.2.90~97 변경에 맞춰 갱신 + 참조 요약본 확인 질문 복원. 동반으로 `ai-standard/docs` 현행화(`2251b02`, Pages 재배포 확인). ⚠️ **미착수 후속**: 가이드 단일 원본화(본체 → docs 복사 + 오버레이 3곳)를 릴리스 루틴에 넣는 구조 정비 — 이번에 손으로 맞췄고 안 하면 또 드리프트한다. 정책 원문 새 원칙 4개 추가 건도 판단 대기(런타임 불변식/신호 대 잡음/ref가 신규 설치 결정/승인 게이트).
+## 마지막 세션 마감 상태 (2026-08-06)
+- 현재 본체 버전: **0.2.99 준비 완료(1차+2차 합본, 미커밋)** — 기획 문서 연동(Spec Authority) 1차(연결·매핑·기준시점 코드 소유, advisory) + **2차 푸시 정산 게이트**(사용자 설계 운영 모델: 리더/노티 없이 각자 로컬 기준 개발 → push 순간 내 범위만 정산). `specEnforcement: "gate"` 옵트인(기본 advisory=1차 그대로), fail-open, `spec:settle`(내 몫만), fetch `--cache-only`/`--at-lock` 분리(npm install/ci 대응물), 연동 정합 검사 doc-link 편입(gate 프로젝트는 차단), CI 백스톱 견본. 회귀 총 103종 통과 + harness:check. 상세: decision-log 2026-08-06 결정 7~11.
+- ⛔ **로컬 multisite(개발 프로젝트) 전면 손대기 금지(2026-08-06 사용자 지시, 에이전트 메모리 multisite-hands-off)**: 커밋·수정·훅 실행 일절 금지. 스테이징 잔여물은 사용자 지시로 전부 원복 완료(작업 트리 클린) — 개발팀이 배포 후 정식 `harness:update`로 수령. 검증은 seed test-init 픽스처로 재현. 기획 저장소(policies/multisite)는 금지 대상 아님.
+- 기획 저장소 정리 완료(2026-08-06): ① policies/multisite README에 "push=확정 사양(작성 중 문서는 push 보류)" 안내(`6965873`). ② **안내·견본을 `policies/planning-example` 저장소로 분리**(사용자 발의·생성) — 견본 4종을 실제 폴더 구조(features/ 등)로 배치해 복사-시작 가능(`94d6152`), multisite는 example/ 제거 + README 슬림화(실사양 폴더 + planning-example 링크, `5d741d5`). 새 기획 프로젝트 온보딩 = planning-example 복사 안내. 스킬 exclude 기본값(example/**)은 방어적으로 유지.
+- 배포 대기: 사용자 커밋푸시배포 승인 시 릴리스 루틴(아래 절) + policies/multisite README에 "push = 발효(작성 중 문서는 push 보류)" 한 줄 추가 push + 스택/템플릿 ref 동반 범프 + CLI 반영.
+- 직전 0.2.98 — 라이프사이클 가이드 0.2.90~97 갱신 + 참조 요약본 확인 질문 복원. 동반 `ai-standard/docs` 현행화(`2251b02`, Pages 재배포 확인). ⚠️ **미착수 후속**: ①가이드 단일 원본화(본체 → docs 복사 + 오버레이 3곳)를 릴리스 루틴에 넣는 구조 정비, ②정책 원문 새 원칙 4개 추가 판단 대기(런타임 불변식/신호 대 잡음/ref가 신규 설치 결정/승인 게이트), ③multisite 프론트에 0.2.99 정식 업데이트 후 `/기획문서연동` 실사용 시작.
 - 직전 0.2.97 — 의존성 미설치 진단(node_modules 부재 시 원인 불명 도구 에러 대신 "npm install 후 harness:check" 명확 안내, 온보딩 실측 2회 반영). 레지스트리 동반 범프: 스택 v0.2.4·템플릿 v0.2.3(base v0.2.97 추종). 회귀 94종.
 - ⚠️ **스택 ref 추종 교훈(2026-08-05)**: downstream 판단 시 minVersion(기존 소비자 강제)만 보지 말 것 — 스택 `baseHarness.ref`가 **신규 설치가 받는 base 버전**을 고정한다. 실측: 6릴리스 방치로 신규 설치가 0.2.89로 깔렸음. 절차는 body-release-checklist downstream 절. 0.2.97부터 동반 범프를 기본 루틴으로 운영.
 - 0.2.97 push/배포 완료(2026-08-05): 본체 `b15296a` 양쪽 원격 + 태그 양쪽, Policy Guard success(59s). 동반 범프 **스택 v0.2.4**(`932cd95`) + **템플릿 v0.2.3**(`7ad6b24`) + CLI **0.2.8**(`4de6f1e`). `release:version-net` all-ok. **E2E 실측: 신규 설치 base 0.2.97 + stack 0.2.4, 의존성 미설치 시 새 진단 메시지 정상 출력**(원인+`npm install` 안내+"하네스 설치는 정상" 문구).

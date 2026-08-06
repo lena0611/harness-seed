@@ -23,6 +23,9 @@ if "%CMD%"=="handoff"         set "SCRIPT=handoff.mjs" & set "PRE=--write"
 if "%CMD%"=="guide"           set "SCRIPT=harness-guide.mjs"
 if "%CMD%"=="sync"            set "SCRIPT=sync-context.mjs"
 if "%CMD%"=="context"         set "SCRIPT=build-context.mjs"
+if "%CMD%"=="spec:fetch"      set "SCRIPT=spec-sync.mjs" & set "PRE=fetch"
+if "%CMD%"=="spec:status"     set "SCRIPT=spec-sync.mjs" & set "PRE=status"
+if "%CMD%"=="spec:settle"     set "SCRIPT=spec-sync.mjs" & set "PRE=settle"
 if "%CMD%"=="outdated"        set "SCRIPT=outdated-harness.mjs"
 if "%CMD%"=="update"          set "SCRIPT=update-harness.mjs"
 if "%CMD%"=="changelog"       set "SCRIPT=changelog-delta.mjs"
@@ -80,6 +83,9 @@ echo   handoff                    install/update handoff  (harness:handoff)
 echo   guide                      current status guide    (harness:guide)
 echo   sync                       agent context sync      (harness:sync)
 echo   context "<task>"           task decision context   (harness:context)
+echo   spec:fetch                 fetch planning specs    (harness:spec:fetch)
+echo   spec:status                planning spec status    (harness:spec:status)
+echo   spec:settle                settle my spec changes  (harness:spec:settle)
 echo   outdated                   update candidates       (harness:outdated)
 echo   update                     harness update          (harness:update)
 echo   changelog                  last update changelog   (harness:changelog)

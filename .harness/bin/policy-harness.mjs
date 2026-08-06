@@ -359,6 +359,89 @@ function analyzeDecisionLogChanges() {
 // P3식 노이즈가 되므로 금지). 분리 관례는 .harness/session/README.md "결정 로그 작성 관례".
 const DECISION_LOG_LINE_THRESHOLD = 400
 
+// 기획 문서 연동(0.2.99): 커밋 검증에서 기획-코드 관계를 advisory로 보여준다.
+// 네트워크를 쓰지 않는다 — spec-lock에 기록된 기준 시점과 로컬 캐시만 비교한다(오프라인에서 커밋이 막히면 안 됨).
+// 원격 최신 여부는 여기서 판정하지 않으며, 최신화는 명시적 harness:spec:fetch의 몫이다.
+function readSpecMapEntries() {
+  const abs = path.join(repoRoot, '.harness/project/spec-map.md')
+  if (!fs.existsSync(abs)) return []
+  return fs.readFileSync(abs, 'utf8')
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('|') && !line.includes('---') && !/기획 문서/.test(line))
+    .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
+    .filter((cells) => cells.length >= 2)
+    .map(([spec, code]) => ({
+      spec: spec.replaceAll('`', '').trim(),
+      codePaths: code.split(',').map((item) => item.replaceAll('`', '').trim()).filter(Boolean),
+    }))
+    .filter((entry) => entry.spec && entry.spec !== 'TBD')
+}
+
+function analyzeSpecLink(changedFiles) {
+  const lockAbs = path.join(harnessRoot, 'spec-lock.json')
+  if (!fs.existsSync(lockAbs)) {
+    return { configured: false }
+  }
+
+  const lock = readJsonFile(lockAbs)
+  if (!lock?.sources) {
+    return { configured: false }
+  }
+
+  const entries = readSpecMapEntries()
+  const changedSpecs = []
+  const touchedMappings = []
+
+  for (const [sourceId, recorded] of Object.entries(lock.sources)) {
+    const cacheDir = path.join(harnessRoot, 'generated', 'spec-cache', sourceId)
+    if (!fs.existsSync(cacheDir)) continue
+
+    for (const [rel, recordedSha] of Object.entries(recorded?.files ?? {})) {
+      const abs = path.join(cacheDir, rel)
+      if (!fs.existsSync(abs)) {
+        changedSpecs.push({ rel, kind: '삭제' })
+        continue
+      }
+      const currentSha = crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex')
+      if (currentSha !== recordedSha) {
+        changedSpecs.push({ rel, kind: '변경' })
+      }
+    }
+  }
+
+  // 이번 변경 코드가 매핑된 구현 경로에 걸리면, 그 코드의 상위 기준(기획 문서)을 알려준다.
+  for (const entry of entries) {
+    const hit = changedFiles.some((filePath) => entry.codePaths.some((glob) => matchesGlob(filePath, glob) || filePath === glob || filePath.startsWith(`${glob.replace(/\/?\*\*$/, '')}/`)))
+    if (hit) {
+      touchedMappings.push(entry)
+    }
+  }
+
+  return {
+    configured: true,
+    mappings: entries.length,
+    changedSpecs,
+    touchedMappings,
+  }
+}
+
+function printSpecLinkNotice(specLink) {
+  if (!specLink.configured) return
+  if (specLink.changedSpecs.length === 0 && specLink.touchedMappings.length === 0) return
+
+  console.log('')
+  console.log('기획 문서 연동 참고 (advisory):')
+  if (specLink.touchedMappings.length > 0) {
+    console.log('- 이번 변경이 기획 문서와 매핑된 구현 경로에 걸립니다. 해당 사양과 어긋나지 않는지 확인하세요.')
+    for (const entry of specLink.touchedMappings.slice(0, 5)) {
+      console.log(`  - ${entry.spec} ← ${entry.codePaths.join(', ')}`)
+    }
+  }
+  if (specLink.changedSpecs.length > 0) {
+    console.log(`- 기준 시점 이후 기획 문서 ${specLink.changedSpecs.length}건이 캐시에서 달라졌습니다. 상세: npm run harness:spec:status`)
+  }
+}
+
 function analyzeDecisionLogSize(changedFiles) {
   const logRel = `${harnessRootRel}/session/decision-log.md`
   const abs = path.join(repoRoot, logRel)
@@ -1066,6 +1149,8 @@ function runImpact() {
     console.log('- 폐기/번복/종결된 항목과 오래된 이력을 decision-log-YYYYH1.md 같은 날짜 아카이브로 옮기고, 현행 파일에는 유효 결정만 남기세요.')
     console.log('- 분리 절차: .harness/session/README.md "결정 로그 작성 관례". 아카이브 파일은 orphan/코드 경로 검사에서 자동 제외됩니다.')
   }
+
+  printSpecLinkNotice(analyzeSpecLink(changedFiles))
 
   if (syncGaps.length > 0) {
     console.log('')
