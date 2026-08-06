@@ -328,7 +328,39 @@ export function mappedDocsForFiles(files, entries) {
   return hits
 }
 
+// "판정 완료" 표기: 사람이 검토한 결과 짝이 필요 없다고 결론 낸 상태를 1급으로 기록한다.
+// - 기획 문서 칸이 (사양 없음)  → 그 코드 경로는 기획 문서 대상이 아님(유틸/인프라 등)
+// - 구현 경로 칸이 (코드 없음)  → 그 기획 문서는 구현 대상이 아님(운영 안내 등)
+// 미판정("아직 아무도 안 봤다")과 구분하기 위한 장치다. 괄호는 반각/전각 모두 허용한다.
+const EXEMPT_TOKEN = /^[(（]\s*(사양\s*없음|코드\s*없음|해당\s*없음|없음)\s*[)）]$/
+
+export function isExemptCell(value) {
+  return EXEMPT_TOKEN.test(String(value ?? '').trim())
+}
+
 // spec-map 표 파싱. 텍스트 기반이라 push 게이트가 tip snapshot 내용에도 같은 파서를 쓴다.
+// 판정 행(exempt)은 매핑이 아니라 "검토 완료" 선언이므로 entries가 아니라 exemptions로 분리한다.
+export function parseSpecMapExemptions(text) {
+  if (typeof text !== 'string') return { specs: [], codePaths: [] }
+  const specs = []
+  const codePaths = []
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.startsWith('|') || line.includes('---') || /기획 문서/.test(line)) continue
+    const cells = line.split('|').slice(1, -1).map((cell) => cell.trim())
+    if (cells.length < 2) continue
+    const spec = cells[0].replaceAll('`', '').trim()
+    const code = cells[1].replaceAll('`', '').trim()
+    if (isExemptCell(spec) && code && !isExemptCell(code)) {
+      // (사양 없음) | src/utils/** → 이 코드 경로는 기획 문서가 필요 없다고 판정됨
+      codePaths.push(...code.split(',').map((item) => item.replaceAll('`', '').trim()).filter(Boolean))
+    } else if (isExemptCell(code) && spec && !isExemptCell(spec)) {
+      // features/운영안내.md | (코드 없음) → 이 문서는 구현 대상이 아니라고 판정됨
+      specs.push(spec)
+    }
+  }
+  return { specs, codePaths }
+}
+
 export function parseSpecMapText(text) {
   if (typeof text !== 'string') return []
   return text
@@ -336,6 +368,7 @@ export function parseSpecMapText(text) {
     .filter((line) => line.startsWith('|') && !line.includes('---') && !/기획 문서/.test(line))
     .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
     .filter((cells) => cells.length >= 2)
+    .filter((cells) => !isExemptCell(cells[0]) && !isExemptCell(cells[1]))
     .map(([spec, code, note]) => ({
       spec: spec.replaceAll('`', '').trim(),
       codePaths: code.split(',').map((item) => item.replaceAll('`', '').trim()).filter(Boolean),
@@ -348,6 +381,57 @@ export function readSpecMapEntries() {
   const abs = path.join(repoRoot, specMapRel)
   if (!fs.existsSync(abs)) return []
   return parseSpecMapText(fs.readFileSync(abs, 'utf8'))
+}
+
+export function readSpecMapExemptions() {
+  const abs = path.join(repoRoot, specMapRel)
+  if (!fs.existsSync(abs)) return { specs: [], codePaths: [] }
+  return parseSpecMapExemptions(fs.readFileSync(abs, 'utf8'))
+}
+
+// 매핑 커버리지: "이미 매핑된 영역에 새로 생긴 파일인데 매핑도 판정도 없는 것"을 찾는다.
+//
+// 전체 코드에서 미매핑을 세면 스캐폴드·유틸·설정까지 걸려 신호가 잡음에 묻힌다(score-print 교훈).
+// 그래서 판정 범위를 **이미 매핑이 있는 디렉터리(와 그 하위)**로 좁힌다. 그 영역은 개발팀이
+// "여기 있는 것은 기획 문서와 짝을 이룬다"고 이미 선언한 곳이므로, 새 파일에 매핑이 없으면
+// 십중팔구 기록 누락이다. 판정 행((사양 없음))이 있으면 그것도 '검토됨'으로 본다.
+// 매핑된 코드 경로에서 "관리 영역"을 뽑는다.
+// - 매핑 자신의 기준 디렉터리(파일이면 그 디렉터리, 글롭이면 * 앞 접두)
+// - 그 부모 디렉터리 — 기능별 폴더의 형제(src/views/login 옆의 src/views/payment)를 잡기 위함
+// 두 경우 모두 깊이 2 이상만 채택한다. 'src' 같은 최상위를 영역으로 잡으면 유틸·설정까지 걸려
+// 신호가 잡음에 묻힌다(score-print P4 교훈).
+export function collectManagedAreas(entries) {
+  const areas = new Set()
+  const depth = (value) => value.split('/').filter(Boolean).length
+  for (const entry of entries) {
+    for (const mapPath of entry.codePaths) {
+      const starIndex = mapPath.indexOf('*')
+      const rawBase = starIndex === -1 ? mapPath : mapPath.slice(0, starIndex)
+      const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : path.posix.dirname(rawBase)
+      if (!base || base === '.' || base === '/') continue
+      if (depth(base) >= 2) areas.add(base)
+      const parent = path.posix.dirname(base)
+      if (parent && parent !== '.' && parent !== '/' && depth(parent) >= 2) areas.add(parent)
+    }
+  }
+  return areas
+}
+
+export function analyzeMappingCoverage(addedFiles, entries, exemptions) {
+  if (addedFiles.length === 0 || entries.length === 0) return []
+
+  const managedDirs = collectManagedAreas(entries)
+  if (managedDirs.size === 0) return []
+
+  const inManagedArea = (filePath) => [...managedDirs].some((dir) => filePath === dir || filePath.startsWith(`${dir}/`))
+  const isExempt = (filePath) => exemptions.codePaths.some((mapPath) => codePathMatches(filePath, mapPath))
+  const isMapped = (filePath) => entries.some((entry) => entry.codePaths.some((mapPath) => codePathMatches(filePath, mapPath)))
+
+  return addedFiles
+    .filter((filePath) => inManagedArea(filePath))
+    .filter((filePath) => !isMapped(filePath))
+    .filter((filePath) => !isExempt(filePath))
+    .sort()
 }
 
 // git이 비ASCII 경로를 "..." octal로 감싸 출력하는 것(core.quotePath 기본값)을 실제 경로로 되돌린다.

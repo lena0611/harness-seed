@@ -362,7 +362,35 @@ const DECISION_LOG_LINE_THRESHOLD = 400
 // 기획 문서 연동(0.2.99): 커밋 검증에서 기획-코드 관계를 advisory로 보여준다.
 // 네트워크를 쓰지 않는다 — spec-lock에 기록된 기준 시점과 로컬 캐시만 비교한다(오프라인에서 커밋이 막히면 안 됨).
 // 원격 최신 여부는 여기서 판정하지 않으며, 최신화는 명시적 harness:spec:fetch의 몫이다.
-function readSpecMapEntries() {
+// 판정 완료 표기((사양 없음)/(코드 없음))는 매핑이 아니라 "검토됨" 선언이므로 entries에서 뺀다.
+// 파서 관례는 spec-sync.parseSpecMapText와 동일하게 유지한다(같은 표를 두 곳이 읽는다).
+const SPEC_MAP_EXEMPT_TOKEN = /^[(（]\s*(사양\s*없음|코드\s*없음|해당\s*없음|없음)\s*[)）]$/
+
+// git이 비ASCII 경로를 "..." octal로 감싸 출력하는 것을 되돌린다(spec-sync.decodeGitPath와 동일 규칙).
+function decodeSpecGitPath(filePath) {
+  if (!filePath) return filePath
+  if (!(filePath.startsWith('"') && filePath.endsWith('"'))) return filePath
+  const inner = filePath.slice(1, -1)
+  const bytes = []
+  for (let i = 0; i < inner.length; i += 1) {
+    const ch = inner[i]
+    if (ch !== '\\') {
+      for (const byte of Buffer.from(ch, 'utf8')) bytes.push(byte)
+      continue
+    }
+    const next = inner[i + 1]
+    if (/[0-7]/.test(next ?? '')) {
+      bytes.push(Number.parseInt(inner.slice(i + 1, i + 4), 8))
+      i += 3
+    } else if (next) {
+      for (const byte of Buffer.from(next, 'utf8')) bytes.push(byte)
+      i += 1
+    }
+  }
+  return Buffer.from(bytes).toString('utf8')
+}
+
+function specMapRows() {
   const abs = path.join(repoRoot, '.harness/project/spec-map.md')
   if (!fs.existsSync(abs)) return []
   return fs.readFileSync(abs, 'utf8')
@@ -373,8 +401,67 @@ function readSpecMapEntries() {
     .map(([spec, code]) => ({
       spec: spec.replaceAll('`', '').trim(),
       codePaths: code.split(',').map((item) => item.replaceAll('`', '').trim()).filter(Boolean),
+      specExempt: SPEC_MAP_EXEMPT_TOKEN.test(spec.replaceAll('`', '').trim()),
+      codeExempt: SPEC_MAP_EXEMPT_TOKEN.test(code.replaceAll('`', '').trim()),
     }))
+}
+
+function readSpecMapEntries() {
+  return specMapRows()
+    .filter((row) => !row.specExempt && !row.codeExempt)
+    .map(({ spec, codePaths }) => ({ spec, codePaths }))
     .filter((entry) => entry.spec && entry.spec !== 'TBD')
+}
+
+// (사양 없음) 행이 선언한 "기획 문서 대상 아님" 코드 경로들.
+function readSpecMapExemptCodePaths() {
+  return specMapRows()
+    .filter((row) => row.specExempt && !row.codeExempt)
+    .flatMap((row) => row.codePaths)
+}
+
+// 커밋 시점 매핑 커버리지 안내(advisory): 매핑된 영역에 새로 생긴 파일인데 매핑도 판정도 없으면
+// 커밋 단계에서 미리 알려준다. gate 프로젝트에서는 같은 판정이 push에서 차단으로 작동한다.
+function analyzeMappingCoverageLocal(changedFiles, entries) {
+  if (entries.length === 0 || changedFiles.length === 0) return []
+
+  // 신규 파일만 대상(기존 파일 수정은 이미 매핑 advisory가 다룬다). git 실패는 조용히 생략한다.
+  let untracked
+  try {
+    untracked = new Set(runGit(['ls-files', '--others', '--exclude-standard']).split(/\r?\n/).map(decodeSpecGitPath).filter(Boolean))
+  } catch {
+    return []
+  }
+  const added = changedFiles.filter((filePath) => untracked.has(filePath))
+  if (added.length === 0) return []
+
+  // 관리 영역 규칙은 spec-sync.collectManagedAreas와 동일하다: 매핑 기준 디렉터리 + 그 부모(형제 기능 폴더),
+  // 단 깊이 2 이상만. 'src' 같은 최상위를 영역으로 잡으면 유틸·설정까지 걸려 잡음이 된다.
+  const depth = (value) => value.split('/').filter(Boolean).length
+  const managedDirs = new Set()
+  for (const entry of entries) {
+    for (const mapPath of entry.codePaths) {
+      const starIndex = mapPath.indexOf('*')
+      const rawBase = starIndex === -1 ? mapPath : mapPath.slice(0, starIndex)
+      const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : path.posix.dirname(rawBase)
+      if (!base || base === '.' || base === '/') continue
+      if (depth(base) >= 2) managedDirs.add(base)
+      const parent = path.posix.dirname(base)
+      if (parent && parent !== '.' && parent !== '/' && depth(parent) >= 2) managedDirs.add(parent)
+    }
+  }
+  if (managedDirs.size === 0) return []
+
+  const exemptPaths = readSpecMapExemptCodePaths()
+  const matchesMapPath = (filePath, mapPath) => matchesGlob(filePath, mapPath)
+    || filePath === mapPath
+    || filePath.startsWith(`${mapPath.replace(/\/?\*\*$/, '')}/`)
+
+  return added
+    .filter((filePath) => [...managedDirs].some((dir) => filePath.startsWith(`${dir}/`)))
+    .filter((filePath) => !entries.some((entry) => entry.codePaths.some((mapPath) => matchesMapPath(filePath, mapPath))))
+    .filter((filePath) => !exemptPaths.some((mapPath) => matchesMapPath(filePath, mapPath)))
+    .sort()
 }
 
 function analyzeSpecLink(changedFiles) {
@@ -425,12 +512,14 @@ function analyzeSpecLink(changedFiles) {
     mappings: entries.length,
     changedSpecs,
     touchedMappings,
+    uncoveredNewFiles: analyzeMappingCoverageLocal(changedFiles, entries),
   }
 }
 
 function printSpecLinkNotice(specLink) {
   if (!specLink.configured) return
-  if (specLink.changedSpecs.length === 0 && specLink.touchedMappings.length === 0) return
+  const uncovered = specLink.uncoveredNewFiles ?? []
+  if (specLink.changedSpecs.length === 0 && specLink.touchedMappings.length === 0 && uncovered.length === 0) return
 
   console.log('')
   console.log('기획 문서 연동 참고 (advisory):')
@@ -442,6 +531,17 @@ function printSpecLinkNotice(specLink) {
   }
   if (specLink.changedSpecs.length > 0) {
     console.log(`- 기준 시점 이후 기획 문서 ${specLink.changedSpecs.length}건이 캐시에서 달라졌습니다. 상세: npm run harness:spec:status`)
+  }
+  if (uncovered.length > 0) {
+    console.log('- 매핑된 영역에 새 파일이 있는데 spec-map 기록이 없습니다. 지금 한 줄 추가하면 이후 사양 변경이 이 코드로 연결됩니다.')
+    for (const filePath of uncovered.slice(0, 5)) {
+      console.log(`  - ${filePath}`)
+    }
+    if (uncovered.length > 5) {
+      console.log(`  - 외 ${uncovered.length - 5}건`)
+    }
+    console.log('  기획 문서가 필요 없는 코드면 판정으로 기록합니다: | (사양 없음) | <경로 또는 디렉터리/**> | 사유 |')
+    console.log('  specEnforcement가 gate면 이 항목은 push에서 차단됩니다.')
   }
 }
 

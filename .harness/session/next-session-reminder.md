@@ -3,7 +3,8 @@
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
 ## 마지막 세션 마감 상태 (2026-08-06)
-- 현재 본체 버전: **0.2.100 배포 완료(2026-08-06, `c3186ec` 양원격+태그)** — 기획문서연동 정합 패치(외부 교차 리뷰 2회 수용): lock v2(문서별 {sha,commit}+selector, v1은 읽기 무수정·변경 명령 검증 승격), 비파괴 fetch 기본(기준 이동은 `--move-baseline [--source]`), `--at-lock` 정확 집합 복원, **push tip snapshot 판정**(작업 트리 배제·대상 원격 스코프·설정 오류 fail-closed), 훅 stdin 버퍼링+tip lock 가드(미연동 node 기동 0 유지), origin 재클론·containment, 관리 등록 4문서(policy-registry `common.spec.link-integrity` 등), uninstall spec 스크립트 정리. 회귀 총 116종. 상세 decision-log 결정 12~16. 동반 범프: **스택 v0.2.7**(`906eef6`)·**템플릿 v0.2.6**(`152821c`)·레지스트리 반영. **gate 옵트인은 이 버전부터 안내 가능** — multisite 개발팀: `harness:update` 후 profile에 `"specEnforcement": "gate"`.
+- 현재 본체 버전: **0.2.101 준비 완료(미커밋)** — 매핑 커버리지 강제: 매핑된 영역(+형제 폴더, 깊이 2 이상)에 새 파일이 들어왔는데 spec-map 기록도 판정도 없으면 커밋에서 안내·gate에서 push 차단. 판정 완료 표기 `(사양 없음)`/`(코드 없음)`을 1급 상태로 도입("아직 안 봤다"와 구분). 회귀 2종(총 118종). 근거·설계는 decision-log 결정 17~19. **배포 승인 대기.**
+- 직전: **0.2.100 배포 완료(2026-08-06, `c3186ec` 양원격+태그)** — 기획문서연동 정합 패치(외부 교차 리뷰 2회 수용): lock v2(문서별 {sha,commit}+selector, v1은 읽기 무수정·변경 명령 검증 승격), 비파괴 fetch 기본(기준 이동은 `--move-baseline [--source]`), `--at-lock` 정확 집합 복원, **push tip snapshot 판정**(작업 트리 배제·대상 원격 스코프·설정 오류 fail-closed), 훅 stdin 버퍼링+tip lock 가드(미연동 node 기동 0 유지), origin 재클론·containment, 관리 등록 4문서(policy-registry `common.spec.link-integrity` 등), uninstall spec 스크립트 정리. 회귀 총 116종. 상세 decision-log 결정 12~16. 동반 범프: **스택 v0.2.7**(`906eef6`)·**템플릿 v0.2.6**(`152821c`)·레지스트리 반영. **gate 옵트인은 이 버전부터 안내 가능** — multisite 개발팀: `harness:update` 후 profile에 `"specEnforcement": "gate"`.
 - 직전: **0.2.99 배포 완료(1차+2차 합본)** — 기획 문서 연동(Spec Authority) 1차(연결·매핑·기준시점 코드 소유, advisory) + **2차 푸시 정산 게이트**(사용자 설계 운영 모델: 리더/노티 없이 각자 로컬 기준 개발 → push 순간 내 범위만 정산). `specEnforcement: "gate"` 옵트인(기본 advisory=1차 그대로), fail-open, `spec:settle`(내 몫만), fetch `--cache-only`/`--at-lock` 분리(npm install/ci 대응물), 연동 정합 검사 doc-link 편입(gate 프로젝트는 차단), CI 백스톱 견본. 회귀 총 103종 통과 + harness:check. 상세: decision-log 2026-08-06 결정 7~11.
 - ⛔ **로컬 multisite(개발 프로젝트) 전면 손대기 금지(2026-08-06 사용자 지시, 에이전트 메모리 multisite-hands-off)**: 커밋·수정·훅 실행 일절 금지. 스테이징 잔여물은 사용자 지시로 전부 원복 완료(작업 트리 클린) — 개발팀이 배포 후 정식 `harness:update`로 수령. 검증은 seed test-init 픽스처로 재현. 기획 저장소(policies/multisite)는 금지 대상 아님.
 - 기획 저장소 정리 완료(2026-08-06): ① policies/multisite README에 "push=확정 사양(작성 중 문서는 push 보류)" 안내(`6965873`). ② **안내·견본을 `policies/planning-example` 저장소로 분리**(사용자 발의·생성) — 견본 4종을 실제 폴더 구조(features/ 등)로 배치해 복사-시작 가능(`94d6152`), multisite는 example/ 제거 + README 슬림화(실사양 폴더 + planning-example 링크, `5d741d5`). 새 기획 프로젝트 온보딩 = planning-example 복사 안내. 스킬 exclude 기본값(example/**)은 방어적으로 유지.
@@ -29,6 +30,8 @@
   - 정책 documents는 종합 문서가 아니라 "주제 전용 문서"로 두는 게 과매칭 노이즈 예방 원칙(0.2.70).
 
 ## ★ 후속 과제
+
+- **[0.2.101 후보, 팀 반응 보고 판단] 검증 게이트 미설치 사각지대**: 소비자 프로젝트에는 CI 백스톱이 없어 **로컬 훅이 유일한 방어선**이다. 훅을 안 깔고 개발하면 커밋/push가 무저항 통과하는데 본인도 하네스도 눈치채지 못한다(guard·scan 어디에도 `core.hooksPath` 확인 없음 — 2026-08-06 확인). 후보 3종: ①`harness:check`/`harness:scan`에 훅 미설치 감지 안내(비차단), ②소비자용 `.gitlab-ci.yml` 템플릿(본체 `policy-guard.yml`은 GitHub 문법이고 init이 배포하지 않음 — 프로젝트 소유라 "없을 때만 생성" 규칙 필요), ③그 템플릿에 `harness:check` 검증 잡 + 연동 프로젝트용 기획 신선도 잡(현재는 스킬 문서 안 견본뿐). **결정 보류: multisite 팀 안내 후 실사용 반응을 보고 착수 여부·범위 판단(사용자 지시 2026-08-06).**
 - **score-print 에픽 — 종결(2026-08-04)**. 잔여 항목 없음. 소비자 검수에서 확인된 사실: score-print는 base 0.2.93 + 로그 2계층 분리 완료 상태(그들 커밋 fa6cc06). 다음 소비자 리뷰가 오면 clubadm(0.2.85)·score-print(0.2.90~94) 선례의 판정→차수 릴리스→현장 검수 흐름을 따른다.
 - ⚠️ 본체 decision-log 작성 주의(0.2.91부터): 감지 리터럴(금지 이모지+폐기/번복 조합, 뒤집기 대괄호 토큰)을 서술 용도로 쓰면 그 커밋이 자기 감지를 오발한다 — 관례 설명은 서술로 적을 것. 실제 배너/뒤집기 기록은 정상 사용.
 - **ai-standard/docs 동반 갱신 — 완료(2026-08-04)**: 원문 master `279a5d2`에 뒤집기 기록 의무 반영(push 완료). 본체 참조 요약 동기화는 **0.2.93 준비 중(미커밋, 문서만)**.

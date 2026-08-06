@@ -15,6 +15,7 @@
 | `spec-link-integrity` | 기획 연동 선언↔기준(lock v2: 문서별 sha+commit, selector)↔매핑↔코드 정합. repo/ref/selector 드리프트, 유령 소스, 소스 간 경로 충돌, id 중복·안전성(무효 선언은 전체 invalid) | 자동 검사 (`harness:check`; `specEnforcement: "gate"` 프로젝트는 차단) |
 | `spec-push-settlement` | push tip snapshot(profile/sources/lock/map을 push 커밋에서 읽음) 기준으로, push 범위 코드에 매핑된 기획 문서의 drift를 차단하고 정산(`spec:settle`)을 요구. 설정 오류는 fail-closed, 기획 저장소 접근 실패만 fail-open | 자동 검사 (pre-push hook `spec-push-gate.mjs`, `"gate"` 옵트인) |
 | `spec-provenance` | 기준 기록의 출처 검증: settle은 캐시 HEAD의 git 객체 내용과 대조 후 기록, v1 lock은 변경 명령에서 검증 후 v2 승격(읽기 경로는 무수정·무네트워크) | 자동 검사 (`harness:spec:settle`, `harness:spec:fetch -- --move-baseline`) |
+| `spec-mapping-coverage` | 매핑된 영역(과 그 형제 폴더)에 새로 추가된 파일에 spec-map 기록이나 판정((사양 없음))이 있는지. 매핑 누락은 그 코드가 이후 어떤 spec 검사에도 걸리지 않는 사각지대를 만든다 | 자동 검사 (커밋 검증=안내, `specEnforcement: "gate"`=push 차단) |
 
 ## Claude Code 어댑터 자동 방어
 Claude Code 환경에서는 `.claude/settings.json` hook으로 다음 방어를 추가합니다. 이 어댑터는 `.harness/` 기준을 대체하지 않고 실행 표면에서 피해를 줄입니다.

@@ -22,11 +22,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  analyzeMappingCoverage,
   fetchLatestIntoCache,
   findPathCollisions,
   gitShowText,
   mappedDocsForFiles,
   normalizeLock,
+  parseSpecMapExemptions,
   parseSpecMapText,
   sha256Text,
   decodeGitPath,
@@ -86,6 +88,39 @@ function parseJsonStrict(text, label) {
   }
 }
 
+// push 범위에서 "새로 추가된 파일"만 뽑는다(매핑 커버리지 판정용).
+// git diff --diff-filter=A: 추가된 파일. 새 브랜치는 tip 트리 전체가 아니라
+// 원격에 없는 커밋들에서 추가된 것만 본다.
+function collectAddedFiles(localSha, remoteSha, remoteName) {
+  const files = new Set()
+  const addFrom = (output) => {
+    for (const line of output.split(/\r?\n/)) {
+      if (line.trim()) files.add(decodeGitPath(line.trim()))
+    }
+  }
+
+  try {
+    if (remoteSha && !ZERO_SHA.test(remoteSha)) {
+      addFrom(runGit(['diff', '--name-only', '--diff-filter=A', remoteSha, localSha]))
+    } else {
+      const exclusion = remoteName && hasRemoteTracking(remoteName) ? ['--not', `--remotes=${remoteName}`] : []
+      addFrom(runGit(['log', '--name-only', '--diff-filter=A', '--pretty=format:', localSha, ...exclusion]))
+    }
+  } catch {
+    // 계산 실패 시 커버리지 판정은 생략한다(drift 판정은 별도 경로에서 fail-closed).
+    return []
+  }
+  return [...files]
+}
+
+function hasRemoteTracking(remoteName) {
+  try {
+    return runGit(['for-each-ref', `refs/remotes/${remoteName}`]).length > 0
+  } catch {
+    return false
+  }
+}
+
 function collectChangedFiles(localSha, remoteSha, remoteName) {
   const files = new Set()
   const addFrom = (output) => {
@@ -104,13 +139,7 @@ function collectChangedFiles(localSha, remoteSha, remoteName) {
   if (!remoteName) {
     throw new Error('push 대상 원격 이름이 없어 새 ref의 변경 범위를 계산할 수 없습니다. (훅이 전달하는 인자를 확인하세요)')
   }
-  let hasRemoteTracking = false
-  try {
-    hasRemoteTracking = runGit(['for-each-ref', `refs/remotes/${remoteName}`]).length > 0
-  } catch {
-    hasRemoteTracking = false
-  }
-  const exclusion = hasRemoteTracking ? [`--remotes=${remoteName}`] : []
+  const exclusion = hasRemoteTracking(remoteName) ? [`--remotes=${remoteName}`] : []
   addFrom(runGit(['log', '--name-only', '--pretty=format:', localSha, ...(exclusion.length > 0 ? ['--not', ...exclusion] : [])]))
   return [...files]
 }
@@ -142,7 +171,7 @@ function main() {
       continue
     }
     if (verdict.blockedReasons.length > 0) {
-      blocked.push({ ref: remoteRef ?? localSha.slice(0, 10), reasons: verdict.blockedReasons, drift: verdict.drift })
+      blocked.push({ ref: remoteRef ?? localSha.slice(0, 10), reasons: verdict.blockedReasons, drift: verdict.drift, uncovered: verdict.uncovered })
     } else if (verdict.checkedDocs > 0) {
       passNotes.push(`[spec-gate] 기획 정산 통과 (${remoteRef ?? localSha.slice(0, 10)}): push 범위 문서 ${verdict.checkedDocs}건이 tip 기준과 일치합니다.`)
     } else if (verdict.failOpenNote) {
@@ -164,19 +193,33 @@ function main() {
       console.error(`    - ${reason}`)
     }
   }
-  console.error('')
-  console.error('정산 절차:')
-  console.error('  1. 위 문서를 읽고 이번 변경이 새 사양과 어긋나는지 확인합니다. (기본 판정: 코드 drift — 기획을 임의로 고치지 않음)')
-  console.error('  2. 반영이 필요하면 코드를 수정해 커밋하고, 영향이 없으면 근거를 decision-log에 남깁니다.')
-  console.error('  3. npm run harness:spec:settle  (이번 push 범위 문서만 기준 전진)')
-  console.error('  4. spec-lock.json 변경을 커밋에 포함해 다시 push 합니다. (게이트는 push되는 커밋의 lock을 봅니다)')
+  const hasDrift = blocked.some((item) => (item.drift ?? []).length > 0)
+  const hasUncovered = blocked.some((item) => (item.uncovered ?? []).length > 0)
+
+  if (hasDrift) {
+    console.error('')
+    console.error('기획 변경 정산 절차:')
+    console.error('  1. 위 문서를 읽고 이번 변경이 새 사양과 어긋나는지 확인합니다. (기본 판정: 코드 drift — 기획을 임의로 고치지 않음)')
+    console.error('  2. 반영이 필요하면 코드를 수정해 커밋하고, 영향이 없으면 근거를 decision-log에 남깁니다.')
+    console.error('  3. npm run harness:spec:settle  (이번 push 범위 문서만 기준 전진)')
+    console.error('  4. spec-lock.json 변경을 커밋에 포함해 다시 push 합니다. (게이트는 push되는 커밋의 lock을 봅니다)')
+  }
+
+  if (hasUncovered) {
+    console.error('')
+    console.error('매핑 누락 해소 절차 (.harness/project/spec-map.md에 한 줄 추가 후 커밋):')
+    console.error('  - 사양이 있으면 매핑을 기록합니다:      | features/○○.md | <위 파일 경로> | |')
+    console.error('  - 기획 문서가 필요 없는 코드면 판정을 기록합니다:  | (사양 없음) | <경로 또는 디렉터리/**> | 사유 |')
+    console.error('  - 디렉터리 단위(예: src/views/○○/**)로 적으면 이후 파일 추가에 다시 걸리지 않습니다.')
+  }
+
   console.error('')
   console.error('비상 우회(권장하지 않음): HARNESS_SPEC_GATE=off git push')
   process.exit(1)
 }
 
 function evaluateRef({ localSha, remoteRef, remoteSha, remoteName, fetchedBySource }) {
-  const result = { blockedReasons: [], drift: [], checkedDocs: 0, failOpenNote: null }
+  const result = { blockedReasons: [], drift: [], uncovered: [], checkedDocs: 0, failOpenNote: null }
 
   // 1) enforcement — push tip의 profile 기준. 부재/advisory는 무동작, 오값·파싱 실패는 차단.
   const profileText = showAtTip(localSha, SNAPSHOT_PATHS.profile)
@@ -216,7 +259,19 @@ function evaluateRef({ localSha, remoteRef, remoteSha, remoteName, fetchedBySour
   const entries = parseSpecMapText(mapText ?? '')
   if (entries.length === 0) return result
 
-  // 3) push 범위 → 매핑된 문서 스코프.
+  // 3) 매핑 커버리지: 이미 매핑된 영역에 새 파일이 들어왔는데 매핑도 판정도 없으면 차단한다.
+  // 매핑 기록 누락은 "그 코드가 앞으로 어떤 게이트에도 안 걸리는" 사각지대를 만들기 때문에,
+  // 문서 규칙이 아니라 실행 게이트로 막는다(0.2.101).
+  const exemptions = parseSpecMapExemptions(mapText ?? '')
+  const uncovered = analyzeMappingCoverage(collectAddedFiles(localSha, remoteSha, remoteName), entries, exemptions)
+  if (uncovered.length > 0) {
+    result.uncovered = uncovered
+    result.blockedReasons.push(
+      ...uncovered.map((filePath) => `매핑 누락: ${filePath} — 매핑된 영역에 새로 추가됐는데 spec-map에 기록이 없습니다.`),
+    )
+  }
+
+  // 4) push 범위 → 매핑된 문서 스코프.
   const changedFiles = collectChangedFiles(localSha, remoteSha, remoteName)
   const scope = mappedDocsForFiles(changedFiles, entries)
   if (scope.length === 0) return result

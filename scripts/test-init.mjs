@@ -3466,6 +3466,96 @@ function specSettleRefusesPathCollisionsAcrossSources() {
   assert(refuse.includes('정산을 거부'), 'settle should explain the ambiguity instead of settling both sources')
 }
 
+// 매핑 커버리지 강제(0.2.101): "새 기능을 만들면 spec-map에 한 줄 추가"는 0.2.100까지
+// 문서 규칙뿐이라 놓치면 그 코드가 어떤 게이트에도 걸리지 않는 사각지대가 됐다(P6 교훈의 반복).
+// 이미 매핑된 영역에 새 파일이 들어오면 커밋에서 안내하고 gate 프로젝트는 push에서 차단한다.
+function specMappingCoverageIsEnforcedForNewFilesInMappedAreas() {
+  const { target, planning } = setupSpecLinkedTarget()
+
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '# 기획 문서 매핑',
+    '',
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/views/login/**` | |',
+    '',
+  ].join('\n'))
+  specTargetProfile(target, { specEnforcement: 'gate' })
+  fs.mkdirSync(path.join(target, 'src/views/login'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/views/login/LoginView.vue'), '<template><div /></template>\n')
+  gitCommitAll(target, 'baseline')
+  const remote = addOriginRemote(target)
+  pushWithoutHooks(target)
+
+  // 매핑된 영역(src/views/)에 새 화면이 생겼는데 spec-map 기록이 없다.
+  fs.mkdirSync(path.join(target, 'src/views/payment'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/views/payment/PayView.vue'), '<template><div /></template>\n')
+
+  // 커밋 단계: advisory로 먼저 알려준다(차단은 아님).
+  const advisory = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(advisory.includes('spec-map 기록이 없습니다'), 'commit advisory should surface the missing mapping for a new file in a mapped area')
+  assert(advisory.includes('src/views/payment/PayView.vue'), 'advisory should name the uncovered file')
+
+  gitCommitAll(target, 'add payment view')
+  const localSha = run('git', ['rev-parse', 'HEAD'], { cwd: target }).trim()
+  const remoteSha = run('git', ['rev-parse', 'origin/master'], { cwd: target }).trim()
+  const gateEnv = { ...process.env, HARNESS_PUSH_STDIN: `refs/heads/master ${localSha} refs/heads/master ${remoteSha}\n` }
+
+  // push 단계: gate 프로젝트에서는 차단된다.
+  const blockedOut = expectFailure(
+    () => run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], { cwd: target, env: gateEnv }),
+    'gate must block a new file in a mapped area with no spec-map record',
+  )
+  assert(blockedOut.includes('매핑 누락'), 'block reason should name the missing mapping')
+  assert(blockedOut.includes('src/views/payment/PayView.vue'), 'block reason should name the uncovered file')
+  assert(blockedOut.includes('(사양 없음)'), 'block message should offer the exemption route for code that needs no spec')
+
+  // 매핑을 기록하면 통과한다.
+  fs.appendFileSync(path.join(target, '.harness/project/spec-map.md'), '| `features/결제.md` | `src/views/payment/**` | |\n')
+  gitCommitAll(target, 'map payment view')
+  const mappedSha = run('git', ['rev-parse', 'HEAD'], { cwd: target }).trim()
+  const mappedEnv = { ...process.env, HARNESS_PUSH_STDIN: `refs/heads/master ${mappedSha} refs/heads/master ${remoteSha}\n` }
+  run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], { cwd: target, env: mappedEnv })
+}
+
+// 판정 완료((사양 없음))는 "아직 안 봤다"와 구분되는 1급 상태다 — 기획 문서가 필요 없다고
+// 사람이 결론 낸 코드에 매핑을 강요하지 않는다. 매핑 영역 밖 파일은 애초에 대상이 아니다.
+function specMappingCoverageRespectsExemptionsAndScope() {
+  const { target } = setupSpecLinkedTarget()
+
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/views/login/**` | |',
+    '| (사양 없음) | `src/views/shared/**` | 공용 프리젠테이션 — 기획 대상 아님 |',
+  ].join('\n'))
+  specTargetProfile(target, { specEnforcement: 'gate' })
+  fs.mkdirSync(path.join(target, 'src/views/login'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/views/login/LoginView.vue'), '<template><div /></template>\n')
+  gitCommitAll(target, 'baseline')
+  const remote = addOriginRemote(target)
+  pushWithoutHooks(target)
+
+  // (1) 판정된 영역의 새 파일 (2) 매핑 영역 밖의 새 파일 — 둘 다 걸리면 안 된다.
+  fs.mkdirSync(path.join(target, 'src/views/shared'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/views/shared/Spinner.vue'), '<template><div /></template>\n')
+  fs.mkdirSync(path.join(target, 'src/utils'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/utils/date.js'), 'export const now = () => Date.now()\n')
+
+  const advisory = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(!advisory.includes('Spinner.vue'), 'an exempted path must not be reported as a missing mapping')
+  assert(!advisory.includes('src/utils/date.js'), 'files outside mapped areas must not be reported (noise control)')
+
+  gitCommitAll(target, 'add exempt and unrelated files')
+  const localSha = run('git', ['rev-parse', 'HEAD'], { cwd: target }).trim()
+  const remoteSha = run('git', ['rev-parse', 'origin/master'], { cwd: target }).trim()
+  const out = run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], {
+    cwd: target,
+    env: { ...process.env, HARNESS_PUSH_STDIN: `refs/heads/master ${localSha} refs/heads/master ${remoteSha}\n` },
+  })
+  assert(!out.includes('매핑 누락'), 'gate must pass when new files are exempted or outside mapped areas')
+}
+
 // 레지스트리 회귀 게이트 편입(0.2.96): test:standards-registry / test:template-registry가
 // test-init(=pre-commit 게이트) 밖에 있어, 레지스트리 ref 범프로 픽스처가 깨져도 훅이 통과했다
 // (2026-08-05 실증 — 파이프에 가린 수동 실행 실패가 그대로 커밋됨). 게이트 안으로 옮긴다.
@@ -3590,6 +3680,8 @@ const tests = [
   specUninstallRemovesSpecScripts,
   specStatusDoesNotClaimSyncWhenCacheMissing,
   specSettleRefusesPathCollisionsAcrossSources,
+  specMappingCoverageIsEnforcedForNewFilesInMappedAreas,
+  specMappingCoverageRespectsExemptionsAndScope,
   approvedRegistryListingsStayConsistent,
 ]
 
