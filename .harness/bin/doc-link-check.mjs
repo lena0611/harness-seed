@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { normalizeSelector, readSpecState, selectorsEqual } from './spec-sync.mjs'
+import { findDeclarationLockIssues, readSpecState } from './spec-sync.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -243,11 +243,39 @@ function findOrphans(registered) {
   return orphans
 }
 
+// 소유(ownership)와 선택성(optionality)은 다른 속성이다(0.2.102 리뷰 P1-8).
+//
+// "업데이트가 덮어쓰지 않는다"(project-owned)와 "없어도 정상이다"(optional)를 하나로 묶으면
+// profile.json·config-contract.md·.claude/settings.json 삭제까지 조용해진다. 그래서 optional은
+// 기능을 쓰지 않으면 존재할 이유가 없는 파일만 좁게 열거한다. project-owned라는 이유만으로는
+// 면제하지 않으며, 링크 검사는 대상이 optional이어도 링크가 실재하면 깨진 링크로 본다.
+const OPTIONAL_DOC_PATHS = new Set([
+  // 기획 문서 연동을 쓰지 않는 프로젝트에는 존재할 이유가 없다.
+  '.harness/project/spec-map.md',
+  '.harness/spec-sources.json',
+  '.harness/spec-lock.json',
+  // 개인 로컬 산출물(팀 공유 대상이 아니며 없는 것이 기본값).
+  '.harness/project/personal-methodology.local.md',
+  'CLAUDE.local.md',
+  '.claude/settings.local.json',
+])
+
+// 연동을 이미 쓰는 프로젝트에서는 매핑 표가 선택 사항이 아니다 — 지우면 기획 연동 검사와
+// push 게이트가 통째로 꺼진다(0.2.103 자체 검토 P2-5). 연동 여부에 따라 판정이 달라진다.
+const specLinkInUse = fs.existsSync(path.join(harnessRoot, 'spec-lock.json'))
+  || fs.existsSync(path.join(harnessRoot, 'spec-sources.json'))
+
+export function isOptionalProjectOwnedDoc(rel) {
+  const normalized = toPosix(rel)
+  if (specLinkInUse && normalized === '.harness/project/spec-map.md') return false
+  return OPTIONAL_DOC_PATHS.has(normalized)
+}
+
 function findMissingFromRegistry(registered) {
   const missing = []
 
   for (const file of registered) {
-    if (!exists(file)) {
+    if (!exists(file) && !isOptionalProjectOwnedDoc(file)) {
       missing.push(file)
     }
   }
@@ -295,6 +323,13 @@ function stripFence(text) {
   return text.replace(/```[\s\S]*?```/g, '')
 }
 
+// 링크 검사에서만 인라인 코드를 제거한다. 코드로 표기한 것은 링크가 아니므로
+// `` `[화면](./로그인.html)` `` 같은 예시가 깨진 링크로 오인되면 안 된다.
+// 코드 경로 검사에는 적용하지 않는다 — 그쪽은 백틱 표기 자체가 검사 대상이다.
+function stripInlineCode(text) {
+  return text.replace(/`[^`\n]*`/g, '')
+}
+
 function isExternal(target) {
   return /^[a-z]+:\/\//i.test(target) || target.startsWith('mailto:') || target.startsWith('#')
 }
@@ -321,7 +356,7 @@ function findBrokenLinks() {
     const raw = fs.readFileSync(path.join(repoRoot, file), 'utf8')
     const text = stripFence(raw)
 
-    for (const match of text.matchAll(linkPattern)) {
+    for (const match of stripInlineCode(text).matchAll(linkPattern)) {
       const target = match[1]
 
       if (isExternal(target)) {
@@ -334,6 +369,7 @@ function findBrokenLinks() {
         continue
       }
 
+      // 링크는 optional 대상이어도 면제하지 않는다: 지금 문서가 실제로 링크하고 있으면 그 링크는 깨진 것이다.
       if (!exists(resolved)) {
         broken.push({ file, target, resolved })
       }
@@ -351,7 +387,7 @@ function findBrokenLinks() {
         continue
       }
 
-      if (!exists(target)) {
+      if (!exists(target) && !isOptionalProjectOwnedDoc(target)) {
         broken.push({ file, target, resolved: target, kind: 'code-path' })
       }
     }
@@ -404,7 +440,16 @@ function findStackIsolationViolations() {
 // 미연동 프로젝트는 대상이 아니다. 잘못된 선언은 걸러내지 않고 전체를 invalid로 만든다.
 export function findSpecLinkInconsistencies() {
   if (harnessRootRel !== '.harness') return []
-  if (!fs.existsSync(path.join(harnessRoot, 'spec-sources.json'))) return []
+  // 선언이 사라졌는데 기준만 남은 상태도 정합 검사 대상이다 — 둘 중 하나만 있어도 검사한다.
+  const hasSources = fs.existsSync(path.join(harnessRoot, 'spec-sources.json'))
+  const hasLock = fs.existsSync(path.join(harnessRoot, 'spec-lock.json'))
+  if (!hasSources && !hasLock) return []
+
+  // 기준만 남고 선언이 사라진 상태는 명시적 정합 오류다. state.declared로만 판단하면
+  // 여기서 조용히 빠져나가 "연동 안 함"이 된다(3차 리뷰 P2-2).
+  if (hasLock && !hasSources) {
+    return ['spec-lock.json은 있는데 spec-sources.json이 없습니다 — 연동 선언이 사라졌습니다. 선언을 복원하거나(권장) 더 이상 연동하지 않는다면 spec-lock.json도 함께 제거하세요.']
+  }
 
   let state
   try {
@@ -417,32 +462,21 @@ export function findSpecLinkInconsistencies() {
   const issues = []
 
   if (!state.valid) {
-    issues.push(...state.errors.map((message) => `spec-sources.json: ${message}`))
+    // 손상 파일은 이미 어느 파일인지 메시지에 담겨 있다(재리뷰 P1-3) — 접두사로 덧씌우지 않는다.
+    issues.push(...state.errors.map((message) => (
+      message.startsWith('spec-') ? message : `spec-sources.json: ${message}`
+    )))
     return issues
   }
 
-  for (const source of state.sources) {
-    const recorded = state.lock.sources[source.id]
-    if (!recorded) {
-      issues.push(`source '${source.id}' — 선언은 있지만 기준 시점(spec-lock)이 없습니다. npm run harness:spec:fetch${state.lock.exists ? ` -- --move-baseline --source ${source.id}` : ''} 로 기준을 만드세요.`)
-      continue
-    }
-    if (recorded.repo && recorded.repo !== source.repo) {
-      issues.push(`source '${source.id}' — 선언 repo와 기준 기록이 다릅니다 (기준: ${recorded.repo}). 저장소 이전이면 --move-baseline --source ${source.id} 로 기준을 재생성하세요.`)
-    }
-    if ((recorded.ref ?? null) !== (source.ref ?? null)) {
-      issues.push(`source '${source.id}' — 선언 ref(${source.ref ?? '기본'})와 기준 기록(${recorded.ref ?? '기본'})이 다릅니다. 기준 재생성(--move-baseline --source) 검토 대상입니다.`)
-    }
-    if (recorded.selector && !selectorsEqual(recorded.selector, normalizeSelector(source))) {
-      issues.push(`source '${source.id}' — include/exclude 선언이 기준 기록과 다릅니다. 문서 선정 범위가 바뀌었으면 --move-baseline --source ${source.id} 로 기준을 재생성하세요.`)
-    }
-  }
-
-  for (const lockId of Object.keys(state.lock.sources)) {
-    if (!state.sources.some((source) => source.id === lockId)) {
-      issues.push(`spec-lock의 source '${lockId}' — 선언(spec-sources.json)에서 사라졌습니다. lock에서 제거하거나 선언을 복원하세요.`)
-    }
-  }
+  // 판정 규칙은 push 게이트와 공유한다(spec-sync.findDeclarationLockIssues) — 한쪽만 검사하면
+  // 정상인 작업 트리로 커밋 검증을 통과시키고 불일치 상태를 push할 수 있다.
+  // 복구 명령은 상황별로 다르다. 유령 source에 --move-baseline을 쓰면 "선언에 없는 source"로 거부된다.
+  issues.push(...findDeclarationLockIssues(state.sources, state.lock).map((message) => (
+    message.includes('선언(spec-sources.json)에서 사라졌습니다')
+      ? `${message} spec-lock.json에서 해당 항목을 제거하거나 선언을 복원하세요.`
+      : `${message} 확인 후 npm run harness:spec:fetch -- --move-baseline --source <id> 로 기준을 재생성하세요.`
+  )))
 
   for (const collision of state.collisions) {
     issues.push(`경로 충돌: '${collision.rel}' 이 여러 소스(${collision.sourceIds.join(', ')})에 있습니다 — 활성 소스 전역에서 문서 상대경로는 유일해야 합니다. include/exclude로 겹침을 없애세요.`)
@@ -460,6 +494,13 @@ export function findSpecLinkInconsistencies() {
     const prefix = mapPath.slice(0, starIndex)
     const probe = prefix.endsWith('/') ? prefix.slice(0, -1) : path.dirname(prefix)
     return probe === '' || probe === '.' ? true : fs.existsSync(path.join(repoRoot, probe))
+  }
+
+  // lock의 files를 통째로 비워도 매핑 검사가 꺼지면 안 된다 — `lockFiles.size > 0` 가드가
+  // 그 상태를 "아직 기준이 없는 초기"로 오인했다(4차 리뷰 P1-3). 매핑 행이 있는데 기준이 비었으면
+  // 그 자체가 정합 오류다.
+  if (state.entries.length > 0 && lockFiles.size === 0 && state.lock.exists) {
+    issues.push('spec-lock.json에 기준 문서가 하나도 없는데 spec-map에는 매핑 행이 있습니다 — 기준이 비면 매핑된 문서가 어떤 검사도 받지 않습니다. npm run harness:spec:fetch -- --move-baseline 로 기준을 재생성하세요.')
   }
 
   for (const entry of state.entries) {

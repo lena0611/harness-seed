@@ -11,7 +11,7 @@ const repoRoot = path.resolve(__dirname, '..', '..')
 const hookName = process.argv[2]
 const hookArgs = process.argv.slice(3)
 
-const allowedHooks = new Set(['pre-commit', 'pre-push'])
+const allowedHooks = new Set(['pre-commit', 'pre-push', 'post-merge'])
 
 function readGitConfig(key) {
   try {

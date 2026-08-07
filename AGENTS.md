@@ -18,6 +18,7 @@ Codex, Copilot, 기타 에이전트는 사용자가 "하네스"라고 말하지 
 
 1. 작업 시작 전 `CLAUDE.md`의 "하네스 자동 인식 의무"와 "항상 읽는 최소 기준"을 읽습니다.
 2. 코드/문서/설정 변경 전 반복 규칙 승격 후보를 판단합니다.
+2-1. `.harness/spec-lock.json`이 있으면 기획 문서 연동 프로젝트입니다. 코드 변경 전에 `.harness/project/spec-authority-workflow.md`를 따라 관련 기획을 먼저 확인합니다(작업 크기와 무관). 연동이 없고 요구사항 기반 개발 요청이면 최초 1회만 요구사항 저장소 주소를 묻습니다(주소 추측 금지).
 3. 확정된 반복 규칙은 `.harness/project/domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`, `commit-push-rules.md` 중 알맞은 곳에 반영합니다.
 4. 불확실한 질문은 `.harness/session/developer-input-queue.md`에 남기고 필요하면 사용자에게 인터뷰합니다.
 5. 사용자가 명시적으로 완료, 최종 검증, 커밋, 푸시, PR 생성을 승인하기 전에는 `build`, `test`, `harness:check`, commit, push, PR 생성을 실행하지 않고 검증 후보로 보고합니다.

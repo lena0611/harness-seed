@@ -57,6 +57,7 @@ const previousCommitTemplate = readGitConfig('commit.template')
 const legacyHookFiles = [
   '.git/hooks/pre-commit',
   '.git/hooks/pre-push',
+  '.git/hooks/post-merge',
 ].filter(exists)
 const shouldStoreCustomHooksPath = previousHooksPath && previousHooksPath !== '.githooks'
 const shouldStoreDefaultGitHooks = !previousHooksPath && !storedPreviousHooksPath && legacyHookFiles.length > 0
@@ -91,6 +92,9 @@ console.log('      에이전트가 커밋 요청을 처리할 때는 이 hook �
 console.log('  - .githooks/pre-push')
 console.log('      사용자가 git push를 실행한 뒤 기존 pre-push hook과 .harness/bin/harness check --fast를 실행합니다.')
 console.log('      pre-push는 커밋 직전 전체 검증 반복을 줄이기 위해 정책/문서/버전/lint 중심으로 빠르게 확인합니다.')
+console.log('  - .githooks/post-merge')
+console.log('      git pull(merge) 직후 기획 문서 본문을 팀 기준(spec-lock)에 맞춥니다. 기준은 옮기지 않습니다.')
+console.log('      기획문서연동을 쓰지 않는 프로젝트에서는 아무 일도 하지 않고, 실패해도 pull은 성공합니다.')
 console.log('')
 console.log('커밋 메시지 템플릿:')
 console.log('  - .github/commit-template.txt')

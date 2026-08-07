@@ -21,6 +21,8 @@ const checkCachePath = path.join(harnessRoot, 'generated/check-cache.json')
 const impactSummaryPath = path.join(harnessRoot, 'generated/policy-impact-summary.json')
 const templateGapSummaryPath = path.join(harnessRoot, 'generated/template-gap-summary.json')
 const profilePath = path.join(harnessRoot, harnessRoot.endsWith('.harness') ? 'policy/profile.json' : 'policy-harness/profile.json')
+// harnessMode는 유효 값일 때만 해석한다(0.2.102). 오타는 policy-harness가 필수 조치로 표면화하며,
+// 여기서도 'strict'와 정확히 일치할 때만 차단 모드로 올린다(완화 쪽 오해석을 만들지 않기 위함).
 const strictMode = forwardedArgs.includes('--strict') || (() => {
   try {
     return JSON.parse(fs.readFileSync(profilePath, 'utf8'))?.harnessMode === 'strict'

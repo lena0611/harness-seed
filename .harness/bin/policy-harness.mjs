@@ -16,13 +16,44 @@ const stacksRoot = path.join(harnessRoot, 'stacks')
 
 const args = process.argv.slice(2)
 const mode = args[0] ?? 'guard'
-const strictMode = args.includes('--strict') || (() => {
-  try {
-    return JSON.parse(fs.readFileSync(profilePath, 'utf8'))?.harnessMode === 'strict'
-  } catch {
-    return false
+
+// 기획 연동 런타임은 `.harness` 배치에만 있다(.github 어댑터에는 없음). 있으면 그 판정을 그대로 쓴다 —
+// 같은 사실을 두 곳에서 따로 계산하면 반드시 갈라진다(0.2.103 재리뷰 P2-3).
+const specRuntime = fs.existsSync(path.join(__dirname, 'spec-sync.mjs'))
+  ? await import('./spec-sync.mjs')
+  : null
+
+// harnessMode 값 검증(0.2.102): 종전에는 'strict'와의 문자열 비교뿐이라 오타('strct')를 내면
+// 조용히 비-strict로 동작했다 — "차단을 켰다고 믿는데 실제로는 꺼져 있는" 상태다.
+// 알 수 없는 값은 필수 조치로 표면화하고, strict가 의도였을 수 있으므로 완화 쪽으로 해석하지 않는다.
+const HARNESS_MODES = ['bootstrap', 'active', 'maintenance', 'strict']
+
+// 파일 부재 / JSON 깨짐 / 값 오류를 구분한다(0.2.102 리뷰 P1-10).
+// 앞의 둘을 하나로 뭉치면 malformed profile이 "설정 없음"으로 통과해버린다.
+function readHarnessModeState() {
+  if (!fs.existsSync(profilePath)) {
+    return { value: 'bootstrap', valid: true, missingProfile: true }
   }
-})()
+
+  let parsed
+  try {
+    parsed = JSON.parse(fs.readFileSync(profilePath, 'utf8'))
+  } catch (error) {
+    return { value: 'bootstrap', valid: false, kind: 'malformed', reason: String(error.message ?? error).split('\n')[0] }
+  }
+
+  const raw = parsed?.harnessMode
+  if (raw === undefined || raw === null) {
+    return { value: 'bootstrap', valid: true }
+  }
+  if (typeof raw === 'string' && HARNESS_MODES.includes(raw)) {
+    return { value: raw, valid: true }
+  }
+  return { value: 'bootstrap', valid: false, kind: 'invalid-value', raw }
+}
+
+const harnessModeState = readHarnessModeState()
+const strictMode = args.includes('--strict') || harnessModeState.value === 'strict'
 const briefMode = args.includes('--brief')
 const verboseMode = args.includes('--verbose') || args.includes('--all-files')
 const showBaseline = args.includes('--show-baseline') || verboseMode
@@ -237,7 +268,7 @@ function getChangedFiles() {
   if (base && head && !/^0+$/.test(base)) {
     try {
       const output = runGit(['diff', '--name-only', base, head])
-      return output ? output.split('\n').filter(Boolean) : []
+      return output ? output.split('\n').filter(Boolean).map(decodeSpecGitPath) : []
     } catch {
       return getChangedFilesFromHead()
     }
@@ -253,16 +284,19 @@ function unique(values) {
 function getWorkingTreeChangedFiles() {
   const changed = []
 
+  // git은 비ASCII 경로를 "..." octal로 인용해 출력한다(core.quotePath 기본값). 디코딩하지 않으면
+  // 한글 파일명(예: .claude/commands/기획문서연동.md)이 매니페스트 키와 안 맞아 본체 파일인데도
+  // "내 프로젝트 변경"으로 오분류된다(0.2.102에서 실측·수정).
   try {
     const trackedChanges = runGit(['diff', '--name-only', 'HEAD'])
-    changed.push(...(trackedChanges ? trackedChanges.split('\n').filter(Boolean) : []))
+    changed.push(...(trackedChanges ? trackedChanges.split('\n').filter(Boolean).map(decodeSpecGitPath) : []))
   } catch {
     // noop
   }
 
   try {
     const untrackedChanges = runGit(['ls-files', '--others', '--exclude-standard'])
-    changed.push(...(untrackedChanges ? untrackedChanges.split('\n').filter(Boolean) : []))
+    changed.push(...(untrackedChanges ? untrackedChanges.split('\n').filter(Boolean).map(decodeSpecGitPath) : []))
   } catch {
     // noop
   }
@@ -279,14 +313,14 @@ function getChangedFilesFromHead() {
 
   try {
     const output = runGit(['diff', '--name-only', 'HEAD~1', 'HEAD'])
-    return output ? output.split('\n').filter(Boolean) : []
+    return output ? output.split('\n').filter(Boolean).map(decodeSpecGitPath) : []
   } catch {
     try {
       const output = runGit(['status', '--short'])
       return output
         .split('\n')
         .filter(Boolean)
-        .map((line) => line.slice(3))
+        .map((line) => decodeSpecGitPath(line.slice(3)))
         .filter((filePath) => !isIgnoredPolicyChange(filePath))
     } catch {
       return []
@@ -425,14 +459,11 @@ function readSpecMapExemptCodePaths() {
 function analyzeMappingCoverageLocal(changedFiles, entries) {
   if (entries.length === 0 || changedFiles.length === 0) return []
 
-  // 신규 파일만 대상(기존 파일 수정은 이미 매핑 advisory가 다룬다). git 실패는 조용히 생략한다.
-  let untracked
-  try {
-    untracked = new Set(runGit(['ls-files', '--others', '--exclude-standard']).split(/\r?\n/).map(decodeSpecGitPath).filter(Boolean))
-  } catch {
-    return []
-  }
-  const added = changedFiles.filter((filePath) => untracked.has(filePath))
+  // 추가·수정된 파일이 대상이다(0.2.102 리뷰 P1-4). 미매핑 기존 파일을 계속 고치는 동안
+  // 아무 안내도 없으면 그 코드는 영원히 기획 게이트에 걸리지 않는다.
+  // 단, 삭제된 파일은 제외한다 — 지운 파일의 매핑을 추가하라고 요구하면 안 되고,
+  // push 게이트(--diff-filter=AM)와 판정 집합도 어긋난다(0.2.103 자체 리뷰 S5).
+  const added = changedFiles.filter((filePath) => fs.existsSync(path.join(repoRoot, filePath)))
   if (added.length === 0) return []
 
   // 관리 영역 규칙은 spec-sync.collectManagedAreas와 동일하다: 매핑 기준 디렉터리 + 그 부모(형제 기능 폴더),
@@ -470,32 +501,39 @@ function analyzeSpecLink(changedFiles) {
     return { configured: false }
   }
 
-  const lock = readJsonFile(lockAbs)
+  // 손상된 lock을 "미연동"으로 강등하면 연동 프로젝트에서 기획 안내가 통째로 사라진다(재리뷰 P1-3).
+  let lock
+  try {
+    lock = JSON.parse(fs.readFileSync(lockAbs, 'utf8'))
+  } catch (error) {
+    return { configured: true, stateError: `spec-lock.json을 해석할 수 없습니다 — ${String(error.message ?? error).split('\n')[0]}`, changedSpecs: [], touchedMappings: [], missingCaches: [], uncoveredNewFiles: [] }
+  }
   if (!lock?.sources) {
     return { configured: false }
   }
 
   const entries = readSpecMapEntries()
-  const changedSpecs = []
   const touchedMappings = []
+  const missingCaches = []
 
-  for (const [sourceId, recorded] of Object.entries(lock.sources)) {
-    const cacheDir = path.join(harnessRoot, 'generated', 'spec-cache', sourceId)
-    if (!fs.existsSync(cacheDir)) continue
+  for (const sourceId of Object.keys(lock.sources)) {
+    const cacheDir = specRuntime?.specCacheDirPath
+      ? specRuntime.specCacheDirPath(sourceId)
+      : path.join(harnessRoot, 'generated', 'spec-cache', sourceId)
+    if (!cacheDir || !fs.existsSync(cacheDir)) missingCaches.push(sourceId)
+  }
 
-    for (const [rel, lockedValue] of Object.entries(recorded?.files ?? {})) {
-      // lock v1은 sha 문자열, v2는 {sha, commit} — advisory는 둘 다 메모리에서만 해석한다.
-      const recordedSha = typeof lockedValue === 'string' ? lockedValue : lockedValue?.sha
-      if (!recordedSha) continue
-      const abs = path.join(cacheDir, rel)
-      if (!fs.existsSync(abs)) {
-        changedSpecs.push({ rel, kind: '삭제' })
-        continue
-      }
-      const currentSha = crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex')
-      if (currentSha !== recordedSha) {
-        changedSpecs.push({ rel, kind: '변경' })
-      }
+  // "미정산 기획 변경"의 판정은 spec-sync의 pendingSettlements 하나만 쓴다(재리뷰 P2-3).
+  // 여기서 따로 세면 baseSha compare-and-swap이 빠져, spec-sync가 폐기한 낡은 스냅샷을
+  // 관리 경고로 다시 띄우게 된다 — 같은 사실에 두 판정이 생긴다.
+  let changedSpecs = []
+  let stateError = null
+  if (specRuntime?.pendingSettlements && specRuntime?.normalizeLock) {
+    try {
+      changedSpecs = specRuntime.pendingSettlements(specRuntime.normalizeLock(lock))
+        .map((item) => ({ rel: item.file, kind: item.kind }))
+    } catch (error) {
+      stateError = String(error.message ?? error).split('\n')[0]
     }
   }
 
@@ -512,6 +550,8 @@ function analyzeSpecLink(changedFiles) {
     mappings: entries.length,
     changedSpecs,
     touchedMappings,
+    missingCaches,
+    stateError,
     uncoveredNewFiles: analyzeMappingCoverageLocal(changedFiles, entries),
   }
 }
@@ -519,10 +559,23 @@ function analyzeSpecLink(changedFiles) {
 function printSpecLinkNotice(specLink) {
   if (!specLink.configured) return
   const uncovered = specLink.uncoveredNewFiles ?? []
-  if (specLink.changedSpecs.length === 0 && specLink.touchedMappings.length === 0 && uncovered.length === 0) return
+  const missingCaches = specLink.missingCaches ?? []
+  if (!specLink.stateError
+    && specLink.changedSpecs.length === 0 && specLink.touchedMappings.length === 0
+    && uncovered.length === 0 && missingCaches.length === 0) return
 
   console.log('')
   console.log('기획 문서 연동 참고 (advisory):')
+  if (specLink.stateError) {
+    console.log(`- ⚠ 기획 연동 상태를 읽을 수 없습니다: ${specLink.stateError}`)
+    console.log('  이 상태에서는 기획 변경 안내가 나오지 않습니다. 복구 전에는 "변경 없음"으로 보지 마세요.')
+    console.log('  복구: 손상 파일을 git 이력에서 되돌리거나, npm run harness:spec:fetch -- --cache-only')
+  }
+  if (missingCaches.length > 0) {
+    // 캐시 없음은 잘못이 아니라 "아직 안 받은 상태"다. 차단하지 않고 받는 방법만 알린다.
+    console.log(`- 기획 문서 본문이 이 환경에 없습니다(${missingCaches.join(', ')}). 기획서가 없는 것이 아니라 로컬에 내려받지 않은 상태입니다.`)
+    console.log('  받기: npm run harness:spec:fetch -- --at-lock  (팀 기준 시점 그대로, 기준은 옮기지 않습니다)')
+  }
   if (specLink.touchedMappings.length > 0) {
     console.log('- 이번 변경이 기획 문서와 매핑된 구현 경로에 걸립니다. 해당 사양과 어긋나지 않는지 확인하세요.')
     for (const entry of specLink.touchedMappings.slice(0, 5)) {
@@ -530,7 +583,7 @@ function printSpecLinkNotice(specLink) {
     }
   }
   if (specLink.changedSpecs.length > 0) {
-    console.log(`- 기준 시점 이후 기획 문서 ${specLink.changedSpecs.length}건이 캐시에서 달라졌습니다. 상세: npm run harness:spec:status`)
+    console.log(`- 읽었지만 아직 정산하지 않은 기획 변경이 ${specLink.changedSpecs.length}건 있습니다. 상세: npm run harness:spec:status`)
   }
   if (uncovered.length > 0) {
     console.log('- 매핑된 영역에 새 파일이 있는데 spec-map 기록이 없습니다. 지금 한 줄 추가하면 이후 사양 변경이 이 코드로 연결됩니다.')
@@ -557,6 +610,32 @@ function analyzeDecisionLogSize(changedFiles) {
     oversized: lines > DECISION_LOG_LINE_THRESHOLD && changedFiles.includes(logRel),
     lines,
   }
+}
+
+// 훅 설치 여부는 **clone으로 공유되지 않는다**(core.hooksPath는 로컬 git config).
+// 그래서 "설치했으니 팀 전체가 검사받는다"가 성립하지 않는다 — 사람마다 설치해야 한다.
+// 검사에서 감지해 안내하지 않으면, 훅 없는 개발자는 자기가 검사 밖에 있다는 사실조차 모른다(4차 리뷰 P1-2).
+function printHookInstallNotice() {
+  if (harnessRootRel !== '.harness') return
+  if (!fs.existsSync(path.join(repoRoot, '.githooks'))) return
+
+  let hooksPath = ''
+  try {
+    hooksPath = execFileSync('git', ['config', '--get', 'core.hooksPath'], {
+      cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+  } catch {
+    hooksPath = ''
+  }
+  if (hooksPath === '.githooks') return
+
+  console.log('')
+  console.log('git hook 미설치 (이 clone 기준):')
+  console.log(hooksPath
+    ? `- core.hooksPath가 '${hooksPath}'로 설정되어 있어 하네스 훅이 실행되지 않습니다.`
+    : '- core.hooksPath가 설정되어 있지 않아 커밋·push 검사가 실행되지 않습니다.')
+  console.log('- 훅 설정은 clone으로 공유되지 않습니다. 저장소를 새로 받은 사람은 각자 한 번 실행해야 합니다:')
+  console.log('    npm run harness:hooks:install')
 }
 
 function collectViolations() {
@@ -1086,11 +1165,26 @@ function runImpact() {
   const registry = readRegistry()
   const trackedFiles = getAllTrackedFiles()
   const changedFiles = getChangedFiles()
-  const profile = readProfile()
-  const harnessMode = profile.harnessMode ?? 'bootstrap'
+  const harnessMode = harnessModeState.value
 
   console.log('Policy impact analysis')
-  console.log(`Harness mode: ${harnessMode}${strictMode ? ' (strict)' : ''}`)
+  if (harnessModeState.valid) {
+    console.log(`Harness mode: ${harnessMode}${strictMode ? ' (strict)' : ''}`)
+  } else {
+    // fail-closed: 설정 오류는 조용히 완화하지도, strict로 추측하지도 않고 검사를 실패시킨다.
+    // specEnforcement 오값이 push를 막는 것과 같은 기준이다 — 더 넓은 harnessMode만 통과시킬 이유가 없다.
+    console.log(`Harness mode: 판정 불가 (설정 오류)`)
+    console.log('')
+    if (harnessModeState.kind === 'malformed') {
+      console.error(`설정 오류: .harness/policy/profile.json을 JSON으로 읽지 못했습니다 (${harnessModeState.reason}).`)
+      console.error('- 파일을 고쳐 커밋한 뒤 다시 검사하세요. 이 상태에서는 어떤 집행 등급도 신뢰할 수 없습니다.')
+    } else {
+      console.error(`설정 오류: harnessMode 값이 유효하지 않습니다: ${JSON.stringify(harnessModeState.raw)}`)
+      console.error(`- 허용 값: ${HARNESS_MODES.join(', ')} (필드가 없으면 bootstrap)`)
+      console.error('- strict를 의도했다면 차단이 켜지지 않은 상태입니다. 값을 고쳐 커밋한 뒤 다시 검사하세요.')
+    }
+    process.exit(1)
+  }
   console.log('')
 
   if (changedFiles.length === 0) {
@@ -1216,6 +1310,7 @@ function runImpact() {
 
   writeImpactSummary({
     harnessMode,
+    harnessModeInvalid: harnessModeState.valid ? null : String(harnessModeState.raw),
     strictMode,
     changedFiles: changedFiles.length,
     policyRelevantChangedFiles: changedFilesForPolicy.length,
@@ -1254,6 +1349,7 @@ function runImpact() {
   }
 
   printSpecLinkNotice(analyzeSpecLink(changedFiles))
+  printHookInstallNotice()
 
   if (syncGaps.length > 0) {
     console.log('')

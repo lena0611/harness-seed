@@ -1023,6 +1023,7 @@
         "policies"
       ],
       "read": [
+        ".harness/project/spec-authority-workflow.md",
         ".harness/project/spec-map.md",
         ".harness/spec-sources.json",
         ".harness/session/decision-log.md"

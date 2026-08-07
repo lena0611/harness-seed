@@ -1,0 +1,45 @@
+#!/usr/bin/env sh
+set -eu
+
+# post-merge: git pull(merge) 직후 기획 문서 본문을 팀 기준(spec-lock)에 맞춘다.
+#
+# 왜: 기획 본문은 git 추적 대상이 아니라(사본 이중화 금지) pull만으로는 내려오지 않는다.
+# 동료가 pull 후 아무것도 모른 채 작업하면 "아직 안 받은 것"이 "기획서가 없는 것"처럼 보인다.
+# "pull하면 최신이 된다"는 개발자의 기본 직관에 기획 문서도 포함시키는 것이 이 훅의 목적이다.
+#
+# 성질:
+# - 기준(spec-lock)은 절대 옮기지 않는다. lock에 적힌 시점 그대로 본문만 맞춘다.
+# - 캐시가 이미 기준과 같으면 네트워크를 타지 않고 즉시 끝난다(대다수 pull).
+# - 실패해도 pull은 성공이다. 오프라인이나 기획 저장소 장애가 pull을 망치지 않는다.
+# - 미연동 프로젝트에서는 spec-lock이 없으므로 node를 기동하지 않는다.
+# - rebase pull은 post-merge를 실행하지 않는다. 그 경로는 컨텍스트 생성/커밋 검증의 백스톱이 맡는다.
+
+if [ -z "${NVM_DIR:-}" ]; then
+  export NVM_DIR="$HOME/.nvm"
+fi
+
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+  unset npm_config_prefix NPM_CONFIG_PREFIX PREFIX || true
+  set +u
+  . "$NVM_DIR/nvm.sh"
+  nvm use >/dev/null 2>&1 || true
+  set -u
+fi
+
+. .harness/bin/dual-node.sh
+harness_dual_node_activate
+
+# 기존 프로젝트 post-merge hook이 있으면 먼저 실행한다. 실패해도 pull은 유지하되 조용히 넘기지 않는다.
+if ! node .harness/bin/run-previous-hook.mjs post-merge "$@"; then
+  echo "[harness] 기존 post-merge hook이 실패했습니다(pull은 유지). 위 출력을 확인하세요."
+fi
+
+# 미연동 프로젝트는 여기서 끝(node 기동 없음).
+if [ -f .harness/spec-lock.json ]; then
+  if ! node .harness/bin/spec-sync.mjs hydrate --timeout-ms 15000; then
+    echo "[harness] 기획 본문 준비 실패: 스크립트를 실행하지 못했습니다."
+    echo "  pull은 완료됐지만 에이전트가 기획 본문을 읽을 수 없습니다. 재시도: npm run harness:spec:fetch -- --at-lock"
+  fi
+fi
+
+exit 0

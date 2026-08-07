@@ -29,6 +29,7 @@ Copilot은 Claude Code의 `SessionStart` hook이나 slash command를 강제 실�
 - [Session Harness](../.harness/session/README.md)
 - [Project Harness](../.harness/project/README.md)
 - [Project Bootstrap](../.harness/project/bootstrap.md)
+- [기획 문서 연동 절차](../.harness/project/spec-authority-workflow.md) — `.harness/spec-lock.json`이 있으면 코드 변경 전에 관련 기획을 먼저 확인합니다(작업 크기 무관). 연동이 없고 요구사항 기반 개발 요청이면 최초 1회만 요구사항 저장소 주소를 묻습니다(추측 금지).
 - [Policy Harness](../.harness/policy/README.md)
 - [Documentation Harness](../.harness/documentation/README.md)
 - [Style Harness](../.harness/style/README.md)

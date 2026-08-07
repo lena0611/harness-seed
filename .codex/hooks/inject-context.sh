@@ -11,3 +11,8 @@ fi
 
 printf 'Harness context: read CLAUDE.md first; source of truth is .harness/; activeStack=%s; before user finalization, report checks as candidates. If user asks final check, run npm run harness:check. If user asks commit/push and hooks are installed, trust pre-commit/pre-push checks and do not run duplicate manual harness:check first.\n' "$active_stack"
 printf 'Harness reporting: when reporting actual work progress, summarize as [harness] request/context/impact/action/decision/verify. Do not force this format for simple Q&A, casual, or meta-only turns.\n'
+
+# 기획 문서 연동 프로젝트에서는 코드 변경 전에 관련 기획을 먼저 확인한다(절차 정본은 .harness/project/spec-authority-workflow.md).
+if [ -f "$root/.harness/spec-lock.json" ]; then
+  printf 'Planning spec link is active: before changing code, follow .harness/project/spec-authority-workflow.md and check related planning docs first (regardless of task size).\n'
+fi

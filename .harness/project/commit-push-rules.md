@@ -31,7 +31,7 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 - 기존 `.git/hooks/*` 또는 기존 `core.hooksPath`의 hook은 삭제하지 않습니다.
 - 기존 hook 경로는 `harness.previousHooksPath`에 저장하고, `.githooks/*`에서 먼저 체인 실행합니다.
 - `.github/commit-template.txt`를 git commit template로 연결합니다.
-- hook 설치 여부는 `git config core.hooksPath`가 `.githooks`이고 `.githooks/pre-commit`, `.githooks/pre-push`가 존재하는지로 판단합니다.
+- hook 설치 여부는 `git config core.hooksPath`가 `.githooks`이고 `.githooks/pre-commit`, `.githooks/pre-push`, `.githooks/post-merge`가 존재하는지로 판단합니다.
 
 ## pre-commit
 - 사용자가 커밋을 승인하고 실제 `git commit`이 실행될 때 동작합니다.
@@ -42,12 +42,22 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 
 ## pre-push
 - 사용자가 push를 승인하고 실제 `git push`가 실행될 때 동작합니다.
+- push ref 목록(stdin)을 한 번 버퍼링해 기존 hook과 기획 게이트 양쪽에 같은 내용을 전달합니다.
 - 기존 pre-push hook이 있으면 먼저 실행합니다.
 - 반복 검증 부담을 줄이기 위해 `.harness/bin/harness check --fast`를 실행합니다.
+- 기획 문서 연동을 쓰는 프로젝트(작업 트리 또는 push tip에 `spec-lock.json`)에서는 `spec-push-gate.mjs`를 실행합니다. 미연동 프로젝트에서는 node를 기동하지 않습니다.
+
+## post-merge
+- `git pull`(merge) 직후 기획 문서 **기준 본문**을 팀 기준(`spec-lock.json`)에 맞춥니다. 기준 자체는 옮기지 않습니다.
+- 기존 post-merge hook이 있으면 먼저 실행하고, 실패해도 pull은 유지하되 경고를 남깁니다.
+- 캐시가 이미 기준과 같으면 네트워크를 타지 않고 즉시 끝납니다. 실패해도 pull은 성공이며 원인과 재시도 명령을 출력합니다.
+- rebase pull에서는 실행되지 않습니다. 그 경로는 작업 컨텍스트 생성이 백스톱으로 맡습니다.
+- 기획 문서 연동을 쓰지 않는 프로젝트에서는 아무 일도 하지 않습니다.
 
 ## 변경 시 함께 확인할 것
 - `.githooks/pre-commit`
 - `.githooks/pre-push`
+- `.githooks/post-merge`
 - `.harness/bin/harness` (hook이 호출하는 npm-free 런처)
 - `.harness/bin/dual-node.sh` (dual-runtime 전환 — hook/런처가 source)
 - `.harness/bin/node-env.mjs` (dual-runtime Node 해석 — guard/install-hooks가 import)

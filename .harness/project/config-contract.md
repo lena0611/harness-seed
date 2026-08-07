@@ -19,6 +19,17 @@
 - 실제 비밀값은 저장소에 커밋하지 않습니다.
 - 설정 계약이 바뀌면 project harness와 session harness에 반영합니다.
 
+## harnessMode (.harness/policy/profile.json)
+
+하네스 전반의 집행 강도입니다. 소유는 프로젝트입니다.
+
+- `bootstrap`: 소스 변경이 없는 커밋의 기준 동기화 후보를 참고 등급으로 완화합니다. 초기 정착 단계용 기본값입니다.
+- `active`: 위 완화가 풀립니다. 규칙이 자리 잡은 일반 운영 상태입니다.
+- `maintenance`: **현재 `active`와 동일하게 동작합니다.** 런타임 분기가 없고, handoff·scan 리포트와 `harness:guide` 카드에 "유지보수 국면"임을 표시하는 선언용 라벨입니다. 프로젝트 성격 구분 자체는 `project-charter.md`의 상태 필드가 맡습니다.
+- `strict`: "확인 필수" 항목이 경고에서 **커밋 차단**으로 승격됩니다. 문서/링크 검사 등 하위 검사도 strict로 전파됩니다.
+
+즉 런타임 거동이 갈리는 값은 `bootstrap`과 `strict` 둘뿐입니다.
+
 ## specEnforcement (.harness/policy/profile.json)
 
 기획 문서 연동의 집행 등급입니다. 소유는 프로젝트이며, 기획문서연동을 쓰지 않는 프로젝트에는 어떤 값이든 영향이 없습니다.

@@ -656,22 +656,30 @@
       "owner": "ai-standard/harness-seed",
       "source": {
         "type": "local",
-        "path": ".claude/commands/기획문서연동.md"
+        "path": ".harness/project/spec-authority-workflow.md"
       },
       "documents": [
+        ".harness/project/spec-authority-workflow.md",
         ".claude/commands/기획문서연동.md",
         ".harness/project/spec-map.md",
         ".harness/project/config-contract.md",
-        ".harness/policy/automation-coverage.md"
+        ".harness/policy/automation-coverage.md",
+        "AGENTS.md",
+        ".github/copilot-instructions.md"
       ],
       "ownedAreas": [
+        ".harness/project/spec-authority-workflow.md",
         ".harness/bin/spec-sync.mjs",
         ".harness/bin/spec-push-gate.mjs",
         ".harness/bin/doc-link-check.mjs",
         ".harness/bin/build-context.mjs",
         ".harness/bin/policy-harness.mjs",
         ".harness/bin/uninstall-harness.mjs",
+        ".harness/bin/install-hooks.mjs",
+        ".harness/bin/run-previous-hook.mjs",
         ".githooks/pre-push",
+        ".githooks/post-merge",
+        ".codex/hooks/inject-context.sh",
         ".harness/skills/registry.json",
         "scripts/init.mjs",
         "scripts/test-init.mjs"

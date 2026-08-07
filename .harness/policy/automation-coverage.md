@@ -12,10 +12,23 @@
 | `policy-source-sync-gap` | 기준 매핑의 한쪽만 변경되어 동기화 갭 발생 | 자동 검사 (`harness:impact`, CI에서 `harness:check:strict`로 차단) |
 | `stack-isolation` | 한 스택 폴더가 다른 스택 폴더를 참조하지 않음 | 자동 검사 (`harness:check`, 본체 개발 시 `docs:check`) |
 | `context-artifact-generation` | 프로젝트 맵, import 맵, Agent Decision Context 생성 | 자동 생성 (`harness:sync`, `harness:context`) |
-| `spec-link-integrity` | 기획 연동 선언↔기준(lock v2: 문서별 sha+commit, selector)↔매핑↔코드 정합. repo/ref/selector 드리프트, 유령 소스, 소스 간 경로 충돌, id 중복·안전성(무효 선언은 전체 invalid) | 자동 검사 (`harness:check`; `specEnforcement: "gate"` 프로젝트는 차단) |
+| `spec-link-integrity` | 기획 연동 선언↔기준(lock v2: 문서별 sha+commit, selector)↔매핑↔코드 정합. repo/ref/selector 드리프트, 유령 소스, 소스 간 경로 충돌, id 중복·안전성(무효 선언은 전체 invalid), 선언 없이 기준만 남은 상태 | 자동 검사 (`harness:check`; `specEnforcement: "gate"` 프로젝트는 차단) |
+| `spec-lock-schema` | lock이 JSON으로 읽히는 것과 기준으로 쓸 수 있는 것은 다르다. version·sources/files 형태, source 메타데이터, selector, 문서 경로 안전성, sha256·commit 형식을 검증하고 **항목 하나라도 어긋나면 전체 invalid**(관용하면 그 문서가 기준에서 사라져 drift 검사가 건너뛰어짐) | 자동 검사 (**fail-closed** — status/doc-link/settle/push tip 공유) |
+| `spec-screen-link` | 화면은 **문서가 링크로 선언**한다(경로 관례 아님). 링크한 화면이 없거나 아무도 참조하지 않는 화면 파일이 있으면 기준으로 받지 않고(최초 fetch·최신 확인·freshness·상태 모두 fail-closed), 화면만 바뀌어도 문서 단위 전체가 변경으로 판정되며, 정산은 둘을 같은 commit으로 함께 기록(부분 정산 거부). 링크된 화면은 include에 없어도 자동 편입, 매핑은 대표 문서 한 줄로 충분. 독립 명령 `screen-check`로 기획 저장소 CI에서도 동일 판정 | 자동 검사 (연동 전 구간 + push 게이트) |
+| `spec-settlement-monotonicity` | 정산은 앞으로만 간다. 목표 commit이 현재 기준의 조상이면 거부, 같은 이력에 없으면 거부, 증명 불가면 거부(허용 아님). 캐시를 전체 이력으로 받아 판정을 보장하고, 옛 얕은 캐시는 최신 확인에서 치유 | 자동 검사 (`harness:spec:settle`) |
 | `spec-push-settlement` | push tip snapshot(profile/sources/lock/map을 push 커밋에서 읽음) 기준으로, push 범위 코드에 매핑된 기획 문서의 drift를 차단하고 정산(`spec:settle`)을 요구. 설정 오류는 fail-closed, 기획 저장소 접근 실패만 fail-open | 자동 검사 (pre-push hook `spec-push-gate.mjs`, `"gate"` 옵트인) |
-| `spec-provenance` | 기준 기록의 출처 검증: settle은 캐시 HEAD의 git 객체 내용과 대조 후 기록, v1 lock은 변경 명령에서 검증 후 v2 승격(읽기 경로는 무수정·무네트워크) | 자동 검사 (`harness:spec:settle`, `harness:spec:fetch -- --move-baseline`) |
-| `spec-mapping-coverage` | 매핑된 영역(과 그 형제 폴더)에 새로 추가된 파일에 spec-map 기록이나 판정((사양 없음))이 있는지. 매핑 누락은 그 코드가 이후 어떤 spec 검사에도 걸리지 않는 사각지대를 만든다 | 자동 검사 (커밋 검증=안내, `specEnforcement: "gate"`=push 차단) |
+| `spec-provenance` | 기준 기록의 출처 검증: settle은 **기획 저장소의 git 객체**와 대조 후 기록(소스 정체성·스냅샷 commit 실재·본문 sha·삭제 부재 확인, 전부 통과해야 lock 수정), v1 lock은 변경 명령에서 검증 후 v2 승격(읽기 경로는 무수정·무네트워크) | 자동 검사 (`harness:spec:settle`, `harness:spec:fetch -- --move-baseline`) |
+| `spec-mapping-coverage` | 매핑된 영역(과 그 형제 폴더)에서 **추가되거나 수정된** 파일에 spec-map 기록이나 판정((사양 없음))이 있는지. 매핑 누락은 그 코드가 이후 어떤 spec 검사에도 걸리지 않는 사각지대를 만든다 | 자동 검사 (커밋 검증=안내, `specEnforcement: "gate"`=push 차단) |
+| `spec-cache-hydration` | **기준 본문**(`spec-cache`, git 미추적)을 lock과 일치시킴. 판정은 소스 HEAD가 아니라 **문서별 sha/commit 대조**(부분 정산 반영). pull 직후 `post-merge` 훅이 담당하고, 컨텍스트 생성이 백스톱. **정본은 lock이며 캐시는 그 사본이다** — 수화가 실패하면 캐시는 lock과 어긋난 채 남고, 그 소스는 컨텍스트 주입에서 제외된다 | 자동 실행 (기준 불변, 실패는 비차단이되 출력+상태 파일 기록) |
+| `spec-settlement-provenance` | 정산은 **읽은 스냅샷**(`spec-latest` manifest)의 commit/sha만 기록. 네트워크·ref 재조회 없음. 읽지 않은 문서 거부, 손편집 본문 중단, 검토 후 올라온 변경은 다음 확인에 남음. 스냅샷은 기획 저장소 git 객체와 대조해 위조·가짜 삭제를 거부하고, 한 건이라도 거부되면 lock을 수정하지 않음 | 자동 검사 (`harness:spec:settle`) |
+| `spec-latest-exact-set` | 읽어볼 최신 사본(`spec-latest/<source>/`)은 그 기록(`.manifest.json`)과 **정확히 같은 집합**. 기록을 디렉터리 안에 두어 **rename 한 번으로 본문과 기록이 함께 확정**되므로 중간에 죽어도 어긋난 상태가 남지 않는다. 정산 소비도 같은 방식으로 교체 | 자동 실행 (`harness:spec:fetch -- --cache-only`, `harness:spec:settle`) |
+| `spec-path-safety` | 기획 저장소가 주는 경로로 캐시 밖에 쓰거나 읽지 못하게 함(절대경로·`..`·NUL 거부, **보호 루트 자신부터** leaf까지 심볼릭 링크 차단, 읽기·쓰기·삭제가 같은 API를 사용, 쓰기는 임시 파일+rename) | 자동 검사 (모든 수화·최신 사본·읽기 경로) |
+| `spec-freshness-at-task-start` | 작업 컨텍스트 생성 시 짧은 예산의 비파괴 최신 확인. 기준 문서 / 기준 이후 변경 / 신규·미정산을 구분해 표시하고, 실패 시 "최신 확인 못함"을 명시 | 자동 실행 (TTL 재사용, 기준 이동 없음, 실패해도 진행) |
+| `spec-gate-self-disable` | 매핑 표를 비우거나 lock의 문서 항목만 빼는 **정상 형식 self-disable**을 차단. push scope는 base∪tip 매핑으로 잡고(행을 지운 그 push에도 옛 매핑 적용), 매핑된 문서가 기준에 없으면 차단, 매핑은 있는데 기준이 비면 정합 오류 | 자동 검사 (push 게이트 + `harness:check`) |
+| `hook-installation` | `core.hooksPath`는 clone으로 공유되지 않으므로 사람마다 설치해야 한다. 미설치를 검사가 감지해 설치 명령을 안내 | 자동 안내 (커밋 검증·`harness:check`) |
+| `harness-mode-validity` | `profile.json`의 harnessMode가 허용 값인지, JSON이 읽히는지. 오타는 strict 차단이 조용히 꺼지는 원인이 된다 | 자동 검사 (**fail-closed** — 값 오류·JSON 오류 시 검사 실패) |
+
+커밋 검증(`policy-harness`)은 본문 자동 수화를 실행하지 않습니다. 캐시 부재를 안내만 하며(비차단), 본문 준비의 보장은 pull 훅과 작업 컨텍스트 단계에 있습니다 — 커밋 시점 수화는 작업이 끝난 뒤라 늦습니다.
 
 ## Claude Code 어댑터 자동 방어
 Claude Code 환경에서는 `.claude/settings.json` hook으로 다음 방어를 추가합니다. 이 어댑터는 `.harness/` 기준을 대체하지 않고 실행 표면에서 피해를 줄입니다.
