@@ -635,7 +635,10 @@ function printHookInstallNotice() {
     ? `- core.hooksPath가 '${hooksPath}'로 설정되어 있어 하네스 훅이 실행되지 않습니다.`
     : '- core.hooksPath가 설정되어 있지 않아 커밋·push 검사가 실행되지 않습니다.')
   console.log('- 훅 설정은 clone으로 공유되지 않습니다. 저장소를 새로 받은 사람은 각자 한 번 실행해야 합니다:')
-  console.log('    npm run harness:hooks:install')
+  // 스크립트 이름은 `hooks:install`이다(`harness:` 접두사 없음). 실물 E2E에서 오타를 발견했다 —
+  // 안내가 존재하지 않는 명령을 가리키면 안내가 없느니만 못하다.
+  console.log('    npm run hooks:install')
+  console.log('    (package.json이 없는 프로젝트: node .harness/bin/install-hooks.mjs)')
 }
 
 function collectViolations() {

@@ -4595,7 +4595,8 @@ function specGuardNoticesMissingHookInstall() {
 
   const out = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
   assert(out.includes('git hook 미설치'), 'a clone without hooks must be told')
-  assert(out.includes('harness:hooks:install'), 'the install command must be shown')
+  assert(out.includes('npm run hooks:install'), 'the install command must be shown')
+  assert(!out.includes('harness:hooks:install'), 'the command must be the one that actually exists')
 
   run('git', ['config', 'core.hooksPath', '.githooks'], { cwd: target })
   const after = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
