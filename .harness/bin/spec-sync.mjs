@@ -194,8 +194,12 @@ export function extractScreenLinks(mdRel, content, extensions) {
   const baseDir = path.posix.dirname(mdRel)
   const patterns = [/\]\(\s*([^)\s]+)/g, /<a\b[^>]*\shref\s*=\s*["']([^"']+)["']/gi]
 
+  // 코드로 표기한 것은 링크가 아니다. 기획 저장소 안내문은 "이렇게 링크하세요"라는 **예시**를
+  // 코드 블록에 담는데, 그걸 실제 링크로 읽으면 안내문 자체가 연동 오류를 낸다(실물 E2E에서 발견).
+  const body = content.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '')
+
   for (const pattern of patterns) {
-    for (const match of content.matchAll(pattern)) {
+    for (const match of body.matchAll(pattern)) {
       const raw = String(match[1] ?? '').trim()
       if (!raw || /^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith('//') || raw.startsWith('#') || raw.startsWith('/')) continue
       const cleaned = decodeURIComponent(raw.split('#')[0].split('?')[0])

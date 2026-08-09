@@ -4389,7 +4389,16 @@ function specScreenLinkIntegrityIsEnforced() {
     'a linked screen enters the baseline together with its document')
   assert(files.includes('policies/공통.md'), 'a policy MD still needs no screen')
 
-  // (d) 아무 문서도 참조하지 않는 화면 파일은 떠도는 상태로 잡는다.
+  // (d) 코드 블록·인라인 코드 안의 예시 링크는 링크가 아니다 —
+  //     "이렇게 링크하세요"라고 알려주는 안내문이 스스로 연동 오류를 내면 안 된다(실물 E2E에서 발견).
+  link(makePlanningRepoRaw({
+    'policies/작성안내.md': '# 작성 안내\n\n화면은 이렇게 링크합니다.\n\n```markdown\n- 화면: [로그인.html](./로그인.html)\n```\n\n인라인 예시도 마찬가지입니다: `[화면](./없는화면.html)`\n',
+  }))
+  specSyncCli(target, ['fetch'])
+  assert(!('policies/로그인.html' in JSON.parse(read(target, '.harness/spec-lock.json')).sources.planning.files),
+    'an example link inside a code block must not be treated as a real screen link')
+
+  // (e) 아무 문서도 참조하지 않는 화면 파일은 떠도는 상태로 잡는다.
   link(makePlanningRepoRaw({ 'features/떠돌이.html': '<h1>떠돌이</h1>\n', 'policies/공통.md': '# 공통\n' }))
   writeJson(target, '.harness/spec-sources.json', {
     version: 1,
