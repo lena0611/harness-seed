@@ -158,7 +158,7 @@ features/사이트전환.md → src/views/SiteSwitch.vue, src/store/site.js
 | `gate` (옵트인) | 안내 | 미정산 기획 변경·매핑 누락이면 **차단** | 기획이 안정된 뒤 팀이 직접 올립니다 |
 
 - **기본값은 `advisory`입니다.** 연동을 마쳐도 자동으로 `gate`가 되지 않습니다 — 초기에는 기획에 구멍이 많아 push가 자주 막히는 편이 더 해롭다는 판단입니다. 준비되면 `profile.json`에 `"specEnforcement": "gate"`를 넣고 커밋하세요.
-- **git hook은 clone으로 공유되지 않습니다.** `core.hooksPath`는 로컬 설정이라 저장소를 새로 받은 사람은 각자 `npm run harness:hooks:install`을 한 번 실행해야 합니다. 미설치 상태는 커밋 검증이 감지해 안내하지만, 훅이 없으면 그 안내조차 자동으로 뜨지 않습니다(`npm run harness:check`로 확인).
+- **git hook은 clone으로 공유되지 않습니다.** `core.hooksPath`는 로컬 설정이라 저장소를 새로 받은 사람은 각자 `npm run hooks:install`을 한 번 실행해야 합니다. 미설치 상태는 커밋 검증이 감지해 안내하지만, 훅이 없으면 그 안내조차 자동으로 뜨지 않습니다(`npm run harness:check`로 확인).
 - **기획 저장소에 접근하지 못하면 push는 통과합니다**(fail-open). 오프라인이나 기획 저장소 장애가 개발을 멈추게 하지 않기 위함입니다. 대신 그 push는 최신 기획을 확인하지 않은 상태이며, 게이트가 그 사실을 출력합니다.
 - 따라서 이 장치는 **"최신 기획이 항상 반영됨을 보장"하지 않습니다.** 보장하는 것은: 훅이 설치되고 `gate`인 프로젝트에서, 기획 저장소에 접근할 수 있을 때, 내 코드에 매핑된 기획이 바뀌었으면 정산 없이는 push되지 않는다는 것입니다.
 
