@@ -571,9 +571,19 @@ function runGit(argsToRun, cwd, options = {}) {
 // content sha256은 다른 값이므로 절대 직접 비교하지 않는다.
 export function gitShowText(dir, commit, rel) {
   try {
-    return execFileSync('git', ['show', `${commit}:${rel}`], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
-  } catch {
-    return null
+    // maxBuffer: 큰 화면 프로토타입 HTML이 기본 1MiB 상한에 걸리면 "문서 없음"으로 오인된다
+    // (실전: 기획팀의 3.5MB 화면 파일이 기준에서 조용히 빠졌다 — ls-tree에만 넣고 여기를 빠뜨린 0.2.103의 반쪽 수정).
+    return execFileSync('git', ['show', `${commit}:${rel}`], {
+      cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024,
+    })
+  } catch (error) {
+    // "그 시점에 문서가 없다"만 null이다. 그 외(버퍼 초과, spawn 실패 등)를 null로 뭉개면
+    // 실패가 삭제·부재로 둔갑한다 — 부재와 실패의 구분은 이 모듈의 반복 교훈이다.
+    const message = String(error?.stderr ?? error?.message ?? '')
+    if (/does not exist|exists on disk, but not in|invalid object name|bad revision|bad object/i.test(message)) {
+      return null
+    }
+    throw new Error(`git show ${String(commit).slice(0, 10)}:${rel} 실패: ${message.split('\n')[0] || error?.code || '알 수 없음'}`)
   }
 }
 
@@ -1604,7 +1614,11 @@ function buildBaselineForSource(source) {
   const files = {}
   for (const rel of selected) {
     const shown = gitShowText(dir, commit, rel)
-    if (shown === null) continue
+    if (shown === null) {
+      // 같은 commit의 트리에서 고른 파일이 안 읽히는 것은 부재가 아니라 이상 상태다.
+      // 조용히 건너뛰면 그 문서가 기준에서 빠진 채 "동기화 완료"가 된다(실전 3.5MB 화면 파일).
+      throw new Error(`선택된 문서를 commit ${String(commit).slice(0, 10)}에서 읽지 못했습니다: ${rel}`)
+    }
     files[rel] = { sha: sha256Text(shown), commit }
   }
   return {

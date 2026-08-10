@@ -4885,6 +4885,32 @@ function specGateAllowsLegitimateCodePathCleanup() {
   assert(!judgedOut.includes('매핑 축소') && !judgedOut.includes('매핑 제거'), 'moving live code under an explicit judgment must pass')
 }
 
+// ── 실전(멀티사이트 온보딩): 1MiB 넘는 화면 파일이 기준에서 조용히 빠졌다 ──
+// gitShowText의 execFileSync 기본 maxBuffer(1MiB)에 걸린 실패가 "문서 없음"과 같은 null로
+// 뭉개져, 3.5MB 화면 HTML이 lock에서 빠진 채 "동기화 완료"가 됐다. ls-tree에는 maxBuffer를
+// 넣고(0.2.103) git show를 빠뜨린 반쪽 수정이었다.
+function specLargeScreenFileEntersBaseline() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const bigHtml = `<h1>큰 화면</h1>\n<div>${'x'.repeat(2 * 1024 * 1024)}</div>\n`
+  const planning = makePlanningRepoRaw({
+    'features/큰화면.md': '# 큰화면\n\n- 화면: [큰화면.html](./큰화면.html)\n',
+    'features/큰화면.html': bigHtml,
+  })
+  writeJson(target, '.harness/spec-sources.json', {
+    version: 1,
+    sources: [{ id: 'planning', repo: planning, ref: 'master', exclude: ['**/README.md'] }],
+  })
+  specSyncCli(target, ['fetch'])
+
+  const files = JSON.parse(read(target, '.harness/spec-lock.json')).sources.planning.files
+  assert('features/큰화면.html' in files, 'a >1MiB screen file must enter the baseline, not vanish silently')
+  assert(files['features/큰화면.html'].sha === sha256Text(bigHtml), 'its recorded hash must match the real content')
+  // 기준 본문도 통째로 수화됐는지 확인.
+  assert(read(target, '.harness/generated/spec-cache/planning/features/큰화면.html').length === bigHtml.length,
+    'the hydrated baseline body must be complete')
+}
+
 // ── 0.2.104: 도입 직후(매핑 0건)가 사각지대였다 ──
 // 매핑 커버리지는 "이미 매핑이 있는 영역"을 기준으로 도는 구조라, 매핑이 0건이면 아무 말도 하지 않았다.
 // 실제 도입 시점이 정확히 그 상태(기획은 다 있고 코드는 스캐폴딩)라 시작을 유도하는 곳이 없었다.
@@ -5304,6 +5330,7 @@ const tests = [
   specSettleRefusesSwappedCacheOrigin,
   specSettleRefusesWhenDeclarationDrifted,
   specLockOnlyAndGlobalFailureAreSurfaced,
+  specLargeScreenFileEntersBaseline,
   specGateBlocksFirstImplementationWithoutMapping,
   specGateBlocksCodePathShrinkBypass,
   specGateAllowsLegitimateCodePathCleanup,
