@@ -1270,6 +1270,89 @@ export function decodeGitPath(filePath) {
   return Buffer.from(bytes).toString('utf8')
 }
 
+// 기준(lock)에 있는 문서들의 화면 링크 색인. 기준 본문(캐시)에서 만든다.
+// 본문을 아직 못 받았으면 그 소스는 건너뛴다 — 못 읽은 것을 "링크 없음"으로 단정하지 않는다.
+export function screenIndexesFromCache(state) {
+  const out = {}
+  for (const source of state.sources ?? []) {
+    const recorded = state.lock?.sources?.[source.id]
+    if (!recorded) continue
+    let dir
+    try {
+      dir = cacheDirFor(source.id)
+    } catch {
+      continue
+    }
+    out[source.id] = buildScreenIndex(Object.keys(recorded.files ?? {}), (rel) => {
+      try {
+        return readSafeFile(dir, rel)
+      } catch {
+        return null
+      }
+    }, screenLinksFor(recorded, source))
+  }
+  return out
+}
+
+// "아직 구현되지 않은 기획" — 기준에는 있는데 매핑도 판정도 없는 문서.
+//
+// 도입 직후에는 이게 곧 할 일 목록이다. 매핑 커버리지 검사는 **이미 매핑이 있는 영역**을 기준으로
+// 도는 구조라 매핑이 0건이면 아무 말도 하지 않는다 — 정확히 시작 지점이 사각지대였다(0.2.104).
+// 링크된 화면은 대표 문서로 매핑되므로 별도 매핑 대상이 아니다.
+export function findUnmappedSpecs(lockNorm, entries, exemptions, screenIndexBySource = {}) {
+  const mapped = new Set((entries ?? []).map((entry) => entry.spec))
+  const exempt = new Set(exemptions?.specs ?? [])
+  const out = []
+
+  for (const [sourceId, recorded] of Object.entries(lockNorm?.sources ?? {})) {
+    const index = screenIndexBySource[sourceId] ?? null
+    for (const rel of Object.keys(recorded.files ?? {})) {
+      if (mapped.has(rel) || exempt.has(rel)) continue
+      const unit = index?.unitFor(rel)
+      if (unit && unit.primary !== rel) continue // 링크된 화면 — 대표 문서가 매핑 단위다
+      if (unit && (mapped.has(unit.primary) || exempt.has(unit.primary))) continue
+      out.push({ source: sourceId, file: rel })
+    }
+  }
+  return out.sort((a, b) => a.file.localeCompare(b.file))
+}
+
+// 기준에 기록된 문서가 링크한 화면이 기준에 함께 있고, 같은 시점인가.
+// 매핑된 문서는 push 게이트가 보지만, 매핑되지 않은 문서는 아무도 보지 않았다(0.2.103 백로그).
+// 어긋난 채로 두면 컨텍스트가 문서와 화면을 다른 시점으로 제시하게 된다.
+export function findLockScreenIssues(lockNorm, screenIndexBySource = {}) {
+  const issues = []
+  for (const [sourceId, recorded] of Object.entries(lockNorm?.sources ?? {})) {
+    const index = screenIndexBySource[sourceId]
+    if (!index) continue
+    for (const [rel, value] of Object.entries(recorded.files ?? {})) {
+      const unit = index.unitFor(rel)
+      if (!unit || unit.primary !== rel) continue
+      for (const screen of unit.screens) {
+        const locked = recorded.files[screen]
+        if (!locked) {
+          issues.push({ source: sourceId, doc: rel, screen, kind: 'missing' })
+          continue
+        }
+        const docCommit = value.commit ?? recorded.commit ?? null
+        const screenCommit = locked.commit ?? recorded.commit ?? null
+        if (docCommit !== screenCommit) {
+          issues.push({ source: sourceId, doc: rel, screen, kind: 'commit-mismatch', docCommit, screenCommit })
+        }
+      }
+    }
+  }
+  return issues
+}
+
+export function formatLockScreenIssues(issues) {
+  return issues.map((issue) => (
+    issue.kind === 'missing'
+      ? `${issue.doc} 이(가) 링크한 화면 ${issue.screen} 이(가) 기준에 없습니다 — 함께 정산되지 않았습니다.`
+      : `${issue.doc}(${String(issue.docCommit).slice(0, 10)})와 ${issue.screen}(${String(issue.screenCommit).slice(0, 10)})의 기준 시점이 다릅니다.`
+  ))
+}
+
 // 읽었지만 아직 정산하지 않은 문서(spec-latest manifest 기준). 0.2.103부터 "미정산"의 단일 출처다.
 //
 // 종전에는 캐시 작업 트리와 lock을 비교해 미정산을 셌지만, 이제 캐시는 기준을 그대로 따라가므로
@@ -2780,6 +2863,40 @@ function runStatus() {
 
   console.log('')
   console.log(`매핑: ${state.entries.length}건 (${specMapRel})`)
+
+  // 도입 직후에는 "아직 구현되지 않은 기획"이 곧 할 일 목록이다.
+  const screenIndexes = screenIndexesFromCache(state)
+  const exemptions = readSpecMapExemptions()
+  const unmapped = findUnmappedSpecs(state.lock, state.entries, exemptions, screenIndexes)
+
+  if (state.entries.length === 0 && unmapped.length > 0) {
+    console.log('')
+    console.log(`기획 ${unmapped.length}건이 연동됐고 매핑은 아직 0건입니다. 정상적인 시작 상태입니다.`)
+    console.log('기능을 만들면서 한 줄씩 채우면, 그때부터 그 기획이 바뀔 때 이 코드로 연결됩니다.')
+  }
+
+  if (unmapped.length > 0) {
+    console.log('')
+    console.log(`아직 구현되지 않은 기획 (매핑 없음): ${unmapped.length}건`)
+    for (const item of unmapped.slice(0, 15)) {
+      console.log(`  - ${item.file}`)
+    }
+    if (unmapped.length > 15) console.log(`  - 외 ${unmapped.length - 15}건`)
+    console.log('  구현할 때 에이전트에게 "매핑 추가해줘"라고 하면 근거와 함께 한 줄 넣습니다.')
+    console.log('  구현 대상이 아닌 문서는 판정으로 남깁니다: | <문서> | (코드 없음) | 사유 |')
+  }
+
+  // 문서와 그 문서가 링크한 화면이 기준에서 어긋나 있으면, 컨텍스트가 서로 다른 시점을 제시하게 된다.
+  const lockScreenIssues = findLockScreenIssues(state.lock, screenIndexes)
+  if (lockScreenIssues.length > 0) {
+    console.log('')
+    console.log('문서와 화면의 기준이 어긋나 있습니다:')
+    for (const line of formatLockScreenIssues(lockScreenIssues)) {
+      console.log(`  - ${line}`)
+    }
+    console.log('  npm run harness:spec:fetch -- --cache-only 로 확인한 뒤 다시 정산하면 같은 시점으로 맞춰집니다.')
+    process.exitCode = 1
+  }
 
   // 미정산 = 읽었지만 아직 기준에 반영하지 않은 문서(spec-latest manifest 기준).
   let pending = []

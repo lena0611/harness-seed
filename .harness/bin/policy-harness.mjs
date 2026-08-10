@@ -528,10 +528,25 @@ function analyzeSpecLink(changedFiles) {
   // 관리 경고로 다시 띄우게 된다 — 같은 사실에 두 판정이 생긴다.
   let changedSpecs = []
   let stateError = null
+  let unmappedSpecs = []
   if (specRuntime?.pendingSettlements && specRuntime?.normalizeLock) {
     try {
-      changedSpecs = specRuntime.pendingSettlements(specRuntime.normalizeLock(lock))
-        .map((item) => ({ rel: item.file, kind: item.kind }))
+      const lockNorm = specRuntime.normalizeLock(lock)
+      changedSpecs = specRuntime.pendingSettlements(lockNorm).map((item) => ({ rel: item.file, kind: item.kind }))
+
+      // 매핑이 0건이면 커버리지 검사가 아무것도 잡지 않는다(관리 영역을 매핑에서 도출하므로).
+      // 도입 직후가 정확히 그 상태라, 시작하라는 말을 아무도 해주지 않았다(0.2.104).
+      if (specRuntime.findUnmappedSpecs && specRuntime.screenIndexesFromCache && specRuntime.readSpecState) {
+        const state = specRuntime.readSpecState()
+        if (state.valid) {
+          unmappedSpecs = specRuntime.findUnmappedSpecs(
+            lockNorm,
+            entries,
+            specRuntime.readSpecMapExemptions ? specRuntime.readSpecMapExemptions() : { specs: [], codePaths: [] },
+            specRuntime.screenIndexesFromCache(state),
+          )
+        }
+      }
     } catch (error) {
       stateError = String(error.message ?? error).split('\n')[0]
     }
@@ -552,6 +567,7 @@ function analyzeSpecLink(changedFiles) {
     touchedMappings,
     missingCaches,
     stateError,
+    unmappedSpecs,
     uncoveredNewFiles: analyzeMappingCoverageLocal(changedFiles, entries),
   }
 }
@@ -560,9 +576,10 @@ function printSpecLinkNotice(specLink) {
   if (!specLink.configured) return
   const uncovered = specLink.uncoveredNewFiles ?? []
   const missingCaches = specLink.missingCaches ?? []
+  const unmapped = specLink.unmappedSpecs ?? []
   if (!specLink.stateError
     && specLink.changedSpecs.length === 0 && specLink.touchedMappings.length === 0
-    && uncovered.length === 0 && missingCaches.length === 0) return
+    && uncovered.length === 0 && missingCaches.length === 0 && unmapped.length === 0) return
 
   console.log('')
   console.log('기획 문서 연동 참고 (advisory):')
@@ -584,6 +601,19 @@ function printSpecLinkNotice(specLink) {
   }
   if (specLink.changedSpecs.length > 0) {
     console.log(`- 읽었지만 아직 정산하지 않은 기획 변경이 ${specLink.changedSpecs.length}건 있습니다. 상세: npm run harness:spec:status`)
+  }
+  if (unmapped.length > 0) {
+    // 매핑이 0건이면 커버리지 검사가 침묵한다 — 시작하라고 말해주는 곳이 여기뿐이다(0.2.104).
+    if (specLink.mappings === 0) {
+      console.log(`- 기획 ${unmapped.length}건이 연동됐고 매핑은 아직 0건입니다. 정상적인 시작 상태입니다.`)
+      console.log('  기능을 만들면서 한 줄씩 채우면, 그때부터 그 기획이 바뀔 때 이 코드로 연결됩니다.')
+    } else {
+      console.log(`- 아직 구현되지 않은 기획이 ${unmapped.length}건 있습니다(매핑 없음). 상세: npm run harness:spec:status`)
+    }
+    for (const item of unmapped.slice(0, 3)) {
+      console.log(`  - ${item.file}`)
+    }
+    if (unmapped.length > 3) console.log(`  - 외 ${unmapped.length - 3}건`)
   }
   if (uncovered.length > 0) {
     console.log('- 매핑된 영역에 새 파일이 있는데 spec-map 기록이 없습니다. 지금 한 줄 추가하면 이후 사양 변경이 이 코드로 연결됩니다.')

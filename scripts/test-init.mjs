@@ -4739,6 +4739,62 @@ function specLatestPruneKeepsRecordAndFilesInSync() {
   }
 }
 
+// ── 0.2.104: 도입 직후(매핑 0건)가 사각지대였다 ──
+// 매핑 커버리지는 "이미 매핑이 있는 영역"을 기준으로 도는 구조라, 매핑이 0건이면 아무 말도 하지 않았다.
+// 실제 도입 시점이 정확히 그 상태(기획은 다 있고 코드는 스캐폴딩)라 시작을 유도하는 곳이 없었다.
+function specStatusGuidesMappingAtStart() {
+  const { target } = setupSpecLinkedTarget()
+
+  const status = specSyncCli(target, ['status'])
+  assert(status.includes('매핑은 아직 0건입니다'), 'a freshly linked project must be told the empty mapping is normal')
+  assert(status.includes('정상적인 시작 상태'), 'it must not read like an error')
+  assert(status.includes('아직 구현되지 않은 기획'), 'the unimplemented spec list must be shown')
+  assert(status.includes('features/로그인.md'), 'the spec doc should be listed')
+  // 링크된 화면은 대표 문서로 매핑되므로 별도 매핑 대상이 아니다.
+  assert(!status.includes('features/로그인.html'), 'a linked screen must not be listed as its own mapping target')
+
+  // 커밋 검증에서도 같은 안내가 나온다(개발자가 매일 보는 곳).
+  const guard = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(guard.includes('매핑은 아직 0건입니다'), 'the commit advisory must guide the first mapping too')
+
+  // 매핑을 넣으면 그 문서는 목록에서 빠진다.
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/**` | |',
+  ].join('\n'))
+  const after = specSyncCli(target, ['status'])
+  assert(!after.includes('features/로그인.md'), 'a mapped spec must leave the unimplemented list')
+  assert(!after.includes('매핑은 아직 0건입니다'), 'the start-up guidance must stop once mapping begins')
+
+  // (코드 없음) 판정도 목록에서 빠진다 — "봤고 불필요"와 "아직 안 봤다"의 구분.
+  fs.appendFileSync(path.join(target, '.harness/project/spec-map.md'), '\n| `operations/운영.md` | (코드 없음) | 운영 문서 |\n')
+  const exempted = specSyncCli(target, ['status'])
+  assert(!exempted.includes('operations/운영.md'), 'an exempted spec must not be listed as unimplemented')
+}
+
+// 0.2.103 백로그: 매핑되지 않은 문서의 화면이 기준에서 어긋나도 아무도 보지 않았다.
+function specStatusFlagsDocScreenBaselineMismatch() {
+  const { target } = setupSpecLinkedTarget()
+
+  // 기준에서 화면의 commit만 다른 값으로 바꾼다(문서와 화면이 다른 시점이 된 상태).
+  const lockPath = path.join(target, '.harness/spec-lock.json')
+  const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'))
+  lock.sources.planning.files['features/로그인.html'].commit = 'a'.repeat(40)
+  fs.writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`)
+
+  const out = expectFailure(() => specSyncCli(target, ['status']), 'a document/screen baseline mismatch must be reported')
+  assert(out.includes('문서와 화면의 기준이 어긋나'), 'the mismatch must be named')
+  assert(out.includes('features/로그인.html'), 'the screen should be named')
+
+  // 화면이 기준에서 통째로 빠진 경우도 잡는다.
+  const lock2 = JSON.parse(fs.readFileSync(lockPath, 'utf8'))
+  delete lock2.sources.planning.files['features/로그인.html']
+  fs.writeFileSync(lockPath, `${JSON.stringify(lock2, null, 2)}\n`)
+  const out2 = expectFailure(() => specSyncCli(target, ['status']), 'a screen missing from the baseline must be reported')
+  assert(out2.includes('기준에 없습니다'), 'the missing screen must be named')
+}
+
 // 재리뷰 P1-1: 과거 성공 상태가 남아 있어도 "이번 실행"이 실패했으면 실패로 보고해야 한다.
 // 과거 결과를 재사용하면 "최신 확인 못함" 경고가 사라져 옛 기준으로 구현하게 된다.
 function specFreshnessFailureIsNotMaskedByPastSuccess() {
@@ -5102,6 +5158,8 @@ const tests = [
   specSettleRefusesSwappedCacheOrigin,
   specSettleRefusesWhenDeclarationDrifted,
   specLockOnlyAndGlobalFailureAreSurfaced,
+  specStatusGuidesMappingAtStart,
+  specStatusFlagsDocScreenBaselineMismatch,
   specGateAllowsMapCleanupForDeletedSpec,
   specGateResolvesBaseForNewBranch,
   specLatestPruneKeepsRecordAndFilesInSync,
