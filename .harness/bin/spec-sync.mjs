@@ -1239,6 +1239,31 @@ export function analyzeMappingCoverage(addedFiles, entries, exemptions) {
     .sort()
 }
 
+// gate 전용 강한 커버리지(0.2.105): 이번 push의 **구현 파일 전부**가 매핑 또는 판정을 가져야 한다.
+//
+// 위의 관리영역 축소판은 advisory용 잡음 방지다(score-print P4 — 전체를 세면 유틸·설정이 신호를
+// 묻는다). 그런데 그 축소가 gate에서는 우회가 됐다: 매핑이 0건이거나 **기존 매핑 영역 밖**에
+// 새 코드를 만들면 검사 자체가 없었다(5차 리뷰 P1-1 — "시작을 알려주는 것"까지만 있고
+// "시작 매핑을 반드시 남기게 하는 것"이 없었다). gate는 팀이 준비됐다고 선언한 모드이므로
+// 전수 판정을 요구하고, `(사양 없음)` 디렉터리 판정이 잡음 밸브가 된다(한 번 판정하면 끝).
+const NON_IMPLEMENTATION_PREFIXES = ['.harness/', '.githooks/', '.github/', '.claude/', '.codex/', '.vscode/', '.idea/', 'node_modules/', 'dist/', 'build/', 'coverage/']
+
+export function analyzeMappingCoverageStrict(changedFiles, entries, exemptions) {
+  const isMeta = (filePath) => (
+    NON_IMPLEMENTATION_PREFIXES.some((prefix) => filePath.startsWith(prefix))
+    || filePath.toLowerCase().endsWith('.md')
+    || !filePath.includes('/') // 루트 단일 파일(package.json, vite.config.* 등)은 구현 파일이 아니다
+  )
+  const isExempt = (filePath) => exemptions.codePaths.some((mapPath) => codePathMatches(filePath, mapPath))
+  const isMapped = (filePath) => entries.some((entry) => entry.codePaths.some((mapPath) => codePathMatches(filePath, mapPath)))
+
+  return changedFiles
+    .filter((filePath) => !isMeta(filePath))
+    .filter((filePath) => !isMapped(filePath))
+    .filter((filePath) => !isExempt(filePath))
+    .sort()
+}
+
 // git이 비ASCII 경로를 "..." octal로 감싸 출력하는 것(core.quotePath 기본값)을 실제 경로로 되돌린다.
 export function decodeGitPath(filePath) {
   if (!filePath) return filePath

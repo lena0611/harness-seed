@@ -22,7 +22,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  analyzeMappingCoverage,
+  analyzeMappingCoverageStrict,
+  codePathMatches,
   fetchLatestCommit,
   materializeLatest,
   findDeclarationLockIssues,
@@ -133,12 +134,32 @@ function showAtBase(baseSha, rel) {
   }
 }
 
+// spec 행 단위가 아니라 **{spec, 구현경로} 쌍 단위**로 합친다(5차 리뷰 P1-2).
+// 행 존재만 비교하면, 행은 남기고 구현 경로만 갈아끼우는 것으로 base 경로가 합집합에서 빠져
+// 그 경로의 코드 변경이 drift 검사 범위 밖이 됐다.
 function mergeMapEntries(base, tip) {
-  const merged = [...tip]
-  for (const entry of base) {
-    if (!merged.some((item) => item.spec === entry.spec)) merged.push(entry)
+  const merged = new Map()
+  for (const entry of [...tip, ...base]) {
+    const existing = merged.get(entry.spec)
+    if (!existing) {
+      merged.set(entry.spec, { ...entry, codePaths: [...entry.codePaths] })
+      continue
+    }
+    for (const codePath of entry.codePaths) {
+      if (!existing.codePaths.includes(codePath)) existing.codePaths.push(codePath)
+    }
   }
-  return merged
+  return [...merged.values()]
+}
+
+// push되는 tip의 전체 파일 목록(경로 축소가 "살아 있는 코드"를 버리는지 판정하는 근거).
+const tipFilesCache = new Map()
+function listFilesAtTip(localSha) {
+  if (!tipFilesCache.has(localSha)) {
+    tipFilesCache.set(localSha, runGit(['ls-tree', '-r', '--name-only', localSha])
+      .split('\n').map((line) => decodeGitPath(line.trim())).filter(Boolean))
+  }
+  return tipFilesCache.get(localSha)
 }
 
 function parseJsonStrict(text, label) {
@@ -412,19 +433,32 @@ function evaluateRef({ localSha, remoteRef, remoteSha, remoteName, fetchedBySour
   const baseEntries = parseSpecMapText(showAtBase(baseSha, SNAPSHOT_PATHS.map) ?? '')
   const entries = mergeMapEntries(baseEntries, tipEntries)
 
-  // 단, **기준에서 이미 사라진 문서**의 행을 정리하는 것은 정상 절차다(삭제 정산 후 뒷정리).
-  // 이걸 막으면 기획 폐기 → settle → 매핑 정리라는 정규 흐름이 push에서 걸린다(자체 검토).
-  // 살아 있는 사양의 매핑을 지우는 것만 self-disable로 본다.
+  const exemptions = parseSpecMapExemptions(mapText ?? '')
+
+  // 행 제거든 경로 축소든, base에 있던 {spec, 구현경로} 쌍이 tip에서 빠졌다면 같은 질문을 한다:
+  // 그 경로의 코드가 아직 살아 있고 다른 매핑·판정도 없는가? 그렇다면 그 코드는 이 push가
+  // 통과한 순간부터 어떤 기획 drift 검사에도 걸리지 않는다(5차 리뷰 P1-2 — 행은 남기고
+  // 경로만 좁히는 우회 실증). 반대로 코드가 실제로 삭제·이전됐거나, 사양 자체가 정산으로
+  // 기준에서 사라졌거나, 다른 매핑·(사양 없음) 판정이 받으면 정상 정리다.
   const stillLocked = (spec) => Object.values(lock.sources).some((recorded) => recorded?.files?.[spec])
-  const removedMappings = baseEntries
-    .filter((base) => !tipEntries.some((tip) => tip.spec === base.spec))
-    .filter((base) => stillLocked(base.spec))
-  if (removedMappings.length > 0) {
-    result.blockedReasons.push(
-      ...removedMappings.map((entry) => `매핑 제거: ${entry.spec} 행이 이번 push에서 사라졌습니다(기준에는 아직 살아 있는 사양입니다) — 복원하거나, 대상이 아니라면 (사양 없음) 판정으로 남기세요.`),
-    )
+  const tipFiles = listFilesAtTip(localSha)
+  const coveredAtTip = (filePath) => (
+    tipEntries.some((entry) => entry.codePaths.some((mapPath) => codePathMatches(filePath, mapPath)))
+    || exemptions.codePaths.some((mapPath) => codePathMatches(filePath, mapPath))
+  )
+  for (const baseEntry of baseEntries) {
+    if (!stillLocked(baseEntry.spec)) continue // 정산으로 사라진 사양의 뒷정리
+    const tipEntry = tipEntries.find((item) => item.spec === baseEntry.spec)
+    const removedPaths = baseEntry.codePaths.filter((codePath) => !(tipEntry?.codePaths ?? []).includes(codePath))
+    for (const codePath of removedPaths) {
+      const live = tipFiles.filter((filePath) => codePathMatches(filePath, codePath))
+      if (live.length === 0) continue // 코드가 실제로 삭제·이전됨
+      if (live.every(coveredAtTip)) continue // 다른 매핑 또는 (사양 없음) 판정이 받음
+      result.blockedReasons.push(tipEntry
+        ? `매핑 축소: ${baseEntry.spec}의 구현 경로 ${codePath} 가 이번 push에서 빠졌는데, 그 경로의 코드가 살아 있고 다른 매핑·판정도 없습니다 — 복원하거나 (사양 없음) 판정을 남기세요.`
+        : `매핑 제거: ${baseEntry.spec} 행이 이번 push에서 사라졌습니다(기준에는 아직 살아 있는 사양입니다) — 복원하거나, 대상이 아니라면 (사양 없음) 판정으로 남기세요.`)
+    }
   }
-  if (entries.length === 0) return result
 
   // 매핑된 대표 문서가 기준(lock)에서 사라지면 그 문서는 어떤 검사에도 안 걸린다(4차 리뷰 P1-3-B).
   // schema는 정상이므로 lock schema 검증으로는 못 잡는다 — 매핑↔기준 대응을 직접 본다.
@@ -435,17 +469,19 @@ function evaluateRef({ localSha, remoteRef, remoteSha, remoteName, fetchedBySour
     }
   }
 
-  // 3) 매핑 커버리지: 이미 매핑된 영역에 새 파일이 들어왔는데 매핑도 판정도 없으면 차단한다.
-  // 매핑 기록 누락은 "그 코드가 앞으로 어떤 게이트에도 안 걸리는" 사각지대를 만들기 때문에,
-  // 문서 규칙이 아니라 실행 게이트로 막는다(0.2.101).
-  const exemptions = parseSpecMapExemptions(mapText ?? '')
-  const uncovered = analyzeMappingCoverage(collectAddedOrModifiedFiles(localSha, remoteSha, remoteName), entries, exemptions)
+  // 3) 매핑 커버리지 — gate는 **전수 판정**이다(5차 리뷰 P1-1). 이번 push에서 추가·수정된
+  // 구현 파일은 매핑 또는 (사양 없음) 판정 중 하나를 반드시 가져야 한다. 매핑이 0건이어도,
+  // 기존 매핑 영역 밖이어도 예외가 아니다 — 관리영역 축소판은 advisory(커밋 안내)에만 쓴다.
+  // 매핑 기록 누락은 "그 코드가 앞으로 어떤 게이트에도 안 걸리는" 사각지대를 만든다(0.2.101).
+  const uncovered = analyzeMappingCoverageStrict(collectAddedOrModifiedFiles(localSha, remoteSha, remoteName), entries, exemptions)
   if (uncovered.length > 0) {
     result.uncovered = uncovered
     result.blockedReasons.push(
-      ...uncovered.map((filePath) => `매핑 누락: ${filePath} — 매핑된 영역에 새로 추가됐는데 spec-map에 기록이 없습니다.`),
+      ...uncovered.map((filePath) => `매핑 누락: ${filePath} — 구현 파일인데 spec-map에 매핑도 (사양 없음) 판정도 없습니다.`),
     )
   }
+
+  if (entries.length === 0) return result
 
   // 4) push 범위 → 매핑된 문서 스코프.
   const changedFiles = collectChangedFiles(localSha, remoteSha, remoteName)

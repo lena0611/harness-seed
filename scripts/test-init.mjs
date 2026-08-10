@@ -3554,18 +3554,32 @@ function specMappingCoverageRespectsExemptionsAndScope() {
   fs.mkdirSync(path.join(target, 'src/utils'), { recursive: true })
   fs.writeFileSync(path.join(target, 'src/utils/date.js'), 'export const now = () => Date.now()\n')
 
+  // 커밋 advisory는 잡음 방지를 위해 관리 영역으로 좁힌다 — 영역 밖 파일은 안내하지 않는다.
   const advisory = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
   assert(!advisory.includes('Spinner.vue'), 'an exempted path must not be reported as a missing mapping')
-  assert(!advisory.includes('src/utils/date.js'), 'files outside mapped areas must not be reported (noise control)')
+  assert(!advisory.includes('src/utils/date.js'), 'commit advisory must not report files outside mapped areas (noise control)')
 
+  // gate는 전수 판정이다(5차 리뷰 P1-1) — 영역 밖 구현 파일도 매핑/판정 없이는 막힌다.
   gitCommitAll(target, 'add exempt and unrelated files')
   const localSha = run('git', ['rev-parse', 'HEAD'], { cwd: target }).trim()
   const remoteSha = run('git', ['rev-parse', 'origin/master'], { cwd: target }).trim()
+  const gateEnv = { ...process.env, HARNESS_PUSH_STDIN: `refs/heads/master ${localSha} refs/heads/master ${remoteSha}\n` }
+  const blocked = expectFailure(
+    () => run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], { cwd: target, env: gateEnv }),
+    'gate must block an implementation file outside mapped areas until it is judged',
+  )
+  assert(blocked.includes('src/utils/date.js'), 'the unjudged file should be named')
+  assert(!blocked.includes('Spinner.vue'), 'the exempted path must still pass in gate mode')
+
+  // (사양 없음) 판정을 남기면 통과한다 — 전수 판정의 잡음 밸브.
+  fs.appendFileSync(path.join(target, '.harness/project/spec-map.md'), '\n| (사양 없음) | `src/utils/**` | 유틸 — 기획 대상 아님 |\n')
+  gitCommitAll(target, 'judge utils')
+  const judgedSha = run('git', ['rev-parse', 'HEAD'], { cwd: target }).trim()
   const out = run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], {
     cwd: target,
-    env: { ...process.env, HARNESS_PUSH_STDIN: `refs/heads/master ${localSha} refs/heads/master ${remoteSha}\n` },
+    env: { ...process.env, HARNESS_PUSH_STDIN: `refs/heads/master ${judgedSha} refs/heads/master ${remoteSha}\n` },
   })
-  assert(!out.includes('매핑 누락'), 'gate must pass when new files are exempted or outside mapped areas')
+  assert(!out.includes('매핑 누락'), 'gate must pass once every implementation file is mapped or judged')
 }
 
 // 기획 본문 자동 수화(0.2.102): 기획 본문은 git 추적 대상이 아니라 pull만으로는 안 내려온다.
@@ -4739,6 +4753,138 @@ function specLatestPruneKeepsRecordAndFilesInSync() {
   }
 }
 
+// ── 5차 리뷰 P1-1: gate에서 매핑 0건 + 첫 구현 코드는 판정 없이 통과하면 안 된다 ──
+// 커버리지가 "이미 매핑된 영역" 기준이라 매핑 0건이면 검사 자체가 없었다 — 연동+gate+훅까지
+// 다 갖춰도 첫 기능 코드가 매핑 없이 push됐다.
+function specGateBlocksFirstImplementationWithoutMapping() {
+  const { target } = setupSpecLinkedTarget()
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+  ].join('\n'))
+  specTargetProfile(target, { specEnforcement: 'gate' })
+  gitCommitAll(target, 'baseline (매핑 0건)')
+  const remote = addOriginRemote(target)
+  pushWithoutHooks(target)
+  const remoteSha = run('git', ['rev-parse', 'origin/master'], { cwd: target }).trim()
+
+  // 첫 구현 코드 — 매핑도 판정도 없이 push 시도.
+  fs.mkdirSync(path.join(target, 'src/views/login'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/views/login/LoginView.vue'), '<template><div /></template>\n')
+  gitCommitAll(target, '첫 기능 구현')
+  const sha = run('git', ['rev-parse', 'HEAD'], { cwd: target }).trim()
+
+  const out = expectFailure(
+    () => run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], {
+      cwd: target,
+      env: { ...process.env, HARNESS_PUSH_STDIN: `refs/heads/master ${sha} refs/heads/master ${remoteSha}\n` },
+    }),
+    'the first implementation file must not pass the gate without a mapping or judgment',
+  )
+  assert(out.includes('src/views/login/LoginView.vue'), 'the unjudged implementation file should be named')
+  assert(out.includes('매핑 누락'), 'the reason should be the missing mapping/judgment')
+
+  // 매핑을 남기면 통과한다.
+  fs.appendFileSync(path.join(target, '.harness/project/spec-map.md'), '\n| `features/로그인.md` | `src/views/login/**` | |\n')
+  gitCommitAll(target, '매핑 기록')
+  const mappedSha = run('git', ['rev-parse', 'HEAD'], { cwd: target }).trim()
+  run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], {
+    cwd: target,
+    env: { ...process.env, HARNESS_PUSH_STDIN: `refs/heads/master ${mappedSha} refs/heads/master ${remoteSha}\n` },
+  })
+}
+
+// ── 5차 리뷰 P1-2: 같은 spec의 구현 경로 축소로 drift 검사를 우회할 수 없다 ──
+function specGateBlocksCodePathShrinkBypass() {
+  const { target, planning } = setupSpecLinkedTarget()
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/pay/**` | |',
+  ].join('\n'))
+  specTargetProfile(target, { specEnforcement: 'gate' })
+  fs.mkdirSync(path.join(target, 'src/pay'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/pay/PayView.vue'), '<template><div /></template>\n')
+  gitCommitAll(target, 'baseline')
+  const remote = addOriginRemote(target)
+  pushWithoutHooks(target)
+  const remoteSha = run('git', ['rev-parse', 'origin/master'], { cwd: target }).trim()
+
+  // 기획이 앞서 나간 상태에서, 행은 남기고 구현 경로만 갈아끼운 채 옛 경로의 코드를 수정한다.
+  fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 확인되지 않은 변경.\n')
+  gitCommitAll(planning, '기획 개정')
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/new-pay/**` | |',
+  ].join('\n'))
+  fs.mkdirSync(path.join(target, 'src/new-pay'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/new-pay/PayView.vue'), '<template><div /></template>\n')
+  fs.writeFileSync(path.join(target, 'src/pay/PayView.vue'), '<template><span /></template>\n')
+  gitCommitAll(target, '경로 축소 + 옛 경로 코드 변경')
+  const sha = run('git', ['rev-parse', 'HEAD'], { cwd: target }).trim()
+
+  const out = expectFailure(
+    () => run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], {
+      cwd: target,
+      env: { ...process.env, HARNESS_PUSH_STDIN: `refs/heads/master ${sha} refs/heads/master ${remoteSha}\n` },
+    }),
+    'shrinking a codePath while its code is alive must not bypass the gate',
+  )
+  assert(out.includes('매핑 축소') || out.includes('기획서 변경'), 'the shrink or the drift must be named')
+  assert(out.includes('src/pay/**') || out.includes('features/로그인.md'), 'the affected path or spec should be named')
+}
+
+// 정상 정리 흐름은 막지 않는다: 코드가 실제로 이전·삭제됐거나 (사양 없음) 판정으로 넘어간 경우.
+function specGateAllowsLegitimateCodePathCleanup() {
+  const { target } = setupSpecLinkedTarget()
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/pay/**` | |',
+  ].join('\n'))
+  specTargetProfile(target, { specEnforcement: 'gate' })
+  fs.mkdirSync(path.join(target, 'src/pay'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/pay/PayView.vue'), '<template><div /></template>\n')
+  gitCommitAll(target, 'baseline')
+  const remote = addOriginRemote(target)
+  pushWithoutHooks(target)
+  const remoteSha = run('git', ['rev-parse', 'origin/master'], { cwd: target }).trim()
+
+  // (a) 코드를 실제로 이전: 옛 경로 파일 삭제 + 새 경로로 이동 + 매핑 갱신 → 통과.
+  run('git', ['mv', 'src/pay/PayView.vue', 'src/pay-legacy-view.vue'], { cwd: target, stdio: ['ignore', 'pipe', 'pipe'] })
+  fs.rmSync(path.join(target, 'src/pay-legacy-view.vue'))
+  fs.mkdirSync(path.join(target, 'src/new-pay'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/new-pay/PayView.vue'), '<template><div /></template>\n')
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/new-pay/**` | 코드 이전 |',
+  ].join('\n'))
+  gitCommitAll(target, '코드 이전 + 매핑 갱신')
+  const movedSha = run('git', ['rev-parse', 'HEAD'], { cwd: target }).trim()
+  const movedOut = run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], {
+    cwd: target,
+    env: { ...process.env, HARNESS_PUSH_STDIN: `refs/heads/master ${movedSha} refs/heads/master ${remoteSha}\n` },
+  })
+  assert(!movedOut.includes('매핑 축소'), 'a genuine code move must not be reported as a mapping shrink')
+
+  // (b) 살아 있는 코드를 (사양 없음) 판정으로 넘기는 것도 정상 — 판정이 그 코드를 받는다.
+  run('git', ['reset', '--hard', 'origin/master'], { cwd: target, stdio: ['ignore', 'pipe', 'pipe'] })
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| (사양 없음) | `src/pay/**` | 기획 대상에서 제외 판정 |',
+  ].join('\n'))
+  gitCommitAll(target, '판정 전환')
+  const judgedSha = run('git', ['rev-parse', 'HEAD'], { cwd: target }).trim()
+  const judgedOut = run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], {
+    cwd: target,
+    env: { ...process.env, HARNESS_PUSH_STDIN: `refs/heads/master ${judgedSha} refs/heads/master ${remoteSha}\n` },
+  })
+  assert(!judgedOut.includes('매핑 축소') && !judgedOut.includes('매핑 제거'), 'moving live code under an explicit judgment must pass')
+}
+
 // ── 0.2.104: 도입 직후(매핑 0건)가 사각지대였다 ──
 // 매핑 커버리지는 "이미 매핑이 있는 영역"을 기준으로 도는 구조라, 매핑이 0건이면 아무 말도 하지 않았다.
 // 실제 도입 시점이 정확히 그 상태(기획은 다 있고 코드는 스캐폴딩)라 시작을 유도하는 곳이 없었다.
@@ -5158,6 +5304,9 @@ const tests = [
   specSettleRefusesSwappedCacheOrigin,
   specSettleRefusesWhenDeclarationDrifted,
   specLockOnlyAndGlobalFailureAreSurfaced,
+  specGateBlocksFirstImplementationWithoutMapping,
+  specGateBlocksCodePathShrinkBypass,
+  specGateAllowsLegitimateCodePathCleanup,
   specStatusGuidesMappingAtStart,
   specStatusFlagsDocScreenBaselineMismatch,
   specGateAllowsMapCleanupForDeletedSpec,
