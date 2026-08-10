@@ -1308,7 +1308,9 @@ export function screenIndexesFromCache(state) {
   return out
 }
 
-// "아직 구현되지 않은 기획" — 기준에는 있는데 매핑도 판정도 없는 문서.
+// "매핑되지 않은 기획" — 기준에는 있는데 매핑도 판정도 없는 문서.
+// 구현 여부는 하네스가 판정하지 않는다 — 스텁 폴더에 미리 매핑한 문서는 이 목록에서 빠지지만
+// 구현이 끝난 것이 아니다. 목록의 의미는 정확히 "알림 배선이 안 된 문서"다(0.2.108 라벨 정정).
 //
 // 도입 직후에는 이게 곧 할 일 목록이다. 매핑 커버리지 검사는 **이미 매핑이 있는 영역**을 기준으로
 // 도는 구조라 매핑이 0건이면 아무 말도 하지 않는다 — 정확히 시작 지점이 사각지대였다(0.2.104).
@@ -2880,7 +2882,7 @@ function runStatus() {
   console.log('')
   console.log(`매핑: ${state.entries.length}건 (${specMapRel})`)
 
-  // 도입 직후에는 "아직 구현되지 않은 기획"이 곧 할 일 목록이다.
+  // 도입 직후에는 "매핑되지 않은 기획"이 곧 할 일 목록이다.
   const screenIndexes = screenIndexesFromCache(state)
   const exemptions = readSpecMapExemptions()
   const unmapped = findUnmappedSpecs(state.lock, state.entries, exemptions, screenIndexes)
@@ -2893,7 +2895,7 @@ function runStatus() {
 
   if (unmapped.length > 0) {
     console.log('')
-    console.log(`아직 구현되지 않은 기획 (매핑 없음): ${unmapped.length}건`)
+    console.log(`매핑되지 않은 기획: ${unmapped.length}건 — 기획 변경 알림이 코드로 연결되지 않은 문서입니다`)
     for (const item of unmapped.slice(0, 15)) {
       console.log(`  - ${item.file}`)
     }

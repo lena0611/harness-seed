@@ -608,7 +608,7 @@ function printSpecLinkNotice(specLink) {
       console.log(`- 기획 ${unmapped.length}건이 연동됐고 매핑은 아직 0건입니다. 정상적인 시작 상태입니다.`)
       console.log('  기능을 만들면서 한 줄씩 채우면, 그때부터 그 기획이 바뀔 때 이 코드로 연결됩니다.')
     } else {
-      console.log(`- 아직 구현되지 않은 기획이 ${unmapped.length}건 있습니다(매핑 없음). 상세: npm run harness:spec:status`)
+      console.log(`- 매핑되지 않은 기획이 ${unmapped.length}건 있습니다 — 그 기획이 바뀌어도 알림이 코드로 연결되지 않습니다. 상세: npm run harness:spec:status`)
     }
     for (const item of unmapped.slice(0, 3)) {
       console.log(`  - ${item.file}`)

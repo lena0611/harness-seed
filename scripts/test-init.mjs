@@ -4920,7 +4920,8 @@ function specStatusGuidesMappingAtStart() {
   const status = specSyncCli(target, ['status'])
   assert(status.includes('매핑은 아직 0건입니다'), 'a freshly linked project must be told the empty mapping is normal')
   assert(status.includes('정상적인 시작 상태'), 'it must not read like an error')
-  assert(status.includes('아직 구현되지 않은 기획'), 'the unimplemented spec list must be shown')
+  assert(status.includes('매핑되지 않은 기획'), 'the unmapped spec list must be shown')
+  assert(!status.includes('구현되지 않은'), 'the label must not claim implementation status — the tool only knows mapping presence')
   assert(status.includes('features/로그인.md'), 'the spec doc should be listed')
   // 링크된 화면은 대표 문서로 매핑되므로 별도 매핑 대상이 아니다.
   assert(!status.includes('features/로그인.html'), 'a linked screen must not be listed as its own mapping target')
