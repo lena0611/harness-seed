@@ -36,7 +36,6 @@ const lockPath = path.join(harnessRoot, 'spec-lock.json')
 // 셋 다 generated 산출물이라 git 추적 대상이 아니며 지워도 재생성된다.
 const generatedRoot = path.join(harnessRoot, 'generated')
 const cacheRoot = path.join(generatedRoot, 'spec-cache')
-const latestRoot = path.join(generatedRoot, 'spec-latest')
 const specMapRel = '.harness/project/spec-map.md'
 
 const args = process.argv.slice(2)
@@ -557,10 +556,6 @@ export function screenIndexAtCommit(dir, commit, files, extensions) {
   return buildScreenIndex(files, (rel) => gitShowText(dir, commit, rel), extensions)
 }
 
-function selectSpecFiles(sourceDir, source) {
-  return selectSpecFilesBySelector(sourceDir, normalizeSelector(source))
-}
-
 function runGit(argsToRun, cwd, options = {}) {
   return execFileSync('git', argsToRun, {
     cwd,
@@ -885,7 +880,7 @@ export function fetchLatestCommit(source, options = {}) {
 
 // 사람이 읽을 최신 본문을 spec-latest에 꺼낸다. 어느 commit의 어떤 내용을 읽었는지 manifest에 남겨,
 // settle이 "실행 시점의 원격 최신"이 아니라 "실제로 검토한 스냅샷"만 정산하도록 만든다(리뷰 P1-1).
-export function materializeLatest(source, commit, relPaths, dir, { deletedPaths = [], lockedFiles = null, manifest = null } = {}) {
+export function materializeLatest(source, commit, relPaths, dir, { deletedPaths = [], lockedFiles = null } = {}) {
   const entries = {}
   const staged = []
 
@@ -1032,22 +1027,6 @@ function dropLatestSnapshots(manifest, rels) {
   }
 }
 
-function pruneEmptyDirs(root) {
-  const walk = (dir) => {
-    let entries
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.isSymbolicLink()) continue
-      walk(path.join(dir, entry.name))
-    }
-    if (dir !== root && fs.readdirSync(dir).length === 0) fs.rmdirSync(dir)
-  }
-  walk(root)
-}
 
 function latestDirFor(sourceId, options) {
   return storageDirFor('spec-latest', sourceId, options)
@@ -2274,7 +2253,7 @@ export function checkSpecFreshness({ timeoutMs = 6000, ttlMinutes = 10 } = {}) {
     added,
     removed,
   }
-  writeHydrationStatus({ ...(previous ?? {}), freshness })
+  writeHydrationStatus({ ...previous, freshness })
   return freshness
 }
 
@@ -2800,8 +2779,6 @@ function runStatus() {
     process.exitCode = 1
     return
   }
-
-  const diff = state.diff
 
   console.log('기획 문서 연동 상태')
   console.log('')

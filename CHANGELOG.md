@@ -4,6 +4,15 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.106 - 2026-08-10
+
+> 첫 정규 소비자(multisite)의 `harness:update`가 실전에서 잡은 결함입니다. 소비자 프로젝트의 자체 lint(oxlint)가 `.harness/bin`까지 스캔하는데, 하네스 코드에 남아 있던 죽은 선언들이 error로 걸려 **업데이트 검증이 실패**했습니다.
+
+- 리팩터링 잔재 제거: 안 쓰는 변수·함수·매개변수 6건(`latestRoot`, `selectSpecFiles`, `pruneEmptyDirs`, `materializeLatest`의 manifest 매개변수, `runStatus`의 diff, 게이트의 remoteRef 매개변수) — 대부분 0.2.103~105 리팩터링에서 호출부만 지우고 선언을 남긴 것들입니다.
+- 같은 규칙의 warning 3건(불필요한 spread fallback)도 정리해 `.harness/bin` 전체가 oxlint 무경고입니다.
+- 동작 변화 없음. 회귀 167종 그대로 통과합니다.
+- 교훈: **소비자의 lint 설정도 하네스 코드의 실행 표면이다.** 소비자가 `.harness`를 lint 대상에서 빼주길 기대하지 않고, 하네스 코드가 통과하게 유지합니다.
+
 ## 0.2.105 - 2026-08-10
 
 > 외부 리뷰(5차)가 지적한 gate 우회 2건을 막습니다. "연동 후 평소처럼 코딩만 해도 기획 반영이 강제된다"는 운영 목표의 마지막 구멍이었습니다.

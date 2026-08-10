@@ -232,12 +232,12 @@ function selectGitRef(harness, opts) {
 function hydrateHarness(harness, fallbackSource = {}) {
   const source = {
     ...fallbackSource,
-    ...(harness?.source ?? {}),
+    ...harness?.source,
   }
   const parsed = parseSourceSpec(source.spec)
 
   return {
-    ...(harness ?? {}),
+    ...harness,
     repo: harness?.repo ?? source.repo ?? parsed.repo ?? null,
     ref: harness?.ref ?? source.ref ?? parsed.ref ?? null,
     source,

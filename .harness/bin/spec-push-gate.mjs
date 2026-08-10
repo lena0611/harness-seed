@@ -245,7 +245,7 @@ function main() {
 
     let verdict
     try {
-      verdict = evaluateRef({ localSha, remoteRef, remoteSha, remoteName, fetchedBySource })
+      verdict = evaluateRef({ localSha, remoteSha, remoteName, fetchedBySource })
     } catch (error) {
       // 로컬 git 계산/스냅샷 해석 실패는 fail-closed — 판정 불가 상태로 통과시키지 않는다.
       blocked.push({ ref: remoteRef ?? localSha.slice(0, 10), reasons: [`판정 실패: ${String(error.message ?? error)}`], configError: true })
@@ -362,7 +362,7 @@ function materializeBlockedDocs(blocked, fetchedBySource) {
   return paths
 }
 
-function evaluateRef({ localSha, remoteRef, remoteSha, remoteName, fetchedBySource }) {
+function evaluateRef({ localSha, remoteSha, remoteName, fetchedBySource }) {
   const result = { blockedReasons: [], drift: [], uncovered: [], checkedDocs: 0, failOpenNote: null }
 
   // 1) enforcement — push tip의 profile 기준. 부재/advisory는 무동작, 오값·파싱 실패는 차단.
