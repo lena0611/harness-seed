@@ -123,3 +123,9 @@ consumer code repo
 - high-risk spec의 blocking 검증
 - acceptance criteria와 테스트 결과 연결
 - LLM 기반 spec 준수 리뷰 단계
+
+## 재선언 레지스트리 (백로그 — 첫 실사용 재선언이 나오면 착수)
+
+- 배경: 프로젝트가 스택·템플릿 기준을 뒤집는 것은 계층 모델상 정당하지만, `harness:scan`은 의미적 충돌을 감지하지 못한다(2026-08-10 실측). 현재 방어는 재선언 관례(standards-layers.md)의 co-location 포인터뿐이다.
+- 안: `waivers.json`에 `overrides: [{layer, rule, replacedBy, reason, decidedAt}]` 형식으로 재선언을 명시 등록하게 하고, **작업 시작 컨텍스트(build-context)가 이 목록을 주입**한다. scan 리포트 표시는 부차 — 에이전트가 스택 문서를 읽기 전에 "이 프로젝트가 뒤집은 규칙"을 먼저 알게 하는 것이 실효 지점이다.
+- 착수 조건: 실제 프로젝트에서 스택 기준 재선언이 처음 나올 때. 그 사례로 포맷을 검증한다(실습 실물: practice/spec-linkage-test의 컴포넌트 배치 재선언).
