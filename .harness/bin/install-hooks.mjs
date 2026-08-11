@@ -169,3 +169,30 @@ if (!hasNvm()) {
     console.log('  - .nvmrc 없음: hook은 PATH 기본 Node가 낮으면 nvm 설치본(>=20.19)으로 자동 전환합니다.')
   }
 }
+
+// 기획 본문 준비(0.2.112): clone 직후의 구멍을 여기서 닫는다.
+//
+// 기획 본문은 코드 저장소에 vendoring하지 않으므로 clone에는 없다. post-merge 훅이 pull 경로를
+// 덮지만 **clone은 merge가 아니라 그 훅이 돌지 않고**, 그 시점엔 훅이 설치조차 안 돼 있다.
+// 결과적으로 "아직 안 받은 것"이 "기획서가 없는 것"처럼 보이는 구간이 생긴다 — post-merge 훅을
+// 만들 때 문제로 규정했던 바로 그 상황이고, clone 경로만 비어 있었다.
+//
+// 훅 설치는 클론 직후 누구나 거치는 유일한 필수 단계라 여기가 그 자리다.
+// post-merge와 같은 fail-open 성질: 실패해도 훅 설치는 성공이다(오프라인·권한 없음이 설치를 막지 않는다).
+if (exists('.harness/spec-lock.json')) {
+  console.log('')
+  console.log('기획 본문 준비:')
+  try {
+    execFileSync(process.execPath, [path.join(repoRoot, '.harness/bin/spec-sync.mjs'), 'hydrate', '--timeout-ms', '15000'], {
+      cwd: repoRoot,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: 'utf8',
+    })
+    console.log('  - 기준 시점(spec-lock)의 기획 본문을 준비했습니다.')
+  } catch (error) {
+    const detail = String(error?.stderr ?? error?.message ?? '').trim().split('\n')[0]
+    console.warn(`  - 준비하지 못했습니다${detail ? `: ${detail}` : '.'}`)
+    console.warn('    훅 설치는 정상 완료됐습니다. 기획 저장소 접근 권한과 네트워크를 확인하세요.')
+    console.warn('    재시도: npm run harness:spec:fetch -- --at-lock')
+  }
+}

@@ -2886,6 +2886,31 @@ function setupSpecLinkedTarget() {
   return { target, planning }
 }
 
+// clone 직후 구멍(0.2.112): 기획 본문은 코드 저장소에 없고, post-merge는 clone에서 돌지 않는다.
+// 그 시점에 훅은 설치조차 안 돼 있으니 "아직 안 받은 것"이 "기획서가 없는 것"처럼 보인다.
+// 훅 설치가 클론 직후 누구나 거치는 유일한 필수 단계라 거기서 본문을 채운다.
+function hooksInstallHydratesSpecBodiesForFreshClone() {
+  const { target } = setupSpecLinkedTarget()
+
+  // clone 직후 상태 재현: 기준(lock)은 커밋돼 있지만 생성물은 없다.
+  fs.rmSync(path.join(target, '.harness/generated'), { recursive: true, force: true })
+  assert(!exists(target, '.harness/generated/spec-cache'), 'fresh clone must start without spec bodies (precondition)')
+
+  const output = run('npm', ['run', '--silent', 'hooks:install'], { cwd: target })
+
+  assert(output.includes('기획 본문 준비'), 'hooks:install should report that it prepares spec bodies')
+  assert(exists(target, '.harness/generated/spec-cache'), 'hooks:install must leave the spec bodies ready to read')
+}
+
+// 기획 문서를 쓰지 않는 프로젝트에서 훅 설치가 무거워지거나 시끄러워지면 안 된다.
+function hooksInstallStaysQuietWithoutSpecLink() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const output = run('npm', ['run', '--silent', 'hooks:install'], { cwd: target })
+  assert(!output.includes('기획 본문 준비'), 'a project without spec linkage must not see spec output at hook install')
+}
+
 function specSyncFetchRecordsLockAndDetectsChanges() {
   const { target, planning } = setupSpecLinkedTarget()
 
@@ -5433,6 +5458,8 @@ const tests = [
   guardNudgesDecisionLogArchiveWhenOversizedAndTouched,
   promotionReminderAsksExecutableGuardBranch,
   guardExplainsMissingNodeModulesInsteadOfRawToolError,
+  hooksInstallHydratesSpecBodiesForFreshClone,
+  hooksInstallStaysQuietWithoutSpecLink,
   specSyncFetchRecordsLockAndDetectsChanges,
   buildContextInjectsRelatedSpecs,
   contextClassifiesPlainKoreanDevelopmentRequest,
