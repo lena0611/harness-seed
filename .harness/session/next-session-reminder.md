@@ -2,7 +2,14 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
-## 마지막 세션 마감 상태 (2026-08-10)
+## 마지막 세션 마감 상태 (2026-08-11)
+- **0.2.110 배포 완료(`90ffd22` 양원격+태그 `v0.2.110`)** — 동반 범프 **스택 v0.2.16** · **템플릿 v0.2.15**, version-net all-ok, Policy Guard success. 0.2.109 후속 정정: `.harness/**`를 제외해 놓고 Node globals override를 요구하던 안내 제거(멀티사이트 실측 발견).
+- **0.2.109 배포 완료(`ac87eab` 양원격+태그 `v0.2.109`)** — 동반 범프 **스택 v0.2.15** · **템플릿 v0.2.14**. 회귀 173종. **소비자 lint가 하네스 코드를 자동수정해 업데이트를 영구 차단하던 사고**의 3종 대응: ① init이 `.harness/**`를 eslint(.js/.mjs/.cjs/.ts/.mts)·`.oxlintrc.json`·`.prettierignore`에서 제외 ② `harness:check`가 managed sha 대조로 **결과를 상시 감지**(원인 무관 백스톱) ③ `--resync-managed`로 managed만 복구(`--force`는 spec-map.md 등 소비자 산출물까지 덮으므로 복구용으로 안내 금지). 상세 decision-log 결정 69~71.
+- ⚠️ **릴리스 절차 변경(0.2.109)**: **태그는 레지스트리 동반 범프까지 끝낸 마지막 커밋에 찍는다.** 종전 순서는 태그가 항상 한 세대 앞서 찍혀 신규 설치가 낡은 스택 ref를 받았다(v0.2.108 태그 → 스택 v0.2.13, 실제는 v0.2.14). body-release-checklist 4·6단계 개정 완료.
+- **멀티사이트 상태**: `6726076`(origin/dev) — 하네스 0.2.110 + 스택 0.2.16. 어제 발견한 동결 10건은 복구 완료했고, 0.2.109/0.2.110 업데이트에서 **106개 managed 파일 전부 갱신·동결 0건**으로 실물 확인됨. `.harness/**`가 eslint·oxlint·prettier 모두에서 제외됨. 기획 문서 연동은 advisory 유지, 매핑 9행 + 의도적 미매핑 3건.
+- **CLI(`ai-standard-cli`)는 0.2.108~0.2.110 반영 보류 중** — 다음 consumer-facing 릴리스에서 base ref를 한 번에 올릴 것.
+
+## 이전 세션 마감 상태 (2026-08-10)
 - **0.2.105 배포 완료(2026-08-10, `25c3abc` 양원격+태그 `v0.2.105`)** — 동반 범프: **스택 v0.2.11**(`51f62cc`) · **템플릿 v0.2.10**(`63552fe`) · **CLI 0.2.14**(`10d62a9`). 5차 리뷰 P1 2건: **gate 전수 판정**(매핑 0건·영역 밖도 push의 구현 파일 전부에 매핑/판정 요구, advisory는 종전대로 관리 영역만 — 채널별 스코프 분리) + **{문서, 구현경로} 쌍 단위 합집합**(경로 갈아끼우기 우회 차단, 정상 정리는 통과). 회귀 167종. 상세 decision-log 결정 64~65. **온보딩은 이 버전으로 진행할 것.**
 - ✅ **기획 저장소 이전 완료(인프라팀, 2026-08-10)**: `policies/planning/multisite`(HEAD `7494c83`) · `policies/planning/planning-example`(HEAD `1008131`) 실측 확인. 옛 경로는 GitLab 리다이렉트로 아직 동작하나 신규 참조는 반드시 새 경로로. **기획팀이 md+html을 넣는 중** — 2026-08-10 확인 시점에는 master에 아직 미반영(브랜치도 없음, 작성 중이거나 push 전).
 - ▶ **[대기 중] 멀티사이트 온보딩 — 사용자가 기획팀 업로드 완료 노티를 받으면 실행**: ① `~/project/multisite`에서 `harness:update`(0.2.104) ② `/기획문서연동` — 주소는 **`https://git.smartscore.kr/ai-standard/policies/planning/multisite`**(새 경로!) ③ 매핑 초안 확인 ④ spec-sources/spec-lock/spec-map 커밋+push ⑤ 개발리더에게 안내문(이 세션에서 확정한 최종본 — 리더는 pull만, 전원 각자 hooks:install) 전달. **이 흐름을 사용자가 개시하면 multisite hands-off 금지는 그 작업 범위에서 해제**(에이전트 메모리에도 기록됨).
