@@ -3840,7 +3840,10 @@ function specContextSurfacesChangedAndNewPlanningDocs() {
   assert(context.includes('features/로그인.md'), 'the changed doc should be named')
 
   const newDocContext = run(nodeBin, [path.join(target, '.harness/bin/build-context.mjs'), '--stdout', '포인트지급 기능 개발'], { cwd: target })
-  assert(newDocContext.includes('새로 올라온 기획 문서'), 'a newly pushed planning doc must be discoverable before it enters the lock')
+  // 라벨은 '기준' 축으로만 말한다(0.2.113). '새로 올라온'은 기획팀의 행위를 주장하지만,
+  // 하네스가 아는 것은 '우리 lock에 없다'뿐이다 — 예전 문서가 편입에서 빠진 경우도 같은 상태다.
+  assert(newDocContext.includes('기준에 없는 기획 문서'), 'a doc outside the baseline must be discoverable before it enters the lock')
+  assert(!newDocContext.includes('새로 올라온'), 'the label must not claim the planning team just uploaded it')
   assert(newDocContext.includes('features/포인트지급.md'), 'the new doc should be named')
   assert(!newDocContext.includes('매칭되는 기획 문서를 찾지 못했습니다'), 'a relevant new doc must not be reported as "no related spec"')
 

@@ -1829,7 +1829,7 @@ function runCacheOnly(state, { explicitFlag }) {
       console.log('  기준 시점과 차이가 없습니다.')
       continue
     }
-    console.log(`  기준 대비 미정산: 변경 ${summary.changed.length} / 추가 ${summary.added.length} / 삭제 ${summary.removed.length}`)
+    console.log(`  기준 대비 미정산: 변경 ${summary.changed.length} / 기준에 없음 ${summary.added.length} / 삭제 ${summary.removed.length}`)
     for (const rel of [...summary.changed, ...summary.added].slice(0, 10)) {
       console.log(`    - ${rel}`)
     }
@@ -1885,7 +1885,7 @@ function runMoveBaseline(state) {
       console.log('  이 소스의 최초 기준입니다.')
       continue
     }
-    console.log(`  변경 ${summary.changed.length} / 추가 ${summary.added.length} / 삭제 ${summary.removed.length}`)
+    console.log(`  변경 ${summary.changed.length} / 기준에 없음 ${summary.added.length} / 삭제 ${summary.removed.length}`)
     for (const rel of [...summary.changed, ...summary.added].slice(0, 10)) {
       console.log(`    - ${rel}`)
     }
@@ -2984,7 +2984,7 @@ function main() {
       console.log(`최신 기획 확인 실패(${freshness.reason ?? '알 수 없음'}) — 팀 기준(lock) 문서로 진행합니다.`)
       return
     }
-    console.log(`최신 기획 확인 완료: 변경 ${freshness.changed.length} / 신규 ${freshness.added.length} / 삭제 ${freshness.removed.length}`)
+    console.log(`최신 기획 확인 완료: 변경 ${freshness.changed.length} / 기준에 없음 ${freshness.added.length} / 삭제 ${freshness.removed.length}`)
     for (const item of [...freshness.changed, ...freshness.added].slice(0, 10)) {
       console.log(`  - ${item.file}`)
     }
