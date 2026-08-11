@@ -4,6 +4,10 @@
 
 `CHANGELOG.md`는 하네스 본체 변경 이력입니다. 설치된 소비자 프로젝트의 판단 기록은 `.harness/session/decision-log.md`에 남깁니다.
 
+## 0.2.110 - 2026-08-11
+
+- **0.2.109 후속 정정**: `.harness/**`를 lint에서 제외한 설정에 대해 init이 여전히 "Node scripts override 수동 확인 필요"라고 안내하던 것을 고쳤습니다. 제외했으면 하네스 파일은 린트되지 않으므로 그 override는 죽은 설정입니다. 이미 있는 override는 그대로 둡니다(무해). guard 쪽은 0.2.109에서 이미 같은 판정을 하고 있었고, init만 어긋나 있었습니다. 실측 발견: multisite 0.2.109 업데이트.
+
 ## 0.2.109 - 2026-08-11
 
 - **하네스 코드를 소비자 lint 표면에서 뺍니다.** `.harness/`는 소비자가 소유하지 않는 본체 코드입니다(고치면 manifest sha가 어긋나 이후 업데이트에서 제외됩니다). 0.2.108까지는 Node globals override만 넣어 "린트해도 에러는 안 나는" 상태로 뒀는데, 그게 오히려 import-sort 같은 자동수정에 열어주는 반쪽 보호였습니다. 이제 init이 **eslint(.js/.mjs/.cjs/.ts/.mts 전부 인식) globalIgnores, `.oxlintrc.json` ignorePatterns, `.prettierignore`** 에 `.harness/**`를 넣습니다. 기존 항목의 따옴표 스타일을 따라갑니다.

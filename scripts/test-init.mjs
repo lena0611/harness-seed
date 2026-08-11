@@ -623,12 +623,13 @@ export default defineConfig([
   const output = runInit(target, '--no-scan', '--no-check')
   const config = read(target, 'eslint.config.js')
 
-  assert(output.includes('eslint config: eslint.config.js .harness lint 제외, Node scripts override 추가'), 'init should report eslint harness config patch')
+  assert(output.includes('eslint config: eslint.config.js .harness lint 제외 추가'), 'init should report eslint harness config patch')
   assert(config.includes("'**/.harness-backup/**'"), 'init should add harness backup ignore')
   // 0.2.109: 하네스 코드를 소비자 lint 표면에서 뺀다. Node globals override만으로는 자동수정을 못 막는다.
   assert(config.includes("'.harness/**'"), 'init must exclude .harness from lint entirely')
-  assert(config.includes("files: ['.harness/bin/**/*.mjs']"), 'init should add harness bin mjs override')
-  assert(config.includes('...globals.node'), 'init should add node globals')
+  // 0.2.110: 제외했으면 Node globals override는 죽은 설정이다. 소비자 설정에 쓰레기를 남기지 않는다.
+  assert(!config.includes("files: ['.harness/bin/**/*.mjs']"), 'an excluded .harness must not also get a node globals override')
+  assert(!config.includes('...globals.node'), 'no dead node-globals config once the directory is excluded')
 }
 
 function initAddsHarnessBackupIgnoreWhenNodeOverrideExists() {
@@ -1902,6 +1903,10 @@ export default defineConfig([
 
   assert(exists(target, '.prettierignore'), 'a prettier-configured project without .prettierignore must get one')
   assert(read(target, '.prettierignore').includes('.harness/'), 'prettier must not reformat harness code')
+
+  // 제외해 놓고 Node globals override를 요구하면, 소비자는 죽은 설정을 넣게 된다.
+  const output = runInit(target, '--no-scan', '--no-check')
+  assert(!output.includes('Node scripts override'), 'an excluded .harness needs no node globals override — do not ask for dead config')
 }
 
 // 원인이 아니라 결과를 검사하는 백스톱: 무엇이 고쳤든 managed 파일이 기록과 다르면 알린다.

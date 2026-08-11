@@ -1976,7 +1976,11 @@ function patchEslintConfigForHarness(target, opts) {
     }
   }
 
-  if (hasNodeScriptsOverride(next)) {
+  // .harness/**를 통째로 제외했으면 하네스 파일은 린트되지 않으므로 Node globals override는 죽은 설정이다.
+  // 이걸 보지 않으면 "제외했는데도 override를 넣으라"는 틀린 안내가 나간다(0.2.109 실측: multisite).
+  if (hasHarnessLintIgnore(next)) {
+    // 이미 있으면 그대로 둔다(무해). 없으면 요구하지 않는다.
+  } else if (hasNodeScriptsOverride(next)) {
     already.push('Node scripts override');
   } else if (!hasGlobalsImport(next)) {
     manual.push('Node scripts override');
