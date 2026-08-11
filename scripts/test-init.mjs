@@ -2926,6 +2926,21 @@ function buildContextInjectsRelatedSpecs() {
   assert(out.includes('코드 drift'), 'spec-first decision rule should be stated')
 }
 
+// 개발자가 가장 자연스럽게 쓰는 말이 가장 나쁜 결과를 내면 안 된다.
+// "개발"이 유형 키워드에 없어 unknown/low로 떨어졌고, 유형 가점이 죽어 관련 문서가 밀리고
+// 엉뚱한 스킬(JIRA 운영 업무 접수)이 올라왔다(2026-08-11 multisite 실측).
+function contextClassifiesPlainKoreanDevelopmentRequest() {
+  const { target } = setupSpecLinkedTarget()
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/build-context.mjs'), '--stdout', '로그인 페이지 개발'], { cwd: target })
+  assert(out.includes('detected: feature'), 'plain "개발" must classify as feature, not unknown')
+  assert(!out.includes('detected: unknown'), 'the most common Korean phrasing must not fall through to unknown')
+  // confidence는 키워드 2개 이상일 때만 medium이다(설계). 여기서 중요한 건 유형이 잡혀
+  // taskTypes 가점 경로가 살아나는 것이다.
+  assert(out.includes('개발'), 'the reason should name the keyword that matched')
+  assert(out.includes('features/로그인.md'), 'the matching spec must still be injected')
+}
+
 function guardShowsSpecAdvisoryForMappedCodeChange() {
   const { target, planning } = setupSpecLinkedTarget()
 
@@ -5420,6 +5435,7 @@ const tests = [
   guardExplainsMissingNodeModulesInsteadOfRawToolError,
   specSyncFetchRecordsLockAndDetectsChanges,
   buildContextInjectsRelatedSpecs,
+  contextClassifiesPlainKoreanDevelopmentRequest,
   guardShowsSpecAdvisoryForMappedCodeChange,
   specFetchCacheOnlyDoesNotMoveTeamBaseline,
   specFetchAtLockRehydratesCacheAtBaseline,

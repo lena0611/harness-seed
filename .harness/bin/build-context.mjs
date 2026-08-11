@@ -53,7 +53,9 @@ const generatedFiles = [
 
 const taskTypeRules = [
   { type: 'bugfix', keywords: ['버그', '오류', '에러', '실패', '깨짐', '안됨', '수정', '고쳐', 'fix', 'bug'] },
-  { type: 'feature', keywords: ['추가', '생성', '구현', '기능', '신규', '만들', 'feature', 'add'] },
+  // '개발'은 한국어에서 가장 흔한 표현인데 빠져 있었다 — "003 페이지 개발해줘"가 unknown/low로 떨어져
+  // 유형 가점이 죽고 엉뚱한 스킬(운영 업무 접수)이 올라왔다(2026-08-11 multisite 실측).
+  { type: 'feature', keywords: ['추가', '생성', '구현', '기능', '신규', '만들', '개발', 'feature', 'add'] },
   { type: 'verification', keywords: ['커밋', '검증', '마무리', '완료', '메시지', 'commit', 'check', 'lint', 'build', 'test'] },
   { type: 'refactor', keywords: ['리팩터', '리팩토', '정리', '구조 개선', '개선', '분리', 'refactor'] },
   { type: 'docs', keywords: ['문서', 'readme', '가이드', '설명', 'docs'] },
