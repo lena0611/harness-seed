@@ -623,8 +623,10 @@ export default defineConfig([
   const output = runInit(target, '--no-scan', '--no-check')
   const config = read(target, 'eslint.config.js')
 
-  assert(output.includes('eslint config: eslint.config.js .harness-backup ignore, Node scripts override 추가'), 'init should report eslint harness config patch')
+  assert(output.includes('eslint config: eslint.config.js .harness lint 제외, Node scripts override 추가'), 'init should report eslint harness config patch')
   assert(config.includes("'**/.harness-backup/**'"), 'init should add harness backup ignore')
+  // 0.2.109: 하네스 코드를 소비자 lint 표면에서 뺀다. Node globals override만으로는 자동수정을 못 막는다.
+  assert(config.includes("'.harness/**'"), 'init must exclude .harness from lint entirely')
   assert(config.includes("files: ['.harness/bin/**/*.mjs']"), 'init should add harness bin mjs override')
   assert(config.includes('...globals.node'), 'init should add node globals')
 }
@@ -662,8 +664,9 @@ export default defineConfig([
   const output = runInit(target, '--no-scan', '--no-check')
   const config = read(target, 'eslint.config.js')
 
-  assert(output.includes('eslint config: eslint.config.js .harness-backup ignore 추가'), 'init should report harness backup ignore patch')
+  assert(output.includes('eslint config: eslint.config.js .harness lint 제외 추가'), 'init should report the harness lint exclusion patch')
   assert(config.includes("'**/.harness-backup/**'"), 'init should add harness backup ignore when node override already exists')
+  assert(config.includes("'.harness/**'"), 'an existing node override must not stop the lint exclusion from being added')
 }
 
 function reinstallPreservesProjectOwnedFiles() {
@@ -1852,9 +1855,126 @@ function reinstallPreservesLocallyEditedManagedHarnessFile() {
 
   const after = read(target, NON_MARKER_MANAGED_REL)
   assert(after.includes('consumer local edit'), 'reinstall should preserve consumer edit in a non-marker managed file')
-  assert(output.includes('로컬 수정으로 보존된 managed 파일'), 'reinstall should explicitly report preserved locally-modified managed files')
+  // 0.2.109 문구 정정: 이 목록은 "안전망이 잘 돌았다"가 아니라 "이 파일들은 앞으로도 계속 제외된다"는 뜻이다.
+  assert(output.includes('갱신하지 못한 하네스 파일'), 'reinstall should report preserved managed files as a problem, not as a working safety net')
+  assert(!output.includes('안전망 작동'), 'the report must not frame a permanent update skip as a safety net working')
+  assert(output.includes('--resync-managed'), 'the report must point at the managed-only recovery path')
+  assert(!output.includes('--force --confirm-overwrite-project-files'), 'the report must not recommend the option that also overwrites project-owned files')
   assert(output.includes(NON_MARKER_MANAGED_REL), 'preserved-managed report should name the file')
   assert(!exists(target, `${NON_MARKER_MANAGED_REL}.harness-bak`), 'preservation path should not leave a .harness-bak sidecar')
+}
+
+// 0.2.109 — 소비자 lint가 하네스 코드를 자동수정해 업데이트를 영구 차단한 사고(2026-08-11 multisite)의 회귀.
+// 사고 경로: eslint.config.ts가 .harness/를 제외하지 않음 → `eslint . --fix`가 import 순서를 고침 →
+// manifest sha 불일치 → 업데이터가 "소비자 수정"으로 보고 스킵 → 그 파일들은 이후 모든 업데이트에서 제외.
+// 핵심은 "설치 후 프로젝트 lint를 돌려도 managed 파일이 안 변한다"이므로, 도구별 제외 파일을 전부 본다.
+function initExcludesHarnessFromEveryLintSurface() {
+  const target = makeTarget()
+  writeJson(target, 'package.json', {
+    name: 'lint-surface-target',
+    private: true,
+    type: 'module',
+    scripts: { lint: 'run-s "lint:*"' },
+  })
+  // create-vue 스캐폴딩 모양: flat config를 .ts로 쓰고, globalIgnores는 빌드 산출물만 뺀다.
+  fs.writeFileSync(path.join(target, 'eslint.config.ts'), `import { defineConfig, globalIgnores } from "eslint/config"
+
+export default defineConfig([
+  globalIgnores(["**/dist/**", "**/coverage/**"]),
+])
+`)
+  writeJson(target, '.oxlintrc.json', { plugins: ['eslint'], env: { browser: true } })
+  writeJson(target, '.prettierrc.json', { semi: false })
+
+  runInit(target, '--no-scan', '--no-check')
+
+  const eslintConfig = read(target, 'eslint.config.ts')
+  assert(eslintConfig.includes('.harness/**'), 'eslint.config.ts must be recognized and excluded (not only .js/.mjs)')
+  // 소비자 설정 파일 자체는 계속 린트되므로 따옴표를 섞으면 그 프로젝트의 quotes 규칙에 걸린다.
+  assert(eslintConfig.includes('".harness/**"'), 'the inserted entry must follow the file existing quote style')
+  assert(!eslintConfig.includes("'.harness/**'"), 'it must not mix quote styles into a double-quoted config')
+
+  const oxlint = JSON.parse(read(target, '.oxlintrc.json'))
+  assert(
+    (oxlint.ignorePatterns ?? []).some((entry) => entry.includes('.harness/')),
+    'oxlint must exclude .harness too — excluding only eslint leaves the same autofix path open',
+  )
+
+  assert(exists(target, '.prettierignore'), 'a prettier-configured project without .prettierignore must get one')
+  assert(read(target, '.prettierignore').includes('.harness/'), 'prettier must not reformat harness code')
+}
+
+// 원인이 아니라 결과를 검사하는 백스톱: 무엇이 고쳤든 managed 파일이 기록과 다르면 알린다.
+// 이 검사가 없어서 10개 파일이 여러 버전 동안 조용히 동결됐다.
+function harnessCheckReportsManagedFileDrift() {
+  const target = makeTarget()
+  runInit(target)
+
+  const clean = runGuard(target, '--fast', '--no-cache')
+  assert(!clean.includes('업데이트에서 제외'), 'a clean install must not report drift')
+
+  fs.writeFileSync(
+    path.join(target, NON_MARKER_MANAGED_REL),
+    `${read(target, NON_MARKER_MANAGED_REL)}\n# formatter touched this\n`,
+  )
+
+  const output = runGuard(target, '--fast', '--no-cache')
+  assert(output.includes('업데이트에서 제외됩니다'), 'check must say the file will be excluded from updates, not just that it differs')
+  assert(output.includes(NON_MARKER_MANAGED_REL), 'the drift report must name the file')
+  assert(output.includes('--resync-managed'), 'the drift report must give the recovery command')
+  assert(output.includes(`하네스 파일 1건이 업데이트에서 제외됨`), 'drift must surface in the one-line summary, not only in the detail block')
+}
+
+// 마커 하이브리드 파일(CLAUDE.md 등)은 소비자 영역이 있어 본체와 달라도 정상이다. 이걸 drift로 세면
+// 모든 프로젝트가 상시 경고를 보게 되고, 경고는 그 순간부터 무시된다.
+function managedDriftIgnoresMarkerHybridFiles() {
+  const target = makeTarget()
+  runInit(target)
+
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), `${read(target, 'CLAUDE.md')}\n## 프로젝트 고유 규칙\n`)
+
+  const output = runGuard(target, '--fast', '--no-cache')
+  assert(!output.includes('업데이트에서 제외'), 'consumer content in a marker-managed file is normal, not drift')
+}
+
+// --force와의 결정적 차이: 사정거리가 managed 파일로 한정된다. 0.2.108까지는 복구 수단이
+// --force --confirm-overwrite-project-files뿐이었는데, 그건 spec-map.md 같은 온보딩 산출물까지 덮는다.
+function resyncManagedRestoresHarnessFilesButNotProjectOwned() {
+  const target = makeTarget()
+  runInit(target)
+
+  const upstream = read(target, NON_MARKER_MANAGED_REL)
+  fs.writeFileSync(path.join(target, NON_MARKER_MANAGED_REL), `${upstream}\n# formatter touched this\n`)
+
+  const projectOwnedRel = '.harness/project/spec-map.md'
+  const projectOwned = '| features/로그인.md | src/views/LoginView.vue | 실제 매핑 |\n'
+  fs.writeFileSync(path.join(target, projectOwnedRel), projectOwned)
+
+  const output = runInit(target, '--resync-managed', '--no-scan', '--no-check')
+
+  assert(read(target, NON_MARKER_MANAGED_REL) === upstream, '--resync-managed must restore the managed file byte-for-byte')
+  assert(read(target, projectOwnedRel) === projectOwned, '--resync-managed must never touch project-owned files')
+  assert(output.includes('본체 원본으로 되돌린 하네스 파일'), 'the resync must report what it replaced')
+  assert(!output.includes('갱신하지 못한 하네스 파일'), 'nothing should remain frozen after a resync')
+
+  const afterCheck = runGuard(target, '--fast', '--no-cache')
+  assert(!afterCheck.includes('업데이트에서 제외'), 'drift must be gone after resync')
+}
+
+// 형제 생성물 3건은 배포되는데 task-context.md만 빠져 소비자 저장소에서 untracked로 떠다녔다.
+function consumerGitignoreCoversAllGeneratedSessionArtifacts() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-check')
+
+  const gitignore = read(target, '.gitignore')
+  for (const rel of [
+    '.harness/session/project-scan-report.md',
+    '.harness/session/handoff.md',
+    '.harness/session/template-gap-report.md',
+    '.harness/session/task-context.md',
+  ]) {
+    assert(gitignore.includes(rel), `consumer .gitignore must cover the regenerable artifact ${rel}`)
+  }
 }
 
 function forceConfirmOverwritesLocallyEditedManagedHarnessFileWithBackup() {
@@ -5246,6 +5366,11 @@ const tests = [
   updateRecordsAndReplaysChangelogDelta,
   existingClaudeSettingsGetsHarnessHooksMerged,
   reinstallPreservesLocallyEditedManagedHarnessFile,
+  initExcludesHarnessFromEveryLintSurface,
+  harnessCheckReportsManagedFileDrift,
+  managedDriftIgnoresMarkerHybridFiles,
+  resyncManagedRestoresHarnessFilesButNotProjectOwned,
+  consumerGitignoreCoversAllGeneratedSessionArtifacts,
   forceConfirmOverwritesLocallyEditedManagedHarnessFileWithBackup,
   forceAloneStopsWhenManagedHarnessFileWasLocallyEdited,
   newInstallWritesMarkerAndRegionSha,

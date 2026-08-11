@@ -29,6 +29,8 @@ Options:
   --force                   하네스 설치 시 프로젝트 소유 파일까지 덮어씁니다.
   --confirm-overwrite-project-files
                             --force 덮어쓰기 위험을 인지했음을 명시합니다.
+  --resync-managed          설치 기록과 달라진 하네스 파일(managed)만 본체 원본으로 되돌립니다.
+                            프로젝트 소유 파일은 건드리지 않습니다.
   --force-stack             다른 스택 기준이 적용되어 있어도 reset 후 적용합니다.
   --allow-mismatch          스택 호환성 불일치를 명시적으로 허용합니다.
   --migration-mode          --allow-mismatch alias입니다.
@@ -91,6 +93,7 @@ function parseArgs(argv) {
         opts.stackOnly = true
         break
       case '--force':
+      case '--resync-managed':
       case '--force-stack':
       case '--confirm-overwrite-project-files':
       case '--confirm-overwrite-project-state':

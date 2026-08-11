@@ -487,6 +487,9 @@ Options:
   --force                프로젝트 소유 파일까지 덮어씁니다.
   --confirm-overwrite-project-files
                          --force로 프로젝트 소유/출처 미확인 파일을 덮어쓰는 위험을 인지했음을 명시합니다.
+  --resync-managed       설치 기록과 달라진 하네스 파일(managed)만 본체 원본으로 되돌립니다.
+                         프로젝트 소유 파일은 건드리지 않습니다. lint/formatter가 .harness/를 고쳐
+                         업데이트에서 제외된 파일을 복구할 때 씁니다.
   --no-backup            백업을 만들지 않습니다. 기존 항목이 있으면 --force가 필요합니다.
   --no-scan              설치 후 프로젝트 스캔 리포트를 자동 생성하지 않습니다.
   --no-handoff           설치/업데이트 인수인계 요약을 자동 생성하지 않습니다.
@@ -542,6 +545,9 @@ function parseArgs(argv) {
         break;
       case '--force':
         opts.force = true;
+        break;
+      case '--resync-managed':
+        opts.resyncManaged = true;
         break;
       case '--confirm-overwrite-project-files':
       case '--confirm-overwrite-project-state':
@@ -893,6 +899,7 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
   // 동의가 있을 때만 .harness-bak 백업 후 덮어쓴다. 둘 다 후처리에서 명시적으로 보고한다.
   const preservedLocallyModified = [];
   const overwroteLocallyModified = [];
+  const resyncedManaged = [];       // --resync-managed로 본체 원본에 맞춘 파일
   // 마커 머지(옵션 A, 0.2.67) 후처리 분류.
   const mergedMarkerFiles = [];        // 마커 머지: 마커 밖(소비자) 보존 + 마커 안(본체) 갱신
   const overwroteManagedRegion = [];   // 머지 중 소비자가 회사 영역(마커 안)을 수정해 사이드카로 백업한 파일
@@ -981,7 +988,12 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     let backupRel = null;
 
     if (exists && managed && !projectOwned && isLocallyModifiedManagedFile(target, rel, manifest)) {
-      if (!opts.force) {
+      if (opts.resyncManaged) {
+        // 설치 기록과 달라진 managed 파일을 본체 원본으로 되돌린다. 대상은 managed이면서 프로젝트 소유가
+        // 아닌 파일뿐이라 spec-map.md·profile.json 같은 소비자 산출물은 사정거리 밖이다(--force와 다른 점).
+        shouldCopy = true;
+        resyncedManaged.push(rel);
+      } else if (!opts.force) {
         // 기본 흐름: --force 없으면 로컬 수정본을 보존한다.
         shouldCopy = false;
         preservedByGuard = true;
@@ -1035,6 +1047,7 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     copiedFiles,
     preservedLocallyModified,
     overwroteLocallyModified,
+    resyncedManaged,
     mergedMarkerFiles,
     overwroteManagedRegion,
     autoMigratedMarkerFiles,
@@ -1811,6 +1824,10 @@ function mergeGitignore(target, opts) {
     '.harness/generated/',
     '.harness/session/project-scan-report.md',
     '.harness/session/handoff.md',
+    // task-context.md도 재생성 산출물이다. 형제 3건만 배포하고 이것만 빠져 있어 소비자 저장소에서
+    // untracked로 떠다니며 커밋에 딸려 들어갔다(2026-08-11 multisite). 목록은 누락분만 덧붙이므로
+    // 기존 설치본도 다음 업데이트에서 자동 보정된다.
+    '.harness/session/task-context.md',
     '.harness/session/template-gap-report.md',
     '.harness-backup/',
     'CLAUDE.local.md',
@@ -1836,7 +1853,9 @@ function mergeGitignore(target, opts) {
 }
 
 function findEslintConfig(target) {
-  for (const rel of ['eslint.config.js', 'eslint.config.mjs']) {
+  // create-vue 등 최신 스캐폴딩은 eslint.config.ts를 쓴다. 목록에서 빠지면 그 프로젝트의 설정을
+  // 아예 못 보고 조용히 넘어간다 — 실증: multisite(2026-08-11).
+  for (const rel of ['eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs', 'eslint.config.ts', 'eslint.config.mts']) {
     if (existsSync(join(target, rel))) {
       return rel;
     }
@@ -1853,30 +1872,55 @@ function hasNodeScriptsOverride(content) {
   return content.includes('.harness/bin/**/*.mjs') && content.includes('globals.node');
 }
 
+// `.harness/`는 하네스 본체 코드다. 소비자가 고칠 수 없고(고치면 manifest sha가 어긋나 이후 모든
+// 업데이트에서 제외된다) 고칠 이유도 없다. node_modules를 린트하지 않는 것과 같은 이유로 린트 대상에서
+// 뺀다. 0.2.108까지는 Node globals override만 넣어 "린트해도 에러는 안 나는" 상태로 뒀는데, 그게 오히려
+// import-sort 같은 자동수정 규칙에 활짝 열어주는 반쪽 보호였다(2026-08-11 multisite 실증: 10개 파일 동결).
+const HARNESS_LINT_IGNORE = '.harness/**';
+const HARNESS_BACKUP_IGNORE = '**/.harness-backup/**';
+
 function hasHarnessBackupIgnore(content) {
   return content.includes('.harness-backup');
 }
 
-function insertHarnessBackupIgnore(content) {
+function hasHarnessLintIgnore(content) {
+  return new RegExp(`['"][^'"]*\\.harness/\\*\\*[^'"]*['"]`).test(content);
+}
+
+// 기존 항목의 따옴표 스타일을 따라간다. 소비자 설정 파일 자체는 여전히 린트 대상이라
+// 한 파일에 따옴표가 섞이면 그 프로젝트의 quotes 규칙에 걸린다.
+function detectQuoteStyle(body) {
+  return body.includes('"') && !body.includes("'") ? '"' : "'";
+}
+
+function insertGlobalIgnoreEntries(content, wanted) {
   const pattern = /globalIgnores\(\s*\[([\s\S]*?)\]\s*\)/m;
 
   if (!pattern.test(content)) {
     return null;
   }
 
-  return content.replace(pattern, (full, entries) => {
-    if (entries.includes('.harness-backup')) {
+  let changed = false;
+  const next = content.replace(pattern, (full, entries) => {
+    const missing = wanted.filter((entry) => !entries.includes(entry));
+    if (missing.length === 0) {
       return full;
     }
 
+    changed = true;
+    const quote = detectQuoteStyle(entries);
+    const rendered = missing.map((entry) => `${quote}${entry}${quote}`);
+
     if (!entries.includes('\n')) {
       const separator = entries.trim() ? ', ' : '';
-      return `globalIgnores([${entries}${separator}'**/.harness-backup/**'])`;
+      return `globalIgnores([${entries}${separator}${rendered.join(', ')}])`;
     }
 
     const trimmed = entries.replace(/\s*$/, '');
-    return `globalIgnores([${trimmed},\n  '**/.harness-backup/**',\n])`;
+    return `globalIgnores([${trimmed},\n${rendered.map((item) => `  ${item},`).join('\n')}\n])`;
   });
+
+  return changed ? next : null;
 }
 
 function insertNodeScriptsOverride(content) {
@@ -1915,15 +1959,20 @@ function patchEslintConfigForHarness(target, opts) {
   const already = [];
   const manual = [];
 
-  if (hasHarnessBackupIgnore(next)) {
-    already.push('.harness-backup ignore');
+  const wantedIgnores = [];
+  if (!hasHarnessLintIgnore(next)) wantedIgnores.push(HARNESS_LINT_IGNORE);
+  if (!hasHarnessBackupIgnore(next)) wantedIgnores.push(HARNESS_BACKUP_IGNORE);
+
+  const ignoreLabel = '.harness lint 제외';
+  if (wantedIgnores.length === 0) {
+    already.push(ignoreLabel);
   } else {
-    const withBackupIgnore = insertHarnessBackupIgnore(next);
-    if (withBackupIgnore) {
-      next = withBackupIgnore;
-      applied.push('.harness-backup ignore');
+    const withIgnores = insertGlobalIgnoreEntries(next, wantedIgnores);
+    if (withIgnores) {
+      next = withIgnores;
+      applied.push(ignoreLabel);
     } else {
-      manual.push('.harness-backup ignore');
+      manual.push(ignoreLabel);
     }
   }
 
@@ -1967,6 +2016,72 @@ function patchEslintConfigForHarness(target, opts) {
     status: 'already',
     message: `${rel} 이미 ${already.join(' 및 ')} 있음`,
   };
+}
+
+// eslint 하나만 막아서는 부족하다. 같은 저장소에서 oxlint·prettier가 각자 .harness/를 훑고 --fix/--write로
+// 고치면 결과는 동일하다(multisite는 eslint와 oxlint를 함께 쓴다). 도구별 제외 파일을 각각 손본다.
+// 여기서 다루지 않는 도구(biome 등)는 guard의 managed drift 검사가 결과로 잡는다.
+function patchLintIgnoreFiles(target, opts) {
+  const results = [];
+
+  const oxlintRel = '.oxlintrc.json';
+  const oxlintAbs = join(target, oxlintRel);
+  if (existsSync(oxlintAbs)) {
+    try {
+      const raw = readFileSync(oxlintAbs, 'utf8');
+      const config = JSON.parse(raw);
+      const patterns = Array.isArray(config.ignorePatterns) ? config.ignorePatterns : [];
+      if (patterns.some((entry) => typeof entry === 'string' && entry.includes('.harness/'))) {
+        results.push({ rel: oxlintRel, status: 'already' });
+      } else {
+        config.ignorePatterns = [...patterns, HARNESS_LINT_IGNORE];
+        if (!opts.dryRun) {
+          writeFileSync(oxlintAbs, `${JSON.stringify(config, null, 2)}\n`);
+        }
+        results.push({ rel: oxlintRel, status: 'updated' });
+      }
+    } catch {
+      // 설정이 JSON으로 안 읽히면(주석 등) 건드리지 않고 수동 안내로 넘긴다.
+      results.push({ rel: oxlintRel, status: 'manual' });
+    }
+  }
+
+  // prettier: .prettierignore가 있으면 항목을 보장한다. 설정만 있고 ignore 파일이 없으면 만든다
+  // (그 상태에서 prettier --write는 .harness/ 전체를 재포맷한다).
+  const prettierIgnoreRel = '.prettierignore';
+  const prettierIgnoreAbs = join(target, prettierIgnoreRel);
+  const hasPrettierConfig = [
+    '.prettierrc',
+    '.prettierrc.json',
+    '.prettierrc.js',
+    '.prettierrc.cjs',
+    '.prettierrc.mjs',
+    '.prettierrc.yaml',
+    '.prettierrc.yml',
+    'prettier.config.js',
+    'prettier.config.mjs',
+    'prettier.config.cjs',
+  ].some((rel) => existsSync(join(target, rel)));
+
+  if (existsSync(prettierIgnoreAbs)) {
+    const current = readFileSync(prettierIgnoreAbs, 'utf8');
+    if (current.split(/\r?\n/).some((line) => line.trim() === '.harness/' || line.trim() === HARNESS_LINT_IGNORE)) {
+      results.push({ rel: prettierIgnoreRel, status: 'already' });
+    } else {
+      if (!opts.dryRun) {
+        const prefix = current.trim() ? `${current.replace(/\s*$/, '')}\n` : '';
+        writeFileSync(prettierIgnoreAbs, `${prefix}.harness/\n`);
+      }
+      results.push({ rel: prettierIgnoreRel, status: 'updated' });
+    }
+  } else if (hasPrettierConfig) {
+    if (!opts.dryRun) {
+      writeFileSync(prettierIgnoreAbs, '.harness/\n');
+    }
+    results.push({ rel: prettierIgnoreRel, status: 'created' });
+  }
+
+  return results;
 }
 
 function ensureExecutable(target, opts) {
@@ -2191,6 +2306,7 @@ function main() {
     const claudeSettings = mergeClaudeSettings(sourceRoot, TARGET, opts);
     const gitignoreAdded = mergeGitignore(TARGET, opts);
     const eslintPatch = patchEslintConfigForHarness(TARGET, opts);
+    const lintIgnorePatches = patchLintIgnoreFiles(TARGET, opts);
     ensureExecutable(TARGET, opts);
     const writtenManifest = writeInstallManifest(sourceRoot, TARGET, files, installed.copiedFiles, opts, recognizedManifest);
     const lockResult = writtenManifest ? writeHarnessLock(sourceRoot, TARGET, writtenManifest, opts) : null;
@@ -2223,6 +2339,9 @@ function main() {
         console.log('.claude/settings.json: 하네스 안전 표면 이미 반영됨 (변경 없음)');
       }
       console.log(`eslint config: ${eslintPatch.message}`);
+      for (const patch of lintIgnorePatches) {
+        console.log(`lint ignore: ${patch.rel} ${patch.status === 'already' ? '이미 .harness 제외됨' : patch.status === 'manual' ? '자동 수정 불가 — .harness/** 수동 추가 필요' : `.harness 제외 ${patch.status === 'created' ? '생성' : '추가'}`}`);
+      }
       console.log(`legacy root scripts: ${opts.dryRun ? `${legacyManagedRootScripts.length}개 제거 예정` : `${migration.removed}개 제거`}`);
       console.log(`work history: ${workHistoryYear.rel}${workHistoryYear.created ? ' 생성' : ' 준비됨'}`);
       console.log(`install manifest: ${opts.dryRun ? 'dry-run' : `${Object.keys(writtenManifest.managedFiles).length}개 managed file 기록`}`);
@@ -2241,6 +2360,9 @@ function main() {
       }
       if (['updated', 'partial', 'manual'].includes(eslintPatch.status)) {
         console.log(`  - eslint config: ${eslintPatch.message}`);
+      }
+      for (const patch of lintIgnorePatches.filter((item) => item.status !== 'already')) {
+        console.log(`  - lint ignore: ${patch.rel} ${patch.status === 'manual' ? '자동 수정 불가 — .harness/** 수동 추가 필요' : '.harness 제외 반영'}`);
       }
       if (claudeSettings.skipped === 'parse-error') {
         console.log('  - .claude/settings.json JSON 손상으로 하네스 안전 훅 병합을 건너뛰었습니다. 파일을 고친 뒤 init/update를 다시 실행하세요.');
@@ -2303,17 +2425,35 @@ function main() {
     // 매번 표면에 띄우는 것이 안전망의 핵심이다.
     if (installed.preservedLocallyModified && installed.preservedLocallyModified.length > 0) {
       console.log('');
-      console.log('로컬 수정으로 보존된 managed 파일 (안전망 작동):');
+      // 0.2.109 문구 정정: 여기 오는 파일은 마커 하이브리드(CLAUDE.md 등)가 아니라 순수 하네스 코드다.
+      // 마커 파일은 위쪽 머지 경로에서 처리되므로 이 목록에 오지 않는다. 즉 이 목록은 "안전망이 잘 돌았다"가
+      // 아니라 "이 파일들은 이번에도, 그리고 앞으로도 갱신되지 않는다"는 뜻이다. 실증(multisite): 이 목록을
+      // 안전망 작동으로 읽는 바람에 10개 파일이 여러 버전 동안 동결됐고 post-merge hook 지원이 빠져 있었다.
+      console.log(`⚠ 갱신하지 못한 하네스 파일 ${installed.preservedLocallyModified.length}건 — 설치 기록과 내용이 다릅니다.`);
       for (const rel of installed.preservedLocallyModified.slice(0, 15)) {
         console.log(`  - ${rel}`);
       }
       if (installed.preservedLocallyModified.length > 15) {
         console.log(`  ... 외 ${installed.preservedLocallyModified.length - 15}건`);
       }
-      console.log('이 파일들은 manifest 기록 이후 변경된 흔적이 있어 본체로 덮지 않았습니다.');
-      console.log('덮어쓰려면 위험을 인지한 뒤 다음 옵션을 함께 사용하세요:');
-      console.log('  npm run harness:update -- --force --confirm-overwrite-project-files');
-      console.log('이 경우 각 파일은 같은 디렉터리에 <파일>.harness-bak 사이드카로 백업됩니다.');
+      console.log('이 파일들은 프로젝트가 소유한 파일이 아니라 하네스 본체 코드입니다. 덮어쓰지 않고 건너뛰었으므로');
+      console.log('그대로 두면 이번 업데이트뿐 아니라 앞으로의 모든 업데이트에서도 계속 제외됩니다.');
+      console.log('가장 흔한 원인은 lint/formatter가 .harness/를 대상에 포함하는 것입니다.');
+      console.log('  1) lint·formatter 설정에서 .harness/**를 제외하세요(eslint globalIgnores, .oxlintrc.json ignorePatterns, .prettierignore).');
+      console.log('  2) 그다음 원본으로 되돌리세요: npm run harness:update -- --resync-managed');
+      console.log('     (managed 파일만 되돌립니다. spec-map.md·profile.json 같은 프로젝트 소유 파일은 건드리지 않습니다.)');
+    }
+
+    if (installed.resyncedManaged && installed.resyncedManaged.length > 0) {
+      console.log('');
+      console.log(`본체 원본으로 되돌린 하네스 파일 ${installed.resyncedManaged.length}건 (--resync-managed):`);
+      for (const rel of installed.resyncedManaged.slice(0, 15)) {
+        console.log(`  - ${rel}`);
+      }
+      if (installed.resyncedManaged.length > 15) {
+        console.log(`  ... 외 ${installed.resyncedManaged.length - 15}건`);
+      }
+      console.log('프로젝트 소유 파일은 건드리지 않았습니다. 되돌린 내용은 git diff로 확인하세요.');
     }
 
     if (installed.overwroteLocallyModified && installed.overwroteLocallyModified.length > 0) {

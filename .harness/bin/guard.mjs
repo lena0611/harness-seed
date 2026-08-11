@@ -164,20 +164,41 @@ function readTextIfExists(rel) {
   return fs.existsSync(abs) ? fs.readFileSync(abs, 'utf8') : ''
 }
 
+// eslint flat config는 .ts/.cjs로도 쓴다(create-vue 스캐폴딩은 eslint.config.ts). 목록에서 빠지면
+// 그 프로젝트의 설정을 아예 못 보고 조용히 통과한다 — 실증: multisite(2026-08-11).
+const ESLINT_CONFIG_CANDIDATES = [
+  'eslint.config.js',
+  'eslint.config.mjs',
+  'eslint.config.cjs',
+  'eslint.config.ts',
+  'eslint.config.mts',
+  '.eslintrc',
+  '.eslintrc.js',
+]
+
+// .harness/**를 통째로 제외했으면 하네스 파일은 린트되지 않으므로 Node globals override는 필요 없다.
+// 이걸 보지 않으면 "제외했는데도 override를 넣으라"는 틀린 안내가 나간다.
+function eslintConfigIgnoresHarness(content) {
+  return /['"][^'"]*\.harness\/\*\*[^'"]*['"]/.test(content)
+}
+
 function eslintConfigLikelyMissesNodeScriptsOverride() {
-  const configPath = findExisting(['eslint.config.js', 'eslint.config.mjs', '.eslintrc', '.eslintrc.js'])
+  const configPath = findExisting(ESLINT_CONFIG_CANDIDATES)
   if (!configPath || !hasNodeHarnessScripts()) {
     return false
   }
 
   const content = readTextIfExists(configPath)
+  if (eslintConfigIgnoresHarness(content)) {
+    return false
+  }
   const mentionsScripts = /\.harness\/bin\/\*\*|\.harness\/bin\//.test(content)
   const mentionsNodeGlobals = /globals\.node|nodeBuiltin|env\s*:\s*{[^}]*node\s*:\s*true|sourceType\s*:\s*['"]script['"]/.test(content)
   return !mentionsScripts || !mentionsNodeGlobals
 }
 
 function eslintConfigLikelyMissesHarnessBackupIgnore() {
-  const configPath = findExisting(['eslint.config.js', 'eslint.config.mjs'])
+  const configPath = findExisting(ESLINT_CONFIG_CANDIDATES)
   if (!configPath || !fs.existsSync(path.join(repoRoot, '.harness-backup'))) {
     return false
   }
@@ -591,6 +612,7 @@ function printConsumerSummary({ validationResults, edgeResult, criticalResult, c
   console.log(`필수 조치: ${requiredCount === 0 ? '없음' : `${requiredCount}건`}`)
   const warnings = []
   if (templateGap.selected && templateGap.gaps > 0) warnings.push(`템플릿 계약 갭 ${templateGap.gaps}건`)
+  if (managedDrift.drifted.length > 0) warnings.push(`하네스 파일 ${managedDrift.drifted.length}건이 업데이트에서 제외됨`)
   console.log(`주의: ${warnings.length === 0 ? '없음' : warnings.join(', ')}`)
   console.log(`수동 조치: ${openManualActions === 0 ? '없음' : `${openManualActions}건 (.harness/session/manual-actions.md 확인)`}`)
   console.log(`추천 조치: ${recommendedActions.length === 0 ? '없음' : recommendedActions.join(', ')}`)
@@ -756,6 +778,66 @@ function checkHarnessVersionLock() {
   console.log(`Harness versions OK: base=${installedBase.version}${installedBase.ref ? ` (${installedBase.ref})` : ''}, stack=${lock.stackHarness?.version ?? profile.activeStack}`)
 }
 
+// 설치 무결성(0.2.109): managed 파일이 manifest에 기록된 sha와 다르면, 업데이터 안전망이 그 파일을
+// "소비자가 수정했다"고 보고 **이후 모든 업데이트에서 조용히 건너뛴다**. 그 상태는 스스로 알리지 않는다.
+//
+// 실증(2026-08-11, multisite): 프로젝트 lint가 `.harness/`를 제외하지 않아 `eslint . --fix`가
+// `.harness/bin/*.mjs`의 import 순서를 고쳤고, 10개 파일이 여러 버전 동안 동결됐다. 포맷 문제로 끝나지
+// 않고 post-merge hook 지원이 통째로 빠진 채로 살아 있었다. 원인은 lint였지만 formatter·IDE 저장 시
+// 자동정리·수기 편집도 같은 결과를 낸다. 그래서 원인이 아니라 **결과(sha 불일치)**를 검사한다.
+function checkManagedFileDrift() {
+  const manifest = readJson(path.join(harnessRoot, 'install-manifest.json'))
+  const managedFiles = manifest?.managedFiles
+  if (!managedFiles || typeof managedFiles !== 'object') {
+    return { drifted: [], checked: 0 }
+  }
+
+  const drifted = []
+  let checked = 0
+  for (const [rel, record] of Object.entries(managedFiles)) {
+    const recorded = record?.sha256
+    if (typeof recorded !== 'string' || recorded.length === 0) continue
+    const abs = path.join(repoRoot, rel)
+    if (!fs.existsSync(abs)) continue
+    checked++
+    // 마커 관리 파일(CLAUDE.md/AGENTS.md 등)은 소비자 영역이 있어 본체와 달라도 정상이다.
+    // 업데이터도 이들은 보존이 아니라 머지로 처리하므로 동결 대상이 아니다.
+    if (isMarkerManagedPath(rel)) continue
+    if (sha256File(abs) !== recorded) {
+      drifted.push(rel)
+    }
+  }
+
+  return { drifted, checked }
+}
+
+function isMarkerManagedPath(rel) {
+  const posix = rel.split(path.sep).join('/')
+  return posix === 'CLAUDE.md' || posix === 'AGENTS.md' || posix === '.github/copilot-instructions.md'
+}
+
+function sha256File(absPath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(absPath)).digest('hex')
+}
+
+function printManagedDriftNotice(drift) {
+  if (drift.drifted.length === 0) return
+  console.log('')
+  console.log(`⚠ 하네스 파일 ${drift.drifted.length}건이 설치 기록과 다릅니다 — 이 파일들은 업데이트에서 제외됩니다.`)
+  for (const rel of drift.drifted.slice(0, 10)) {
+    console.log(`  - ${rel}`)
+  }
+  if (drift.drifted.length > 10) {
+    console.log(`  ... 외 ${drift.drifted.length - 10}건`)
+  }
+  console.log('  이 파일들은 프로젝트가 소유한 파일이 아니라 하네스 본체 코드입니다. 달라진 이유가 무엇이든')
+  console.log('  업데이터는 "소비자가 수정했다"고 보고 건너뛰므로, 두면 계속 옛 버전에 머뭅니다.')
+  console.log('  가장 흔한 원인은 lint/formatter가 .harness/를 대상에 포함하는 것입니다.')
+  console.log('  1) lint·formatter 설정에서 .harness/**를 제외하세요(eslint globalIgnores, .oxlintrc.json ignorePatterns, .prettierignore).')
+  console.log('  2) 그다음 원본으로 되돌리세요: npm run harness:update -- --resync-managed')
+  console.log('     (managed 파일만 되돌립니다. 프로젝트 소유 파일은 건드리지 않습니다.)')
+}
+
 // P1(2026-06-09): 비-Node 프로젝트(package.json 없음)에서도 `node .harness/bin/guard.mjs`가
 // 동작해야 한다. 없으면 빈 객체로 보고 lint/test/build/edge 스크립트가 없는 것으로 처리한다.
 // package.json이 있는 기존 소비자는 거동이 동일하다.
@@ -785,6 +867,9 @@ const stagePlan = [
 const scriptPlan = stagePlan.filter((entry) => entry.planned).map((entry) => (entry.raw ? `${entry.stage}:raw` : entry.stage))
 const cacheKey = validationCacheKey(scriptPlan)
 const cache = readCheckCache()
+// 캐시 히트 경로에서도 알려야 한다. drift는 "이 tree가 검증을 통과했는가"와 무관하게 남아 있는 설치 상태이고,
+// 캐시가 걸린 push 경로에서만 조용해지면 정확히 놓치기 쉬운 순간에 침묵한다.
+const managedDrift = checkManagedFileDrift()
 
 // 캐시 재사용 조건: 같은 tree 키 + (같은 mode이거나, fast 요청인데 캐시가 full이면 full ⊇ fast로 재사용).
 // full 요청이 fast 캐시를 재사용하면 test/build를 빠뜨리므로 허용하지 않는다.
@@ -796,6 +881,7 @@ if (cacheUsable) {
   console.log(`Validation cache hit: 이 git tree는 이미 ${cache.mode === 'fast' ? 'fast' : 'full'} 검증(정책/문서/테스트${scriptPlan.length > 0 ? '/스택' : ''})을 통과했습니다.`)
   console.log(`passedAt: ${cache.passedAt}`)
   console.log('강제 재검증: --no-cache')
+  printManagedDriftNotice(managedDrift)
   printConsumerSummary({
     validationResults,
     edgeResult: { status: 'ok' },
@@ -812,6 +898,7 @@ const criticalResult = printCriticalPathReview()
 run('node', ['.harness/bin/doc-link-check.mjs', ...forwardedArgs])
 run('node', ['.harness/bin/check-template-contract.mjs', ...(strictMode ? ['--strict'] : [])])
 checkHarnessVersionLock()
+printManagedDriftNotice(managedDrift)
 
 if (fs.existsSync(path.join(repoRoot, '.harness-seed-mode')) && fs.existsSync(path.join(repoRoot, 'scripts/test-init.mjs'))) {
   run('node', ['scripts/test-init.mjs'])

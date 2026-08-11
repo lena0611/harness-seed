@@ -8,6 +8,7 @@
 | `doc-registry-consistency` | `document-registry.json`과 실제 .md 파일 집합 일치 | 자동 검사 (`harness:check`, 본체 개발 시 `docs:check`) |
 | `doc-link-integrity` | `.harness/**/*.md`와 에이전트 진입점 문서의 상대 링크 유효성 | 자동 검사 (`harness:check`, 본체 개발 시 `docs:check`) |
 | `doc-code-path-integrity` | 문서가 인용한 업무 코드, `.harness/...`, seed-only `scripts/...` 경로 존재 (활성 스택의 scaffold 내부도 관대 검사) | 자동 검사 (`harness:check`, 본체 개발 시 `docs:check`) |
+| `harness-install-integrity` | managed 파일이 `install-manifest.json`의 sha와 일치하는가. 어긋난 파일은 업데이터가 "소비자 수정"으로 보고 **이후 모든 업데이트에서 조용히 건너뛴다** — 그 상태는 스스로 알리지 않는다(2026-08-11 실증: lint 자동수정으로 10건 동결, post-merge hook 지원 누락). 마커 하이브리드(CLAUDE.md 등)는 소비자 영역이 있어 제외. 복구는 `harness:update -- --resync-managed` | 자동 안내 (`harness:check` — 주의로 표기) |
 | `policy-registry-schema` | `policy-registry.json` v3 필수 필드, enum, 중복 ID 검사 | 자동 검사 (`policy:check`, `harness:check`) |
 | `policy-source-sync-gap` | 기준 매핑의 한쪽만 변경되어 동기화 갭 발생 | 자동 검사 (`harness:impact`, CI에서 `harness:check:strict`로 차단) |
 | `stack-isolation` | 한 스택 폴더가 다른 스택 폴더를 참조하지 않음 | 자동 검사 (`harness:check`, 본체 개발 시 `docs:check`) |

@@ -50,7 +50,7 @@
 
 - [ ] `최종 검증만` 요청이면 `npm run harness:check`를 직접 실행한다.
 - [ ] `커밋`/`커밋하고 푸시` 요청이고 hook이 설치돼 있으면 pre-commit(전체 `harness:check`)/pre-push(`harness:check -- --fast`)에 맡기고 선행 수동 검증을 중복 실행하지 않는다.
-- [ ] 필요하면 릴리스 태그(`vX.Y.Z`)를 만든다.
+- [ ] **릴리스 태그(`vX.Y.Z`)는 레지스트리 동반 범프까지 끝낸 마지막 커밋에 찍는다.** 태그를 먼저 찍고 6단계에서 `stacks/templates registry.json`을 갱신하면, **그 태그로 설치하는 신규 프로젝트는 한 세대 낡은 스택/템플릿 ref를 받는다**(2026-08-11 실측: v0.2.108 태그가 스택 `v0.2.13`을 가리켰고 실제 동반 범프는 `v0.2.14`였다). 순서: 본체 변경 커밋 → `release:version-net -- --write` → 스택/템플릿 릴리스 → 레지스트리 갱신 커밋 → **여기서 태그** → 양쪽 원격에 브랜치·태그 push.
 
 ## 5단계 — 양쪽 원격 동기화 (필수)
 
@@ -102,7 +102,7 @@
 
 ### 스택 하네스
 - [ ] **스택 manifest의 `baseHarness.ref`는 신규 설치가 받는 base 버전을 고정한다** — "기존 소비자에 강제 업그레이드가 필요한가(minVersion)"만 보지 말고, **"신규 프로젝트가 낡은 base로 깔리게 되는가(ref)"를 함께 판단**한다. consumer-facing 본체 릴리스가 쌓이는 동안 ref를 방치하면 신규 설치가 구버전으로 시작한다(2026-08-05 실증: 0.2.89→0.2.95 6릴리스 방치로 신규 설치가 0.2.89로 깔림).
-- [ ] 스택 ref 범프 시 한 세트: 본체 릴리스 태그 push → `npm run release:version-net -- --write`(스택·템플릿 manifest 갱신) → 스택 저장소 버전 bump+check+커밋("공통 하네스 호환 버전 갱신")+태그+push → 템플릿 저장소 동일 → 본체 `stacks/templates registry.json` ref 갱신 → `release:version-net` 재실행으로 all-ok 확인.
+- [ ] 스택 ref 범프 시 한 세트: 본체 변경 커밋 → `npm run release:version-net -- --write`(스택·템플릿 manifest 갱신) → 스택 저장소 버전 bump+check+커밋("공통 하네스 호환 버전 갱신")+태그+push → 템플릿 저장소 동일 → 본체 `stacks/templates registry.json` ref 갱신 커밋 → **그 커밋에 본체 태그** → `release:version-net` 재실행으로 all-ok 확인 → 양쪽 원격에 브랜치·태그 push. (태그를 앞에 찍으면 신규 설치가 낡은 스택 ref를 받는다 — 4단계 참고.)
 - [ ] 여러 소비 프로젝트 자동 MR 전파는 향후 `ai-standard-cli`가 담당한다. 현재는 통지/기록만 한다.
 
 ## 7단계 — 기록
