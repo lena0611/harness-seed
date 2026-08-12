@@ -3260,6 +3260,7 @@ function broadcastSpeaksMixedAudienceLanguage() {
   assert(quiet.trim() === '', 'a settled baseline must produce no broadcast at all — silence must mean "nothing changed"')
 
   fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 정책 추가.\n')
+  fs.appendFileSync(path.join(planning, 'features/로그인.html'), '<p>버튼 문구 변경.</p>\n')
   fs.writeFileSync(path.join(planning, 'features/포인트지급.md'), '# 포인트 지급\n')
   gitCommitAll(planning, '기획 수정+신규')
   specSyncCli(target, ['fetch', '--cache-only'])
@@ -3269,13 +3270,22 @@ function broadcastSpeaksMixedAudienceLanguage() {
   const text = payload.text
   assert(text.includes('확인하지 않은 기획 변경'), 'broadcast must state the fact in plain language')
   assert(text.includes('(수정) features/로그인'), 'a changed doc must appear with a plain kind label')
-  assert(text.includes('담당 코드: src/views/**'), 'a mapped doc must name its owning code area')
   assert(text.includes('(신규) features/포인트지급'), 'a new doc must appear')
   assert(text.includes('담당 코드 아직 없음'), 'an unowned doc must say so in plain words')
   assert(text.includes('기획팀:') && text.includes('개발팀:'), 'both audiences must be addressed by name')
   for (const jargon of ['정산', '매핑', 'lock', 'settle']) {
     assert(!text.includes(jargon), `mixed-audience broadcast must not contain developer jargon: ${jargon}`)
   }
+
+  // 첫 실전 알림의 표시 결함 2건을 계약으로(0.2.118).
+  // ① 글롭 꼬리: Mattermost가 **를 굵게 마커로 먹어 "src/views/"처럼 보였다 — 원시 **는 금지.
+  assert(text.includes('담당 코드: src/views'), 'a mapped doc must name its owning code area')
+  assert(!text.includes('**'), 'broadcast must not carry raw glob/markdown markers — Mattermost eats ** as bold')
+  // ② 화면 접기: 문서+화면은 한 도장(원자 정산)인데 두 줄로 세면 한 건이 부풀고
+  //    화면 줄은 담당 없음처럼 보인다 — 대표 문서 한 줄 + (화면 포함)으로 접는다.
+  assert(text.includes('(수정) features/로그인 (화면 포함)'), 'a doc+screen pair must fold into one line marked (화면 포함)')
+  assert(!text.includes('로그인.html'), 'the screen file must not appear as its own line')
+  assert(text.includes('(2건)'), 'the headline count must count folded units, not raw files')
 
   // 죽은 마커의 교훈을 명령에도 적용: 알림이 손에 쥐여 주는 명령은 실존해야 한다.
   const command = text.match(/\/([가-힣A-Za-z-]+) 을 입력/)
@@ -3340,6 +3350,41 @@ function ciBackstopExampleDelegatesToBroadcast() {
     assert(!/: /.test(body), `plain yaml scalar with ": " breaks pipeline creation: ${trimmed}`)
   }
   assert(sawBlockScalar, 'the curl step must be a block scalar so the Content-Type header stays legal yaml')
+}
+
+// 첫 실전 셋업(2026-08-12)의 학습을 계약으로: 태그 러너는 무태그 잡을 조용히 stuck시키고,
+// 셋업 6단계는 전부 메인테이너 권한 작업이다(인프라 스크립트 요청 아님 — 사용자 지시).
+function ciBackstopLeaderChecklistCoversLiveSetup() {
+  const skillDoc = fs.readFileSync(path.join(repoRoot, '.claude/commands/기획문서연동.md'), 'utf8')
+  assert(skillDoc.includes('tags:'), 'the yaml example must carry the tagged-runner hint — untagged jobs stuck silently on tag-required runners')
+  assert(skillDoc.includes('처음 켤 때 체크리스트'), 'the leader setup checklist section must exist')
+  for (const item of ['Incoming Webhook', 'MATTERMOST_WEBHOOK_URL', 'Masked', 'Protected', 'Job token permissions', '러너', '30 7,12 * * 1-5', '잡 로그']) {
+    assert(skillDoc.includes(item), `leader checklist must cover live-run learning: ${item}`)
+  }
+  assert(skillDoc.includes('메인테이너 권한'), 'the checklist must say maintainers can do all of it — not an infra-script request')
+}
+
+// 새 프로젝트 day-0 문서는 정본 포인터 모음이다(0.2.118) — 배포되고, 등록되고,
+// 가리키는 정본·명령이 실존해야 한다. 절차 본문을 복제하기 시작하면 두 번째 진실이 된다.
+function newProjectChecklistShipsWithPointers() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const rel = '.harness/project/new-project-checklist.md'
+  assert(exists(target, rel), 'new-project checklist must ship with init')
+  const doc = read(target, rel)
+  for (const pointer of ['bootstrap.md', 'spec-authority-workflow.md', 'stack-preset-rules.md']) {
+    assert(doc.includes(pointer), `checklist must point to canonical doc: ${pointer}`)
+    assert(exists(target, `.harness/project/${pointer}`), `pointed canonical doc must exist: ${pointer}`)
+  }
+  for (const command of ['기획문서연동', '기획확인']) {
+    assert(doc.includes(`/${command}`), `checklist must hand over the command: /${command}`)
+    assert(exists(target, `.claude/commands/${command}.md`), `referenced command must be installed: ${command}`)
+  }
+  const registry = JSON.parse(read(target, '.harness/documentation/document-registry.json'))
+  const group = (registry.groups ?? []).find((entry) => entry.id === 'project-harness')
+  assert(group && group.children.includes(rel), 'checklist must be registered in the document registry')
+  assert(read(target, 'CLAUDE.md').includes('new-project-checklist.md'), 'CLAUDE.md pick-list must point to the checklist')
+  assert(read(target, '.harness/project/README.md').includes('new-project-checklist.md'), 'project README reading order must include the checklist')
 }
 
 function specSyncCli(target, cliArgs, options = {}) {
@@ -5567,6 +5612,8 @@ const tests = [
   broadcastSpeaksMixedAudienceLanguage,
   broadcastDistinguishesJudgedDocsFromUnmapped,
   ciBackstopExampleDelegatesToBroadcast,
+  ciBackstopLeaderChecklistCoversLiveSetup,
+  newProjectChecklistShipsWithPointers,
   buildContextInjectsRelatedSpecs,
   contextClassifiesPlainKoreanDevelopmentRequest,
   guardShowsSpecAdvisoryForMappedCodeChange,

@@ -69,7 +69,8 @@
         ".harness/project/spec-map.md",
         ".harness/project/spec-authority-workflow.md",
         ".harness/project/portability-guide.md",
-        ".harness/project/bootstrap.md"
+        ".harness/project/bootstrap.md",
+        ".harness/project/new-project-checklist.md"
       ]
     },
     {

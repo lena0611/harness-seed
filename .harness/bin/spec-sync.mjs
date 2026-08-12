@@ -2808,25 +2808,44 @@ function buildBroadcastMessage() {
   }
   if (pending.length === 0) return null
 
+  // 화면(.html)은 대표 문서로 접는다 — 문서+화면은 확인도 원자(한 도장)고 담당도 문서의 매핑을
+  // 따르는데, 따로 세면 한 건이 두 줄로 부풀고 화면 줄이 "담당 없음"처럼 보인다(첫 실전 알림에서 실증).
+  const screenIndexes = screenIndexesFromCache(state)
+  const units = new Map()
+  for (const item of pending) {
+    const unit = screenIndexes[item.source]?.unitFor(item.file)
+    const primary = unit?.primary ?? item.file
+    const key = `${item.source}\u0000${primary}`
+    const entry = units.get(key) ?? { file: primary, kinds: new Set(), hasScreen: false }
+    entry.kinds.add(item.kind)
+    if (unit && item.file !== unit.primary) entry.hasScreen = true
+    units.set(key, entry)
+  }
+  const folded = [...units.values()]
+
   const KIND = { '변경': '수정', '추가': '신규', '삭제': '삭제' }
   const MAX_DOCS = 15
   const lines = []
-  lines.push(`[기획-개발 동기화] 개발팀이 아직 확인하지 않은 기획 변경이 있습니다 (${pending.length}건)`)
+  lines.push(`[기획-개발 동기화] 개발팀이 아직 확인하지 않은 기획 변경이 있습니다 (${folded.length}건)`)
   lines.push('')
   // "주소를 깜빡한 문서"와 "구현 대상이 아니라고 판정을 끝낸 문서"는 다른 상태다 — 라벨도 구분한다.
   // 후자를 "아직 없음"으로 말하면 매핑 누락처럼 읽힌다(2026-08-12 지적). 라우팅은 둘 다 리더:
   // 판정 문서가 움직였으면 그 판정을 유지할지 재판단하는 것도 판정을 내린 쪽의 몫이다.
   const judgedSpecs = new Set(readSpecMapExemptions().specs)
-  for (const item of pending.slice(0, MAX_DOCS)) {
-    const linked = linkedCodePaths(item.file, state.entries)
+  for (const entry of folded.slice(0, MAX_DOCS)) {
+    // 글롭 꼬리(/**)는 표시에서 뗀다 — Mattermost가 **를 굵게 마커로 먹어 별표가 사라지고(실증),
+    // 혼성 채널에서 /**는 개발 표기다. 매핑 자체는 불변, 표시만 정리한다.
+    const linked = linkedCodePaths(entry.file, state.entries).map((p) => p.replace(/\/\*+$/, ''))
     const owner = linked.length > 0
       ? `담당 코드: ${linked.join(', ')}`
-      : judgedSpecs.has(item.file)
+      : judgedSpecs.has(entry.file)
         ? '구현 대상 아님으로 판정된 문서 — 개발리더 확인'
         : '담당 코드 아직 없음 (개발리더 확인)'
-    lines.push(`  - (${KIND[item.kind] ?? item.kind}) ${item.file.replace(/\.md$/i, '')} — ${owner}`)
+    const kind = entry.kinds.has('변경') ? '수정' : entry.kinds.has('추가') ? '신규' : (KIND[[...entry.kinds][0]] ?? [...entry.kinds][0])
+    const screenSuffix = entry.hasScreen ? ' (화면 포함)' : ''
+    lines.push(`  - (${kind}) ${entry.file.replace(/\.md$/i, '')}${screenSuffix} — ${owner}`)
   }
-  if (pending.length > MAX_DOCS) lines.push(`  … 외 ${pending.length - MAX_DOCS}건`)
+  if (folded.length > MAX_DOCS) lines.push(`  … 외 ${folded.length - MAX_DOCS}건`)
   lines.push('')
   lines.push('기획팀: 따로 하실 일 없습니다. 개발팀이 확인하면 이 알림은 멈춥니다.')
   lines.push('개발팀: 담당 코드가 내 영역이면, 그 프로젝트에서 /기획확인 을 입력하세요.')
