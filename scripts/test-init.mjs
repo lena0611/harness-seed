@@ -3317,6 +3317,29 @@ function ciBackstopExampleDelegatesToBroadcast() {
   const skillDoc = fs.readFileSync(path.join(repoRoot, '.claude/commands/기획문서연동.md'), 'utf8')
   assert(skillDoc.includes('spec-sync.mjs broadcast --json'), 'the CI example must delegate message building to the tool')
   assert(!skillDoc.includes('spec-status.txt'), 'the fragile grep-and-paste pipeline must be gone')
+
+  // yaml 지뢰 계약(0.2.117): script의 plain 항목이 ": "를 품으면 YAML이 키:값으로 쪼개서
+  // 파이프라인이 생성 단계에서 죽는다 — 실증: 'Content-Type: application/json' 한 줄이
+  // 멀티사이트 첫 스케줄 실행(#6688)을 Stages 없이 실패시켰다(2026-08-12). 예시는 존재만이
+  // 아니라 파싱까지 계약이다(결정 76의 확장). 콜론+공백이 필요한 명령은 블록 스칼라(|)로 쓴다.
+  const fence = skillDoc.match(/```yaml\n([\s\S]*?)```/)
+  assert(fence, 'the CI example must be a yaml fence')
+  const lines = fence[1].split('\n')
+  const scriptIdx = lines.findIndex((line) => /^\s*script:\s*$/.test(line))
+  assert(scriptIdx >= 0, 'the example must have a script block')
+  const scriptIndent = lines[scriptIdx].match(/^\s*/)[0].length
+  let sawBlockScalar = false
+  for (let i = scriptIdx + 1; i < lines.length; i += 1) {
+    const line = lines[i]
+    if (line.trim() === '') continue
+    if (line.match(/^\s*/)[0].length <= scriptIndent) break
+    const trimmed = line.trim()
+    if (!trimmed.startsWith('- ')) continue
+    if (trimmed.startsWith('- |') || trimmed.startsWith('- >')) { sawBlockScalar = true; continue }
+    const body = trimmed.slice(2).replace(/\s#.*$/, '')
+    assert(!/: /.test(body), `plain yaml scalar with ": " breaks pipeline creation: ${trimmed}`)
+  }
+  assert(sawBlockScalar, 'the curl step must be a block scalar so the Content-Type header stays legal yaml')
 }
 
 function specSyncCli(target, cliArgs, options = {}) {
