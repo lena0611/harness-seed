@@ -2784,6 +2784,48 @@ function runSettle({ docs = [] } = {}) {
   if (realMissing.length > 0) process.exitCode = 1
 }
 
+// 혼성 채널(기획자+개발자)용 알림 본문 — CI 백스톱이 웹훅으로 보내는 메시지의 정본.
+//
+// 문구가 셸(yaml)이 아니라 여기 있는 이유: 셸에서 오려 붙이면 검증할 수 없고, 실제로 status 문구가
+// 바뀌면서 grep 마커가 11개 릴리스 동안 조용히 죽어 있었다(2026-08-12 발견). 도구가 완성문을 내면
+// 회귀로 잠글 수 있다.
+//
+// 언어 규칙(결정 77): 알림은 수신자의 언어로 말한다. 이 채널에는 기획자가 있으므로 정산·매핑·lock
+// 같은 개발 용어를 쓰지 않는다(회귀가 금지어로 단언). 말하는 사실은 도구가 아는 것까지만 —
+// "확인 기록이 없다". 채근·경과일·사람 지목은 하지 않는다(결정 75, 길라잡이 원칙).
+function buildBroadcastMessage() {
+  const state = readSpecState()
+  if (!state.declared) return null
+  if (!state.valid) {
+    // 비차단이지만 무음도 아니다(0.2.102 P2-6): 상태가 깨졌을 때 조용하면 "변경 없음"과 구분이 안 된다.
+    return '[기획-개발 동기화] 연동 상태를 읽을 수 없어 확인이 필요합니다 (개발리더 확인)'
+  }
+  let pending = []
+  try {
+    pending = pendingSettlements(state.lock)
+  } catch {
+    return '[기획-개발 동기화] 최신 확인 기록을 읽을 수 없어 확인이 필요합니다 (개발리더 확인)'
+  }
+  if (pending.length === 0) return null
+
+  const KIND = { '변경': '수정', '추가': '신규', '삭제': '삭제' }
+  const MAX_DOCS = 15
+  const lines = []
+  lines.push(`[기획-개발 동기화] 개발팀이 아직 확인하지 않은 기획 변경이 있습니다 (${pending.length}건)`)
+  lines.push('')
+  for (const item of pending.slice(0, MAX_DOCS)) {
+    const linked = linkedCodePaths(item.file, state.entries)
+    const owner = linked.length > 0 ? `담당 코드: ${linked.join(', ')}` : '담당 코드 아직 없음 (개발리더 확인)'
+    lines.push(`  - (${KIND[item.kind] ?? item.kind}) ${item.file.replace(/\.md$/i, '')} — ${owner}`)
+  }
+  if (pending.length > MAX_DOCS) lines.push(`  … 외 ${pending.length - MAX_DOCS}건`)
+  lines.push('')
+  lines.push('기획팀: 따로 하실 일 없습니다. 개발팀이 확인하면 이 알림은 멈춥니다.')
+  lines.push('개발팀: 담당 코드가 내 영역이면, 그 프로젝트에서 /기획확인 을 입력하세요.')
+  lines.push('       (확인 기록은 커밋·푸시까지 되어야 알림이 멈춥니다)')
+  return lines.join('\n')
+}
+
 function runStatus() {
   const state = readSpecState()
   if (!state.declared) {
@@ -3027,6 +3069,17 @@ function main() {
       }
       console.log('  pull은 완료됐지만 에이전트가 기획 본문을 읽을 수 없습니다. 개발 작업 전에 다시 받아야 합니다.')
       console.log('  재시도: npm run harness:spec:fetch -- --at-lock')
+    }
+    return
+  }
+
+  if (mode === 'broadcast') {
+    const message = buildBroadcastMessage()
+    // null = 알릴 것 없음(또는 미연동) → 완전 무음. yaml은 출력이 비었는지로 전송 여부를 판정한다.
+    if (message !== null) {
+      // --json은 웹훅에 그대로 POST 가능한 payload를 낸다. 셸에서 손으로 이스케이프하다
+      // 개행에 깨지는 부류의 버그를 원천 차단한다(JSON 제어문자 이스케이프는 여기서 끝).
+      console.log(jsonOutput ? JSON.stringify({ text: message }) : message)
     }
     return
   }

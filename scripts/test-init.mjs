@@ -3242,6 +3242,54 @@ function makePlanningRepoRaw(files) {
   return repo
 }
 
+// CI 백스톱 알림의 정본은 broadcast 출력이다(0.2.115). 종전에는 yaml이 status 출력을 grep으로
+// 오려 붙였는데, status 문구가 바뀌면서 마커가 11개 릴리스 동안 조용히 죽어 있었다. 문구를 도구로
+// 옮기고 여기서 계약으로 잠근다: ① 혼성 채널(기획자+개발자)이므로 개발 용어 금지 ② 알림이 안내하는
+// 명령은 실존해야 함 ③ 조용함 = 변경 없음이 보장돼야 함 ④ 출력은 웹훅에 그대로 POST 가능한 JSON.
+function broadcastSpeaksMixedAudienceLanguage() {
+  const { target, planning } = setupSpecLinkedTarget()
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '# 기획 문서 매핑', '',
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| features/로그인.md | src/views/** | |',
+    '',
+  ].join('\n'))
+
+  const quiet = specSyncCli(target, ['broadcast', '--json'])
+  assert(quiet.trim() === '', 'a settled baseline must produce no broadcast at all — silence must mean "nothing changed"')
+
+  fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 정책 추가.\n')
+  fs.writeFileSync(path.join(planning, 'features/포인트지급.md'), '# 포인트 지급\n')
+  gitCommitAll(planning, '기획 수정+신규')
+  specSyncCli(target, ['fetch', '--cache-only'])
+
+  const raw = specSyncCli(target, ['broadcast', '--json'])
+  const payload = JSON.parse(raw)
+  const text = payload.text
+  assert(text.includes('확인하지 않은 기획 변경'), 'broadcast must state the fact in plain language')
+  assert(text.includes('(수정) features/로그인'), 'a changed doc must appear with a plain kind label')
+  assert(text.includes('담당 코드: src/views/**'), 'a mapped doc must name its owning code area')
+  assert(text.includes('(신규) features/포인트지급'), 'a new doc must appear')
+  assert(text.includes('담당 코드 아직 없음'), 'an unowned doc must say so in plain words')
+  assert(text.includes('기획팀:') && text.includes('개발팀:'), 'both audiences must be addressed by name')
+  for (const jargon of ['정산', '매핑', 'lock', 'settle']) {
+    assert(!text.includes(jargon), `mixed-audience broadcast must not contain developer jargon: ${jargon}`)
+  }
+
+  // 죽은 마커의 교훈을 명령에도 적용: 알림이 손에 쥐여 주는 명령은 실존해야 한다.
+  const command = text.match(/\/([가-힣A-Za-z-]+) 을 입력/)
+  assert(command, 'the developer line must hand over a slash command')
+  assert(exists(target, `.claude/commands/${command[1]}.md`), 'the command the broadcast references must be installed in the consumer project')
+}
+
+// yaml 예시는 문구를 만들지 않는다 — 도구의 broadcast 출력을 그대로 전달만 한다.
+function ciBackstopExampleDelegatesToBroadcast() {
+  const skillDoc = fs.readFileSync(path.join(repoRoot, '.claude/commands/기획문서연동.md'), 'utf8')
+  assert(skillDoc.includes('spec-sync.mjs broadcast --json'), 'the CI example must delegate message building to the tool')
+  assert(!skillDoc.includes('spec-status.txt'), 'the fragile grep-and-paste pipeline must be gone')
+}
+
 function specSyncCli(target, cliArgs, options = {}) {
   return run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), ...cliArgs], { cwd: target, ...options })
 }
@@ -5464,6 +5512,8 @@ const tests = [
   hooksInstallHydratesSpecBodiesForFreshClone,
   hooksInstallStaysQuietWithoutSpecLink,
   specSyncFetchRecordsLockAndDetectsChanges,
+  broadcastSpeaksMixedAudienceLanguage,
+  ciBackstopExampleDelegatesToBroadcast,
   buildContextInjectsRelatedSpecs,
   contextClassifiesPlainKoreanDevelopmentRequest,
   guardShowsSpecAdvisoryForMappedCodeChange,
