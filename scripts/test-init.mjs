@@ -3283,6 +3283,35 @@ function broadcastSpeaksMixedAudienceLanguage() {
   assert(exists(target, `.claude/commands/${command[1]}.md`), 'the command the broadcast references must be installed in the consumer project')
 }
 
+// "주소를 깜빡한 문서"와 "구현 대상 아님으로 판정을 끝낸 문서"는 알림에서도 구분돼야 한다(0.2.116).
+// 판정 문서를 "아직 없음"으로 말하면 매핑 누락처럼 읽혀서, 이미 내린 판정을 사람들이 다시 의심하게 된다.
+function broadcastDistinguishesJudgedDocsFromUnmapped() {
+  const { target, planning } = setupSpecLinkedTarget()
+
+  // 판정 대상 문서를 기획에 추가하고 기준에 편입한 뒤, 스펙맵에 (코드 없음) 판정을 남긴다.
+  fs.writeFileSync(path.join(planning, 'features/운영안내.md'), '# 운영 안내\n\n배포 창구 안내.\n')
+  gitCommitAll(planning, '운영안내 추가')
+  specSyncCli(target, ['fetch', '--cache-only'])
+  specSyncCli(target, ['settle', '--doc', 'features/운영안내.md'])
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '# 기획 문서 매핑', '',
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| features/운영안내.md | (코드 없음) | 안내문 |',
+    '',
+  ].join('\n'))
+
+  // 판정된 문서와 미매핑 문서를 같은 라운드에 변경한다.
+  fs.appendFileSync(path.join(planning, 'features/운영안내.md'), '\n- 창구 변경.\n')
+  fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 정책 추가.\n')
+  gitCommitAll(planning, '기획 수정')
+  specSyncCli(target, ['fetch', '--cache-only'])
+
+  const text = JSON.parse(specSyncCli(target, ['broadcast', '--json'])).text
+  assert(text.includes('(수정) features/운영안내 — 구현 대상 아님으로 판정된 문서'), 'a judged doc must not read like a forgotten mapping')
+  assert(text.includes('(수정) features/로그인 — 담당 코드 아직 없음'), 'an unmapped doc keeps the not-yet label')
+}
+
 // yaml 예시는 문구를 만들지 않는다 — 도구의 broadcast 출력을 그대로 전달만 한다.
 function ciBackstopExampleDelegatesToBroadcast() {
   const skillDoc = fs.readFileSync(path.join(repoRoot, '.claude/commands/기획문서연동.md'), 'utf8')
@@ -5513,6 +5542,7 @@ const tests = [
   hooksInstallStaysQuietWithoutSpecLink,
   specSyncFetchRecordsLockAndDetectsChanges,
   broadcastSpeaksMixedAudienceLanguage,
+  broadcastDistinguishesJudgedDocsFromUnmapped,
   ciBackstopExampleDelegatesToBroadcast,
   buildContextInjectsRelatedSpecs,
   contextClassifiesPlainKoreanDevelopmentRequest,

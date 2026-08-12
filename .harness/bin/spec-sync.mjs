@@ -2779,7 +2779,7 @@ function runSettle({ docs = [] } = {}) {
     console.log(`  - [없음] ${rel} — 기준에도 캐시에도 없는 문서입니다. 경로를 확인하세요.`)
   }
   console.log('')
-  console.log('정산은 "이 기획 변경을 살펴봤다"는 선언입니다. 코드 반영 또는 영향 없음 근거를 decision-log에 남기고,')
+  console.log('정산은 "이 기획 변경을 살펴봤다"는 선언입니다. 영향 없음이 자명하지 않으면 근거를 decision-log에 남기고(자명하면 커밋 메시지로 충분),')
   console.log(`${toPosix(path.relative(repoRoot, lockPath))} 변경을 커밋에 포함해 다시 push 하세요.`)
   if (realMissing.length > 0) process.exitCode = 1
 }
@@ -2813,9 +2813,17 @@ function buildBroadcastMessage() {
   const lines = []
   lines.push(`[기획-개발 동기화] 개발팀이 아직 확인하지 않은 기획 변경이 있습니다 (${pending.length}건)`)
   lines.push('')
+  // "주소를 깜빡한 문서"와 "구현 대상이 아니라고 판정을 끝낸 문서"는 다른 상태다 — 라벨도 구분한다.
+  // 후자를 "아직 없음"으로 말하면 매핑 누락처럼 읽힌다(2026-08-12 지적). 라우팅은 둘 다 리더:
+  // 판정 문서가 움직였으면 그 판정을 유지할지 재판단하는 것도 판정을 내린 쪽의 몫이다.
+  const judgedSpecs = new Set(readSpecMapExemptions().specs)
   for (const item of pending.slice(0, MAX_DOCS)) {
     const linked = linkedCodePaths(item.file, state.entries)
-    const owner = linked.length > 0 ? `담당 코드: ${linked.join(', ')}` : '담당 코드 아직 없음 (개발리더 확인)'
+    const owner = linked.length > 0
+      ? `담당 코드: ${linked.join(', ')}`
+      : judgedSpecs.has(item.file)
+        ? '구현 대상 아님으로 판정된 문서 — 개발리더 확인'
+        : '담당 코드 아직 없음 (개발리더 확인)'
     lines.push(`  - (${KIND[item.kind] ?? item.kind}) ${item.file.replace(/\.md$/i, '')} — ${owner}`)
   }
   if (pending.length > MAX_DOCS) lines.push(`  … 외 ${pending.length - MAX_DOCS}건`)
@@ -2979,7 +2987,7 @@ function runStatus() {
       console.log(`  - [${item.kind}] ${item.file}${suffix}`)
     }
     console.log('')
-    console.log('판단: 기획 변경이 구현에 영향을 주면 코드/테스트를 반영하고, 영향이 없으면 근거를 decision-log에 남깁니다.')
+    console.log('판단: 구현에 영향을 주면 코드/테스트를 반영합니다. 영향 없음이 자명하면 커밋 메시지 한 줄, 자명하지 않은 판단만 decision-log에 남깁니다.')
     console.log('확인이 끝났으면 npm run harness:spec:settle 로 정산합니다.')
   } else if (state.lock.exists && notReady.length === 0) {
     console.log('정산 대기 중인 기획 변경이 없습니다.')
