@@ -25,6 +25,13 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 - 다른 `node` 호출보다 먼저 `node .harness/bin/check-node-version.mjs`를 실행합니다. 낮은 Node에서 ESM 크래시 대신 업그레이드/dual-runtime 안내가 나오게 하기 위함입니다. dual-node 전환이 끝난 뒤의 최후 게이트입니다.
 - 하네스 검증은 npm을 경유하지 않고 `.harness/bin/harness` 런처를 호출합니다(비-Node 프로젝트 호환). 런처도 같은 dual-node 전환을 수행합니다.
 
+## 기존 hook 도구 공존 (husky 등)
+
+- 공존은 이미 설계되어 있습니다: `install-hooks.mjs`가 기존 hook 경로를 `harness.previousHooksPath`에 저장하고, `run-previous-hook.mjs`가 기존 hook(husky 등)을 먼저 체인 실행합니다(`HARNESS_PREV_PATH` 사용).
+- 충돌의 실제 원인은 husky 자체가 아니라 `"prepare": "husky"` 스크립트입니다 — 매 `npm install`마다 `core.hooksPath`를 `.husky`로 무조건 덮어써 하네스 훅을 조용히 끕니다.
+- 표준 공존 패턴: `"prepare": "husky && node .harness/bin/install-hooks.mjs"`. 멱등이며, clone 후 `npm install`만으로 하네스 훅까지 자동 설치되는 부수 이점이 있습니다.
+- `install-hooks.mjs`가 `"prepare": "husky"`를 감지해 경고하는 코드 개입은 하지 않습니다(코드는 최후 수단, 2026-08-13 합의). 같은 질문이 반복되면 재고합니다.
+
 ## hook 설치 기준
 - `npm run hooks:install`은 `core.hooksPath`를 `.githooks`로 설정합니다.
 - git 저장소가 아닌 디렉터리에서는 hook을 설치하지 않고, `git init` 후 다시 실행하라는 짧은 안내로 실패합니다. 이때 Node stack trace를 출력하지 않습니다.

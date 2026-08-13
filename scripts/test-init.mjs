@@ -2943,7 +2943,7 @@ function specSyncFetchRecordsLockAndDetectsChanges() {
   assert(moved.includes('변경 1'), 'baseline move should report one changed spec document')
 
   const status = run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'status'], { cwd: target })
-  assert(status.includes('정산 대기 중인 기획 변경이 없습니다'), 'after a baseline move nothing should remain unsettled')
+  assert(status.includes('읽고 아직 정산하지 않은 기획 변경이 없습니다'), 'after a baseline move nothing should remain unsettled')
 }
 
 function buildContextInjectsRelatedSpecs() {
@@ -3325,6 +3325,59 @@ function broadcastDistinguishesJudgedDocsFromUnmapped() {
   const text = JSON.parse(specSyncCli(target, ['broadcast', '--json'])).text
   assert(text.includes('(수정) features/운영안내 — 구현 대상 아님으로 판정된 문서'), 'a judged doc must not read like a forgotten mapping')
   assert(text.includes('(수정) features/로그인 — 담당 코드 아직 없음'), 'an unmapped doc keeps the not-yet label')
+}
+
+// 0.2.121: broadcast의 무음은 "확인했고 변경 없음"만 뜻해야 한다. 최신 확인 기록이 아예 없으면
+// (클론 직후 등) 이 명령 혼자서는 변경 여부를 알 수 없는데, 조용히 끝나면 "미확인 변경 0건"으로
+// 오판된다(멀티사이트 실증: fetch 없이 broadcast만 돌리고 "변경 없음"으로 보고).
+function broadcastWithoutCheckRecordAsksForFetchFirst() {
+  const { target } = setupSpecLinkedTarget()
+
+  // 최초 연동은 방금 원격 HEAD를 확인한 행위다 — 차이 0건의 확인 기록이 남고 무음이 정직하다.
+  assert(exists(target, '.harness/generated/spec-latest/planning/.manifest.json'), 'initial linking must leave a per-source check record')
+  assert(specSyncCli(target, ['broadcast', '--json']).trim() === '', 'right after initial linking silence is honest — the remote was just checked')
+
+  // 클론 직후 재현: 기준(lock)은 커밋돼 있지만 생성물(확인 기록)은 없다.
+  fs.rmSync(path.join(target, '.harness/generated'), { recursive: true, force: true })
+  const raw = specSyncCli(target, ['broadcast', '--json'])
+  assert(raw.trim() !== '', 'without any check record broadcast must not be silent — silence would read as "no changes"')
+  const text = JSON.parse(raw).text
+  assert(text.includes('최신 확인 기록이 없어'), 'the message must name the actual state (no check record yet)')
+  assert(text.includes('fetch -- --cache-only'), 'the message must hand over the command that creates the record')
+
+  // 확인을 실제로 수행하면(변화가 없어도) 기록이 생겨 다시 정당한 무음이 된다.
+  specSyncCli(target, ['fetch', '--cache-only'])
+  assert(specSyncCli(target, ['broadcast', '--json']).trim() === '', 'after a real check with no changes, silence means "nothing changed" again')
+}
+
+// 0.2.121: 같은 status 화면에 "정산 대기 없음"과 "감지 2건"이 나란히 나와 모순으로 읽혔다(멀티사이트
+// 실증 — 에이전트가 병렬 실행 순서 문제로 의심하고 재확인). 두 줄은 다른 축(읽은 스냅샷 vs 원격 확인)
+// 인데 라벨이 축을 밝히지 않았고, 감지 건수는 화면 접기(결정 79) 없이 파일 단위라 채널 알림(1건)과도
+// 갈라졌다. 축 명시·건수 접기·다음 명령 안내를 계약으로 잠근다.
+function specStatusSeparatesAxesAndFoldsDetectedCount() {
+  const { target, planning } = setupSpecLinkedTarget()
+
+  // md+html 짝을 함께 수정 — 접으면 1건, 파일로 세면 2건.
+  fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 정렬 우선순위 정책 추가.\n')
+  fs.appendFileSync(path.join(planning, 'features/로그인.html'), '<p>정렬 칼럼 추가.</p>\n')
+  gitCommitAll(planning, '기획 수정')
+
+  // 모순이 목격된 상태 재현: 최신 확인(freshness)만 있고 스냅샷(fetch --cache-only)은 없다
+  // → 원격 변경은 감지됐지만 읽은 것이 없어 정산 대기는 0건.
+  specSyncCli(target, ['freshness'])
+
+  const status = specSyncCli(target, ['status'])
+  assert(status.includes('읽고 아직 정산하지 않은 기획 변경이 없습니다'), 'the settle line must name its axis (read snapshots)')
+  assert(status.includes('기준 이후 원격 변경 1건'), 'the remote-axis count must fold a doc+screen pair into one unit (decision 79)')
+  assert(!status.includes('원격 변경 2건'), 'the remote-axis count must not be counted per raw file')
+  assert(status.includes('다른 축입니다'), 'the status must say the two lines measure different things')
+  assert(status.includes('fetch -- --cache-only'), 'the remote-axis line must hand over the next command')
+
+  // 작업 컨텍스트의 라벨도 원격 축으로 말한다 — "미정산"은 읽은 스냅샷의 축이라 여기에 쓰면
+  // status의 "정산 대기 없음"과 정면 모순으로 읽힌다.
+  const context = run(nodeBin, [path.join(target, '.harness/bin/build-context.mjs'), '--stdout', '로그인 기능 수정'], { cwd: target })
+  assert(context.includes('기준 이후 원격에서 변경됨 — 확인 전'), 'the context label must speak the remote axis')
+  assert(!context.includes('미정산'), 'the context must not borrow the settle-axis word for remote detections')
 }
 
 // yaml 예시는 문구를 만들지 않는다 — 도구의 broadcast 출력을 그대로 전달만 한다.
@@ -5691,6 +5744,8 @@ const tests = [
   specSyncFetchRecordsLockAndDetectsChanges,
   broadcastSpeaksMixedAudienceLanguage,
   broadcastDistinguishesJudgedDocsFromUnmapped,
+  broadcastWithoutCheckRecordAsksForFetchFirst,
+  specStatusSeparatesAxesAndFoldsDetectedCount,
   ciBackstopExampleDelegatesToBroadcast,
   ciBackstopLeaderChecklistCoversLiveSetup,
   releaseNoticeBuildsPayloadFromLatestChangelogSection,

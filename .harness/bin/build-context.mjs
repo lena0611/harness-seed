@@ -652,7 +652,10 @@ function renderContext() {
   if (relevantChanged.length > 0) {
     lines.push('**기준 이후 바뀐 기획 문서 (이번 작업과 관련)** — 구현 전에 최신 내용을 반드시 확인하세요.')
     for (const item of relevantChanged) {
-      lines.push(`- ${item.file} (변경됨, 아직 미정산)`)
+      // "미정산"이 아니라 "확인 전"이다 — 미정산은 "읽었지만 정산 안 함"(spec:status의 축)이고,
+      // 여기는 원격 확인 결과라 아직 읽지 않았을 수 있다. 같은 단어를 두 축에 쓰면
+      // status의 "정산 대기 없음"과 모순처럼 읽힌다(멀티사이트 실증, 0.2.121).
+      lines.push(`- ${item.file} (기준 이후 원격에서 변경됨 — 확인 전)`)
     }
     lines.push('- 최신 본문 받기: `npm run harness:spec:fetch -- --cache-only`. 확인 후 `npm run harness:spec:settle`로 정산합니다.')
     lines.push('')
@@ -661,7 +664,7 @@ function renderContext() {
   if (relevantAdded.length > 0) {
     lines.push('**기준에 없는 기획 문서 (이번 작업과 관련)** — 팀 기준에 편입되지 않아 아직 사양으로 쓰지 않습니다.')
     for (const item of relevantAdded) {
-      lines.push(`- ${item.file} (신규, 미정산·미매핑)`)
+      lines.push(`- ${item.file} (신규 — 기준 미편입, 매핑 없음)`)
     }
     lines.push('- 이 문서로 구현한다면: 최신 본문을 받고(`--cache-only`), 구현 후 `spec-map.md`에 매핑을 남기고 `harness:spec:settle -- --doc <경로>`로 정산합니다.')
     lines.push('')
@@ -672,7 +675,7 @@ function renderContext() {
     // 관련 없다고 단정하지 않고, 확인 대상으로 소수만 노출한다.
     lines.push('**기준에 없는 기획 문서 (관련성 미판정)** — 파일명만으로는 이번 작업과의 관련을 판단할 수 없습니다. 제목을 확인하세요.')
     for (const item of unjudgedAdded) {
-      lines.push(`- ${item.file} (신규, 미정산·미매핑)`)
+      lines.push(`- ${item.file} (신규 — 기준 미편입, 매핑 없음)`)
     }
     lines.push('- 본문 확인: `npm run harness:spec:fetch -- --cache-only` 후 해당 파일을 엽니다.')
     lines.push('')

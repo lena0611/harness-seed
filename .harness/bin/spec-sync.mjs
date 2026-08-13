@@ -1697,6 +1697,15 @@ function runFetch() {
       }
       lockNorm.sources[source.id] = { ...baseline, files: Object.fromEntries(Object.entries(baseline.files)) }
       summaries.push({ id: source.id, commit: baseline.commit, total: Object.keys(baseline.files).length })
+
+      // 최초 연동도 하나의 "최신 확인"이다 — 방금 원격 HEAD를 기준으로 삼았으므로 차이 0건의
+      // 확인 기록을 소스별로 남긴다. 이 기록이 없으면 broadcast가 "확인한 적 없음"(안내 필요)과
+      // "확인했고 변경 없음"(정당한 무음)을 구분할 수 없다(0.2.121). 기록 실패가 연동을 막지는 않는다.
+      try {
+        materializeLatest(source, baseline.commit, [], ensureCacheRepo(source))
+      } catch {
+        // 다음 fetch --cache-only가 기록을 새로 만든다.
+      }
     }
 
     writeJson(lockPath, serializeLock(lockNorm))
@@ -2793,6 +2802,24 @@ function runSettle({ docs = [] } = {}) {
 // 언어 규칙(결정 77): 알림은 수신자의 언어로 말한다. 이 채널에는 기획자가 있으므로 정산·매핑·lock
 // 같은 개발 용어를 쓰지 않는다(회귀가 금지어로 단언). 말하는 사실은 도구가 아는 것까지만 —
 // "확인 기록이 없다". 채근·경과일·사람 지목은 하지 않는다(결정 75, 길라잡이 원칙).
+// 화면(.html)을 대표 문서 단위로 접는다 — 문서+화면은 확인도 원자(한 도장)고 담당도 문서의 매핑을
+// 따르는데, 따로 세면 한 건이 두 줄로 부풀고 화면 줄이 "담당 없음"처럼 보인다(첫 실전 알림에서 실증).
+// 알림(broadcast)과 status의 감지 건수가 이 접기를 공유해야 같은 변경이 채널에서는 1건,
+// 터미널에서는 2건으로 갈라지지 않는다(결정 79: 알림 표시 단위 = 확인 단위).
+export function foldToScreenUnits(items, screenIndexes) {
+  const units = new Map()
+  for (const item of items) {
+    const unit = screenIndexes[item.source]?.unitFor(item.file)
+    const primary = unit?.primary ?? item.file
+    const key = `${item.source}\u0000${primary}`
+    const entry = units.get(key) ?? { source: item.source, file: primary, kinds: new Set(), hasScreen: false }
+    if (item.kind) entry.kinds.add(item.kind)
+    if (unit && item.file !== unit.primary) entry.hasScreen = true
+    units.set(key, entry)
+  }
+  return [...units.values()]
+}
+
 function buildBroadcastMessage() {
   const state = readSpecState()
   if (!state.declared) return null
@@ -2801,27 +2828,28 @@ function buildBroadcastMessage() {
     return '[기획-개발 동기화] 연동 상태를 읽을 수 없어 확인이 필요합니다 (개발리더 확인)'
   }
   let pending = []
+  let latestSourceCount = 0
   try {
+    latestSourceCount = Object.keys(readLatestManifest().sources ?? {}).length
     pending = pendingSettlements(state.lock)
   } catch {
     return '[기획-개발 동기화] 최신 확인 기록을 읽을 수 없어 확인이 필요합니다 (개발리더 확인)'
   }
-  if (pending.length === 0) return null
+  if (pending.length === 0) {
+    // 무음의 두 가지 뜻을 구분한다(0.2.121): "변경이 없어서 조용"과 "최신 확인을 안 해서 몰라서 조용"은
+    // 다른 상태다. 최신 확인 기록이 하나도 없으면 이 명령 혼자서는 변경 여부를 알 수 없는데, 조용히
+    // 끝나면 "미확인 변경 0건"으로 오판된다(멀티사이트 실증). fetch --cache-only는 변화가 없어도
+    // 소스별 기록을 항상 남기므로, 정상 CI 순서(fetch --cache-only → broadcast)는 이 분기에 오지 않는다.
+    if (state.lock.exists && latestSourceCount === 0) {
+      return '[기획-개발 동기화] 최신 확인 기록이 없어 기획 변경 여부를 알 수 없습니다 — 먼저 npm run harness:spec:fetch -- --cache-only 를 실행하세요 (개발리더 확인)'
+    }
+    return null
+  }
 
   // 화면(.html)은 대표 문서로 접는다 — 문서+화면은 확인도 원자(한 도장)고 담당도 문서의 매핑을
   // 따르는데, 따로 세면 한 건이 두 줄로 부풀고 화면 줄이 "담당 없음"처럼 보인다(첫 실전 알림에서 실증).
   const screenIndexes = screenIndexesFromCache(state)
-  const units = new Map()
-  for (const item of pending) {
-    const unit = screenIndexes[item.source]?.unitFor(item.file)
-    const primary = unit?.primary ?? item.file
-    const key = `${item.source}\u0000${primary}`
-    const entry = units.get(key) ?? { file: primary, kinds: new Set(), hasScreen: false }
-    entry.kinds.add(item.kind)
-    if (unit && item.file !== unit.primary) entry.hasScreen = true
-    units.set(key, entry)
-  }
-  const folded = [...units.values()]
+  const folded = foldToScreenUnits(pending, screenIndexes)
 
   const KIND = { '변경': '수정', '추가': '신규', '삭제': '삭제' }
   const MAX_DOCS = 15
@@ -3009,15 +3037,28 @@ function runStatus() {
     console.log('판단: 구현에 영향을 주면 코드/테스트를 반영합니다. 영향 없음이 자명하면 커밋 메시지 한 줄, 자명하지 않은 판단만 decision-log에 남깁니다.')
     console.log('확인이 끝났으면 npm run harness:spec:settle 로 정산합니다.')
   } else if (state.lock.exists && notReady.length === 0) {
-    console.log('정산 대기 중인 기획 변경이 없습니다.')
+    // "읽고"를 명시한다 — 아래 "마지막 최신 확인"의 원격 감지와는 다른 축이라, 축을 안 밝히면
+    // 두 줄이 모순처럼 읽힌다(멀티사이트 실증: "정산 대기 없음" + "감지 2건"을 버그로 의심).
+    console.log('읽고 아직 정산하지 않은 기획 변경이 없습니다.')
   }
 
   // 마지막 최신 확인 결과(있으면). 이 명령 자체는 네트워크를 쓰지 않는다.
+  // 감지 건수는 broadcast와 같은 화면 접기 단위로 센다(결정 79) — 같은 변경이
+  // 채널에서는 1건, 여기서는 2건으로 갈라지면 안 된다.
   const lastFreshness = readHydrationStatus()?.freshness
   if (lastFreshness?.checkedAt) {
-    const detected = (lastFreshness.changed?.length ?? 0) + (lastFreshness.added?.length ?? 0) + (lastFreshness.removed?.length ?? 0)
+    const detectedItems = [
+      ...(lastFreshness.changed ?? []),
+      ...(lastFreshness.added ?? []),
+      ...(lastFreshness.removed ?? []),
+    ]
+    const detected = foldToScreenUnits(detectedItems, screenIndexes).length
     console.log('')
-    console.log(`마지막 최신 확인: ${lastFreshness.checkedAt} — 감지 ${detected}건`)
+    console.log(`마지막 최신 확인: ${lastFreshness.checkedAt} — 기준 이후 원격 변경 ${detected}건`)
+    if (detected > 0) {
+      console.log('  위의 정산 대기와는 다른 축입니다(원격 확인 결과 — 아직 본문을 받지 않았을 수 있습니다).')
+      console.log('  본문 받기·검토: npm run harness:spec:fetch -- --cache-only (기준은 옮기지 않습니다)')
+    }
   }
 
   console.log('')
