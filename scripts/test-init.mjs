@@ -3370,6 +3370,7 @@ function ciBackstopLeaderChecklistCoversLiveSetup() {
 }
 
 // 릴리스 공지 payload는 도구가 소유한다(0.2.119) — yaml 속 문자열 조립은 회귀로 잠글 수 없다.
+// 0.2.120: 채널에는 사람이 선별한 "### 공지" 블록만 나간다 — 상세(개발 기록)는 발송 금지.
 function releaseNoticeBuildsPayloadFromLatestChangelogSection() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-release-notice-'))
   const fixture = path.join(dir, 'CHANGELOG.md')
@@ -3377,15 +3378,22 @@ function releaseNoticeBuildsPayloadFromLatestChangelogSection() {
     '# Changelog', '',
     '머리말 설명 줄.', '',
     '## 1.2.3 - 2026-08-13', '',
-    '- 최신 릴리스 항목입니다.', '',
+    '### 공지',
+    '- [신규] 요약 첫 항목입니다.',
+    '- [개선] 요약 둘째 항목입니다.', '',
+    '### 상세', '',
+    '- 내부 리팩터링 상세 — 공지에 나오면 안 된다.', '',
     '## 1.2.2 - 2026-08-12', '',
-    '- 이전 릴리스 항목 — 공지에 나오면 안 된다.', '',
+    '### 공지',
+    '- [신규] 이전 릴리스 항목 — 공지에 나오면 안 된다.', '',
   ].join('\n'))
 
   const raw = run(nodeBin, [path.join(repoRoot, 'scripts/release-notice.mjs'), '--json', '--file', fixture, '--tag', 'v1.2.3'])
   const payload = JSON.parse(raw)
   assert(payload.text.startsWith('[하네스] v1.2.3 배포'), 'notice must lead with the released version')
-  assert(payload.text.includes('최신 릴리스 항목'), 'notice must carry the top changelog section')
+  // 다중 불릿 무결성: v0.2.119 첫 발사가 lookahead $ 버그로 불릿 1개만 내보냈다 — 재발 방지.
+  assert(payload.text.includes('요약 첫 항목') && payload.text.includes('요약 둘째 항목'), 'every notice bullet must survive — the first live firing silently dropped all but the first')
+  assert(!payload.text.includes('내부 리팩터링'), 'detail block (dev record) must never reach the channel')
   assert(!payload.text.includes('이전 릴리스 항목'), 'notice must not leak older sections')
   assert(payload.text.includes('/하네스업데이트'), 'notice must hand leaders the update command')
 
@@ -3395,6 +3403,20 @@ function releaseNoticeBuildsPayloadFromLatestChangelogSection() {
     'a tag/CHANGELOG mismatch must fail loudly',
   )
   assert(out.includes('다릅니다'), 'the mismatch failure must say what disagrees')
+
+  // 블록 누락 = 깜빡함 → 실패. "없음" = 의도된 침묵 → 통과 + 무발송. 둘은 다른 상태다.
+  const noBlock = path.join(dir, 'CHANGELOG-no-block.md')
+  fs.writeFileSync(noBlock, ['## 1.2.3 - 2026-08-13', '', '- 요약 블록 없이 상세만 있는 절.', ''].join('\n'))
+  const missing = expectFailure(
+    () => run(nodeBin, [path.join(repoRoot, 'scripts/release-notice.mjs'), '--json', '--file', noBlock, '--tag', 'v1.2.3']),
+    'a missing notice block must fail loudly, not send the raw section',
+  )
+  assert(missing.includes('공지'), 'the failure must tell the author to write the notice block')
+
+  const silent = path.join(dir, 'CHANGELOG-silent.md')
+  fs.writeFileSync(silent, ['## 1.2.3 - 2026-08-13', '', '### 공지', '없음', '', '### 상세', '', '- 시드 내부 변경만 있는 릴리스.', ''].join('\n'))
+  const quiet = run(nodeBin, [path.join(repoRoot, 'scripts/release-notice.mjs'), '--json', '--file', silent, '--tag', 'v1.2.3'])
+  assert(quiet.trim() === '', 'an intentional "없음" must produce no payload at all — silence by decision, exit 0')
 }
 
 // 시드 파이프라인도 예시와 같은 계약을 진다: 존재 + 파싱(plain 스칼라 콜론+공백 금지) + 도구 위임.
