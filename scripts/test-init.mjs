@@ -311,6 +311,11 @@ function cleanInstallCreatesExpectedFiles() {
   const report = read(target, '.harness/session/project-scan-report.md')
   assert(report.includes('## Standards Layers'), 'scan report should include standards layers')
   assert(report.includes('## Conflict Candidates'), 'scan report should include conflict candidates')
+
+  // 시드 저장소 전용 릴리스 파이프라인은 소비자에게 가면 안 된다(0.2.119) —
+  // INSTALL_ITEMS 허용 목록 덕에 자연 제외되지만, 목록이 넓어져도 이 계약이 지키게 잠근다.
+  assert(!exists(target, '.gitlab-ci.yml'), 'seed release pipeline must not ship to consumers')
+  assert(!exists(target, 'scripts/release-notice.mjs'), 'seed release-notice tool must not ship to consumers')
 }
 
 function installOutputUsesConditionalNvmAndGitGuidance() {
@@ -3364,6 +3369,59 @@ function ciBackstopLeaderChecklistCoversLiveSetup() {
   assert(skillDoc.includes('메인테이너 권한'), 'the checklist must say maintainers can do all of it — not an infra-script request')
 }
 
+// 릴리스 공지 payload는 도구가 소유한다(0.2.119) — yaml 속 문자열 조립은 회귀로 잠글 수 없다.
+function releaseNoticeBuildsPayloadFromLatestChangelogSection() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-release-notice-'))
+  const fixture = path.join(dir, 'CHANGELOG.md')
+  fs.writeFileSync(fixture, [
+    '# Changelog', '',
+    '머리말 설명 줄.', '',
+    '## 1.2.3 - 2026-08-13', '',
+    '- 최신 릴리스 항목입니다.', '',
+    '## 1.2.2 - 2026-08-12', '',
+    '- 이전 릴리스 항목 — 공지에 나오면 안 된다.', '',
+  ].join('\n'))
+
+  const raw = run(nodeBin, [path.join(repoRoot, 'scripts/release-notice.mjs'), '--json', '--file', fixture, '--tag', 'v1.2.3'])
+  const payload = JSON.parse(raw)
+  assert(payload.text.startsWith('[하네스] v1.2.3 배포'), 'notice must lead with the released version')
+  assert(payload.text.includes('최신 릴리스 항목'), 'notice must carry the top changelog section')
+  assert(!payload.text.includes('이전 릴리스 항목'), 'notice must not leak older sections')
+  assert(payload.text.includes('/하네스업데이트'), 'notice must hand leaders the update command')
+
+  // 태그와 CHANGELOG 최상단이 어긋나면 조용히 보내지 않고 멈춘다 — 공지가 거짓말이 되는 경로 차단.
+  const out = expectFailure(
+    () => run(nodeBin, [path.join(repoRoot, 'scripts/release-notice.mjs'), '--json', '--file', fixture, '--tag', 'v9.9.9']),
+    'a tag/CHANGELOG mismatch must fail loudly',
+  )
+  assert(out.includes('다릅니다'), 'the mismatch failure must say what disagrees')
+}
+
+// 시드 파이프라인도 예시와 같은 계약을 진다: 존재 + 파싱(plain 스칼라 콜론+공백 금지) + 도구 위임.
+function ciReleaseNoticeYamlParsesAndDelegates() {
+  const yaml = fs.readFileSync(path.join(repoRoot, '.gitlab-ci.yml'), 'utf8')
+  assert(yaml.includes('scripts/release-notice.mjs --json'), 'the pipeline must delegate message building to the tool')
+  assert(yaml.includes('MATTERMOST_WEBHOOK_URL'), 'the pipeline must post via the CI variable, not a hardcoded URL')
+  assert(!yaml.includes('chat.smartscore.kr'), 'the webhook URL must never be committed')
+  assert(yaml.includes('tags:'), 'the job must carry runner tags — untagged jobs stuck silently on tag-required runners')
+  const lines = yaml.split('\n')
+  const scriptIdx = lines.findIndex((line) => /^\s*script:\s*$/.test(line))
+  assert(scriptIdx >= 0, 'the pipeline must have a script block')
+  const scriptIndent = lines[scriptIdx].match(/^\s*/)[0].length
+  let sawBlockScalar = false
+  for (let i = scriptIdx + 1; i < lines.length; i += 1) {
+    const line = lines[i]
+    if (line.trim() === '') continue
+    if (line.match(/^\s*/)[0].length <= scriptIndent) break
+    const trimmed = line.trim()
+    if (!trimmed.startsWith('- ')) continue
+    if (trimmed.startsWith('- |') || trimmed.startsWith('- >')) { sawBlockScalar = true; continue }
+    const body = trimmed.slice(2).replace(/\s#.*$/, '')
+    assert(!/: /.test(body), `plain yaml scalar with ": " breaks pipeline creation: ${trimmed}`)
+  }
+  assert(sawBlockScalar, 'the curl step must be a block scalar so the Content-Type header stays legal yaml')
+}
+
 // 새 프로젝트 day-0 문서는 정본 포인터 모음이다(0.2.118) — 배포되고, 등록되고,
 // 가리키는 정본·명령이 실존해야 한다. 절차 본문을 복제하기 시작하면 두 번째 진실이 된다.
 function newProjectChecklistShipsWithPointers() {
@@ -5613,6 +5671,8 @@ const tests = [
   broadcastDistinguishesJudgedDocsFromUnmapped,
   ciBackstopExampleDelegatesToBroadcast,
   ciBackstopLeaderChecklistCoversLiveSetup,
+  releaseNoticeBuildsPayloadFromLatestChangelogSection,
+  ciReleaseNoticeYamlParsesAndDelegates,
   newProjectChecklistShipsWithPointers,
   buildContextInjectsRelatedSpecs,
   contextClassifiesPlainKoreanDevelopmentRequest,

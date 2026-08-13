@@ -1,0 +1,22 @@
+# 하네스 본체 전용 파이프라인 — 시드 저장소에서만 동작합니다.
+# (init의 INSTALL_ITEMS 허용 목록에 없으므로 소비자 프로젝트로 복사되지 않습니다.)
+#
+# release-notice: 릴리스 태그(vX.Y.Z)가 push되면 CHANGELOG 최상단 절을
+# Mattermost 공지 채널로 보냅니다. 문구는 scripts/release-notice.mjs가 소유하고,
+# 여기서는 전달만 합니다. 실패해도 릴리스는 막지 않습니다(allow_failure).
+release-notice:
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]/'
+  image: node:24
+  # 러너가 태그 필수 모드면 잡에도 태그가 있어야 배정됩니다 (러너 #19: multisite, node24).
+  tags: [node24]
+  script:
+    - PAYLOAD=$(node scripts/release-notice.mjs --json)
+    # 아래는 블록 스칼라(|)여야 합니다 — plain 스칼라의 콜론+공백은 YAML 지뢰입니다(0.2.117 실증).
+    - |
+      if [ -z "$MATTERMOST_WEBHOOK_URL" ]; then
+        echo "MATTERMOST_WEBHOOK_URL 변수가 없어 공지를 건너뜁니다 (Settings > CI/CD > Variables 에 등록)"
+      elif [ -n "$PAYLOAD" ]; then
+        curl -s -X POST -H 'Content-Type: application/json' -d "$PAYLOAD" "$MATTERMOST_WEBHOOK_URL"
+      fi
+  allow_failure: true
