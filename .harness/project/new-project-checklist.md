@@ -7,7 +7,7 @@
 
 - [ ] 하네스 설치 — 신규는 `npx ai-standard-cli init`, 기존 저장소 편입은 시드 복제 후 정리
 - [ ] Node 버전 맞추기 — `nvm use` (`.nvmrc` 기준), 이어서 `npm install`
-- [ ] `npm run hooks:install` — git hook 설치. 기획 연동이 선언된 저장소라면 이때 기획 본문도 준비됩니다. husky를 쓰는 저장소는 [commit-push-rules.md](./commit-push-rules.md)의 "기존 hook 도구 공존" 절을 따릅니다
+- [ ] `npm run hooks:install` — git hook 설치. 기획 연동이 선언된 저장소라면 이때 기획 본문도 준비됩니다. husky를 쓰는 저장소는 [hook-coexistence.md](./hook-coexistence.md)를 따릅니다
 - [ ] 스택 프리셋 선택·적용 — `npm run stack:apply` (기준: [stack-preset-rules.md](./stack-preset-rules.md))
 
 ## 2. 프로젝트 방향 채우기

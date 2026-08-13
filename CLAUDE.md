@@ -37,6 +37,7 @@
 - `.harness/project/architecture-rules.md`
 - `.harness/project/workflow-rules.md`
 - `.harness/project/commit-push-rules.md`
+- `.harness/project/hook-coexistence.md` (husky 등 훅 도구와 공존 — 표준 prepare 패턴)
 - `.harness/project/stack-preset-rules.md`
 - `.harness/project/template-contract.md`
 - `.harness/project/spec-authority-workflow.md` (기획 문서 연동 절차 정본 — `.harness/spec-lock.json`이 있으면 코드 변경 전 필수)

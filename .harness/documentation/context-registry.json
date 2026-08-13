@@ -56,6 +56,15 @@
       "keywords": ["커밋", "푸시", "최종화", "중복 검증", "hook", "pre-commit", "pre-push", "commit-template"]
     },
     {
+      "id": "hook-coexistence",
+      "file": ".harness/project/hook-coexistence.md",
+      "category": "workflow",
+      "taskTypes": ["maintenance", "bugfix", "docs"],
+      "priority": "medium",
+      "appliesTo": ["package.json", ".githooks/**", ".harness/bin/install-hooks.mjs", ".harness/bin/run-previous-hook.mjs"],
+      "keywords": ["husky", "lefthook", "prepare", "hooksPath", "공존", "lint-staged", "hook"]
+    },
+    {
       "id": "critical-paths",
       "file": ".harness/project/critical-paths.md",
       "category": "risk",

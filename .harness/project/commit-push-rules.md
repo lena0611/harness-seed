@@ -27,10 +27,8 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 
 ## 기존 hook 도구 공존 (husky 등)
 
-- 공존은 이미 설계되어 있습니다: `install-hooks.mjs`가 기존 hook 경로를 `harness.previousHooksPath`에 저장하고, `run-previous-hook.mjs`가 기존 hook(husky 등)을 먼저 체인 실행합니다(`HARNESS_PREV_PATH` 사용).
-- 충돌의 실제 원인은 husky 자체가 아니라 `"prepare": "husky"` 스크립트입니다 — 매 `npm install`마다 `core.hooksPath`를 `.husky`로 무조건 덮어써 하네스 훅을 조용히 끕니다.
-- 표준 공존 패턴: `"prepare": "husky && node .harness/bin/install-hooks.mjs"`. 멱등이며, clone 후 `npm install`만으로 하네스 훅까지 자동 설치되는 부수 이점이 있습니다.
-- `install-hooks.mjs`가 `"prepare": "husky"`를 감지해 경고하는 코드 개입은 하지 않습니다(코드는 최후 수단, 2026-08-13 합의). 같은 질문이 반복되면 재고합니다.
+- 정본: [hook-coexistence.md](./hook-coexistence.md) — 충돌 원인(`"prepare": "husky"`의 hooksPath 덮어쓰기)과 표준 공존 패턴(`"prepare": "husky && node .harness/bin/install-hooks.mjs"`)을 담습니다.
+- 본문을 이 문서에 두지 않는 이유: 이 문서는 project-owned라 기존 소비자에게 업데이트로 전파되지 않습니다(결정 81).
 
 ## hook 설치 기준
 - `npm run hooks:install`은 `core.hooksPath`를 `.githooks`로 설정합니다.

@@ -6,6 +6,15 @@
 
 각 릴리스 절은 `### 공지` + `### 상세` 두 블록으로 씁니다. `### 공지`는 채널 공지로 **그대로 나가는** `[신규]`/`[개선]`/`[결함픽스]` 목록이므로 수신자(각 프로젝트 리더) 기준으로 간결하게 적고, 내부 변경(시드 전용 장치·리팩터링·회귀 추가)은 적지 않습니다. 알릴 것이 없는 릴리스는 `없음` 한 줄을 적습니다(발송 생략). 블록이 아예 없으면 공지 잡이 발송 대신 실패합니다.
 
+## 0.2.122 - 2026-08-13
+
+### 공지
+- [결함픽스] 0.2.121 공지의 husky 공존 안내가 가리킨 문서(commit-push-rules.md)가 기존 설치 프로젝트에는 업데이트로 전파되지 않는 문제를 정정했습니다 — 본문을 새 문서 `.harness/project/hook-coexistence.md`로 옮겨 기존 설치도 업데이트로 받습니다. 표준 패턴은 동일합니다: `"prepare": "husky && node .harness/bin/install-hooks.mjs"`.
+
+### 상세
+- **husky 공존 안내 위치 정정 (결정 81)** — 0.2.121이 안내를 commit-push-rules.md에 승격했으나 그 문서는 project-owned(설치기 PROJECT_OWNED_PATHS)라 기존 소비자에게 전파되지 않고, managed인 new-project-checklist.md의 포인터는 기존 소비자 기준 깨진 참조였다. 본문을 hook-coexistence.md(managed)로 이동하고 commit-push-rules.md 절은 포인터로 축소(정본 하나), 체크리스트 포인터 재조준, CLAUDE.md 골라 읽는 목록(marker-managed — 기존 소비자에도 전파)·document-registry·context-registry 등록.
+- 결정 81 신설: 승격 위치를 정할 때 소유 계층(managed / project-owned / marker-managed)을 먼저 판정한다 — 범용 안내는 project-owned 문서에 두지 않는다.
+
 ## 0.2.121 - 2026-08-13
 
 ### 공지
