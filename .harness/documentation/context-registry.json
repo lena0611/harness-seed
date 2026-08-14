@@ -56,6 +56,15 @@
       "keywords": ["커밋", "푸시", "최종화", "중복 검증", "hook", "pre-commit", "pre-push", "commit-template"]
     },
     {
+      "id": "issue-adapter-example",
+      "file": ".harness/project/issue-adapter.example.md",
+      "category": "workflow",
+      "taskTypes": ["feature", "bugfix", "maintenance", "docs", "verification"],
+      "priority": "low",
+      "appliesTo": ["package.json", ".gitlab-ci.yml"],
+      "keywords": ["이슈", "issue", "이슈보드", "트래커", "커밋 보고", "푸시 보고", "adapter"]
+    },
+    {
       "id": "hook-coexistence",
       "file": ".harness/project/hook-coexistence.md",
       "category": "workflow",

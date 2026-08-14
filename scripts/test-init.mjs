@@ -3520,6 +3520,44 @@ function newProjectChecklistShipsWithPointers() {
   assert(read(target, '.harness/project/README.md').includes('new-project-checklist.md'), 'project README reading order must include the checklist')
 }
 
+// 0.2.123: 이슈 어댑터 계약(멀티사이트 제안 수용, 결정 82). 켬 스위치는 "실물 파일의 존재"이므로
+// 본체가 실물(issue-adapter.md)을 배포하는 순간 전 소비자에서 기능이 켜지고 업데이트가 프로젝트
+// 값을 덮는다 — 견본(.example)만 배포된다는 것 자체가 계약이라 회귀로 잠근다. 견본의 필수 칸과
+// 스킬·적용례 문서의 상호 참조가 어긋나면 "문서 따로 규칙 따로"가 되므로 함께 대조한다.
+function issueAdapterExampleShipsAsSwitchContract() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const rel = '.harness/project/issue-adapter.example.md'
+  assert(exists(target, rel), 'issue adapter example must ship with init')
+  assert(!exists(target, '.harness/project/issue-adapter.md'), 'the live adapter must never be distributed — its existence is the on-switch')
+  const doc = read(target, rel)
+  for (const section of ['① 조회 방법', '② 토큰 환경변수', '③ 요약 형식', '④ "내 담당" 구분']) {
+    assert(doc.includes(section), `adapter example must keep required section: ${section}`)
+  }
+  assert(doc.includes('이슈 조회 실패'), 'example must state that query failure is reported, distinct from zero issues')
+  const tokenUses = doc.match(/PRIVATE-TOKEN:\s*(\S+)/g) ?? []
+  assert(tokenUses.length > 0 && tokenUses.every((use) => use.includes('$')), 'example must reference tokens only via env vars, never literal values')
+  const skillRegistry = JSON.parse(read(target, '.harness/skills/registry.json'))
+  const digest = skillRegistry.skills.find((skill) => skill.id === 'harness.issue-digest')
+  assert(digest, 'skill registry must carry the issue digest contract')
+  assert(digest.read.includes('.harness/project/issue-adapter.md'), 'digest skill must point at the live adapter path (the switch)')
+  assert(digest.triggers.includes('커밋') && digest.triggers.includes('push'), 'digest skill must trigger on commit/push requests')
+  const spec = read(target, '.harness/project/spec-authority-workflow.md')
+  assert(spec.includes('기획 이슈 보드'), 'spec workflow must carry the planning-issue application section')
+  assert(spec.includes('issue-adapter.example.md'), 'spec section must hand over the adapter example')
+  assert(spec.includes('doc:'), 'spec section must define the doc label join key')
+  const specIssueYaml = spec.match(/```yaml\n([\s\S]*?)```/)?.[1] ?? ''
+  assert(specIssueYaml.includes('spec-issues'), 'spec section must include the CI job example')
+  for (const line of specIssueYaml.split('\n')) {
+    const item = line.match(/^\s+-\s+(?!if:)(.+)$/)?.[1]
+    if (item) assert(!/:\s/.test(item), `yaml example plain scalar must not contain colon+space (0.2.117): ${item}`)
+  }
+  const registry = JSON.parse(read(target, '.harness/documentation/document-registry.json'))
+  const group = (registry.groups ?? []).find((entry) => entry.id === 'project-harness')
+  assert(group && group.children.includes(rel), 'adapter example must be registered in the document registry')
+  assert(read(target, 'CLAUDE.md').includes('issue-adapter.example.md'), 'CLAUDE.md pick-list must point to the adapter example')
+}
+
 function specSyncCli(target, cliArgs, options = {}) {
   return run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), ...cliArgs], { cwd: target, ...options })
 }
@@ -5751,6 +5789,7 @@ const tests = [
   releaseNoticeBuildsPayloadFromLatestChangelogSection,
   ciReleaseNoticeYamlParsesAndDelegates,
   newProjectChecklistShipsWithPointers,
+  issueAdapterExampleShipsAsSwitchContract,
   buildContextInjectsRelatedSpecs,
   contextClassifiesPlainKoreanDevelopmentRequest,
   guardShowsSpecAdvisoryForMappedCodeChange,

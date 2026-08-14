@@ -41,6 +41,7 @@
 - `.harness/project/stack-preset-rules.md`
 - `.harness/project/template-contract.md`
 - `.harness/project/spec-authority-workflow.md` (기획 문서 연동 절차 정본 — `.harness/spec-lock.json`이 있으면 코드 변경 전 필수)
+- `.harness/project/issue-adapter.example.md` (커밋·푸시 보고의 이슈 요약 — 프로젝트가 견본을 복사해 만든 실물 파일이 있으면 그 규칙 적용)
 - `.harness/project/bootstrap.md`
 - `.harness/project/new-project-checklist.md` (새 프로젝트 day-0 순서 — 리더용)
 - `.harness/policy/context-protocol.md`

@@ -69,6 +69,7 @@
         ".harness/project/critical-paths.md",
         ".harness/project/spec-map.md",
         ".harness/project/spec-authority-workflow.md",
+        ".harness/project/issue-adapter.example.md",
         ".harness/project/portability-guide.md",
         ".harness/project/bootstrap.md",
         ".harness/project/new-project-checklist.md"
