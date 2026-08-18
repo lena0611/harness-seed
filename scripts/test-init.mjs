@@ -7,6 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isHistoryLogPath, isIgnorableCodePath } from '../.harness/bin/doc-link-check.mjs'
+import { buildScreenIndex, normalizeScreenLinks, sha256Text as specSyncSha256Text } from '../.harness/bin/spec-sync.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const repoRoot = path.resolve(path.dirname(__filename), '..')
@@ -3558,6 +3559,58 @@ function issueAdapterExampleShipsAsSwitchContract() {
   assert(read(target, 'CLAUDE.md').includes('issue-adapter.example.md'), 'CLAUDE.md pick-list must point to the adapter example')
 }
 
+// 0.2.123 후속(2026-08-18): 멀티사이트 spec-issues-sync.mjs(소비자 소유 CI 스크립트)가
+// 아래 표면을 import/호출하는 것이 실사용으로 확인됐다. 내부 구현이었던 것이 소비자
+// 의존을 얻으면 공개 계약이다 — 이름·시그니처·출력 형태가 바뀌면 소비자 CI가 죽으므로
+// 여기서 잠근다. 바꿔야 한다면 이 테스트를 깨뜨린 커밋이 소비자 마이그레이션을 함께 안내할 것.
+// 잠그는 표면: sha256Text · normalizeScreenLinks(기본 확장자 폴백) · buildScreenIndex(unitFor 접기)
+//             · readSpecState + pendingSettlements(미정산 축의 정본) · status --json(configured/valid/sources)
+//             · import 안전성(CLI 가드 — import가 main을 실행하지 않아야 소비자 import가 성립)
+function specSyncPublicSurfaceStaysLocked() {
+  assert(typeof specSyncSha256Text === 'function', 'sha256Text must stay exported — consumer CI scripts import it')
+  assert(typeof normalizeScreenLinks === 'function', 'normalizeScreenLinks must stay exported')
+  assert(typeof buildScreenIndex === 'function', 'buildScreenIndex must stay exported')
+
+  const defaults = normalizeScreenLinks({})
+  assert(Array.isArray(defaults) && defaults.includes('.html'), 'undeclared screenLinks must fall back to defaults including .html — folding relies on it')
+
+  const index = buildScreenIndex(
+    ['features/로그인.md', 'features/로그인.html'],
+    (rel) => (rel.endsWith('.md') ? '[화면](./로그인.html)' : ''),
+    ['.html'],
+  )
+  const unit = index.unitFor('features/로그인.html')
+  assert(unit && unit.id === 'features/로그인.md', 'unitFor must fold a screen into its owning doc unit')
+  assert(unit.files.includes('features/로그인.md') && unit.files.includes('features/로그인.html'), 'unit.files must carry doc and linked screens')
+
+  const { target, planning } = setupSpecLinkedTarget()
+  fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 표면 계약 검증용 변경.\n')
+  gitCommitAll(planning, '기획 수정')
+  specSyncCli(target, ['fetch', '--cache-only'])
+
+  const status = JSON.parse(specSyncCli(target, ['status', '--json']))
+  assert(status.configured === true && status.valid === true, 'status --json must expose configured/valid')
+  assert(Array.isArray(status.sources) && status.sources.every((source) => typeof source.id === 'string'), 'status --json sources must carry string ids')
+
+  // 미정산 축의 정본은 status.diff가 아니라 pendingSettlements다 — diff는 기준 본문
+  // 사본의 드리프트 점검 축이라 정상 상태에서 항상 비어 있다(이 오해가 실제 소비자
+  // 스크립트 리뷰에서 발견됐다). 소비자의 실사용 형태 그대로, 설치본에서 import해 검증한다.
+  const probe = path.join(target, '.harness/generated/surface-probe.mjs')
+  fs.writeFileSync(probe, [
+    "import { readSpecState, pendingSettlements } from '../bin/spec-sync.mjs'",
+    'const state = readSpecState()',
+    'console.log(JSON.stringify(pendingSettlements(state.lock)))',
+    '',
+  ].join('\n'))
+  const pending = JSON.parse(run(nodeBin, [probe], { cwd: target }))
+  fs.rmSync(probe)
+  assert(Array.isArray(pending), 'pendingSettlements must stay exported and return an array')
+  assert(
+    pending.some((entry) => entry.file === 'features/로그인.md' && entry.kind === '변경' && typeof entry.source === 'string'),
+    'an unsettled planning change must surface as {source, file, kind} — consumer issue jobs key on this shape',
+  )
+}
+
 function specSyncCli(target, cliArgs, options = {}) {
   return run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), ...cliArgs], { cwd: target, ...options })
 }
@@ -5790,6 +5843,7 @@ const tests = [
   ciReleaseNoticeYamlParsesAndDelegates,
   newProjectChecklistShipsWithPointers,
   issueAdapterExampleShipsAsSwitchContract,
+  specSyncPublicSurfaceStaysLocked,
   buildContextInjectsRelatedSpecs,
   contextClassifiesPlainKoreanDevelopmentRequest,
   guardShowsSpecAdvisoryForMappedCodeChange,
