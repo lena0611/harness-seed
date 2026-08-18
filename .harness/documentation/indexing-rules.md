@@ -38,6 +38,7 @@
   - 디렉토리 예시: trailing slash로 끝나는 경로(`.github/workflows/`, `.harness/policy/`)는 "이런 위치를 보라"는 안내이지 파일 링크가 아닙니다.
   - 본체 CI 어댑터: `.github/workflows/` 하위는 소비자 프로젝트에 기본 주입되지 않으므로 소비자 환경에 없을 수 있어 검사하지 않습니다(본체에선 실제 존재하므로 검사해도 통과).
 - 구체 파일 참조(`.harness/bin/guard.mjs` 등)는 계속 검사 대상입니다. 이 규칙이 바뀌면 `scripts/test-init.mjs`의 `isIgnorableCodePathClassifiesExamplesAndCiPaths`/`consumerDocLinkCheckIgnoresCiExamplePaths` 회귀를 함께 갱신합니다.
+- **존재하지 않는 것이 정상인 파일**(소비자가 만들어야 켜지는 스위치 파일 등 — issue-adapter 실물이 그 예)은 문서에서 백틱 경로로 쓰지 않습니다 — 위 검사가 죽은 경로로 오탐합니다. 파일명 없이 서술로 풀거나, 경로가 꼭 필요하면 백틱 없이 씁니다(0.2.123 실측).
 
 ## 8. 이력 로그 문서 예외 (역사 참조)
 - `decision-log.md`와 그 아카이브(`decision-log-*.md`, `thread-handoff-*.md`)는 append-only 이력 문서입니다. 과거 항목이 언급한 코드 경로는 파일이 삭제된 뒤에도 남는 것이 정상이므로, 이 문서들의 백틱 코드 경로는 **역사 참조**로 분류하고 라이브 무결성 검사를 하지 않습니다(`isHistoryLogPath`).

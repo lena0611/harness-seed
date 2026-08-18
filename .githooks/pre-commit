@@ -33,6 +33,17 @@ node .harness/bin/run-previous-hook.mjs pre-commit "$@"
 # (일반 사용자는 .harness-seed-mode를 삭제하면 자동으로 비활성화됨)
 node .harness/bin/check-seed-mode.mjs
 
+# 세션 기록 전용 커밋은 무거운 검사를 생략한다(0.2.124). 스테이징 전부가 .harness/session/
+# 아래일 때만 — 다른 파일이 하나라도 섞이면 평소대로 전체 검사한다. 기록 커밋마다 수 분짜리
+# 전수 검사가 도는 것은 신호 대 잡음 원칙 위배이고, --no-verify 우회는 에이전트 가드가 막는
+# 것이 맞으므로(사람이 아니라) 훅이 파일 목록으로 스스로 판정한다. 이전 훅·시드 가드는 위에서
+# 이미 지나갔으므로 이 분기는 통합 검사 하나만 건너뛴다.
+staged=$(git diff --cached --name-only)
+if [ -n "$staged" ] && ! printf '%s\n' "$staged" | grep -qv '^\.harness/session/'; then
+  echo "[harness] 세션 기록 전용 커밋(.harness/session/*) — 통합 검사를 생략합니다."
+  exit 0
+fi
+
 # 통합 검사: 스택 미적용 시 lint/test/build를 자동 스킵, 적용 시 전체 검사
 # P3(2026-06-09): npm/package.json 없는 비-Node 프로젝트에서도 동작하도록 npm 대신 harness 런처를 호출한다.
 # npm 프로젝트에서도 같은 .harness/bin/guard.mjs를 실행하므로 검증 결과는 동일하다.

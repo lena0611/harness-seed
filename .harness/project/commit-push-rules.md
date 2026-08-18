@@ -41,6 +41,7 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 ## pre-commit
 - 사용자가 커밋을 승인하고 실제 `git commit`이 실행될 때 동작합니다.
 - 기존 pre-commit hook이 있으면 먼저 실행합니다.
+- 스테이징 전부가 `.harness/session/` 아래인 기록 전용 커밋은 통합 검사를 자동 생략합니다(0.2.124). 다른 파일이 하나라도 섞이면 평소대로 전체 검사합니다. `--no-verify` 수동 우회 대신 이 자동 판정을 사용합니다.
 - 하네스 seed-mode 확인 후 `.harness/bin/harness check`를 실행합니다. npm 프로젝트의 `npm run harness:check`와 같은 검사이며, package.json 없는 비-Node 프로젝트(PHP/Java/Swift/Kotlin)에서도 hook이 동작하도록 npm을 경유하지 않습니다.
 - 이 단계는 전체 검증에 가깝기 때문에 사용자의 완료 승인 없이 에이전트가 임의로 유도하지 않습니다.
 - 에이전트는 pre-commit hook이 설치된 프로젝트에서 `커밋해줘` 요청을 받으면 중복 방지를 위해 commit 전 수동 검증을 생략합니다.

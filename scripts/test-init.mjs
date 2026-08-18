@@ -490,6 +490,26 @@ function gitHooksRunWithoutNpm() {
   run('sh', [path.join(target, '.githooks/pre-push')], { cwd: target, env: prefixEnv })
 }
 
+// 0.2.124: 세션 기록 전용 커밋은 통합 검사를 생략한다. --no-verify는 에이전트 가드가 막는
+// 것이 맞으므로(사람 판단의 우회 방지), 훅이 스테이징 파일 목록으로 스스로 판정한다.
+// 경계가 계약이다: 다른 파일이 하나라도 섞이면 평소 검사 — 이게 무너지면 우회 통로가 된다.
+function sessionOnlyCommitSkipsHeavyCheck() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  fs.appendFileSync(path.join(target, '.harness/session/next-session-reminder.md'), '\n- 기록 한 줄.\n')
+  run('git', ['add', '.harness/session/next-session-reminder.md'], { cwd: target })
+  const skipped = run('sh', [path.join(target, '.githooks/pre-commit')], { cwd: target })
+  assert(skipped.includes('세션 기록 전용 커밋'), 'session-only staging must announce the skip')
+  assert(!skipped.includes('Harness check summary'), 'session-only staging must not run the full check')
+
+  fs.appendFileSync(path.join(target, 'README.md'), '\n한 줄.\n')
+  run('git', ['add', 'README.md'], { cwd: target })
+  const full = run('sh', [path.join(target, '.githooks/pre-commit')], { cwd: target })
+  assert(!full.includes('세션 기록 전용 커밋'), 'mixed staging must not take the skip path')
+  assert(full.includes('Harness check summary'), 'mixed staging must run the full check')
+}
+
 function makeVerifyPreset() {
   // P4: lint/test를 npm script가 아니라 raw shell 명령으로 선언하는 비-Node 스택 프리셋.
   const preset = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-verify-preset-test-'))
@@ -5739,6 +5759,7 @@ const tests = [
   optInCreatesPackageJsonForGreenfieldNode,
   launcherRunsHarnessWithoutNpm,
   gitHooksRunWithoutNpm,
+  sessionOnlyCommitSkipsHeavyCheck,
   stackVerifyRunsRawCommandsWithoutNpm,
   initPatchesEslintConfigForHarnessFiles,
   initAddsHarnessBackupIgnoreWhenNodeOverrideExists,

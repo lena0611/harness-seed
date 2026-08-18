@@ -2,6 +2,10 @@
 
 > 현행 유효 결정만 유지합니다(안내 임계 400줄). 이력 아카이브: [2026 상반기](./decision-log-2026H1.md)
 
+## 2026-08-18 - 기록 커밋 훅 자동 생략 + 이번 주 교훈 승격 (0.2.124)
+- 결정 84: **훅 우회는 사람이 아니라 훅이 판정한다.** 세션 기록(`.harness/session/*`)만 스테이징된 커밋은 pre-commit이 통합 검사를 자동 생략한다 — 기록 커밋마다 수 분 전수 검사는 신호 대 잡음 위배(결정 78 계열)이고, `--no-verify` 수동 우회는 에이전트 가드가 막는 것이 맞으므로(실증: 가드가 정당한 기록 커밋도 차단해 사람 손을 탔음) 판정 주체를 파일 목록 기반의 훅 자신으로 옮긴다. 경계가 계약: 한 파일이라도 섞이면 전체 검사(회귀 sessionOnlyCommitSkipsHeavyCheck).
+- 동승: 이슈 어댑터 견본 토큰 방식 개편(셸 프로필 → 프로젝트 로컬 파일 + 파싱 로더·CRLF 제거·env 폴백 — 멀티사이트 리더의 .zshenv/윈도우 실측 반영), 미설정 시 셋업 안내를 어댑터 표준 칸으로(스킬 계약 "복구 안내가 있으면 손잡이를 함께" — 무온보딩), 교훈 5건 문서 승격(소유 계층 판정·공개 계약 잠금 → 체크리스트 2단계, git -C 명시 → 5단계, 부재가 정상인 파일 백틱 금지 → indexing-rules, 온보딩 순서(핵심 순환 먼저) → spec-authority-workflow).
+
 ## 2026-08-18 - spec-sync 표면 4종을 공개 계약으로 승격
 - 결정 83: **내부 구현이 소비자 의존을 얻으면 그 순간부터 공개 계약이다.** 멀티사이트 spec-issues-sync.mjs(소비자 소유 CI 스크립트)의 실사용 표면을 회귀(specSyncPublicSurfaceStaysLocked)로 잠금: `sha256Text`·`normalizeScreenLinks`(기본 확장자 폴백)·`buildScreenIndex`(unitFor 접기)·`readSpecState`+`pendingSettlements`({source,file,kind})·`status --json`(configured/valid/sources)·import 안전성(CLI 가드). 바꿔야 하면 테스트를 깨뜨린 커밋이 소비자 마이그레이션을 함께 안내한다.
 - 덤으로 잡은 실버그: 리더 스크립트가 미정산 목록을 `status --json`의 `diff`에서 읽고 있었는데, **diff는 기준 본문 사본의 드리프트 점검 축이라 정상 상태에서 항상 0건** — 이슈가 영원히 안 열리는 결함. 미정산 축의 정본은 `pendingSettlements(lock)`(spec-latest 기록 vs lock). 회귀를 "diff에 변경이 떠야 한다"로 썼다가 실패한 것이 발견 경로 — **회귀를 먼저 쓰면 표면의 의미 오해가 잡힌다.** 멀티사이트에 수정 안내 예정.

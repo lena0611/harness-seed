@@ -33,6 +33,8 @@
 
 - [ ] 문서 ↔ 코드 ↔ 검사를 같이 맞춘다. 정책을 추가했으면 `policy-registry.json`과 guard 연결을 확인한다.
 - [ ] 새 `.md`를 추가하면 [document-registry.json](../documentation/document-registry.json)에 등록한다(미등록 = orphan → strict 검사 실패).
+- [ ] **새 문서·범용 안내의 자리를 정할 때 소유 계층부터 판정한다** — managed(업데이트로 전파) / project-owned(기존 소비자에 전파 안 됨) / marker-managed. 범용 안내를 project-owned에 두면 공지가 기존 소비자에게 거짓이 된다(결정 81, 0.2.122 실증).
+- [ ] **소비자가 본체 스크립트의 함수·출력을 쓰기 시작하면 그 표면은 공개 계약이다** — 발견 즉시 회귀로 잠근다(결정 83, specSyncPublicSurfaceStaysLocked가 예). 바꿔야 하면 그 회귀를 깨뜨리는 커밋이 소비자 마이그레이션을 함께 안내한다.
 - [ ] 새 작업 절차가 생기면 [skills/registry.json](../skills/registry.json)과 [context-registry.json](../documentation/context-registry.json)에 연결한다.
 - [ ] 훅(`.githooks/**`)을 바꾸면 [commit-push-rules.md](./commit-push-rules.md)의 "변경 시 함께 확인할 것"도 갱신한다.
 
@@ -77,6 +79,7 @@
   git rev-parse --short main origin/main company/master              # 셋이 동일해야 한다
   git ls-remote --tags origin vX.Y.Z && git ls-remote --tags company vX.Y.Z   # 양쪽에 존재해야 한다
   ```
+- [ ] **형제 저장소(스택·템플릿·CLI) 작업이 섞이는 릴리스에서는 모든 git 명령에 `git -C <경로>`를 명시한다** — `cd`로 옮겨 다니면 셸 작업 디렉터리가 남아 엉뚱한 저장소에 태그·커밋이 실행된다(2026-08-14 오태그 실증: v0.2.123 태그가 스택 저장소에 push됐다 즉시 삭제).
 - [ ] pre-push에 연결된 `.harness/bin/check-remote-sync.mjs` 가드가 어긋남을 알리면 빠진 원격에 push한다. (이 가드는 캐시된 remote-tracking 기준의 비차단 알림이며 push를 막지 않는다.)
 - [ ] 각 push는 pre-push hook의 `harness check --fast`를 거친다. 저버전 Node 셸에서 push해도 hook이 dual-runtime으로 하네스 Node로 전환해 검증한다(0.2.63+).
 - [ ] push 후 GitHub Actions `Policy Guard` 워크플로(`.github/workflows/policy-guard.yml`) 결과가 통과인지 확인한다. (`gh run list --branch main --limit 1`)
