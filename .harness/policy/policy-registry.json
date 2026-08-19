@@ -199,6 +199,44 @@
       ]
     },
     {
+      "id": "common.documentation.guide-sync",
+      "title": "Developer-facing surface changes must be reflected in the bundled guide",
+      "layer": "common",
+      "category": "sync",
+      "status": "active",
+      "severity": "warning",
+      "enforcement": "hook",
+      "syncEnforcement": "review",
+      "waiverAllowed": true,
+      "owner": "ai-standard/harness-seed",
+      "source": {
+        "type": "local",
+        "path": ".harness/project/body-release-checklist.md"
+      },
+      "documents": [
+        ".harness/documentation/guide/index.html",
+        ".harness/bin/harness-guide.mjs"
+      ],
+      "ownedAreas": [
+        "package.json",
+        ".githooks/**",
+        ".harness/skills/registry.json",
+        ".harness/project/spec-authority-workflow.md",
+        ".harness/project/commit-push-rules.md",
+        ".harness/project/issue-adapter.example.md"
+      ],
+      "checks": [
+        "npm run harness:impact"
+      ],
+      "conflictsWith": [],
+      "supersedes": [],
+      "tags": [
+        "sync",
+        "documentation",
+        "guide"
+      ]
+    },
+    {
       "id": "common.context.generated-not-source",
       "title": "Generated context must not become source of truth",
       "layer": "common",

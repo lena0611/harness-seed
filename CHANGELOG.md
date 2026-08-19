@@ -6,6 +6,18 @@
 
 각 릴리스 절은 `### 공지` + `### 상세` 두 블록으로 씁니다. `### 공지`는 채널 공지로 **그대로 나가는** `[신규]`/`[개선]`/`[결함픽스]` 목록이므로 수신자(각 프로젝트 리더) 기준으로 간결하게 적고, 내부 변경(시드 전용 장치·리팩터링·회귀 추가)은 적지 않습니다. 알릴 것이 없는 릴리스는 `없음` 한 줄을 적습니다(발송 생략). 블록이 아예 없으면 공지 잡이 발송 대신 실패합니다.
 
+## 0.2.125 - 2026-08-19
+
+### 공지
+- [개선] `npm run harness:guide` 화면을 현행 기능에 맞게 최신화했습니다 — 대시보드에 기획 문서 연동·이슈 어댑터 상태 카드가 생기고(연동 프로젝트는 확인·정산 안내 패널 포함), 클릭형 가이드에 "기획 확인" 단계가 추가됐으며, 커밋 단계 안내에 기록 커밋 자동 생략(0.2.124)과 이슈 요약이 반영됐습니다.
+- [개선] 개발자 대면 명령·절차가 바뀌면 `harness:impact`가 "번들 가이드도 갱신할 것"을 자동으로 지목합니다 — 가이드가 조용히 낡는 일(0.2.98 이후 26개 릴리스 방치 실측)의 재발 방지 장치입니다. 넛지 수준이며 커밋을 막지 않습니다.
+
+### 상세
+- **harness:guide 전수조사 최신화** — 대시보드: `기획 문서 연동`(spec-lock 존재)·`이슈 어댑터`(issue-adapter.md 존재) 카드, 연동 시 안내 패널 + 터미널 Spec sync 섹션, Commit/push guard에 기록 커밋 자동 생략 문구. 클릭형 가이드: "기획 확인" 노드 신설(수화 → 세 상태 → settle 정산, 미연동 시 최초 1회 질문·decision-log 보류 기록), 커밋 노드에 자동 생략(결정 84)·이슈 어댑터 조회·hook-coexistence/issue-adapter 견본 파일 추가. 참조 무결성 전수 확인(스크립트 11종·파일 12종 실재).
+- **guide-sync 연결고리 (결정 85)** — 정책 `common.documentation.guide-sync` 신설: 개발자 대면 표면(package.json scripts, .githooks/**, skills/registry.json, spec-authority-workflow.md, commit-push-rules.md, issue-adapter.example.md) 변경 시 impact가 `documentation/guide/index.html`·`bin/harness-guide.mjs`를 review scope로 지목(syncEnforcement=review). 릴리스 체크리스트 2단계에 사람 쪽 확인 한 줄 추가.
+- **가이드 정본 판정 (결정 85)** — 정본 = 본체 번들(버전 동봉·오프라인·업데이트 부담 0). Pages 외부 링크 전환 기각(이중 저장소 커밋 + 구버전 사용자에게 최신 행동 설명). ai-standard-docs는 버전 비종속 소개 층으로 분리: `guides/harness-intro/`(하네스 소개 문답 덱 신설), `guides/harness-lifecycle/`(0.2.97 사본 폐기 → 설치본 안내 페이지).
+- 회귀 1종 추가: guideSyncPolicyKeepsBundledGuideLinked (총 189종).
+
 ## 0.2.124 - 2026-08-18
 
 ### 공지

@@ -37,6 +37,7 @@
 - [ ] **소비자가 본체 스크립트의 함수·출력을 쓰기 시작하면 그 표면은 공개 계약이다** — 발견 즉시 회귀로 잠근다(결정 83, specSyncPublicSurfaceStaysLocked가 예). 바꿔야 하면 그 회귀를 깨뜨리는 커밋이 소비자 마이그레이션을 함께 안내한다.
 - [ ] 새 작업 절차가 생기면 [skills/registry.json](../skills/registry.json)과 [context-registry.json](../documentation/context-registry.json)에 연결한다.
 - [ ] 훅(`.githooks/**`)을 바꾸면 [commit-push-rules.md](./commit-push-rules.md)의 "변경 시 함께 확인할 것"도 갱신한다.
+- [ ] 개발자 대면 명령·절차(스크립트, 훅, 스킬, 커밋 규칙, 기획 연동)가 바뀌면 클릭형 가이드([guide/index.html](../documentation/guide/index.html))와 대시보드 생성기(`.harness/bin/harness-guide.mjs`)도 갱신한다. `harness:impact`의 `guide-sync` 항목이 이 확인을 지목한다 (0.2.98→0.2.124 방치 실증의 재발 방지).
 
 ## 3단계 — 버전과 변경 이력
 

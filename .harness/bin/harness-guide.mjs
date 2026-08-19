@@ -101,6 +101,8 @@ function renderDashboard() {
   const guideAbs = path.join(repoRoot, guideRel)
   const lifecycleAbs = path.join(repoRoot, '.harness/documentation/assets/request-lifecycle-flow.svg')
   const needsStackDecision = activeStack === 'none'
+  const specLinked = exists('.harness/spec-lock.json')
+  const issueAdapterOn = exists('.harness/project/issue-adapter.md')
 
   const cards = [
     renderCard('하네스 모드', harnessMode, 'bootstrap / active / maintenance / strict'),
@@ -108,6 +110,8 @@ function renderDashboard() {
     renderCard('공통 하네스 버전', baseVersion, lock.baseHarness?.ref ?? ''),
     renderCard('스택 하네스 버전', stackVersion, lock.stackHarness?.ref ?? ''),
     renderCard('scaffold 템플릿', templateVersion, lock.scaffoldTemplate?.ref ?? ''),
+    renderCard('기획 문서 연동', specLinked ? '연동됨' : '미연동', specLinked ? '코드 변경 전 관련 기획 확인 필수' : '필요 시 spec-authority-workflow.md 절차로 연결'),
+    renderCard('이슈 어댑터', issueAdapterOn ? '켜짐' : '꺼짐', issueAdapterOn ? '커밋·푸시 보고에 이슈 요약 한 줄' : '.harness/project/issue-adapter.example.md 참고'),
     renderCard('변경 파일', changedCount === null ? '확인 불가' : `${changedCount}개`, 'git status --short 기준'),
     renderCard('스캔 리포트', boolLabel(exists('.harness/session/project-scan-report.md')), '.harness/session/project-scan-report.md'),
     renderCard('인수인계 요약', boolLabel(exists('.harness/session/handoff.md')), '.harness/session/handoff.md'),
@@ -306,6 +310,16 @@ function renderDashboard() {
 
     ${stackDecisionPanel}
 
+    ${specLinked ? `<section class="panel">
+      <h2>기획 문서 연동됨</h2>
+      <p>코드 변경 전 관련 기획 확인이 절차입니다(작업 크기 무관). 작업 컨텍스트 생성이 기준 본문 수화, 최신 확인, 세 상태 표시를 함께 처리하고, 바뀐 기획을 반영했으면 정산(settle)해 spec-lock 변경을 커밋에 포함합니다.</p>
+      <div class="commands">
+        <code>npm run harness:spec:status</code>
+        <code>npm run harness:spec:settle</code>
+        <code>.harness/project/spec-authority-workflow.md</code>
+      </div>
+    </section>` : ''}
+
     <section class="panel">
       <h2>매일 쓰는 진입점</h2>
       <p>개발자는 상태 확인과 검증 명령을 주로 사용합니다. 작업별 판단 컨텍스트는 에이전트가 큰 작업 전에 필요할 때 생성합니다.</p>
@@ -365,10 +379,19 @@ function main() {
   console.log('Commit / push guard:')
   console.log('  npm run hooks:install 을 실행하면 사용자가 승인한 git commit/push 직전에 harness:check가 자동 실행됩니다.')
   console.log('  hook 설치 후 커밋/푸시 요청을 처리할 때는 commit 직전 수동 harness:check를 중복 실행하지 않습니다.')
+  console.log('  세션 기록 전용 커밋(.harness/session/*만 스테이징)은 pre-commit 통합 검사가 자동 생략됩니다. --no-verify 수동 우회는 쓰지 않습니다.')
   console.log('')
   console.log('Agent decision context:')
   console.log('  일반 개발자가 매번 실행할 필요는 없습니다.')
   console.log('  필요 시 에이전트 또는 고급 사용자가 npm run harness:context -- "작업 설명" 으로 생성합니다.')
+  if (fs.existsSync(path.join(repoRoot, '.harness/spec-lock.json'))) {
+    console.log('')
+    console.log('Spec sync:')
+    console.log('  기획 문서 연동됨(.harness/spec-lock.json) — 코드 변경 전 관련 기획을 먼저 확인합니다(작업 크기 무관).')
+    console.log('  npm run harness:context -- "작업 설명" 이 기준 수화와 최신 확인을 함께 처리하고,')
+    console.log('  바뀐 기획을 반영했으면 npm run harness:spec:settle 로 정산합니다.')
+  }
+
   const profile = readJson('.harness/policy/profile.json', {})
   if ((profile.activeStack ?? 'none') === 'none') {
     console.log('')

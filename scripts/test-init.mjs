@@ -3631,6 +3631,28 @@ function specSyncPublicSurfaceStaysLocked() {
   )
 }
 
+function guideSyncPolicyKeepsBundledGuideLinked() {
+  // 클릭형 가이드는 0.2.98→0.2.124 사이 26개 릴리스 동안 갱신 연결고리가 없어 방치됐다(실측).
+  // 개발자 대면 표면이 바뀌면 harness:impact가 번들 가이드·대시보드를 지목하는 매핑을 잠근다.
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const registry = JSON.parse(read(target, '.harness/policy/policy-registry.json'))
+  const policy = (registry.policies ?? []).find((entry) => entry.id === 'common.documentation.guide-sync')
+  assert(policy, 'guide-sync policy must ship — developer-facing surface changes must point at the bundled guide')
+  for (const doc of ['.harness/documentation/guide/index.html', '.harness/bin/harness-guide.mjs']) {
+    assert(policy.documents.includes(doc), `guide-sync documents must cover: ${doc}`)
+    assert(exists(target, doc), `guide surface must ship with init: ${doc}`)
+  }
+  for (const surface of ['package.json', '.githooks/**', '.harness/skills/registry.json', '.harness/project/spec-authority-workflow.md', '.harness/project/commit-push-rules.md']) {
+    assert(policy.ownedAreas.includes(surface), `guide-sync triggers must cover developer-facing surface: ${surface}`)
+  }
+  assert(policy.syncEnforcement === 'review', 'guide-sync must stay a nudge (review), not a gate')
+  // 사람 쪽 절반: 본체 릴리스 체크리스트(시드 전용)가 같은 확인을 지시한다.
+  const checklist = read(repoRoot, '.harness/project/body-release-checklist.md')
+  assert(checklist.includes('guide/index.html'), 'release checklist must instruct updating the bundled guide')
+  assert(checklist.includes('harness-guide.mjs'), 'release checklist must instruct updating the dashboard generator')
+}
+
 function specSyncCli(target, cliArgs, options = {}) {
   return run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), ...cliArgs], { cwd: target, ...options })
 }
@@ -5865,6 +5887,7 @@ const tests = [
   newProjectChecklistShipsWithPointers,
   issueAdapterExampleShipsAsSwitchContract,
   specSyncPublicSurfaceStaysLocked,
+  guideSyncPolicyKeepsBundledGuideLinked,
   buildContextInjectsRelatedSpecs,
   contextClassifiesPlainKoreanDevelopmentRequest,
   guardShowsSpecAdvisoryForMappedCodeChange,
