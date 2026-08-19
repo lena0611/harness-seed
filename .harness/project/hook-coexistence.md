@@ -27,6 +27,12 @@ husky, lefthook처럼 `core.hooksPath`를 쓰는 git 훅 도구와 하네스 훅
   - `git config core.hooksPath` → `.githooks`
   - `git config harness.previousHooksPath` → husky 경로(버전에 따라 `.husky` 또는 `.husky/_`)이면 체인 연결 완료
 
+## lint 이중 실행은 이제 기본으로 없다 (0.2.126)
+
+- 과거에는 하네스가 package.json의 `lint`/`test`/`build` 스크립트를 감지하면 자동으로 커밋 검증에 포함해, husky(lint-staged)와 **같은 커밋에서 lint가 두 번** 돌고 커밋에 담기지 않은 파일의 오류까지 커밋을 막을 수 있었습니다(멀티사이트 실측, 결정 86).
+- 0.2.126부터 **하네스는 프로젝트 npm script를 기본으로 실행하지 않습니다.** husky 사용자는 업데이트만 받으면 lint는 husky만 돌립니다(추가 설정 불필요).
+- 하네스로 돌리고 싶은 프로젝트만 `.harness/policy/profile.json`에 옵트인합니다: `"verify": { "lint": "harness" }`. 외부 도구 담당을 문서화하고 싶으면 `"external"`을 선언하면 검증 출력에 위임 사실이 표기됩니다. 상세 계약: [config-contract.md](./config-contract.md)의 verify 절.
+
 ## 하지 않는 것
 
 - `install-hooks.mjs`가 `"prepare": "husky"`를 감지해 경고하는 코드 개입은 하지 않습니다(코드는 최후 수단, 2026-08-13 합의). 같은 질문이 실전에서 반복되면 재고합니다.

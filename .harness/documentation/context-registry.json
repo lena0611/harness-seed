@@ -5,145 +5,459 @@
       "id": "guiding-policy",
       "file": ".harness/policy/ai-standard-guiding-policy.md",
       "category": "policy",
-      "taskTypes": ["feature", "bugfix", "refactor", "docs", "review", "maintenance"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "docs",
+        "review",
+        "maintenance"
+      ],
       "priority": "critical",
-      "appliesTo": ["all"],
-      "keywords": ["정책", "기준", "위배", "공통", "ai-standard"]
+      "appliesTo": [
+        "all"
+      ],
+      "keywords": [
+        "정책",
+        "기준",
+        "위배",
+        "공통",
+        "ai-standard"
+      ]
     },
     {
       "id": "standards-layers",
       "file": ".harness/project/standards-layers.md",
       "category": "priority",
-      "taskTypes": ["feature", "bugfix", "refactor", "review", "maintenance"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "review",
+        "maintenance"
+      ],
       "priority": "high",
-      "appliesTo": [".harness/project/**", ".harness/policy/**"],
-      "keywords": ["우선순위", "충돌", "공통", "스택", "템플릿", "프로젝트", "개인"]
+      "appliesTo": [
+        ".harness/project/**",
+        ".harness/policy/**"
+      ],
+      "keywords": [
+        "우선순위",
+        "충돌",
+        "공통",
+        "스택",
+        "템플릿",
+        "프로젝트",
+        "개인"
+      ]
     },
     {
       "id": "domain-rules",
       "file": ".harness/project/domain-rules.md",
       "category": "domain",
-      "taskTypes": ["feature", "bugfix", "review"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "review"
+      ],
       "priority": "high",
-      "appliesTo": ["src/**", "domain", "api", "external-system"],
-      "keywords": ["도메인", "업무", "용어", "불변식", "외부"]
+      "appliesTo": [
+        "src/**",
+        "domain",
+        "api",
+        "external-system"
+      ],
+      "keywords": [
+        "도메인",
+        "업무",
+        "용어",
+        "불변식",
+        "외부"
+      ]
     },
     {
       "id": "architecture-rules",
       "file": ".harness/project/architecture-rules.md",
       "category": "architecture",
-      "taskTypes": ["feature", "bugfix", "refactor", "review"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "review"
+      ],
       "priority": "high",
-      "appliesTo": ["src/**", "routing", "state", "api", "module"],
-      "keywords": ["아키텍처", "구조", "모듈", "의존", "router", "store", "api"]
+      "appliesTo": [
+        "src/**",
+        "routing",
+        "state",
+        "api",
+        "module"
+      ],
+      "keywords": [
+        "아키텍처",
+        "구조",
+        "모듈",
+        "의존",
+        "router",
+        "store",
+        "api"
+      ]
     },
     {
       "id": "workflow-rules",
       "file": ".harness/project/workflow-rules.md",
       "category": "workflow",
-      "taskTypes": ["feature", "bugfix", "maintenance", "review"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "maintenance",
+        "review"
+      ],
       "priority": "medium",
-      "appliesTo": ["package.json", "test", "build", "ci", "release"],
-      "keywords": ["검증", "테스트", "빌드", "리뷰", "릴리스", "배포"]
+      "appliesTo": [
+        "package.json",
+        "test",
+        "build",
+        "ci",
+        "release"
+      ],
+      "keywords": [
+        "검증",
+        "테스트",
+        "빌드",
+        "리뷰",
+        "릴리스",
+        "배포"
+      ]
     },
     {
       "id": "commit-push-rules",
       "file": ".harness/project/commit-push-rules.md",
       "category": "workflow",
-      "taskTypes": ["feature", "bugfix", "refactor", "docs", "maintenance", "review", "verification"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "docs",
+        "maintenance",
+        "review",
+        "verification"
+      ],
       "priority": "medium",
-      "appliesTo": [".githooks/**", ".harness/bin/install-hooks.mjs", ".harness/bin/run-previous-hook.mjs", ".github/commit-template.txt"],
-      "keywords": ["커밋", "푸시", "최종화", "중복 검증", "hook", "pre-commit", "pre-push", "commit-template"]
+      "appliesTo": [
+        ".githooks/**",
+        ".harness/bin/install-hooks.mjs",
+        ".harness/bin/run-previous-hook.mjs",
+        ".github/commit-template.txt"
+      ],
+      "keywords": [
+        "커밋",
+        "푸시",
+        "최종화",
+        "중복 검증",
+        "hook",
+        "pre-commit",
+        "pre-push",
+        "commit-template"
+      ]
     },
     {
       "id": "issue-adapter-example",
       "file": ".harness/project/issue-adapter.example.md",
       "category": "workflow",
-      "taskTypes": ["feature", "bugfix", "maintenance", "docs", "verification"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "maintenance",
+        "docs",
+        "verification"
+      ],
       "priority": "low",
-      "appliesTo": ["package.json", ".gitlab-ci.yml"],
-      "keywords": ["이슈", "issue", "이슈보드", "트래커", "커밋 보고", "푸시 보고", "adapter"]
+      "appliesTo": [
+        "package.json",
+        ".gitlab-ci.yml"
+      ],
+      "keywords": [
+        "이슈",
+        "issue",
+        "이슈보드",
+        "트래커",
+        "커밋 보고",
+        "푸시 보고",
+        "adapter"
+      ]
     },
     {
       "id": "hook-coexistence",
       "file": ".harness/project/hook-coexistence.md",
       "category": "workflow",
-      "taskTypes": ["maintenance", "bugfix", "docs"],
+      "taskTypes": [
+        "maintenance",
+        "bugfix",
+        "docs"
+      ],
       "priority": "medium",
-      "appliesTo": ["package.json", ".githooks/**", ".harness/bin/install-hooks.mjs", ".harness/bin/run-previous-hook.mjs"],
-      "keywords": ["husky", "lefthook", "prepare", "hooksPath", "공존", "lint-staged", "hook"]
+      "appliesTo": [
+        "package.json",
+        ".githooks/**",
+        ".harness/bin/install-hooks.mjs",
+        ".harness/bin/run-previous-hook.mjs"
+      ],
+      "keywords": [
+        "husky",
+        "lefthook",
+        "prepare",
+        "hooksPath",
+        "공존",
+        "lint-staged",
+        "hook"
+      ]
     },
     {
       "id": "critical-paths",
       "file": ".harness/project/critical-paths.md",
       "category": "risk",
-      "taskTypes": ["feature", "bugfix", "refactor", "review", "maintenance", "ui", "supabase", "native", "domain-logic"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "review",
+        "maintenance",
+        "ui",
+        "supabase",
+        "native",
+        "domain-logic"
+      ],
       "priority": "high",
-      "appliesTo": ["src/domain/**", "src/core/**", "src/integrations/**", "src/security/**", "ios/**", "android/**", "critical"],
-      "keywords": ["중요", "critical", "위험", "domain", "integration", "security", "ui", "ios", "android"]
+      "appliesTo": [
+        "src/domain/**",
+        "src/core/**",
+        "src/integrations/**",
+        "src/security/**",
+        "ios/**",
+        "android/**",
+        "critical"
+      ],
+      "keywords": [
+        "중요",
+        "critical",
+        "위험",
+        "domain",
+        "integration",
+        "security",
+        "ui",
+        "ios",
+        "android"
+      ]
     },
     {
       "id": "manual-actions",
       "file": ".harness/session/manual-actions.md",
       "category": "manual-action",
-      "taskTypes": ["feature", "bugfix", "maintenance", "supabase", "native"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "maintenance",
+        "supabase",
+        "native"
+      ],
       "priority": "high",
-      "appliesTo": ["secret", "pages", "capability", "console", "external-setting"],
-      "keywords": ["수동", "manual", "secret", "pages", "capability", "콘솔", "권한", "설정"]
+      "appliesTo": [
+        "secret",
+        "pages",
+        "capability",
+        "console",
+        "external-setting"
+      ],
+      "keywords": [
+        "수동",
+        "manual",
+        "secret",
+        "pages",
+        "capability",
+        "콘솔",
+        "권한",
+        "설정"
+      ]
     },
     {
       "id": "stack-preset-rules",
       "file": ".harness/project/stack-preset-rules.md",
       "category": "stack",
-      "taskTypes": ["feature", "bugfix", "refactor", "review"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "review"
+      ],
       "priority": "medium",
-      "appliesTo": ["src/**", "package.json", "stack"],
-      "keywords": ["스택", "프리셋", "vue", "vite", "router", "pinia"]
+      "appliesTo": [
+        "src/**",
+        "package.json",
+        "stack"
+      ],
+      "keywords": [
+        "스택",
+        "프리셋",
+        "vue",
+        "vite",
+        "router",
+        "pinia"
+      ]
     },
     {
       "id": "template-contract",
       "file": ".harness/project/template-contract.md",
       "category": "template",
-      "taskTypes": ["feature", "bugfix", "refactor", "maintenance"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "maintenance"
+      ],
       "priority": "medium",
-      "appliesTo": ["src/**", "template", "scaffold"],
-      "keywords": ["템플릿", "scaffold", "contract", "사용 계약"]
+      "appliesTo": [
+        "src/**",
+        "template",
+        "scaffold"
+      ],
+      "keywords": [
+        "템플릿",
+        "scaffold",
+        "contract",
+        "사용 계약"
+      ]
     },
     {
       "id": "context-protocol",
       "file": ".harness/policy/context-protocol.md",
       "category": "context",
-      "taskTypes": ["feature", "bugfix", "refactor", "docs", "review", "maintenance"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "docs",
+        "review",
+        "maintenance"
+      ],
       "priority": "high",
-      "appliesTo": [".harness/session/task-context.md", ".harness/generated/**"],
-      "keywords": ["컨텍스트", "context", "decision", "판단", "합성"]
+      "appliesTo": [
+        ".harness/session/task-context.md",
+        ".harness/generated/**"
+      ],
+      "keywords": [
+        "컨텍스트",
+        "context",
+        "decision",
+        "판단",
+        "합성"
+      ]
     },
     {
       "id": "skill-registry",
       "file": ".harness/skills/README.md",
       "category": "skill",
-      "taskTypes": ["feature", "bugfix", "refactor", "docs", "review", "maintenance"],
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "docs",
+        "review",
+        "maintenance"
+      ],
       "priority": "medium",
-      "appliesTo": [".harness/skills/registry.json", ".harness/session/task-context.md"],
-      "keywords": ["스킬", "skill", "작업 절차", "읽을거리", "선택", "context"]
+      "appliesTo": [
+        ".harness/skills/registry.json",
+        ".harness/session/task-context.md"
+      ],
+      "keywords": [
+        "스킬",
+        "skill",
+        "작업 절차",
+        "읽을거리",
+        "선택",
+        "context"
+      ]
     },
     {
       "id": "body-release-checklist",
       "file": ".harness/project/body-release-checklist.md",
       "category": "workflow",
-      "taskTypes": ["docs", "maintenance", "refactor", "feature", "review"],
+      "taskTypes": [
+        "docs",
+        "maintenance",
+        "refactor",
+        "feature",
+        "review"
+      ],
       "priority": "medium",
-      "appliesTo": [".harness/**", "scripts/**", ".githooks/**", "package.json", "CHANGELOG.md", ".github/workflows/**", "release"],
-      "keywords": ["본체", "릴리스", "배포", "버전", "version", "CHANGELOG", "원격", "동기화", "seed-mode", "downstream"]
+      "appliesTo": [
+        ".harness/**",
+        "scripts/**",
+        ".githooks/**",
+        "package.json",
+        "CHANGELOG.md",
+        ".github/workflows/**",
+        "release"
+      ],
+      "keywords": [
+        "본체",
+        "릴리스",
+        "배포",
+        "버전",
+        "version",
+        "CHANGELOG",
+        "원격",
+        "동기화",
+        "seed-mode",
+        "downstream"
+      ]
     },
     {
       "id": "project-source-registry",
       "file": ".harness/project/bootstrap.md",
       "category": "policy",
-      "taskTypes": ["feature", "maintenance", "docs"],
+      "taskTypes": [
+        "feature",
+        "maintenance",
+        "docs"
+      ],
       "priority": "medium",
-      "appliesTo": [".harness/policy/**"],
-      "keywords": ["sources", "profile", "비표준", "always-read", "registry", "선언", "방법론 위치"]
+      "appliesTo": [
+        ".harness/policy/**"
+      ],
+      "keywords": [
+        "sources",
+        "profile",
+        "비표준",
+        "always-read",
+        "registry",
+        "선언",
+        "방법론 위치"
+      ]
+    },
+    {
+      "id": "config-contract-verify",
+      "file": ".harness/project/config-contract.md",
+      "category": "workflow",
+      "taskTypes": [
+        "maintenance",
+        "verification"
+      ],
+      "priority": "medium",
+      "appliesTo": [
+        "all"
+      ],
+      "keywords": [
+        "verify",
+        "lint",
+        "린트",
+        "husky",
+        "lint-staged",
+        "검증설정",
+        "이중 실행",
+        "옵트인"
+      ]
     }
   ]
 }

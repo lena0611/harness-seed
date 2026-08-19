@@ -854,16 +854,36 @@ const validationResults = []
 const stackState = resolveStackState()
 
 // 스택 verify 단계 계획(캐시 키 구성에 필요). 미적용 스택은 빈 계획.
+// 0.2.126(결정 86): 프로젝트 npm script(lint/test/build)는 존재만으로 자동 실행하지 않는다.
+// 실행 주체는 프로젝트가 profile.verify로 명시 선언한다:
+//   "harness"  = 하네스가 npm script를 검증 단계로 실행 (옵트인)
+//   "external" = 외부 도구(husky 등)가 담당 — 스택 raw verify 포함 건너뛰고 위임만 표기
+//   미선언     = 실행 안 함(감지 안내만). 스택 manifest의 raw verify는 스택 계약의
+//                명시 선언이므로 유지하되, 프로젝트 external 선언이 이를 이긴다(충돌 해석 순서).
 const stackVerify = (stackState.applied && readJson(stackState.manifestPath)?.verify) || {}
+const verifyPrefs = readJson(profilePath, {})?.verify ?? {}
+const VERIFY_PREF_VALUES = new Set(['harness', 'external'])
 const stagePlan = [
   { stage: 'lint', raw: stackVerify.lint, npm: scripts.lint, skipInFast: false },
   { stage: 'test', raw: stackVerify.test, npm: scripts.test, skipInFast: true },
   { stage: 'build', raw: stackVerify.build, npm: scripts.build, skipInFast: true },
-].map((entry) => ({
-  ...entry,
-  declared: Boolean(entry.raw || entry.npm),
-  planned: Boolean(entry.raw || entry.npm) && !(fastMode && entry.skipInFast),
-}))
+].map((entry) => {
+  const pref = typeof verifyPrefs === 'object' && verifyPrefs !== null ? verifyPrefs[entry.stage] : undefined
+  const prefInvalid = pref !== undefined && !VERIFY_PREF_VALUES.has(pref)
+  const runnable = pref === 'external' || prefInvalid
+    ? false
+    : entry.raw
+      ? true
+      : pref === 'harness' && Boolean(entry.npm)
+  return {
+    ...entry,
+    pref,
+    prefInvalid,
+    runnable,
+    declared: Boolean(entry.raw || entry.npm),
+    planned: runnable && !(fastMode && entry.skipInFast),
+  }
+})
 const scriptPlan = stagePlan.filter((entry) => entry.planned).map((entry) => (entry.raw ? `${entry.stage}:raw` : entry.stage))
 const cacheKey = validationCacheKey(scriptPlan)
 const cache = readCheckCache()
@@ -934,6 +954,25 @@ if (stackState.markerMissing) {
   console.log(`${path.relative(repoRoot, markerPath)} 마커는 없지만 추적된 스택 스냅샷이 있어 lint/test/build를 계속 실행합니다.`)
 }
 
+// 프로젝트 검증 단계의 실행/미실행 사유를 정직하게 표기한다(0.2.126, 결정 86).
+const verifyNotices = []
+for (const entry of stagePlan) {
+  if (entry.prefInvalid) {
+    verifyNotices.push(`${entry.stage}: profile verify 값 '${entry.pref}'를 인식할 수 없어 실행하지 않습니다 — "harness" 또는 "external" (config-contract.md)`)
+  } else if (entry.pref === 'external') {
+    verifyNotices.push(`${entry.stage}: external 위임 — 프로젝트 도구(husky 등)가 담당합니다 (profile 선언)`)
+  } else if (entry.pref === 'harness' && !entry.npm && !entry.raw) {
+    verifyNotices.push(`${entry.stage}: verify 옵트인됐지만 실행할 npm script가 package.json에 없습니다`)
+  } else if (entry.pref === undefined && entry.npm && !entry.raw) {
+    verifyNotices.push(`${entry.stage}: npm script 감지 — 하네스는 실행하지 않습니다 (하네스로 돌리려면 profile verify.${entry.stage}: "harness")`)
+  }
+}
+if (verifyNotices.length > 0) {
+  console.log('')
+  console.log('프로젝트 검증 단계(verify):')
+  for (const notice of verifyNotices) console.log(`  ${notice}`)
+}
+
 // 의존성 미설치 감지(0.2.97): node_modules 없이 npm script 검증을 실행하면
 // `run-s: command not found` 같은 원인 불명 실패로 보인다(신규 설치 온보딩 실측 2회).
 // 게이트는 정직하게 실패하되, 원인과 다음 행동을 명확히 말한다.
@@ -948,7 +987,7 @@ if (plannedNpmStages.length > 0 && declaresDependencies && !fs.existsSync(path.j
   process.exit(1)
 }
 
-if (fastMode && stagePlan.some((entry) => entry.declared && entry.skipInFast)) {
+if (fastMode && stagePlan.some((entry) => entry.runnable && entry.skipInFast)) {
   console.log('')
   console.log('Fast check mode: test/build 단계는 건너뜁니다. 전체 검증은 harness check 또는 npm run harness:check 로 실행하세요.')
 }

@@ -152,6 +152,7 @@ function cleanInstallCreatesExpectedFiles() {
   assert(exists(target, '.claude/commands/운영업무.md'), 'clean install should copy operational work slash command')
   assert(exists(target, '.claude/commands/업무요약.md'), 'clean install should copy work summary slash command')
   assert(exists(target, '.claude/commands/하네스업데이트.md'), 'clean install should copy harness update slash command')
+  assert(exists(target, '.claude/commands/검증설정.md'), 'clean install should copy verify ownership slash command')
 
   const claudeInstructions = read(target, 'CLAUDE.md')
   assert(claudeInstructions.includes('하네스 자동 인식 의무'), 'CLAUDE.md should require automatic harness detection')
@@ -1762,12 +1763,57 @@ function guardDerivesAppliedStackFromTrackedSnapshotWhenMarkerMissing() {
 
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
   run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
+  const derivedProfile = JSON.parse(read(target, '.harness/policy/profile.json'))
+  derivedProfile.verify = { lint: 'harness' } // 결정 86: npm script 실행은 옵트인
+  writeJson(target, '.harness/policy/profile.json', derivedProfile)
   fs.rmSync(path.join(target, '.harness/.stack-applied.json'), { force: true })
 
   const output = run('npm', ['run', 'harness:check', '--', '--no-cache', '--brief'], { cwd: target })
   assert(output.includes('Stack applied state derived from tracked snapshot'), 'guard should derive stack state from tracked snapshot when marker is missing')
   assert(!output.includes('Stack not applied'), 'guard should not silently skip project validations when tracked stack snapshot exists')
   assert(exists(target, 'lint-ran.txt'), 'guard should run lint when stack snapshot exists without local marker')
+}
+
+function npmVerifyStagesRequireOptIn() {
+  // 결정 86(멀티사이트 실측): package.json에 lint가 있어도 profile.verify 옵트인 없이는
+  // 실행하지 않는다 — 전체 lint가 커밋 범위 밖 파일을 심판해 커밋을 막던 문제의 구조적 제거.
+  const target = makeTarget()
+  const preset = makeRulesOnlyPreset()
+  writeJson(target, 'package.json', {
+    name: 'verify-opt-in-target',
+    private: true,
+    type: 'module',
+    scripts: { lint: "node -e \"require('fs').writeFileSync('lint-ran.txt', 'yes')\"" },
+  })
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
+
+  // 기본: 실행 안 함 + 감지 안내
+  const defaultOut = run('npm', ['run', 'harness:check', '--', '--no-cache', '--brief'], { cwd: target })
+  assert(!exists(target, 'lint-ran.txt'), 'lint must NOT run without explicit opt-in (결정 86)')
+  assert(defaultOut.includes('하네스는 실행하지 않습니다'), 'check must announce detected-but-not-run stages')
+
+  // external: 위임 표기 + 미실행
+  const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
+  profile.verify = { lint: 'external' }
+  writeJson(target, '.harness/policy/profile.json', profile)
+  const externalOut = run('npm', ['run', 'harness:check', '--', '--no-cache', '--brief'], { cwd: target })
+  assert(externalOut.includes('external 위임'), 'external delegation must be announced in check output')
+  assert(!exists(target, 'lint-ran.txt'), 'external delegation must not run lint')
+
+  // harness 옵트인: 실행
+  profile.verify = { lint: 'harness' }
+  writeJson(target, '.harness/policy/profile.json', profile)
+  run('npm', ['run', 'harness:check', '--', '--no-cache', '--brief'], { cwd: target })
+  assert(exists(target, 'lint-ran.txt'), 'opt-in must run the npm lint script')
+
+  // 알 수 없는 값: 조용히 옵트인되지 않고 경고
+  fs.rmSync(path.join(target, 'lint-ran.txt'))
+  profile.verify = { lint: 'huskyy' }
+  writeJson(target, '.harness/policy/profile.json', profile)
+  const typoOut = run('npm', ['run', 'harness:check', '--', '--no-cache', '--brief'], { cwd: target })
+  assert(!exists(target, 'lint-ran.txt'), 'unknown verify value must not silently opt in')
+  assert(typoOut.includes('인식할 수 없어'), 'unknown verify value must warn')
 }
 
 function guardFailsWhenActiveStackHasNoTrackedSnapshot() {
@@ -2869,6 +2915,9 @@ function guardExplainsMissingNodeModulesInsteadOfRawToolError() {
   pkg.scripts.lint = 'run-s lint:*'
   pkg.devDependencies = { 'npm-run-all2': '^7.0.0' }
   writeJson(target, 'package.json', pkg)
+  const nmProfile = JSON.parse(read(target, '.harness/policy/profile.json'))
+  nmProfile.verify = { lint: 'harness' } // 결정 86: npm script 실행은 옵트인
+  writeJson(target, '.harness/policy/profile.json', nmProfile)
 
   let failed = false
   let combined = ''
@@ -5822,6 +5871,7 @@ const tests = [
   workflowWorkstreamChangeDoesNotTriggerCommitPushHookPolicy,
   harnessBaselineDocUpdateDoesNotTriggerSyncGap,
   guardDerivesAppliedStackFromTrackedSnapshotWhenMarkerMissing,
+  npmVerifyStagesRequireOptIn,
   guardFailsWhenActiveStackHasNoTrackedSnapshot,
   updateRecordsAndReplaysChangelogDelta,
   existingClaudeSettingsGetsHarnessHooksMerged,

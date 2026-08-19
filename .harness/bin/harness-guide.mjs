@@ -69,8 +69,19 @@ function boolLabel(value) {
   return value ? '있음' : '없음'
 }
 
-function scriptLabel(scripts, name) {
-  return scripts[name] ? '연결됨' : '없음'
+// 0.2.126(결정 86): 프로젝트 lint/test/build는 profile verify 옵트인 시에만 하네스가 실행합니다.
+function verifyStageLabel(scripts, verifyPrefs, name) {
+  const pref = (verifyPrefs ?? {})[name]
+  if (pref === 'external') return 'external 위임'
+  if (pref === 'harness') return scripts[name] ? '하네스 실행 (옵트인)' : '옵트인 · script 없음'
+  return scripts[name] ? '감지됨 · 실행 안 함' : '없음'
+}
+
+function verifyStageNote(scripts, verifyPrefs, name) {
+  const pref = (verifyPrefs ?? {})[name]
+  if (pref === 'external') return '프로젝트 도구(husky 등)가 담당'
+  if (pref === 'harness') return '하네스 검증 단계에 포함'
+  return scripts[name] ? 'profile verify로 옵트인 가능 (config-contract.md)' : ''
 }
 
 function fileUrl(absPath) {
@@ -117,9 +128,9 @@ function renderDashboard() {
     renderCard('인수인계 요약', boolLabel(exists('.harness/session/handoff.md')), '.harness/session/handoff.md'),
     renderCard('에이전트 판단 컨텍스트', boolLabel(exists('.harness/session/task-context.md')), '.harness/session/task-context.md'),
     renderCard('프로젝트 맵', boolLabel(exists('.harness/generated/project-map.md')), 'npm run harness:sync로 생성'),
-    renderCard('lint script', scriptLabel(scripts, 'lint')),
-    renderCard('test script', scriptLabel(scripts, 'test')),
-    renderCard('build script', scriptLabel(scripts, 'build')),
+    renderCard('lint script', verifyStageLabel(scripts, profile.verify, 'lint'), verifyStageNote(scripts, profile.verify, 'lint')),
+    renderCard('test script', verifyStageLabel(scripts, profile.verify, 'test'), verifyStageNote(scripts, profile.verify, 'test')),
+    renderCard('build script', verifyStageLabel(scripts, profile.verify, 'build'), verifyStageNote(scripts, profile.verify, 'build')),
   ].join('\n')
 
   const stackDecisionPanel = needsStackDecision

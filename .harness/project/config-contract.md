@@ -40,6 +40,22 @@
 - 그 외 값 또는 profile JSON 파싱 실패: push 게이트가 **fail-closed**로 중단합니다. 조용히 advisory로 낮추지 않습니다 — 설정 오류는 고쳐서 커밋하는 것이 유일한 통과 경로입니다.
 - 판정은 push되는 커밋의 값 기준이므로 작업 트리의 미커밋 편집은 게이트에 영향을 주지 않습니다.
 
+## verify (.harness/policy/profile.json)
+
+커밋/푸시 검증에서 프로젝트 품질 단계(lint/test/build)를 누가 실행하는지의 선언입니다. 소유는 프로젝트입니다.
+
+- **기본값(필드 부재): 하네스는 프로젝트 npm script를 실행하지 않습니다.** package.json에 `lint`/`test`/`build` 스크립트가 있어도 감지 안내만 표시합니다(결정 86, 0.2.126 — 존재만으로 자동 실행하면 커밋에 담기지 않은 파일의 오류가 커밋을 막고, husky 등 프로젝트 도구와 이중 실행됩니다).
+- `verify.lint` / `verify.test` / `verify.build` 값 도메인:
+  - `"harness"`: 하네스가 해당 npm script를 검증 단계로 실행합니다(옵트인). lint는 fast(pre-push)에서도 실행, test/build는 full에서만.
+  - `"external"`: husky·lint-staged·CI 같은 프로젝트 도구가 담당한다는 선언. 하네스는 스택 raw verify까지 포함해 건너뛰고 검증 출력에 위임 사실만 표기합니다(프로젝트 선언이 스택 기준을 이깁니다 — 충돌 해석 순서).
+  - 그 외 값: 실행하지 않되 경고를 표시합니다. 오타가 조용히 옵트인되지 않습니다.
+- 스택 manifest의 raw `verify` 명령(비-Node 스택용)은 스택 계약의 명시 선언이므로 기본 유지됩니다. 끄려면 해당 단계에 `"external"`을 선언합니다.
+- 예시 (lint는 husky lint-staged가 커밋 파일만 검사하는 프로젝트):
+
+  ```json
+  { "verify": { "lint": "external" } }
+  ```
+
 ## 하네스 메타데이터 계약
 - `.harness/harness-lock.json`과 `.harness/install-manifest.json`의 source metadata는 하네스 업데이트 감지를 위한 설정 계약입니다.
 - 공통 하네스가 git source로 설치 또는 업데이트되면 `repo`, `ref`, `packageVersion`, `spec`을 git source 기준으로 기록합니다.
