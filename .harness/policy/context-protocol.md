@@ -110,8 +110,7 @@ trace는 프롬프트 진행 중 짧은 상태 로그, `harness:handoff` 산출�
 3. 에이전트가 `npm run harness:context -- "<작업 설명>"`으로 이번 작업의 Agent Decision Context를 생성합니다.
 4. 후보 문서를 실제로 읽고, 상충되는 기준이 있으면 충돌 해석 순서에 따라 판단합니다.
 5. 코드나 기준을 바꾼 뒤 반복 패턴이 드러나면 `.harness/project/domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`, `commit-push-rules.md` 중 맞는 곳에 로컬룰 후보로 승격합니다.
-6. 사용자가 최종 검증만 승인하면 `npm run harness:check`를 직접 실행합니다.
-7. 사용자가 커밋/푸시를 승인했고 hook이 설치되어 있으면 선행 `harness:check`를 중복 실행하지 않고 pre-commit/pre-push hook 검증에 맡깁니다. hook 미설치 또는 우회 환경에서는 commit/push 전에 직접 `npm run harness:check`를 실행합니다.
+6. 최종화(검증·커밋·푸시)는 `CLAUDE.md` 작업 원칙의 "최종화 규칙(정본)"을 따릅니다.
 
 ## 금지
 
