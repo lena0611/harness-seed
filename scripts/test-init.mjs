@@ -157,7 +157,10 @@ function cleanInstallCreatesExpectedFiles() {
   const claudeInstructions = read(target, 'CLAUDE.md')
   assert(claudeInstructions.includes('하네스 자동 인식 의무'), 'CLAUDE.md should require automatic harness detection')
   assert(claudeInstructions.includes('사용자가 "하네스"를 언급하지 않아도'), 'CLAUDE.md should not depend on explicit harness mention')
-  assert(claudeInstructions.includes('사용자가 `커밋` 또는 `커밋하고 푸시`를 요청했고 git hook이 설치되어 있으면 별도 선행 `harness:check`를 돌리지 않고'), 'CLAUDE.md should avoid duplicate manual check before hooked commit')
+  // 0.2.127 다이어트: 최종화 규칙은 CLAUDE.md 작업 원칙 한 곳에만 둔다(3중 서술 통합). 내용 계약을 잠근다.
+  assert(claudeInstructions.includes('최종화 규칙(정본'), 'CLAUDE.md must carry the single canonical finalization rule')
+  assert(claudeInstructions.includes('완료 승인 전에는'), 'CLAUDE.md finalization rule must forbid heavy actions before approval')
+  assert(claudeInstructions.includes('hook 검증에 맡겨 중복 실행을 피하고'), 'CLAUDE.md should avoid duplicate manual check before hooked commit')
 
   const agentInstructions = read(target, 'AGENTS.md')
   assert(agentInstructions.includes('비-Claude 에이전트 필수 동작'), 'AGENTS.md should include non-Claude required behavior')

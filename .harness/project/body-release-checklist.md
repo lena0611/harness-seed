@@ -99,7 +99,7 @@
   # 1) package.json version patch bump
   npm install --package-lock-only --ignore-scripts     # lock 동기 (수동 lock 편집은 hook 차단)
   # 2) README의 AI_STANDARD_BASE_HARNESS_REF=v<본체새버전> 갱신 + 테스트 픽스처 예시 ref 갱신
-  npm run check && npm test                             # 18 테스트 통과 확인
+  npm run check && npm test                             # 전체 통과 확인(테스트 수는 CLI 저장소가 소유)
   git add -A && git commit -m "공통 하네스 v<본체버전> 설치 경로 반영"
   git tag -a v<CLI버전> -m "..." && git push origin master && git push origin v<CLI버전>
   ```
@@ -116,3 +116,11 @@
 - [ ] 구조 결정·예외 사유 → [decision-log.md](../session/decision-log.md)
 - [ ] 다음 세션에서 이어야 할 항목 → [next-session-reminder.md](../session/next-session-reminder.md)
 - [ ] 반복되는 본체 운영 지식 → 이 문서 또는 관련 기준 문서로 승격
+
+## 모델 세대 교체 릴리스 (사내 표준 에이전트 모델이 바뀔 때만)
+
+프롬프트·지시는 모델 버전에 묶인 감가상각 자산이다(컨텍스트 다이어트 에픽 참조). 사내 표준 모델의 세대가 바뀌는 릴리스에서는:
+
+- [ ] 진입점·정책 문서의 행동 지시에 "이 지시, 새 모델에도 필요한가"를 재적용한다 — 4분류(고유 정보 유지 / 뻔한 정보 삭제 / 일반론 삭제·판단 기준으로 압축 / 중복 포인터화). 삭제·전환은 회귀나 실측을 동반한다(평가 없이 지우면 기대일 뿐).
+- [ ] 워크플로우 모델·effort 배정 기준(개인 글로벌 지침 포함)을 새 모델 라인업으로 갱신한다.
+- [ ] 멀티모델 환경 주의: 강한 모델 기준으로 지시를 지우면 약한 모델 경로가 조용히 깨진다 — 바닥 모델(현재 Sonnet 라인)에서의 거동을 확인한 뒤 지운다.

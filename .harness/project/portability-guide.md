@@ -16,7 +16,7 @@
 5. `npm run hooks:install`로 로컬 hook을 연결합니다.
 6. scaffold가 필요하면 `npm run templates:list`로 별도 템플릿 후보를 확인하고 `template:apply`로 적용합니다.
 7. scaffold 템플릿이 적용되었으면 `.harness/project/template-contract.md`에서 템플릿 사용 계약 브리지를 확인합니다.
-8. scaffold가 함께 적용되었으면 `npm install` 후 `npm run harness:check`로 lint/test/build까지 검증합니다.
+8. scaffold가 함께 적용되었으면 `npm install` 후 `npm run harness:check`로 검증합니다. lint/test/build까지 포함하려면 profile의 `verify` 선언이 필요합니다(옵트인, 결정 86 — `/검증설정`).
 9. 새 스택 하네스가 필요하면 `.harness/stacks/authoring-guide.md`를 먼저 보고 외부 프리셋 저장소를 만듭니다. 기본 계약은 `package.json bin + scripts/init.mjs + manifest.json + policies.json + instructions/`입니다.
 10. 새 scaffold 템플릿이 필요하면 `kind=scaffold-template`, `requiredStackHarness`, `template.guideRoot`, `source` 계약을 가진 별도 저장소로 둡니다.
 11. `policy-registry.json`은 일반 개발 기준만 유지합니다. 스택-특화 기준은 스택의 `policies.json`으로만 둡니다.

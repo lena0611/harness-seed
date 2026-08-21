@@ -7,25 +7,22 @@
 Claude Code에서는 `SessionStart` hook이 `next-session-reminder.md`를 자동으로 보여줍니다. Codex와 Copilot은 같은 hook 강제성이 없으므로 `CLAUDE.md`의 읽기 순서에 따라 직접 확인합니다.
 
 ## 지금 반드시 떠올릴 것
-0. 루트에 `.harness/`, `AGENTS.md`, `CLAUDE.md` 중 하나라도 있으면 사용자가 하네스를 언급하지 않아도 하네스 프로젝트로 자동 인식합니다.
-1. 모든 작업은 `.harness/policy/ai-standard-guiding-policy.md`의 위배 여부를 먼저 확인합니다.
-2. 프로젝트 목적은 아직 `TBD`입니다. 새 기능 전에 `.harness/project/project-charter.md`를 먼저 확인합니다.
-3. `src/`, 기준 문서, 하네스 문서를 손대면 시작 전에는 `npm run harness:impact`로 영향 범위를 확인합니다. `npm run harness:check`는 사용자가 최종 검증을 승인한 뒤 실행합니다.
-4. 자동 검사가 통과해도 수동 검토 항목은 `.harness/policy/automation-coverage.md`를 보고 다시 판단합니다.
-5. `.harness/session/developer-input-queue.md`의 `open`/`deferred` 항목은 새 세션에서 다시 확인합니다.
-6. 문서를 키워야 한다면 먼저 `.harness/documentation/indexing-rules.md`에 맞게 인덱스/세부 문서 분리를 판단합니다.
-7. 개발 방향을 유지하려면 하네스만 만들지 말고, 필요 시 trigger와 hook까지 함께 설계해야 합니다.
+
+작업 절차의 정본은 `CLAUDE.md`(작업 원칙·최종화 규칙)입니다. 아래는 이 문서가 소유한 항목과, 놓치기 쉬운 것의 짧은 상기만 둡니다.
+
+1. 루트에 `.harness/`, `AGENTS.md`, `CLAUDE.md` 중 하나라도 있으면 하네스 프로젝트로 자동 인식합니다. 사용자가 하네스를 언급하지 않는 것은 하네스를 비활성화한다는 뜻이 아닙니다.
+2. 모든 작업은 `.harness/policy/ai-standard-guiding-policy.md`의 위배 여부를 먼저 확인합니다.
+3. 프로젝트 목적은 아직 `TBD`입니다. 새 기능 전에 `.harness/project/project-charter.md`를 먼저 확인합니다.
+4. 최종화는 `CLAUDE.md`의 정본 규칙대로 — 완료 승인 전 무거운 검증·커밋 금지, 커밋/푸시는 hook 검증에 맡겨 선행 `harness:check`를 중복 실행하지 않습니다.
+5. 자동 검사가 통과해도 수동 검토 항목은 `.harness/policy/automation-coverage.md`를 보고 다시 판단합니다.
+6. `.harness/session/developer-input-queue.md`의 `open`/`deferred` 항목은 새 세션에서 다시 확인합니다.
+7. 문서를 키워야 한다면 먼저 `.harness/documentation/indexing-rules.md`에 맞게 인덱스/세부 문서 분리를 판단합니다.
 8. 강제 강도와 예외 허용 범위가 애매하면 `.harness/policy/enforcement-ladder.md`를 보고 사용자에게 묻습니다.
-9. 코드 변경 시 스타일 검증도 구조 검증과 함께 보며, `npm run lint` 또는 `npm run harness:check`를 기준으로 판단합니다.
+9. 프로젝트 품질 검사(lint/test/build)는 profile의 `verify` 선언을 따릅니다 — 하네스는 자동 실행하지 않으며, 담당 설정은 `/검증설정`으로 합니다(결정 86).
 10. 새 환경을 준비한 뒤에는 `npm run hooks:install`로 로컬 훅과 커밋 템플릿을 연결합니다.
-11. 에이전트 작업은 hook 설치 여부와 무관하게 기준 계층을 읽습니다. 다만 사용자 완료 승인 전에는 `build`, `test`, `harness:check`, commit, push, PR 생성을 실행하지 않고 검증 후보로 보고합니다.
-12. 사용자가 `최종 검증만` 요청하면 `npm run harness:check`를 직접 실행합니다. 사용자가 `커밋/푸시`를 요청했고 hook이 설치되어 있으면 pre-commit/pre-push 검증을 신뢰하고 선행 `harness:check`를 중복 실행하지 않습니다.
-13. 스타일이 반복 패턴으로 굳어지기 시작하면 `.harness/style/style-evolution.md` 기준으로 규칙 승격 후보를 확인합니다.
-14. 코드 변경 후에는 도메인, 아키텍처, 워크플로우 로컬룰로 승격할 후보가 있는지 확인하고, 확신이 없으면 `.harness/session/developer-input-queue.md`에 질문으로 남깁니다. 승격 시에는 "문서 규칙인가, 실행 가능한 검증인가"를 먼저 판단합니다 — 사람이 매번 기억해야 하는 런타임 불변식은 문서 대신 테스트/CI/lint 가드로 만듭니다(`enforcement-ladder.md` 0번).
-15. 큰 작업이나 생소한 영역은 `npm run harness:sync`와 `npm run harness:context -- "<작업 설명>"`로 에이전트 판단 컨텍스트를 먼저 만듭니다.
-16. 실제 업무 진행을 개발자에게 보고할 때는 원시 내부 추론이 아니라 `[harness] request/context/impact/action/decision/verify` 형태의 visible trace로 요약합니다. 단순 질문, 잡담, 메타 확인에는 강요하지 않습니다.
-17. 사용자가 하네스를 언급하지 않는 것은 하네스를 비활성화한다는 뜻이 아닙니다. 하네스 설치 프로젝트에서는 항상 이 문서의 절차를 적용합니다.
-18. 감사·리뷰·검토가 근거와 함께 비권장한 것을 뒤집어 채택할 때는, 채택 전에 `decision-log.md`에 `[권고 뒤집기]` 항목(`근거 반박:` 필수)을 남깁니다. 결정을 폐기/번복할 때는 원문 삭제 대신 `⛔ 폐기됨`/`⛔ 번복됨` 배너를 붙입니다. 관례 상세는 `.harness/session/README.md`.
+11. 스타일이 반복 패턴으로 굳어지기 시작하면 `.harness/style/style-evolution.md` 기준으로 규칙 승격 후보를 확인합니다.
+12. 로컬룰 승격 시 "문서 규칙인가, 실행 가능한 검증인가"를 먼저 판단합니다 — 사람이 매번 기억해야 지켜지는 런타임 불변식은 문서 대신 테스트/CI/lint 가드로 만듭니다(`enforcement-ladder.md` 0번).
+13. 감사·리뷰가 근거와 함께 비권장한 것을 뒤집어 채택할 때는 채택 전에 `decision-log.md`에 `[권고 뒤집기]` 항목(`근거 반박:` 필수)을 남기고, 결정 폐기/번복은 원문 삭제 대신 `⛔ 폐기됨`/`⛔ 번복됨` 배너를 붙입니다(상세: `.harness/session/README.md`).
 
 ## 방향 유지 장치 원칙
 - **Harness**는 방향과 작업 레일을 정합니다.
