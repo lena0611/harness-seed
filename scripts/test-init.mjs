@@ -189,8 +189,9 @@ function cleanInstallCreatesExpectedFiles() {
   assert(memoryCommand.includes('supersede된 기억'), 'memory command should remove stale memory entries')
 
   const sessionStartHook = read(target, '.claude/hooks/session-start-reminder.sh')
-  assert(sessionStartHook.includes('^[[:space:]]*\\|[^|]+\\|[[:space:]]*(open|deferred)[[:space:]]*\\|'), 'session start hook should only match actual open/deferred queue rows')
-  assert(!sessionStartHook.includes("status:[[:space:]]*(open|deferred)|open|deferred"), 'session start hook should not match queue status definitions')
+  assert(sessionStartHook.includes('재검토일') && sessionStartHook.includes('nextReviewOn'), 'session start hook should parse the review-date column (clubadm 2026-08-24)')
+  assert(sessionStartHook.includes('재검토일 형식 오류'), 'session start hook must fail loud on malformed review dates — typos must not become a hiding path')
+  assert(sessionStartHook.includes('유예 '), 'session start hook should print a one-line snooze summary instead of full silence')
 
   const commitPushRules = read(target, '.harness/project/commit-push-rules.md')
   assert(commitPushRules.includes('## 요청별 검증 경로'), 'commit/push rules should explain request-specific verification paths')
@@ -5828,7 +5829,47 @@ function approvedRegistryListingsStayConsistent() {
   run(nodeBin, [path.join(repoRoot, 'scripts/test-template-registry.mjs')])
 }
 
+// clubadm 개선요청(2026-08-24): 장기 보류(정책 부재형) 질문이 신규 질문과 같은 무게로 매 세션
+// 출력돼 신호를 희석한다. 재검토일(YYYY-MM-DD)이 미래면 유예(집계 한 줄), 도래하면 재출력,
+// 미기재는 종전대로 항상 출력(하위호환), 형식 오류는 숨기지 않고 경고와 함께 출력한다 —
+// 무음은 의도의 결과여야 하므로(0.2.102·0.2.121 계열) 오타가 조용한 은닉 경로가 되면 안 된다.
+function sessionStartHookSnoozesQueueRowsUntilReviewDate() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const queuePath = path.join(target, '.harness/session/developer-input-queue.md')
+  fs.writeFileSync(queuePath, [
+    '| id | status | 질문 | 왜 필요한가 | 개발자 선택 | 재검토일 |',
+    '| --- | --- | --- | --- | --- | --- |',
+    '| q-now | open | 지금 답 필요 | 테스트 | 미정 | |',
+    '| q-due | deferred | 기한 도래 | 테스트 | 유보 | 2000-01-01 |',
+    '| q-later | deferred | 장기 보류 | 테스트 | 유보 | 2999-12-31 |',
+    '| q-bad | deferred | 오타 날짜 | 테스트 | 유보 | 26-9-1 |',
+    '| q-done | answered | 끝난 질문 | 테스트 | 답변됨 | |',
+    '',
+  ].join('\n'))
+  const hook = path.join(target, '.claude/hooks/session-start-reminder.sh')
+  const out = run('/bin/sh', [hook], { env: { ...process.env, CLAUDE_PROJECT_DIR: target } })
+  assert(out.includes('[open] q-now'), 'row without review date must always print (backward compat)')
+  assert(out.includes('q-due') && out.includes('재검토 기한 도래: 2000-01-01'), 'row whose review date has arrived must reappear')
+  assert(!out.includes('q-later'), 'row with a future review date must stay quiet for this session')
+  assert(out.includes('유예 1건 — 다음 재검토 2999-12-31'), 'snoozed rows must leave a one-line summary, not full silence')
+  assert(out.includes('q-bad') && out.includes('재검토일 형식 오류'), 'malformed review date must print loud instead of hiding the row')
+  assert(!out.includes('q-done'), 'answered rows stay out of the session output')
+
+  // 구 스키마(재검토일 컬럼 없음)는 종전 동작 그대로 전부 출력되어야 한다.
+  fs.writeFileSync(queuePath, [
+    '| id | status | 질문 | 왜 필요한가 | 개발자 선택 |',
+    '| --- | --- | --- | --- | --- |',
+    '| old-q | open | 옛 스키마 질문 | 테스트 | 미정 |',
+    '| old-d | deferred | 옛 유보 질문 | 테스트 | 유보 |',
+    '',
+  ].join('\n'))
+  const legacy = run('/bin/sh', [hook], { env: { ...process.env, CLAUDE_PROJECT_DIR: target } })
+  assert(legacy.includes('[open] old-q') && legacy.includes('[deferred] old-d'), 'legacy queue schema must keep printing every open/deferred row')
+}
+
 const tests = [
+  sessionStartHookSnoozesQueueRowsUntilReviewDate,
   cleanInstallCreatesExpectedFiles,
   installOutputUsesConditionalNvmAndGitGuidance,
   hooksInstallFailsClearlyOutsideGit,
