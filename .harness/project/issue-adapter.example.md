@@ -89,8 +89,7 @@ curl --silent --header "PRIVATE-TOKEN: $SPEC_ISSUE_TOKEN_RO" "https://git.exampl
 
 - push가 끝난 뒤에만 조회합니다. 커밋·푸시를 막거나 늦추지 않습니다.
 - 읽기만 합니다. 이슈를 만들거나 닫거나 코멘트하지 않습니다(이슈를 열고
-  닫는 것은 프로젝트 CI 잡의 일 — 기획 연동 프로젝트는
-  [spec-authority-workflow.md](./spec-authority-workflow.md)의 "기획 이슈 보드" 절 참고).
+  닫는 방식은 프로젝트 재량 — 보통 프로젝트 소유 CI 잡의 일입니다).
 - 알리고 멈춥니다. 개발자가 이슈 번호를 지목할 때만 처리에 착수합니다.
 - 요약은 한 줄입니다. 완료 보고를 점령하지 않습니다.
 - 이 동작은 집행 강도(advisory/gate) 판정에 들어가지 않고 영향도 받지 않습니다.

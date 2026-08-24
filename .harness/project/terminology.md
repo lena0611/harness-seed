@@ -55,7 +55,6 @@
 | drift (어긋남) | 기획서와 코드가 서로 다른 말을 하는 상태 | `harness:spec:status` |
 | spec-map (매핑) | "이 기획서는 이 코드로 구현했다"의 연결표 — 도면↔시공 대응표 | `.harness/project/spec-map.md` |
 | advisory / gate | 기획 어긋남을 참고로만 알릴지, push를 막을지의 집행 등급 | profile의 `specEnforcement` |
-| 기획 이슈 보드 | 미정산 상태를 비추는 거울 — 확인 안 한 변경만큼 이슈가 열려 있고, 정산하면 자동으로 닫힘 | 프로젝트 트래커 + CI 잡 |
 | 이슈 어댑터 | push 완료 보고에 열린 이슈 요약 한 줄을 붙이는 스위치 — 파일이 있으면 켜짐 | 프로젝트가 견본을 복사해 만든 issue-adapter 파일 (견본: `issue-adapter.example.md`) |
 
 ## 쉬운 풀이 — 계층·계약

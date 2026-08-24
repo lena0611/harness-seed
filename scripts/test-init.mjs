@@ -3616,15 +3616,12 @@ function issueAdapterExampleShipsAsSwitchContract() {
   assert(digest.read.includes('.harness/project/issue-adapter.md'), 'digest skill must point at the live adapter path (the switch)')
   assert(digest.triggers.includes('커밋') && digest.triggers.includes('push'), 'digest skill must trigger on commit/push requests')
   const spec = read(target, '.harness/project/spec-authority-workflow.md')
-  assert(spec.includes('기획 이슈 보드'), 'spec workflow must carry the planning-issue application section')
+  // 이슈보드 요리법(거울형 규칙 1~9·CI 견본)은 결정 89로 본체에서 철수 — 방식은 프로젝트 재량.
+  // 남는 계약: 재량 명시 + "닫기 ≠ 정산" + 어댑터 견본 인계. 요리법이 되살아나면 실패해야 한다.
+  assert(spec.includes('이슈 트래커 연동'), 'spec workflow must state issue-tracker linkage as project discretion')
+  assert(!spec.includes('기획 이슈 보드'), 'mirror-board recipe must stay withdrawn from the body (decision 89)')
+  assert(spec.includes('이슈를 닫는 것은 정산이 아닙니다'), 'spec section must keep closing-an-issue distinct from settlement')
   assert(spec.includes('issue-adapter.example.md'), 'spec section must hand over the adapter example')
-  assert(spec.includes('doc:'), 'spec section must define the doc label join key')
-  const specIssueYaml = spec.match(/```yaml\n([\s\S]*?)```/)?.[1] ?? ''
-  assert(specIssueYaml.includes('spec-issues'), 'spec section must include the CI job example')
-  for (const line of specIssueYaml.split('\n')) {
-    const item = line.match(/^\s+-\s+(?!if:)(.+)$/)?.[1]
-    if (item) assert(!/:\s/.test(item), `yaml example plain scalar must not contain colon+space (0.2.117): ${item}`)
-  }
   const registry = JSON.parse(read(target, '.harness/documentation/document-registry.json'))
   const group = (registry.groups ?? []).find((entry) => entry.id === 'project-harness')
   assert(group && group.children.includes(rel), 'adapter example must be registered in the document registry')
