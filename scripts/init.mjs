@@ -127,6 +127,7 @@ const SEED_MODE_MARKER = '.harness-seed-mode';
 const SEED_ONLY_DOC_PATHS = new Set([
   '.harness/project/body-release-checklist.md',
   '.harness/project/body-roadmap.md',
+  '.harness/project/standards-adoption-roadmap.md',
 ]);
 
 // 세션 이력 아카이브(0.2.95): decision-log 2계층 관례(0.2.92)로 본체 자신의 아카이브
@@ -722,6 +723,9 @@ function shouldIncludeInstallFile(relPath) {
       '.harness/session/handoff.md',
       '.harness/session/template-gap-report.md',
       '.harness/session/task-context.md',
+      // 이슈 어댑터 실물은 프로젝트 상태다(결정 82: 실물을 배포하면 전 프로젝트에서 켜진다).
+      // 본체 저장소 자신도 실물을 가질 수 있으므로(관문 이슈 조회) 배포에서 항상 제외한다.
+      '.harness/project/issue-adapter.md',
       '.harness/install-manifest.json',
       '.harness/harness-lock.json',
       '.harness/.stack-applied.json',

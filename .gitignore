@@ -27,3 +27,6 @@ CLAUDE.local.md
 # .harness-seed-mode 파일이 있으면 pre-commit hook이 stack-applied 산출물(src/, index.html, vite.config.* 등)의
 # staging을 차단합니다. 일반 사용자(자기 프로젝트로 쓰는 경우)는 .harness-seed-mode를 삭제한 뒤 자유롭게 commit할 수 있습니다.
 # 자세한 내용은 .harness-seed-mode 파일 본문 참고.
+
+# 이슈 어댑터 토큰 로컬 파일 (0.2.124 견본 관례 — 값은 절대 커밋하지 않는다)
+.issue-adapter.env

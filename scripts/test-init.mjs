@@ -153,6 +153,11 @@ function cleanInstallCreatesExpectedFiles() {
   assert(exists(target, '.claude/commands/업무요약.md'), 'clean install should copy work summary slash command')
   assert(exists(target, '.claude/commands/하네스업데이트.md'), 'clean install should copy harness update slash command')
   assert(exists(target, '.claude/commands/검증설정.md'), 'clean install should copy verify ownership slash command')
+  assert(exists(target, '.claude/commands/하네스용어.md'), 'clean install should copy terminology lookup slash command')
+  assert(read(target, '.claude/commands/하네스용어.md').includes('.harness/project/terminology.md'), 'terminology command must point at the terminology source of truth')
+  const terminologySkill = JSON.parse(read(target, '.harness/skills/registry.json')).skills.find((skill) => skill.id === 'harness.terminology')
+  assert(terminologySkill, 'skill registry must carry the terminology lookup contract')
+  assert(terminologySkill.read.includes('.harness/project/terminology.md'), 'terminology skill must read the terminology source of truth')
 
   const claudeInstructions = read(target, 'CLAUDE.md')
   assert(claudeInstructions.includes('하네스 자동 인식 의무'), 'CLAUDE.md should require automatic harness detection')
@@ -2231,6 +2236,7 @@ function consumerDocLinkCheckIgnoresCiExamplePaths() {
 const SEED_ONLY_DOCS = [
   '.harness/project/body-release-checklist.md',
   '.harness/project/body-roadmap.md',
+  '.harness/project/standards-adoption-roadmap.md',
 ]
 const SEED_ONLY_DOC = SEED_ONLY_DOCS[0]
 

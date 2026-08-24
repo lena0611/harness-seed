@@ -85,6 +85,9 @@ const dynamicArtifactPaths = new Set([
   // 기획 문서 연동(0.2.99): 연결/기준 시점 파일은 /기획문서연동 실행 시점에 생성된다.
   '.harness/spec-sources.json',
   '.harness/spec-lock.json',
+  // 이슈 어댑터 실물(결정 82): 프로젝트가 견본을 복사해 만드는 켬 스위치 — 존재가 정상이고
+  // registry에는 견본만 등록된다. 본체 자신도 실물을 가진다(관문 이슈 조회).
+  '.harness/project/issue-adapter.md',
   // npx init 진입점은 사용자 프로젝트에 복사하지 않는다. 시드 결정 로그의
   // 역사적 참조는 사용자 프로젝트에서도 broken reference로 취급하지 않는다.
   'scripts/init.mjs',
@@ -105,6 +108,7 @@ const dynamicArtifactPrefixes = [
 const seedOnlyDocs = new Set([
   '.harness/project/body-release-checklist.md',
   '.harness/project/body-roadmap.md',
+  '.harness/project/standards-adoption-roadmap.md',
 ])
 
 function toPosix(p) {

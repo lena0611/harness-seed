@@ -1143,6 +1143,43 @@
         "토큰은 환경변수로만 읽고 값을 어디에도 기록하지 않는다",
         "실패는 실패로 말하되, 어댑터에 복구 안내가 있으면 손잡이를 함께 쥐여준다"
       ]
+    },
+    {
+      "id": "harness.terminology",
+      "title": "하네스 용어 조회",
+      "purpose": "하네스 용어를 정본(terminology.md) 기준으로 표로 보여주고 실물 파일 경로를 함께 안내한다. 정본 밖의 정의를 지어내지 않는다.",
+      "audience": [
+        "consumer",
+        "harness-maintainer",
+        "stack-author",
+        "template-author"
+      ],
+      "taskTypes": [
+        "unknown",
+        "docs",
+        "review"
+      ],
+      "priority": "low",
+      "triggers": [
+        "용어",
+        "무슨 뜻",
+        "뜻이 뭐",
+        "terminology",
+        "glossary",
+        "정산이 뭐",
+        "수화가 뭐",
+        "하네스용어"
+      ],
+      "read": [
+        ".harness/project/terminology.md"
+      ],
+      "commands": [],
+      "outputs": [
+        "요청 용어(또는 전체)의 표 — 용어/뜻/실물 경로 열 유지",
+        "정본 위치 안내 한 줄",
+        "정본에 없는 용어는 부재 고지 + 관련 문서 후보"
+      ],
+      "records": []
     }
   ]
 }
