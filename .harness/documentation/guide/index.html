@@ -294,6 +294,134 @@
       background: #f8fafc;
     }
 
+    .fileflow-title {
+      margin-top: 26px;
+    }
+
+    .fileflow-lead {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 14px;
+      max-width: 960px;
+    }
+
+    .fileflow-legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+
+    .fileflow-legend > span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .ff-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 20px;
+      padding: 0 8px;
+      border-radius: 999px;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .ff-tag.read { background: var(--blue); }
+    .ff-tag.trigger { background: var(--amber); }
+    .ff-tag.write { background: var(--green); }
+
+    .fileflow {
+      border: 1px solid #dbe3ef;
+      border-radius: 8px;
+      background: #f8fafc;
+      padding: 14px;
+      margin-top: 12px;
+    }
+
+    .fileflow h3 {
+      margin: 0 0 4px;
+      font-size: 16px;
+    }
+
+    .fileflow-note {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .fileflow-stages {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .fileflow-stage {
+      flex: 1 1 0;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 10px 12px;
+    }
+
+    .fileflow-stage h4 {
+      margin: 0 0 6px;
+      font-size: 14px;
+    }
+
+    .ff-cmd {
+      margin: 0 0 4px;
+      font-size: 12px;
+    }
+
+    .ff-group {
+      margin-top: 8px;
+      padding-left: 9px;
+      border-left: 3px solid var(--line);
+    }
+
+    .ff-group.read { border-left-color: var(--blue); }
+    .ff-group.trigger { border-left-color: var(--amber); }
+    .ff-group.write { border-left-color: var(--green); }
+
+    .ff-group ul {
+      list-style: none;
+      padding-left: 0;
+      margin: 4px 0 0;
+    }
+
+    .ff-group li {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .ff-group li + li {
+      margin-top: 3px;
+    }
+
+    .ff-arrow {
+      flex: 0 0 auto;
+      align-self: center;
+      color: var(--muted);
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    @media (max-width: 980px) {
+      .fileflow-stages {
+        flex-direction: column;
+      }
+
+      .ff-arrow {
+        transform: rotate(90deg);
+      }
+    }
+
     @media (max-width: 1180px) {
       main {
         width: min(100% - 28px, 1420px);
@@ -459,6 +587,206 @@
     <section class="snapshot">
       <h2>한 장으로 보는 전체 흐름</h2>
       <img src="../assets/request-lifecycle-flow.svg" alt="하네스 설치 프로젝트의 요구사항 라이프사이클">
+
+      <h2 class="fileflow-title">파일 흐름으로 보기</h2>
+      <p class="fileflow-lead">같은 흐름을 파일 관점에서 봅니다. 단계마다 어떤 파일이 읽히고, 어떤 파일 변경이 검사·훅을 깨우고, 어떤 파일이 만들어지거나 갱신되는지를 표시합니다. 위 단계 지도가 "무엇을 하나"라면, 이 그림은 "그때 디스크에서 무슨 일이 일어나나"입니다.</p>
+      <div class="fileflow-legend">
+        <span><span class="ff-tag read">읽기</span> 단계가 참고만 하는 파일 — 내용이 바뀌지 않습니다</span>
+        <span><span class="ff-tag trigger">트리거</span> 이 파일·경로의 변경이 검사나 훅을 깨웁니다</span>
+        <span><span class="ff-tag write">쓰기</span> 단계가 만들거나 갱신하는 파일</span>
+      </div>
+
+      <section class="fileflow" aria-label="일반 작업 파일 흐름">
+        <h3>① 일반 작업 — 요청 하나가 흐르는 동안</h3>
+        <p class="fileflow-note">항상 읽는 최소 기준은 짧게, 나머지는 이번 작업과 관련된 것만 골라 읽습니다(컨텍스트 합성 프로토콜).</p>
+        <div class="fileflow-stages">
+          <div class="fileflow-stage">
+            <h4>요청 수신</h4>
+            <div class="ff-group read">
+              <span class="ff-tag read">읽기</span>
+              <ul>
+                <li><code>CLAUDE.md</code></li>
+                <li><code>.harness/policy/ai-standard-guiding-policy.md</code></li>
+                <li><code>.harness/session/session-start-alert.md</code></li>
+                <li><code>.harness/session/active-context.md</code></li>
+                <li>세션 재개 시 <code>project-memory.md</code>, <code>decision-log.md</code> 추가</li>
+              </ul>
+            </div>
+          </div>
+          <div class="ff-arrow" aria-hidden="true">→</div>
+          <div class="fileflow-stage">
+            <h4>컨텍스트 좁히기 <small>(큰 작업·낯선 영역)</small></h4>
+            <p class="ff-cmd"><code>npm run harness:context -- "&lt;작업&gt;"</code></p>
+            <div class="ff-group read">
+              <span class="ff-tag read">읽기</span>
+              <ul>
+                <li><code>.harness/policy/policy-registry.json</code> — triggerPaths 대조</li>
+                <li>활성 스택이면 스택 <code>policies.json</code></li>
+              </ul>
+            </div>
+            <div class="ff-group write">
+              <span class="ff-tag write">쓰기</span>
+              <ul>
+                <li><code>.harness/generated/project-map.md</code> (harness:sync)</li>
+                <li><code>.harness/session/task-context.md</code></li>
+                <li>기획 연동 시 기준 본문 수화 백스톱 → <code>.harness/generated/spec-cache/</code></li>
+              </ul>
+            </div>
+          </div>
+          <div class="ff-arrow" aria-hidden="true">→</div>
+          <div class="fileflow-stage">
+            <h4>구현</h4>
+            <div class="ff-group write">
+              <span class="ff-tag write">쓰기</span>
+              <ul>
+                <li>업무 코드 (<code>src/**</code> 등)</li>
+              </ul>
+            </div>
+            <div class="ff-group trigger">
+              <span class="ff-tag trigger">트리거</span>
+              <ul>
+                <li>변경 경로 ↔ <code>policy-registry.json</code>의 triggerPaths 매칭</li>
+                <li>변경 경로 ↔ <code>.harness/project/critical-paths.md</code>의 path 매칭</li>
+                <li>→ <code>harness:impact</code>가 기준 동기화 검토 후보로 표시(기본 비차단)</li>
+              </ul>
+            </div>
+          </div>
+          <div class="ff-arrow" aria-hidden="true">→</div>
+          <div class="fileflow-stage">
+            <h4>기록·승격</h4>
+            <div class="ff-group write">
+              <span class="ff-tag write">쓰기</span>
+              <ul>
+                <li><code>.harness/session/decision-log.md</code> — 자명하지 않은 판단만</li>
+                <li><code>.harness/project/domain-rules.md</code> 등 룰 문서 — 반복 패턴 승격 시</li>
+                <li><code>.harness/session/developer-input-queue.md</code> — 보류 질문</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="fileflow" aria-label="커밋과 푸시 파일 흐름">
+        <h3>② 커밋 · 푸시 — 훅이 지키는 구간</h3>
+        <p class="fileflow-note">훅은 <code>npm run hooks:install</code>로 사람마다 설치합니다(clone으로 공유되지 않음).</p>
+        <div class="fileflow-stages">
+          <div class="fileflow-stage">
+            <h4>커밋</h4>
+            <div class="ff-group trigger">
+              <span class="ff-tag trigger">트리거</span>
+              <ul>
+                <li><code>.githooks/pre-commit</code> → <code>harness:check</code></li>
+                <li>스테이징이 <code>.harness/session/*</code>뿐이면 무거운 검사 자동 생략</li>
+              </ul>
+            </div>
+            <div class="ff-group read">
+              <span class="ff-tag read">읽기</span>
+              <ul>
+                <li><code>.harness/policy/policy-registry.json</code></li>
+                <li><code>.harness/install-manifest.json</code> — managed 파일 sha 대조</li>
+                <li><code>.harness/policy/profile.json</code>, <code>waivers.json</code></li>
+              </ul>
+            </div>
+          </div>
+          <div class="ff-arrow" aria-hidden="true">→</div>
+          <div class="fileflow-stage">
+            <h4>푸시</h4>
+            <div class="ff-group trigger">
+              <span class="ff-tag trigger">트리거</span>
+              <ul>
+                <li><code>.githooks/pre-push</code> → 기획 연동 gate 프로젝트면 push 정산 게이트</li>
+              </ul>
+            </div>
+            <div class="ff-group read">
+              <span class="ff-tag read">읽기</span>
+              <ul>
+                <li>push되는 커밋 시점의 <code>.harness/spec-sources.json</code>, <code>.harness/spec-lock.json</code>, <code>.harness/project/spec-map.md</code></li>
+                <li>매핑된 기획 문서가 미정산이면 차단 — 정산 후 재푸시</li>
+              </ul>
+            </div>
+          </div>
+          <div class="ff-arrow" aria-hidden="true">→</div>
+          <div class="fileflow-stage">
+            <h4>푸시 후 보고</h4>
+            <div class="ff-group read">
+              <span class="ff-tag read">읽기</span>
+              <ul>
+                <li><code>.harness/project/issue-adapter.md</code> — 파일이 있으면 켜짐</li>
+                <li>이슈 트래커 읽기 전용 조회 1회 → 한 줄 보고(실패는 실패로)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="fileflow" aria-label="기획 확인 파일 흐름">
+        <h3>③ 기획 확인 — <code>/기획확인</code> 한 번의 안쪽</h3>
+        <p class="fileflow-note">기준 본문(spec-cache)은 팀이 확인 도장을 찍은 시점, 최신 사본(spec-latest)은 지금 기획 저장소에 있는 것. 정산이 그 간격을 닫습니다.</p>
+        <div class="fileflow-stages">
+          <div class="fileflow-stage">
+            <h4>최신 확인</h4>
+            <p class="ff-cmd"><code>harness:spec:fetch -- --cache-only</code></p>
+            <div class="ff-group read">
+              <span class="ff-tag read">읽기</span>
+              <ul>
+                <li>기획 저장소(네트워크, 읽기 전용)</li>
+              </ul>
+            </div>
+            <div class="ff-group write">
+              <span class="ff-tag write">쓰기</span>
+              <ul>
+                <li><code>.harness/generated/spec-latest/&lt;소스&gt;/</code> + 기록(manifest)</li>
+                <li>팀 기준(<code>spec-lock.json</code>)은 불변</li>
+              </ul>
+            </div>
+          </div>
+          <div class="ff-arrow" aria-hidden="true">→</div>
+          <div class="fileflow-stage">
+            <h4>대조</h4>
+            <div class="ff-group read">
+              <span class="ff-tag read">읽기</span>
+              <ul>
+                <li><code>spec-latest/</code>(최신) ↔ <code>spec-cache/</code>(기준 본문) 비교</li>
+                <li>내 담당 문서만 코드 영향 판단 — 담당 밖은 전달만</li>
+              </ul>
+            </div>
+          </div>
+          <div class="ff-arrow" aria-hidden="true">→</div>
+          <div class="fileflow-stage">
+            <h4>정산</h4>
+            <p class="ff-cmd"><code>harness:spec:settle -- --doc "&lt;경로&gt;"</code></p>
+            <div class="ff-group read">
+              <span class="ff-tag read">읽기</span>
+              <ul>
+                <li>기획 저장소 git 객체 — 읽은 스냅샷 검증(위조·가짜 삭제 거부)</li>
+              </ul>
+            </div>
+            <div class="ff-group write">
+              <span class="ff-tag write">쓰기</span>
+              <ul>
+                <li><code>.harness/spec-lock.json</code> — 기준 전진(앞으로만)</li>
+              </ul>
+            </div>
+          </div>
+          <div class="ff-arrow" aria-hidden="true">→</div>
+          <div class="fileflow-stage">
+            <h4>팀 공유</h4>
+            <div class="ff-group trigger">
+              <span class="ff-tag trigger">트리거</span>
+              <ul>
+                <li>lock 커밋·push → 팀원 pull의 <code>post-merge</code> 훅</li>
+              </ul>
+            </div>
+            <div class="ff-group write">
+              <span class="ff-tag write">쓰기</span>
+              <ul>
+                <li>팀원 로컬 <code>.harness/generated/spec-cache/</code> 자동 수화</li>
+                <li>이슈보드 연동 시 해당 이슈 자동 닫힘</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
     </section>
   </main>
 
