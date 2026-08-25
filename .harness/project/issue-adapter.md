@@ -35,8 +35,10 @@ curl --silent --header "PRIVATE-TOKEN: $DOCS_ISSUE_TOKEN_RO" "https://git.smarts
 ### 토큰이 없을 때 (에이전트가 보고에 실어줄 안내)
 
 > 저장소 루트에 `.issue-adapter.env` 파일을 만들고 한 줄을 넣으세요:
-> `DOCS_ISSUE_TOKEN_RO=<토큰 값>` — GitLab Edit profile → Access tokens에서
-> `read_api` 권한으로 직접 발급합니다. 이 파일은 git에 올라가지 않습니다.
+> `DOCS_ISSUE_TOKEN_RO=<토큰 값>` — 발급:
+> `https://git.smartscore.kr/-/user_settings/personal_access_tokens`
+> (아바타 → User settings → Access → Personal access tokens), 스코프 `read_api`.
+> 이 파일은 git에 올라가지 않습니다.
 
 ## ③ 요약 형식 (필수)
 

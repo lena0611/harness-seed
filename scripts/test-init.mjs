@@ -5868,8 +5868,40 @@ function sessionStartHookSnoozesQueueRowsUntilReviewDate() {
   assert(legacy.includes('[open] old-q') && legacy.includes('[deferred] old-d'), 'legacy queue schema must keep printing every open/deferred row')
 }
 
+// score-print 결함(2026-08-24): --resync-managed(공통 하네스 전용 플래그)가 스택 CLI에도
+// 전달돼 기본 경로(stack→base)에서 항상 중단, base resync가 시작조차 못 했다. 본체 자신은
+// activeStack=none이라 이 경로를 겪을 수 없다 — 본체가 못 겪는 경로는 픽스처가 대신 겪는다.
+function updateSkipsStackForBaseOnlyFlags() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const lockPath = path.join(target, '.harness/harness-lock.json')
+  const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
+  lock.stackHarness = { id: 'stack-fixture', version: '0.1.0', repo: 'https://example.invalid/stack-fixture.git', ref: 'v0.1.0' }
+  fs.writeFileSync(lockPath, JSON.stringify(lock, null, 2))
+  const updater = path.join(target, '.harness/bin/update-harness.mjs')
+
+  const out = run(nodeBin, [updater, '--dry-run', '--resync-managed'], { cwd: target })
+  assert(out.includes('공통 하네스 전용입니다 — 스택 하네스 단계는 건너뜁니다'), 'base-only flag must skip the stack step and say so')
+  assert(!out.includes('target: 스택 하네스'), 'stack plan must not be built when a base-only flag is present')
+  assert(out.includes('target: 공통 하네스') && out.includes('--resync-managed'), 'base plan must still carry the base-only flag')
+
+  const plain = run(nodeBin, [updater, '--dry-run'], { cwd: target })
+  assert(plain.includes('target: 스택 하네스') && plain.includes('target: 공통 하네스'), 'default path must keep stack then base')
+  assert(!plain.includes('건너뜁니다'), 'no skip note without base-only flags')
+
+  let rejected = false
+  try {
+    run(nodeBin, [updater, '--stack-only', '--resync-managed'], { cwd: target })
+  } catch (error) {
+    rejected = true
+    assert(String(error.stderr ?? error.message).includes('--stack-only와 함께 쓸 수 없습니다'), 'contradictory combo must be rejected with a clear message')
+  }
+  assert(rejected, 'stack-only + base-only flag must exit nonzero')
+}
+
 const tests = [
   sessionStartHookSnoozesQueueRowsUntilReviewDate,
+  updateSkipsStackForBaseOnlyFlags,
   cleanInstallCreatesExpectedFiles,
   installOutputUsesConditionalNvmAndGitGuidance,
   hooksInstallFailsClearlyOutsideGit,

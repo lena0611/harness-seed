@@ -46,6 +46,21 @@ Options:
   process.exit(code)
 }
 
+// 공통 하네스 init 전용 플래그. 스택 CLI는 미지원 옵션을 exit 1로 거절하므로(의도된 오타 방어),
+// 이 플래그가 오면 스택 단계에서 빼는 게 아니라 스택 단계 자체를 돌리지 않는다 — 본체 원본
+// 복원(resync)에 스택 일반 init이 부수 실행되는 것은 사용자가 요청한 적 없는 작업이다.
+// 실증: score-print 결함 보고(2026-08-24) — 안내된 --resync-managed가 스택 단계에서 항상
+// 중단돼 base resync가 시작조차 못 했고, 실패가 옵션 오타처럼 보였다.
+const BASE_ONLY_FLAGS = new Set(['--resync-managed'])
+
+function baseOnlyFlagsIn(opts) {
+  return opts.forwarded.filter((flag) => BASE_ONLY_FLAGS.has(flag))
+}
+
+function forwardedFor(opts, targetKind) {
+  return targetKind === 'base' ? opts.forwarded : opts.forwarded.filter((flag) => !BASE_ONLY_FLAGS.has(flag))
+}
+
 function parseArgs(argv) {
   const opts = {
     dryRun: false,
@@ -113,6 +128,12 @@ function parseArgs(argv) {
 
   if (opts.baseOnly && opts.stackOnly) {
     console.error('--base-only와 --stack-only는 함께 사용할 수 없습니다.')
+    process.exit(1)
+  }
+
+  const baseOnlyFlags = baseOnlyFlagsIn(opts)
+  if (opts.stackOnly && baseOnlyFlags.length > 0) {
+    console.error(`${baseOnlyFlags.join(', ')}는 공통 하네스 전용 옵션이라 --stack-only와 함께 쓸 수 없습니다.`)
     process.exit(1)
   }
 
@@ -305,12 +326,17 @@ function buildCommand(lock, opts, installManifest, targetKind) {
   return {
     selected,
     command: 'npx',
-    args: ['-y', packageSpec, 'init', ...buildSourceMetadataArgs(selected, opts, targetKind), ...opts.forwarded],
+    args: ['-y', packageSpec, 'init', ...buildSourceMetadataArgs(selected, opts, targetKind), ...forwardedFor(opts, targetKind)],
   }
 }
 
 function updateTargets(lock, opts) {
   if (opts.baseOnly || !lock.stackHarness) {
+    return ['base']
+  }
+
+  // base 전용 플래그가 오면 스택 단계를 아예 돌리지 않는다(BASE_ONLY_FLAGS 주석 참조).
+  if (baseOnlyFlagsIn(opts).length > 0) {
     return ['base']
   }
 
@@ -328,9 +354,7 @@ function run(command, args) {
     stdio: 'inherit',
   })
 
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1)
-  }
+  return result.status ?? 1
 }
 
 function printConsumerCommandGuide() {
@@ -376,6 +400,11 @@ function main() {
   console.log('Harness update')
   console.log(`  strategy: ${opts.range ? `range ${opts.range}` : opts.ref ? `ref ${opts.ref}` : opts.strategy}`)
 
+  const skippedBaseOnlyFlags = baseOnlyFlagsIn(opts)
+  if (lock.stackHarness && !opts.baseOnly && skippedBaseOnlyFlags.length > 0) {
+    console.log(`  note: ${skippedBaseOnlyFlags.join(', ')}는 공통 하네스 전용입니다 — 스택 하네스 단계는 건너뜁니다.`)
+  }
+
   for (const { targetKind, plan } of plans) {
     const label = targetKind === 'base' ? '공통 하네스' : '스택 하네스'
     console.log(`  target: ${label}`)
@@ -385,8 +414,18 @@ function main() {
 
   if (opts.dryRun) return
 
-  for (const { plan } of plans) {
-    run(plan.command, plan.args)
+  // 앞 단계 실패가 뒤 단계를 조용히 삼키지 않는다 — 무엇이 실행되지 않았는지 밝히고 종료한다
+  // (score-print 보고 6번: 실패가 옵션 오타처럼 보여 "안내된 명령이 실행 불가"를 알아채기 어려웠다).
+  for (let i = 0; i < plans.length; i += 1) {
+    const status = run(plans[i].plan.command, plans[i].plan.args)
+    if (status !== 0) {
+      const failedLabel = plans[i].targetKind === 'base' ? '공통 하네스' : '스택 하네스'
+      const remaining = plans.slice(i + 1).map(({ targetKind }) => (targetKind === 'base' ? '공통 하네스' : '스택 하네스'))
+      if (remaining.length > 0) {
+        console.error(`${failedLabel} 단계가 실패해 남은 단계 ${remaining.length}건(${remaining.join(', ')})을 실행하지 않았습니다.`)
+      }
+      process.exit(status)
+    }
   }
 
   printConsumerCommandGuide()
