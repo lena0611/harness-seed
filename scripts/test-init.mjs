@@ -15,13 +15,25 @@ const nodeBin = process.execPath
 const packageVersion = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')).version
 const packageRef = `v${packageVersion}`
 
+// git hook 아래서 스위트가 돌 때(pre-commit) git이 hook에 내보낸 GIT_DIR/GIT_INDEX_FILE 등이
+// 자식 git 명령에 누수되면, 임시 픽스처 저장소 대신 바깥 저장소를 조작한다(워크트리에서 실측 —
+// 픽스처 git init이 바깥 공유 config를 bare=true로 재초기화). 테스트 자식은 항상 cwd 저장소만 본다.
+function withoutCallerGitEnv(env) {
+  const clean = {}
+  for (const [key, value] of Object.entries(env ?? process.env)) {
+    if (key.startsWith('GIT_')) continue
+    clean[key] = value
+  }
+  return clean
+}
+
 function run(command, args, options = {}) {
   return execFileSync(command, args, {
     cwd: options.cwd ?? repoRoot,
     encoding: 'utf8',
     // input은 stdio[0]이 'ignore'면 전달되지 않는다(실측) — input이 있으면 pipe로 연다.
     stdio: options.stdio ?? (options.input !== undefined ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe']),
-    env: options.env,
+    env: withoutCallerGitEnv(options.env),
     input: options.input,
   })
 }
@@ -91,6 +103,15 @@ function runInit(target, ...args) {
 
 function runGuard(target, ...args) {
   return run(nodeBin, [path.join(target, '.harness/bin/guard.mjs'), ...args], { cwd: target })
+}
+
+function readTargetGitConfig(target, key) {
+  // git config --get은 키가 없으면 비0 종료라 run()이 던진다 — 부재를 빈 문자열로 정규화한다.
+  try {
+    return run('git', ['config', '--get', key], { cwd: target }).trim()
+  } catch {
+    return ''
+  }
 }
 
 function runInitWithEnv(target, env, ...args) {
@@ -359,6 +380,58 @@ function hooksInstallFailsClearlyOutsideGit() {
   }
 
   assert(failed, 'hooks:install outside git should fail with exit code 1')
+}
+
+// 회귀(0.2.131): uninstall이 managed 파일(.githooks 포함)을 지우면서 git 설정을 남겨두면
+// core.hooksPath/commit.template이 삭제된 경로를 계속 가리킨다. 설치 전 설정이 없던 프로젝트
+// (legacy .git/hooks 파일만 있던 경우의 '.git/hooks' 마커 포함)는 해제가 곧 복원이다.
+function uninstallUnsetsHarnessGitConfigWhenNothingPreceded() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  // 설치 전: core.hooksPath 없이 legacy .git/hooks 파일만 있는 프로젝트.
+  fs.writeFileSync(path.join(target, '.git/hooks/pre-commit'), '#!/bin/sh\nexit 0\n')
+  fs.chmodSync(path.join(target, '.git/hooks/pre-commit'), 0o755)
+  run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target })
+  assert(readTargetGitConfig(target, 'core.hooksPath') === '.githooks', 'precondition: install must point hooks at .githooks')
+  assert(readTargetGitConfig(target, 'harness.previousHooksPath') === '.git/hooks', 'precondition: legacy hooks are recorded with the default-dir marker')
+
+  // dry-run(무 --confirm)은 복원 계획만 보여주고 설정을 건드리지 않는다.
+  const planOut = run(nodeBin, [path.join(target, '.harness/bin/uninstall-harness.mjs')], { cwd: target })
+  assert(planOut.includes('복원할 git 설정'), 'dry-run must announce the git config restore plan')
+  assert(readTargetGitConfig(target, 'core.hooksPath') === '.githooks', 'dry-run must not touch git config')
+
+  run(nodeBin, [path.join(target, '.harness/bin/uninstall-harness.mjs'), '--confirm'], { cwd: target })
+  assert(readTargetGitConfig(target, 'core.hooksPath') === '', "the '.git/hooks' marker means no previous hooksPath config existed — uninstall must unset, not restore the marker literally")
+  assert(readTargetGitConfig(target, 'commit.template') === '', 'uninstall must unset the harness commit.template when none preceded it')
+  assert(readTargetGitConfig(target, 'harness.previousHooksPath') === '', 'uninstall must clean up its own bookkeeping key')
+  assert(exists(target, '.git/hooks/pre-commit'), 'legacy default-dir hooks must survive uninstall and become active again')
+  // 복원 후 git commit이 실제로 동작한다 — 결함의 증상(제거 후 커밋 경로 파손) 기준 검증.
+  fs.writeFileSync(path.join(target, 'after-uninstall.txt'), 'ok\n')
+  gitCommitAll(target, 'after uninstall')
+}
+
+// 회귀(0.2.131): husky처럼 자체 core.hooksPath를 쓰던 프로젝트는 uninstall 후
+// harness.previousHooksPath에 저장된 원래 경로로 복귀해야 한다. commit.template도 대칭
+// (install이 harness.previousCommitTemplate을 저장하고 uninstall이 그 값으로 복원).
+function uninstallRestoresPreviousHooksPathForHuskyStyleProjects() {
+  const target = makeTarget()
+  fs.mkdirSync(path.join(target, '.husky/_'), { recursive: true })
+  fs.writeFileSync(path.join(target, '.husky/_/pre-commit'), '#!/bin/sh\nexit 0\n')
+  fs.chmodSync(path.join(target, '.husky/_/pre-commit'), 0o755)
+  fs.writeFileSync(path.join(target, '.gitmessage.txt'), '제목\n')
+  run('git', ['config', 'core.hooksPath', '.husky/_'], { cwd: target })
+  run('git', ['config', 'commit.template', '.gitmessage.txt'], { cwd: target })
+
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target })
+  assert(readTargetGitConfig(target, 'harness.previousHooksPath') === '.husky/_', 'precondition: install must record the husky hooksPath')
+  assert(readTargetGitConfig(target, 'harness.previousCommitTemplate') === '.gitmessage.txt', 'install must record the previous commit.template symmetrically with the hooksPath')
+
+  run(nodeBin, [path.join(target, '.harness/bin/uninstall-harness.mjs'), '--confirm'], { cwd: target })
+  assert(readTargetGitConfig(target, 'core.hooksPath') === '.husky/_', 'uninstall must hand hook control back to husky')
+  assert(readTargetGitConfig(target, 'commit.template') === '.gitmessage.txt', 'uninstall must restore the previous commit.template')
+  assert(readTargetGitConfig(target, 'harness.previousHooksPath') === '', 'restore must consume the previousHooksPath bookkeeping key')
+  assert(readTargetGitConfig(target, 'harness.previousCommitTemplate') === '', 'restore must consume the previousCommitTemplate bookkeeping key')
 }
 
 function nonNodeInstallSkipsPackageJson() {
@@ -5905,6 +5978,8 @@ const tests = [
   cleanInstallCreatesExpectedFiles,
   installOutputUsesConditionalNvmAndGitGuidance,
   hooksInstallFailsClearlyOutsideGit,
+  uninstallUnsetsHarnessGitConfigWhenNothingPreceded,
+  uninstallRestoresPreviousHooksPathForHuskyStyleProjects,
   nonNodeInstallSkipsPackageJson,
   optInCreatesPackageJsonForGreenfieldNode,
   launcherRunsHarnessWithoutNpm,

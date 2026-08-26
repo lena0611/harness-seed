@@ -10,8 +10,19 @@ const repoRoot = path.resolve(scriptRoot, '..')
 const sourceHarness = path.join(repoRoot, '.harness/bin/policy-harness.mjs')
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-sync-review-'))
 
+// git hook 아래서 스위트가 돌 때 hook에 노출된 GIT_DIR 등이 픽스처 git 명령에 누수되면
+// 임시 저장소 대신 바깥 저장소를 조작한다. 테스트 자식은 항상 자신의 cwd 저장소만 본다.
+function withoutCallerGitEnv() {
+  const clean = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.startsWith('GIT_')) continue
+    clean[key] = value
+  }
+  return clean
+}
+
 function run(command, args, cwd, expectedStatus = 0) {
-  const result = spawnSync(command, args, { cwd, encoding: 'utf8' })
+  const result = spawnSync(command, args, { cwd, encoding: 'utf8', env: withoutCallerGitEnv() })
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
 
   assert.equal(result.status, expectedStatus, `${command} ${args.join(' ')}\n${output}`)
