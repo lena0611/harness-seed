@@ -1132,6 +1132,43 @@
         "정본에 없는 용어는 부재 고지 + 관련 문서 후보"
       ],
       "records": []
+    },
+    {
+      "id": "harness.quality-gates-setup",
+      "title": "검증 게이트 설치 도우미",
+      "purpose": "요청 시 quality-gates 툴킷에서 견본을 조달해 프로젝트 소유 코드 품질 검사(husky·lint-staged)를 설치한다. 하네스는 검사를 실행하지 않고(결정 92), 설치물은 100% 프로젝트 소유다.",
+      "audience": [
+        "consumer"
+      ],
+      "taskTypes": [
+        "maintenance",
+        "verification",
+        "feature"
+      ],
+      "priority": "medium",
+      "triggers": [
+        "lint",
+        "린트",
+        "빌드 검사",
+        "테스트 검사",
+        "품질 검사",
+        "husky",
+        "lint-staged",
+        "커밋 검사",
+        "quality-gates",
+        "검증게이트"
+      ],
+      "read": [
+        ".claude/commands/검증게이트설치.md",
+        ".harness/project/hook-coexistence.md"
+      ],
+      "commands": [],
+      "outputs": [
+        "프로젝트 소유 husky·lint-staged 구성(툴킷 견본 기반)",
+        ".harness/** lint 제외 규칙 확인",
+        "훅 공존 배선(prepare+postprepare, 해당 시)"
+      ],
+      "records": []
     }
   ]
 }
