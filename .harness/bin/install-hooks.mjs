@@ -68,6 +68,13 @@ if (shouldStoreCustomHooksPath) {
   runGit(['config', 'harness.previousHooksPath', '.git/hooks'])
 }
 
+// commit.template도 hooksPath와 대칭으로 저장한다 — uninstall이 설치 전 템플릿으로 복원할 수 있게.
+const shouldStoreCustomCommitTemplate = Boolean(previousCommitTemplate && previousCommitTemplate !== '.github/commit-template.txt')
+
+if (shouldStoreCustomCommitTemplate) {
+  runGit(['config', 'harness.previousCommitTemplate', previousCommitTemplate])
+}
+
 runGit(['config', 'core.hooksPath', '.githooks'])
 runGit(['config', 'commit.template', '.github/commit-template.txt'])
 
@@ -131,6 +138,7 @@ if (previousCommitTemplate && previousCommitTemplate !== '.github/commit-templat
   console.log('기존 commit template 안내:')
   console.log(`  - 이전 commit.template은 '${previousCommitTemplate}'였습니다.`)
   console.log('  - 이번 설치로 .github/commit-template.txt를 사용합니다.')
+  console.log(`  - 기존 값은 harness.previousCommitTemplate='${previousCommitTemplate}'로 저장했으며, 하네스 제거 시 복원됩니다.`)
 }
 
 // dual-runtime(0.2.63): hook이 실제로 동작할 수 있는 Node 환경인지 설치 시점에 진단한다.
