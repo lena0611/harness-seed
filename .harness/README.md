@@ -7,7 +7,7 @@
 전체 문서를 훑기보다 먼저 클릭형 가이드와 현재 상태 대시보드를 엽니다.
 
 ```bash
-npm run harness:guide
+.harness/bin/harness guide
 ```
 
 출력된 `file://` 주소를 브라우저에서 열면 요구 수신, 기준 탐색, 영향 판단, 구현, 검토, 검증, 커밋 확정 단계별로 관련 명령과 파일만 좁혀 볼 수 있습니다.
@@ -60,8 +60,8 @@ npm run harness:guide
 큰 작업이나 낯선 영역을 다룰 때 에이전트는 모든 문서를 한 번에 읽기보다 작업별 판단 컨텍스트를 합성합니다. 개발자가 업무 지시 때마다 직접 실행할 필요는 없습니다.
 
 ```bash
-npm run harness:sync
-npm run harness:context -- "수정하거나 분석할 작업 설명"
+.harness/bin/harness sync
+.harness/bin/harness context "수정하거나 분석할 작업 설명"
 ```
 
 `harness:sync`는 `.harness/generated/**`를 재생성하고, `harness:context`는 `.harness/session/task-context.md`에 작업 유형, 관련 기준, 충돌 우선순위, 영향 후보, 검증 요구사항을 남깁니다. 두 산출물은 원본 문서와 실제 코드를 대신하지 않습니다.

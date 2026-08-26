@@ -23,10 +23,10 @@
 소비자 프로젝트는 하네스 배포물에 포함된 승인 스택 레지스트리에서 후보를 조회합니다. 목록 조회에는 GitLab 토큰이 필요 없습니다.
 
 ```bash
-npm run standards:list
+.harness/bin/harness standards:list
 ```
 
-목록은 누구나 볼 수 있지만 private 스택을 실제 설치하려면 해당 저장소의 Git 읽기 권한이 필요합니다. 원격 GitLab 그룹을 관리 목적으로 조회할 때만 `npm run standards:list -- --remote`와 `GITLAB_TOKEN`을 사용합니다.
+목록은 누구나 볼 수 있지만 private 스택을 실제 설치하려면 해당 저장소의 Git 읽기 권한이 필요합니다. 원격 GitLab 그룹을 관리 목적으로 조회할 때만 `.harness/bin/harness standards:list --remote`와 `GITLAB_TOKEN`을 사용합니다.
 
 스택 하네스 후보가 조회되면 각 후보의 설치 명령을 확인합니다.
 
@@ -43,7 +43,7 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-route
 ```bash
 HARNESS_GITLAB_URL=https://git.example.com \
 HARNESS_STACK_STANDARD_GROUP=ai-standard/harnesses \
-npm run standards:list
+.harness/bin/harness standards:list
 ```
 
 ## 제품 템플릿 후보 조회
@@ -52,18 +52,18 @@ npm run standards:list
 소비자 프로젝트는 하네스 배포물에 포함된 승인 템플릿 레지스트리에서 후보를 조회합니다. 목록 조회에는 GitLab 토큰이 필요 없습니다.
 
 ```bash
-npm run templates:list
+.harness/bin/harness templates:list
 ```
 
-목록은 누구나 볼 수 있지만 private 템플릿을 실제 적용하려면 해당 저장소의 Git 읽기 권한이 필요합니다. 원격 GitLab 그룹을 관리 목적으로 조회할 때만 `npm run templates:list -- --remote`와 `GITLAB_TOKEN`을 사용합니다.
+목록은 누구나 볼 수 있지만 private 템플릿을 실제 적용하려면 해당 저장소의 Git 읽기 권한이 필요합니다. 원격 GitLab 그룹을 관리 목적으로 조회할 때만 `.harness/bin/harness templates:list --remote`와 `GITLAB_TOKEN`을 사용합니다.
 
 현재 등록된 템플릿 후보 예시입니다. 실제 적용 방법은 해당 템플릿 저장소의 README와 manifest 계약을 먼저 확인합니다.
 
 ```bash
-npm run template:apply -- --preset-git https://git.smartscore.kr/ai-standard/stacks/cloud-front-admin-template.git --ref <tag-or-branch>
+.harness/bin/harness template:apply --preset-git https://git.smartscore.kr/ai-standard/stacks/cloud-front-admin-template.git --ref <tag-or-branch>
 ```
 
-빈 프로젝트에서는 템플릿 코드를 적용하고, 기존 프로젝트에서는 `--contract-only`로 코드 복사 없이 계약과 개발 가이드 스냅샷만 연결합니다. 두 경우 모두 `.harness/project/template-contract.md`가 생성되고 `npm run template:gap`이 현재 구현과 구조화된 템플릿 계약을 비교합니다.
+빈 프로젝트에서는 템플릿 코드를 적용하고, 기존 프로젝트에서는 `--contract-only`로 코드 복사 없이 계약과 개발 가이드 스냅샷만 연결합니다. 두 경우 모두 `.harness/project/template-contract.md`가 생성되고 `.harness/bin/harness template:gap`이 현재 구현과 구조화된 템플릿 계약을 비교합니다.
 
 기본 조회 대상:
 - GitLab URL: `https://git.smartscore.kr`
@@ -74,7 +74,7 @@ npm run template:apply -- --preset-git https://git.smartscore.kr/ai-standard/sta
 ```bash
 HARNESS_GITLAB_URL=https://git.example.com \
 HARNESS_TEMPLATE_GROUP=ai-standard/stacks \
-npm run templates:list
+.harness/bin/harness templates:list
 ```
 
 권장 그룹 구조:
@@ -143,11 +143,6 @@ my-stack-preset/
   "instructions": ["instructions/architecture.md"],
   "policiesFile": "policies.json",
   "checksKey": null,
-  "verify": {
-    "lint": "composer lint",
-    "test": "./gradlew test",
-    "build": "./gradlew assemble"
-  },
   "source": {
     "type": "local",
     "path": "scaffold",
@@ -156,7 +151,7 @@ my-stack-preset/
 }
 ```
 
-`verify`는 선택 섹션입니다. 비-Node 스택(PHP/Java/Swift/Kotlin 등)이 lint/test/build 검증을 npm script 없이 raw shell 명령으로 선언할 때 사용합니다. `harness check`(guard)는 stage별로 `verify.<stage>`가 있으면 그 명령을 프로젝트 루트에서 shell로 실행하고, 없으면 기존처럼 적용 프로젝트 `package.json`의 같은 이름 script로 fallback합니다. `verify` 섹션이 없는 기존 Node 스택은 이전과 동일하게 동작합니다. fast check(pre-push)에서는 npm script와 동일하게 test/build stage를 건너뜁니다.
+스택 manifest는 lint/test/build 명령을 선언하지 않습니다. 하네스는 코드 품질 검사를 실행하지 않으며 소유는 각 프로젝트입니다(0.2.131) — 비-Node 스택도 CI나 프로젝트 훅에서 자기 빌드 도구를 직접 돌립니다. 훗날 스택이 검증 명령을 다시 선언해야 한다면, 프로젝트가 **끌 수 있는 손잡이를 포함한** 새 계약으로 재도입합니다(끄지 못하는 강제 실행이 제거의 이유였습니다).
 
 스택 기준만 있고 scaffold가 없으면 `source.type`을 `none`으로 둡니다.
 
@@ -218,13 +213,13 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-route
 로컬 폴더에서 적용:
 
 ```bash
-npm run stack:apply -- --preset-path ../my-stack-preset
+.harness/bin/harness stack:apply --preset-path ../my-stack-preset
 ```
 
 원격 저장소에서 바로 적용:
 
 ```bash
-npm run stack:apply -- --preset-git <repo-url> --ref <tag-or-branch>
+.harness/bin/harness stack:apply --preset-git <repo-url> --ref <tag-or-branch>
 ```
 
 프로젝트에 고정:
@@ -241,28 +236,28 @@ npm run stack:apply -- --preset-git <repo-url> --ref <tag-or-branch>
 scaffold 템플릿은 스택 기준과 분리해서 적용합니다.
 
 ```bash
-npm run template:apply -- --preset-path ../my-scaffold-template
-npm run template:apply -- --preset-git <repo-url> --ref <tag-or-branch>
-npm run template:apply -- --preset-git <repo-url> --contract-only
-npm run template:gap
+.harness/bin/harness template:apply --preset-path ../my-scaffold-template
+.harness/bin/harness template:apply --preset-git <repo-url> --ref <tag-or-branch>
+.harness/bin/harness template:apply --preset-git <repo-url> --contract-only
+.harness/bin/harness template:gap
 ```
 
 `template:apply`는 템플릿 manifest의 `requiredStackHarness`가 현재 적용된 스택 하네스와 맞는지 확인합니다. 일반 적용은 scaffold를 복사하고, `--contract-only`는 업무 코드를 바꾸지 않고 계약만 연결합니다. 두 방식 모두 `.harness/project/template-contract.md`와 `.harness/templates/.applied/<template-id>/manifest.json`에 출처를 남기고 `.harness/session/template-gap-report.md`를 생성합니다.
 
-템플릿 manifest의 `contractChecks`는 각 제품 계약에 대해 근거 문서와 기대 경로, 의존성, npm script를 구조화해 선언합니다. `npm run template:gap`은 이 선언과 현재 프로젝트를 비교하고 필수·권장 갭을 구분해 안내합니다. 템플릿 자체의 문서 연결이 깨진 경우에는 검사 실패로 처리하지만, 기존 프로젝트의 계약 갭은 도입 과정에서 해결하거나 예외로 기록할 수 있도록 리포트합니다.
+템플릿 manifest의 `contractChecks`는 각 제품 계약에 대해 근거 문서와 기대 경로, 의존성, npm script를 구조화해 선언합니다. `.harness/bin/harness template:gap`은 이 선언과 현재 프로젝트를 비교하고 필수·권장 갭을 구분해 안내합니다. 템플릿 자체의 문서 연결이 깨진 경우에는 검사 실패로 처리하지만, 기존 프로젝트의 계약 갭은 도입 과정에서 해결하거나 예외로 기록할 수 있도록 리포트합니다.
 
-적용 후에는 `npm run harness:check`로 공통 하네스 문서, 기준, 링크, 적용된 스택 상태를 함께 확인합니다.
+적용 후에는 `.harness/bin/harness check`로 공통 하네스 문서, 기준, 링크, 적용된 스택 상태를 함께 확인합니다.
 
-현재 프로젝트에 기록된 버전은 `npm run stack:status`와 `npm run harness:scan`의 `Harness Versions` 섹션에서 확인합니다. 스택 기준을 제거하면 `stack:reset`이 스택 하네스 잠금 정보도 비웁니다. 공통 하네스 버전은 그대로 남겨 이후 스택 하네스 재적용이나 업데이트 기준으로 사용합니다.
+현재 프로젝트에 기록된 버전은 `.harness/bin/harness stack:status`와 `.harness/bin/harness scan`의 `Harness Versions` 섹션에서 확인합니다. 스택 기준을 제거하면 `stack:reset`이 스택 하네스 잠금 정보도 비웁니다. 공통 하네스 버전은 그대로 남겨 이후 스택 하네스 재적용이나 업데이트 기준으로 사용합니다.
 
 패치나 마이너 업데이트를 각 프로젝트에 반영하려면 적용 프로젝트에서 다음 명령을 다시 실행합니다.
 
 ```bash
-npm run harness:outdated
-npm run harness:update
+.harness/bin/harness outdated
+.harness/bin/harness update
 ```
 
-`harness:outdated`는 원격 tag를 조회해 업데이트 후보만 확인하고 파일은 수정하지 않습니다. `harness:update`의 기본 전략은 `compatible`입니다. lock에 기록된 현재 버전이 `1.0.0`이면 `#semver:^1.0.0` 범위로 스택 하네스를 다시 받아 실행합니다. 특정 태그를 그대로 재실행하려면 `npm run harness:update -- --strategy locked`, 기본 브랜치 최신을 직접 따라가려면 `npm run harness:update -- --strategy latest`를 사용합니다.
+`harness:outdated`는 원격 tag를 조회해 업데이트 후보만 확인하고 파일은 수정하지 않습니다. `harness:update`의 기본 전략은 `compatible`입니다. lock에 기록된 현재 버전이 `1.0.0`이면 `#semver:^1.0.0` 범위로 스택 하네스를 다시 받아 실행합니다. 특정 태그를 그대로 재실행하려면 `.harness/bin/harness update --strategy locked`, 기본 브랜치 최신을 직접 따라가려면 `.harness/bin/harness update --strategy latest`를 사용합니다.
 
 여러 소비 프로젝트에 자동 MR을 만드는 기능은 이 저장소가 아니라 향후 `ai-standard-cli`에서 담당합니다. 이 저장소는 개별 프로젝트 안에서 outdated 확인과 update 실행까지만 제공합니다.
 

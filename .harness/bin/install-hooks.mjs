@@ -47,7 +47,7 @@ function exists(rel) {
 if (!isGitRepository()) {
   console.error('git 저장소가 아니라 hook을 설치하지 않았습니다.')
   console.error('먼저 프로젝트 루트에서 git init을 실행한 뒤 다시 시도하세요:')
-  console.error('  npm run hooks:install')
+  console.error('  .harness/bin/harness hooks:install')
   process.exit(1)
 }
 
@@ -88,7 +88,7 @@ console.log('활성화되는 hook:')
 console.log('  - .githooks/pre-commit')
 console.log('      사용자가 git commit을 실행한 뒤 기존 pre-commit hook, seed-mode 확인, .harness/bin/harness check를 실행합니다.')
 console.log('      스테이징이 .harness/session/* 뿐인 기록 커밋은 통합 검사를 자동 생략합니다(0.2.124).')
-console.log('      npm run harness:check와 같은 검사이며, package.json 없는 비-Node 프로젝트에서도 동작합니다.')
+console.log('      .harness/bin/harness check와 같은 검사이며, package.json 없는 비-Node 프로젝트에서도 동작합니다.')
 console.log('      에이전트가 커밋 요청을 처리할 때는 이 hook 검증을 신뢰하고 선행 harness:check를 중복 실행하지 않습니다.')
 console.log('  - .githooks/pre-push')
 console.log('      사용자가 git push를 실행한 뒤 기존 pre-push hook과 .harness/bin/harness check --fast를 실행합니다.')
@@ -194,6 +194,6 @@ if (exists('.harness/spec-lock.json')) {
     const detail = String(error?.stderr ?? error?.message ?? '').trim().split('\n')[0]
     console.warn(`  - 준비하지 못했습니다${detail ? `: ${detail}` : '.'}`)
     console.warn('    훅 설치는 정상 완료됐습니다. 기획 저장소 접근 권한과 네트워크를 확인하세요.')
-    console.warn('    재시도: npm run harness:spec:fetch -- --at-lock')
+    console.warn('    재시도: .harness/bin/harness spec:fetch --at-lock')
   }
 }

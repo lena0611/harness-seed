@@ -10,8 +10,8 @@
 
 ## 현재 검증 진입점
 - 로컬: `npm run lint`
-- 통합 검사: `npm run harness:check`
-- 원격: 프로젝트가 사용하는 CI에서 `npm run harness:check:strict` 실행
+- 통합 검사: `.harness/bin/harness check`
+- 원격: 프로젝트가 사용하는 CI에서 `.harness/bin/harness check --strict` 실행
 
 ## 확장 원칙
 - 스타일 규칙이 반복적으로 리뷰 코멘트가 된다면 lint 규칙으로 승격합니다.

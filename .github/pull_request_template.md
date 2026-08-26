@@ -12,7 +12,7 @@
 ## Checks
 - [ ] `npm run lint`
 - [ ] `npm run test`
-- [ ] `npm run harness:check`
+- [ ] `.harness/bin/harness check`
 
 ## Policy / style impact
 - [ ] No policy changes

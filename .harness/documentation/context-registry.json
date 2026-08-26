@@ -435,29 +435,6 @@
         "선언",
         "방법론 위치"
       ]
-    },
-    {
-      "id": "config-contract-verify",
-      "file": ".harness/project/config-contract.md",
-      "category": "workflow",
-      "taskTypes": [
-        "maintenance",
-        "verification"
-      ],
-      "priority": "medium",
-      "appliesTo": [
-        "all"
-      ],
-      "keywords": [
-        "verify",
-        "lint",
-        "린트",
-        "husky",
-        "lint-staged",
-        "검증설정",
-        "이중 실행",
-        "옵트인"
-      ]
     }
   ]
 }

@@ -25,7 +25,7 @@
 
 ## 1단계 — 작업 전
 
-- [ ] `npm run harness:impact`로 영향 범위를 먼저 확인한다. (`harness:check`는 최종화 승인 후)
+- [ ] `.harness/bin/harness impact`로 영향 범위를 먼저 확인한다. (`harness:check`는 최종화 승인 후)
 - [ ] [ai-standard-guiding-policy.md](../policy/ai-standard-guiding-policy.md) 위배 여부를 확인한다.
 - [ ] 정책 문서(`.harness/policy/**`)만 바꾸는 경우, 실제 실행 계약도 바뀌었는지 확인한다. 설명 보강이면 코드 수정이나 decision-log 기록 없이 진행한다.
 
@@ -51,7 +51,7 @@
 
 완료 승인 전에는 build/test/check/commit/push/PR을 실행하지 않습니다. 승인 후:
 
-- [ ] `최종 검증만` 요청이면 `npm run harness:check`를 직접 실행한다.
+- [ ] `최종 검증만` 요청이면 `.harness/bin/harness check`를 직접 실행한다.
 - [ ] `커밋`/`커밋하고 푸시` 요청이고 hook이 설치돼 있으면 pre-commit(전체 `harness:check`)/pre-push(`harness:check -- --fast`)에 맡기고 선행 수동 검증을 중복 실행하지 않는다.
 - [ ] **릴리스 태그(`vX.Y.Z`)는 레지스트리 동반 범프까지 끝낸 마지막 커밋에 찍는다.** 태그를 먼저 찍고 6단계에서 `stacks/templates registry.json`을 갱신하면, **그 태그로 설치하는 신규 프로젝트는 한 세대 낡은 스택/템플릿 ref를 받는다**(2026-08-11 실측: v0.2.108 태그가 스택 `v0.2.13`을 가리켰고 실제 동반 범프는 `v0.2.14`였다). 순서: 본체 변경 커밋 → `release:version-net -- --write` → 스택/템플릿 릴리스 → 레지스트리 갱신 커밋 → **여기서 태그** → 양쪽 원격에 브랜치·태그 push.
 

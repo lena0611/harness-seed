@@ -54,7 +54,7 @@ Claude Code의 slash command나 Codex의 외부 skill 시스템과 같은 실행
 | --- | --- |
 | `.harness/skills/registry.json` | 작업 유형별 스킬 정의 |
 | `.harness/documentation/context-registry.json` | 작업 설명과 문서 후보 매칭 |
-| `npm run harness:context -- "<작업 설명>"` | 요청에 맞는 문서와 스킬을 선택해 `task-context.md` 생성 |
+| `.harness/bin/harness context "<작업 설명>"` | 요청에 맞는 문서와 스킬을 선택해 `task-context.md` 생성 |
 | `.claude/commands/*` | Claude Code에서 명시적으로 호출하는 slash command 어댑터 |
 | `.harness/maintenance/work-history/<연도>/*` | 팀이 공유하는 운영 업무별 요약 히스토리 |
 | `.harness/bin/*` | 실제 검사, 스캔, 컨텍스트 생성 스크립트 |

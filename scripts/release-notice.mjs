@@ -79,6 +79,8 @@ lines.push('')
 lines.push(body)
 lines.push('')
 lines.push('받기: 각 프로젝트에서 `/하네스업데이트` (시점은 리더 판단)')
+// 공지는 아주 쉽게 요약만 나가므로(2026-08-25 사용자 지시), 자세한 변경 내용은 상시 링크로 안내한다.
+lines.push('자세한 변경 내용: https://git.smartscore.kr/ai-standard/harnesses/harness-seed/-/blob/master/CHANGELOG.md')
 const text = lines.join('\n')
 
 process.stdout.write(jsonOutput ? `${JSON.stringify({ text })}\n` : `${text}\n`)

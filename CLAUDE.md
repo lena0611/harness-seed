@@ -56,14 +56,14 @@
 
 ## 작업 원칙
 - 모든 작업은 먼저 `.harness/policy/ai-standard-guiding-policy.md` 위배 여부를 확인합니다.
-- 작업 전에는 최소 `npm run harness:impact`로 영향 범위를 확인합니다.
-- 큰 작업이나 생소한 영역은 `npm run harness:sync` 후 `npm run harness:context -- "<작업 설명>"`로 에이전트 판단 컨텍스트를 먼저 만듭니다.
+- 작업 전에는 최소 `.harness/bin/harness impact`로 영향 범위를 확인합니다.
+- 큰 작업이나 생소한 영역은 `.harness/bin/harness sync` 후 `.harness/bin/harness context "<작업 설명>"`로 에이전트 판단 컨텍스트를 먼저 만듭니다.
 - 프로젝트가 session workstreams README로 workstream 운영을 opt-in 했다면, 매 요청 시작 시 현재 workstream과 선행/후행 workstream 필요 여부를 먼저 식별합니다.
 - `harness:context` 결과의 Selected Skills를 보고 읽을 문서, 실행할 명령, 기록 위치를 좁힌 뒤 작업합니다.
 - 개발 기준 문서, 스택 문서, `src/`를 변경하면 관련 반대편 문서/코드도 함께 검토합니다.
 - 코드 변경 후에는 도메인, 아키텍처, 워크플로우 로컬룰로 승격할 반복 패턴이나 검증 기준이 생겼는지 반드시 점검합니다.
 - 실제 업무 진행을 개발자에게 보고할 때는 원시 내부 추론이 아니라 `[harness] request/context/impact/action/decision/verify` 형태의 visible trace로 요약합니다. 단순 질문 응답, 잡담, 메타 확인처럼 업무 진행 보고가 아닌 턴에는 이 형식을 강요하지 않습니다.
-- 최종화 규칙(정본, 이 한 곳에만 둡니다): 완료 승인 전에는 `build`/`test`/`harness:check`/commit/push/PR 생성을 실행하지 않고 검증 후보로만 보고합니다. 승인 후 — `최종 검증만` 요청은 `npm run harness:check` 직접 실행, `커밋/푸시` 요청은 설치된 hook 검증에 맡겨 중복 실행을 피하고, hook이 없거나 우회되는 환경이면 직접 `harness:check` 후 진행합니다. 기준 계층 준수는 hook 설치 여부와 무관합니다.
+- 최종화 규칙(정본, 이 한 곳에만 둡니다): 완료 승인 전에는 `build`/`test`/`harness:check`/commit/push/PR 생성을 실행하지 않고 검증 후보로만 보고합니다. 승인 후 — `최종 검증만` 요청은 `.harness/bin/harness check` 직접 실행, `커밋/푸시` 요청은 설치된 hook 검증에 맡겨 중복 실행을 피하고, hook이 없거나 우회되는 환경이면 직접 `harness:check` 후 진행합니다. 기준 계층 준수는 hook 설치 여부와 무관합니다.
 - 새 프로젝트 방향이 비어 있으면 구현보다 `.harness/project/bootstrap.md` 인터뷰를 먼저 진행합니다.
 <!-- harness-managed:end -->
 

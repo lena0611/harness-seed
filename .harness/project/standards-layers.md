@@ -41,7 +41,7 @@
 
 ## 충돌 처리
 
-`npm run harness:scan`은 기준 출처와 **구조적 불일치**(하네스 버전·ref, stackManifest 경로, style 값이 출처마다 다른 경우, 개인 기준 파일 감지 등)를 `.harness/session/project-scan-report.md`에 모읍니다. **문서 본문끼리의 의미적 충돌 — 스택 기준은 A라는데 프로젝트 기준은 B라고 하는 상태 — 은 자동으로 감지하지 않습니다.** 그 판단은 사람과 에이전트가 문서를 읽고 합니다(실측: 프로젝트 문서에서 스택 규칙을 뒤집어도 scan은 아무것도 표시하지 않음, 2026-08-10).
+`.harness/bin/harness scan`은 기준 출처와 **구조적 불일치**(하네스 버전·ref, stackManifest 경로, style 값이 출처마다 다른 경우, 개인 기준 파일 감지 등)를 `.harness/session/project-scan-report.md`에 모읍니다. **문서 본문끼리의 의미적 충돌 — 스택 기준은 A라는데 프로젝트 기준은 B라고 하는 상태 — 은 자동으로 감지하지 않습니다.** 그 판단은 사람과 에이전트가 문서를 읽고 합니다(실측: 프로젝트 문서에서 스택 규칙을 뒤집어도 scan은 아무것도 표시하지 않음, 2026-08-10).
 
 충돌이 보이면 개발자는 다음 중 하나를 선택합니다.
 
@@ -65,8 +65,8 @@
 
 ## 강제 장치
 
-- 수동 개발자는 `npm run hooks:install`로 로컬 git hook을 선택 설치할 수 있습니다.
+- 수동 개발자는 `.harness/bin/harness hooks:install`로 로컬 git hook을 선택 설치할 수 있습니다.
 - 에이전트 작업은 hook 설치 여부와 무관하게 `CLAUDE.md`, 세션 boot, adapter hook을 통해 기준 확인과 완료 승인 게이트를 따라야 합니다.
 - 최종화(검증·커밋·푸시) 절차는 `CLAUDE.md` 작업 원칙의 "최종화 규칙(정본)"을 따릅니다.
 - 로컬 hook을 설치하면 `pre-commit`은 전체 `harness:check`, `pre-push`는 반복 검증을 줄이는 `harness:check -- --fast`를 실행합니다.
-- CI나 보호 브랜치에서는 `npm run harness:check:strict`를 기준으로 차단합니다.
+- CI나 보호 브랜치에서는 `.harness/bin/harness check --strict`를 기준으로 차단합니다.

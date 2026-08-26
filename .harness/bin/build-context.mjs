@@ -19,6 +19,9 @@ const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '..', '..')
 const harnessRoot = path.join(repoRoot, '.harness')
 const registryPath = path.join(harnessRoot, 'documentation', 'document-registry.json')
+// 프로젝트 소유 등록 지점(0.2.131). 프로젝트가 만든 문서도 컨텍스트 후보에 들어가야 한다 —
+// orphan 경고만 없애는 우회(면제 glob)를 기각한 이유가 이것이다.
+const localRegistryPath = path.join(harnessRoot, 'documentation', 'document-registry.local.json')
 const contextRegistryPath = path.join(harnessRoot, 'documentation', 'context-registry.json')
 const skillRegistryPath = path.join(harnessRoot, 'skills', 'registry.json')
 const outputPath = path.join(harnessRoot, 'session', 'task-context.md')
@@ -319,16 +322,19 @@ function readSpecMapEntries() {
 }
 
 function readRegistryFiles() {
-  if (!exists('.harness/documentation/document-registry.json')) {
-    return []
-  }
-
-  const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'))
   const files = new Set()
 
-  for (const group of registry.groups ?? []) {
-    if (group.index) files.add(group.index)
-    for (const child of group.children ?? []) files.add(child)
+  if (exists('.harness/documentation/document-registry.json')) {
+    const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'))
+    for (const group of registry.groups ?? []) {
+      if (group.index) files.add(group.index)
+      for (const child of group.children ?? []) files.add(child)
+    }
+  }
+
+  if (exists('.harness/documentation/document-registry.local.json')) {
+    const local = JSON.parse(fs.readFileSync(localRegistryPath, 'utf8'))
+    for (const child of Array.isArray(local.children) ? local.children : []) files.add(child)
   }
 
   return [...files].filter((file) => exists(file)).sort()
@@ -609,13 +615,13 @@ function renderContext() {
     for (const failure of specHydration.failures.slice(0, 3)) {
       lines.push(`  - ${failure.id}: ${failure.reason}`)
     }
-    lines.push('- 복구: `npm run harness:spec:fetch -- --at-lock`. 복구 전에는 기획 기준 없이 구현하지 마세요.')
+    lines.push('- 복구: `.harness/bin/harness spec:fetch --at-lock`. 복구 전에는 기획 기준 없이 구현하지 마세요.')
     lines.push('')
   }
 
   if (specFreshness && !specFreshness.checked) {
     lines.push(`- ⚠ 최신 기획 여부를 확인하지 못했습니다(${specFreshness.reason ?? '원인 불명'}). 아래는 팀 기준(lock) 시점 문서입니다 — 기획이 그 사이 바뀌었을 수 있습니다.`)
-    lines.push('- 확인: `npm run harness:spec:fetch -- --cache-only` (기준은 옮기지 않습니다)')
+    lines.push('- 확인: `.harness/bin/harness spec:fetch --cache-only` (기준은 옮기지 않습니다)')
     lines.push('')
   } else if (specFreshness?.checked) {
     // 소스별 상태를 보여준다. 한 소스가 실패해도 나머지 결과는 유효하다.
@@ -657,7 +663,7 @@ function renderContext() {
       // status의 "정산 대기 없음"과 모순처럼 읽힌다(멀티사이트 실증, 0.2.121).
       lines.push(`- ${item.file} (기준 이후 원격에서 변경됨 — 확인 전)`)
     }
-    lines.push('- 최신 본문 받기: `npm run harness:spec:fetch -- --cache-only`. 확인 후 `npm run harness:spec:settle`로 정산합니다.')
+    lines.push('- 최신 본문 받기: `.harness/bin/harness spec:fetch --cache-only`. 확인 후 `.harness/bin/harness spec:settle`로 정산합니다.')
     lines.push('')
   }
 
@@ -666,7 +672,7 @@ function renderContext() {
     for (const item of relevantAdded) {
       lines.push(`- ${item.file} (신규 — 기준 미편입, 매핑 없음)`)
     }
-    lines.push('- 이 문서로 구현한다면: 최신 본문을 받고(`--cache-only`), 구현 후 `spec-map.md`에 매핑을 남기고 `harness:spec:settle -- --doc <경로>`로 정산합니다.')
+    lines.push('- 이 문서로 구현한다면: 최신 본문을 받고(`--cache-only`), 구현 후 `spec-map.md`에 매핑을 남기고 `.harness/bin/harness spec:settle --doc <경로>`로 정산합니다.')
     lines.push('')
   }
 
@@ -677,17 +683,17 @@ function renderContext() {
     for (const item of unjudgedAdded) {
       lines.push(`- ${item.file} (신규 — 기준 미편입, 매핑 없음)`)
     }
-    lines.push('- 본문 확인: `npm run harness:spec:fetch -- --cache-only` 후 해당 파일을 엽니다.')
+    lines.push('- 본문 확인: `.harness/bin/harness spec:fetch --cache-only` 후 해당 파일을 엽니다.')
     lines.push('')
   }
 
   if (specCacheMissing.length > 0) {
     // "기획서가 없다"와 "아직 안 받았다"는 다른 상태다. 구분하지 않으면 에이전트가 사양 없이 작업을 시작한다.
     lines.push(`- 기획 문서 본문이 이 환경에 아직 없습니다(소스: ${specCacheMissing.join(', ')}). 기획서가 없는 것이 아니라 로컬에 내려받지 않은 상태입니다.`)
-    lines.push('- 받는 방법: `npm run harness:spec:fetch -- --at-lock` (팀 기준 시점 그대로 받습니다. 기준은 옮기지 않습니다.)')
+    lines.push('- 받는 방법: `.harness/bin/harness spec:fetch --at-lock` (팀 기준 시점 그대로 받습니다. 기준은 옮기지 않습니다.)')
     lines.push('- 본문을 받은 뒤 관련 기획 문서를 먼저 읽고 구현합니다.')
   } else if (specCandidates.length === 0 && relevantChanged.length === 0 && relevantAdded.length === 0) {
-    lines.push('- 이번 작업과 매칭되는 기획 문서를 찾지 못했습니다. 연동 상태는 `npm run harness:spec:status`로 확인합니다.')
+    lines.push('- 이번 작업과 매칭되는 기획 문서를 찾지 못했습니다. 연동 상태는 `.harness/bin/harness spec:status`로 확인합니다.')
   } else if (specCandidates.length === 0) {
     lines.push('- 팀 기준(lock)에는 이번 작업과 매칭되는 문서가 없습니다. 위의 변경·신규 문서를 확인하세요.')
   } else {
@@ -709,7 +715,7 @@ function renderContext() {
           lines.push(`  - 검토 시점: commit ${String(item.commit).slice(0, 10)} (모두 같은 시점의 검토본입니다)`)
         } else {
           lines.push(`  - ⚠ 검토 시점이 서로 다릅니다: ${item.unit.primary}=${String(item.commit ?? '없음').slice(0, 10)}, ${item.unit.screens.map((screen) => `${screen}=${String(item.screenCommits?.[screen] ?? '없음').slice(0, 10)}`).join(', ')}`)
-          lines.push('  - 문서와 화면이 다른 시점입니다. npm run harness:spec:status 로 확인하고 정산을 맞춘 뒤 진행하세요.')
+          lines.push('  - 문서와 화면이 다른 시점입니다. .harness/bin/harness spec:status 로 확인하고 정산을 맞춘 뒤 진행하세요.')
         }
         lines.push('  - 문서와 화면을 함께 읽습니다. 정책만 읽고 화면을 놓치거나, 화면만 보고 정책을 놓치지 않습니다.')
       } else {
@@ -770,14 +776,14 @@ function renderContext() {
   lines.push('## Impact Candidates')
   lines.push('')
   if (candidates.length === 0) {
-    lines.push('- 작업 설명 기준으로 영향 후보를 특정하지 못했습니다. 실제 diff와 `harness:impact`로 확인하세요.')
+    lines.push('- 작업 설명 기준으로 영향 후보를 특정하지 못했습니다. 실제 diff와 `.harness/bin/harness impact`로 확인하세요.')
   } else {
     const areas = new Set()
     for (const item of candidates) {
       for (const area of item.appliesTo ?? []) areas.add(area)
     }
     if (areas.size === 0) {
-      lines.push('- 관련 문서 후보는 있으나 appliesTo 메타데이터가 없습니다. 실제 diff와 `harness:impact`로 확인하세요.')
+      lines.push('- 관련 문서 후보는 있으나 appliesTo 메타데이터가 없습니다. 실제 diff와 `.harness/bin/harness impact`로 확인하세요.')
     } else {
       for (const area of [...areas].sort()) lines.push(`- ${area}`)
     }
@@ -793,7 +799,7 @@ function renderContext() {
   lines.push('## Generated Context')
   lines.push('')
   if (generated.length === 0) {
-    lines.push('- `.harness/generated/*` 파일이 없습니다. 필요하면 `npm run harness:sync`를 먼저 실행하세요.')
+    lines.push('- `.harness/generated/*` 파일이 없습니다. 필요하면 `.harness/bin/harness sync`를 먼저 실행하세요.')
   } else {
     for (const file of generated) lines.push(`- ${file}`)
   }

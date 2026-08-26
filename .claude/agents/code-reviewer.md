@@ -29,8 +29,8 @@ Prefer read-only commands:
 git status --short
 git diff --stat
 git diff
-npm run harness:impact
-npm run harness:check
+.harness/bin/harness impact
+.harness/bin/harness check
 ```
 
 Report findings first, ordered by severity. If there are no findings, say so and mention any tests or checks not run.

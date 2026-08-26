@@ -40,8 +40,8 @@
         ".harness/session/active-context.md"
       ],
       "commands": [
-        "npm run harness:context -- \"<작업 설명>\"",
-        "npm run harness:impact"
+        ".harness/bin/harness context \"<작업 설명>\"",
+        ".harness/bin/harness impact"
       ],
       "outputs": [
         "작업 목표/범위/완료 조건",
@@ -83,7 +83,7 @@
         ".harness/session/developer-input-queue.md"
       ],
       "commands": [
-        "npm run harness:impact"
+        ".harness/bin/harness impact"
       ],
       "outputs": [
         "이전 세션 요약",
@@ -125,8 +125,8 @@
         ".harness/session/decision-log.md"
       ],
       "commands": [
-        "npm run harness:impact",
-        "npm run harness:check"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "원인 후보와 실제 원인",
@@ -168,8 +168,8 @@
         ".harness/project/workflow-rules.md"
       ],
       "commands": [
-        "npm run harness:impact",
-        "npm run harness:check"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "기능 범위",
@@ -209,8 +209,8 @@
         ".harness/session/decision-log.md"
       ],
       "commands": [
-        "npm run harness:impact",
-        "npm run harness:check"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "보존할 동작",
@@ -253,8 +253,8 @@
         ".harness/session/project-memory.md"
       ],
       "commands": [
-        "npm run harness:impact",
-        "npm run harness:check"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "보존할 기존 동작",
@@ -300,8 +300,8 @@
         ".harness/maintenance/README.md"
       ],
       "commands": [
-        "npm run harness:context -- \"<업무 유형> <JIRA URL 또는 요청 개요>\"",
-        "npm run harness:impact"
+        ".harness/bin/harness context \"<업무 유형> <JIRA URL 또는 요청 개요>\"",
+        ".harness/bin/harness impact"
       ],
       "outputs": [
         "업무 유형",
@@ -347,9 +347,9 @@
         ".harness/policy/sync-protocol.md"
       ],
       "commands": [
-        "npm run harness:impact",
+        ".harness/bin/harness impact",
         "npm run docs:check:strict",
-        "npm run harness:check"
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "문서 원본/파생 구분",
@@ -398,8 +398,8 @@
         ".harness/policy/context-protocol.md"
       ],
       "commands": [
-        "npm run harness:impact",
-        "npm run harness:check"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "충돌 출처",
@@ -444,8 +444,8 @@
         ".harness/policy/context-protocol.md"
       ],
       "commands": [
-        "npm run harness:context -- \"<작업 설명>\"",
-        "npm run harness:check"
+        ".harness/bin/harness context \"<작업 설명>\"",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "승격 후보",
@@ -489,9 +489,9 @@
         ".harness/project/bootstrap.md"
       ],
       "commands": [
-        "npm run harness:scan",
-        "npm run standards:list",
-        "npm run stack:status"
+        ".harness/bin/harness scan",
+        ".harness/bin/harness standards:list",
+        ".harness/bin/harness stack:status"
       ],
       "outputs": [
         "감지된 프로젝트 스택",
@@ -534,15 +534,15 @@
         ".harness/session/decision-log.md"
       ],
       "commands": [
-        "npm run harness:outdated",
-        "npm run harness:outdated -- --base-only",
-        "npm run harness:outdated -- --stack-only",
-        "npm run harness:update -- --base-only",
-        "npm run harness:update",
-        "npm run harness:changelog",
-        "npm run stack:status",
-        "npm run harness:scan",
-        "npm run harness:check"
+        ".harness/bin/harness outdated",
+        ".harness/bin/harness outdated --base-only",
+        ".harness/bin/harness outdated --stack-only",
+        ".harness/bin/harness update --base-only",
+        ".harness/bin/harness update",
+        ".harness/bin/harness changelog",
+        ".harness/bin/harness stack:status",
+        ".harness/bin/harness scan",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "baseHarness 업데이트 필요 여부",
@@ -585,8 +585,8 @@
         ".harness/session/decision-log.md"
       ],
       "commands": [
-        "npm run harness:impact",
-        "npm run harness:check"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "개발자 수정분 요약",
@@ -631,8 +631,8 @@
         ".github/commit-template.txt"
       ],
       "commands": [
-        "npm run harness:impact",
-        "npm run harness:check"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "최종 diff 요약",
@@ -643,54 +643,6 @@
       "records": [
         ".harness/session/decision-log.md",
         ".harness/session/next-session-reminder.md"
-      ]
-    },
-    {
-      "id": "harness.verify-ownership",
-      "title": "프로젝트 검증 단계 담당 설정",
-      "purpose": "커밋 검증에서 lint/test/build를 누가 실행할지(하네스 옵트인/외부 도구 위임/미실행) 개발자와의 문답으로 정하고 profile.json의 verify 필드에 기록한다. 하네스는 npm script를 존재만으로 자동 실행하지 않는다(결정 86).",
-      "audience": [
-        "consumer"
-      ],
-      "taskTypes": [
-        "maintenance",
-        "verification"
-      ],
-      "priority": "medium",
-      "triggers": [
-        "검증설정",
-        "lint",
-        "린트",
-        "husky",
-        "lint-staged",
-        "verify",
-        "이중 실행",
-        "검증 담당",
-        "test 실행",
-        "build 실행"
-      ],
-      "read": [
-        ".harness/project/config-contract.md",
-        ".harness/project/hook-coexistence.md",
-        ".harness/policy/profile.json"
-      ],
-      "commands": [
-        "node -e \"console.log(JSON.stringify(require('./package.json').scripts))\"  # lint/test/build 유무",
-        "cat .harness/policy/profile.json  # 현재 verify 선언"
-      ],
-      "outputs": [
-        "단계별 담당자 표(하네스/외부/미실행)와 실제 커밋 시 거동",
-        "profile.json verify 필드 갱신(다른 필드 불변)",
-        "커밋해야 팀 전체 적용된다는 안내"
-      ],
-      "records": [
-        ".harness/policy/profile.json"
-      ],
-      "contract": [
-        "값 도메인은 harness/external 둘뿐 — 그 외 값은 실행되지 않고 경고",
-        "external은 스택 raw verify까지 건너뛴다(프로젝트 선언 > 스택 기준)",
-        "husky·lint-staged 설정 자체는 만들거나 고치지 않는다",
-        "기록 전 반드시 개발자 답변을 받는다 — 추측으로 채우지 않는다"
       ]
     },
     {
@@ -730,10 +682,10 @@
       "commands": [
         "git config --get core.hooksPath",
         "test -x .githooks/pre-commit && test -x .githooks/pre-push",
-        "npm run harness:impact",
-        "npm run harness:check  # 최종 검증만 요청했거나 hook 미설치/우회 환경일 때",
-        "git commit  # hook 설치 시 pre-commit이 npm run harness:check 실행",
-        "git push  # hook 설치 시 pre-push가 npm run harness:check -- --fast 실행"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check  # 최종 검증만 요청했거나 hook 미설치/우회 환경일 때",
+        "git commit  # hook 설치 시 pre-commit이 .harness/bin/harness check 실행",
+        "git push  # hook 설치 시 pre-push가 .harness/bin/harness check --fast 실행"
       ],
       "outputs": [
         "사용자 요청 유형: 최종 검증만 / 커밋 / 커밋하고 푸시",
@@ -777,8 +729,8 @@
         ".harness/session/project-memory.md"
       ],
       "commands": [
-        "npm run harness:impact",
-        "npm run harness:check"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "요청 JIRA URL",
@@ -831,9 +783,9 @@
         ".harness/project/stack-preset-rules.md"
       ],
       "commands": [
-        "npm run harness:context -- \"<UI 작업 설명>\"",
-        "npm run harness:impact",
-        "npm run harness:check"
+        ".harness/bin/harness context \"<UI 작업 설명>\"",
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "기존 공통 컴포넌트 재사용 가능 여부",
@@ -881,8 +833,8 @@
         ".harness/session/decision-log.md"
       ],
       "commands": [
-        "npm run harness:impact",
-        "npm run harness:check"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "단위 테스트 필요 여부",
@@ -929,7 +881,7 @@
         ".harness/project/workflow-rules.md"
       ],
       "commands": [
-        "npm run harness:impact"
+        ".harness/bin/harness impact"
       ],
       "outputs": [
         "supersede된 결정 항목 축약 여부",
@@ -975,8 +927,8 @@
         ".harness/session/developer-input-queue.md"
       ],
       "commands": [
-        "npm run harness:handoff",
-        "npm run harness:check"
+        ".harness/bin/harness handoff",
+        ".harness/bin/harness check"
       ],
       "outputs": [
         "이번 작업 요약",
@@ -1026,8 +978,8 @@
         ".harness/stacks/authoring-guide.md"
       ],
       "commands": [
-        "npm run harness:impact",
-        "npm run harness:check",
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check",
         "node .harness/bin/check-remote-sync.mjs"
       ],
       "outputs": [
@@ -1077,10 +1029,10 @@
         ".harness/session/decision-log.md"
       ],
       "commands": [
-        "npm run harness:spec:status",
-        "npm run harness:spec:fetch -- --cache-only",
-        "npm run harness:spec:settle",
-        "npm run harness:context -- \"<작업 설명>\""
+        ".harness/bin/harness spec:status",
+        ".harness/bin/harness spec:fetch --cache-only",
+        ".harness/bin/harness spec:settle",
+        ".harness/bin/harness context \"<작업 설명>\""
       ],
       "outputs": [
         "관련 기획 문서 후보",

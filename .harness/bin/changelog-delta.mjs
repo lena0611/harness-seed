@@ -23,7 +23,7 @@ const lockPath = path.join(harnessRoot, 'harness-lock.json')
 
 function printUsageAndExit(code = 0) {
   console.log(`Usage:
-  npm run harness:changelog [-- options]
+  .harness/bin/harness changelog [options]
 
 Options:
   --changelog <path>   CHANGELOG.md를 직접 파싱합니다. 생략하면 harness-lock.json의 lastUpdate를 봅니다.
@@ -185,7 +185,7 @@ function runFromLock(opts) {
   if (!lastUpdate || !(lastUpdate.entries?.length)) {
     console.log('마지막 하네스 업데이트로 기록된 변경 내역이 없습니다.')
     console.log(`현재 공통 하네스 버전: ${lock.baseHarness?.version ?? 'unknown'}`)
-    console.log('업데이트 후보는 npm run harness:outdated 로 확인합니다.')
+    console.log('업데이트 후보는 .harness/bin/harness outdated 로 확인합니다.')
     return
   }
 

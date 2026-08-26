@@ -35,7 +35,7 @@ function printTemplateList(templates, heading) {
     if (template.requiredStackHarness?.id) console.log(`  대상 스택: ${template.requiredStackHarness.id}`)
     console.log(`  repo: ${template.repo}`)
     console.log(`  기준: ${template.ref ?? '저장소 기본 브랜치'}`)
-    console.log(`  적용: npm run template:apply -- --preset-git ${template.repo}${template.ref ? ` --ref ${template.ref}` : ''}`)
+    console.log(`  적용: .harness/bin/harness template:apply --preset-git ${template.repo}${template.ref ? ` --ref ${template.ref}` : ''}`)
   }
 
   console.log('')
@@ -51,7 +51,7 @@ function printRemoteFallback(templates, status = null) {
   console.log('관리자용 원격 조회 설정:')
   console.log('  HARNESS_GITLAB_URL=https://git.smartscore.kr')
   console.log('  HARNESS_TEMPLATE_GROUP=ai-standard/stacks')
-  console.log('  GITLAB_TOKEN=<read_api token> npm run templates:list -- --remote')
+  console.log('  GITLAB_TOKEN=<read_api token> .harness/bin/harness templates:list --remote')
 }
 
 async function main() {

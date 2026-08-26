@@ -584,7 +584,7 @@ function renderExistingAiRuleRegistrationGuide(existingAiRuleDocs) {
 
 등록 효과:
 - \`harness:scan\`이 비표준 위치의 팀 기준으로 인식합니다.
-- \`inject: "always"\`이면 \`npm run harness:context -- "<작업 설명>"\`의 Always Read에 포함됩니다.
+- \`inject: "always"\`이면 \`.harness/bin/harness context "<작업 설명>"\`의 Always Read에 포함됩니다.
 - 하네스 업데이트와 스택 재적용 후에도 연결 정보가 보존됩니다.
 - \`kind\`가 \`methodology\`, \`rule\`, \`standard\`, \`convention\`이면 "로컬 개발방법론 없음" 같은 오탐 질문을 줄입니다.`
 }
@@ -635,7 +635,7 @@ function renderHarnessEffectSummary({ profile, pkg, sourceRoots, testRoots, exis
       hasBuildScript ? 'npm run build' : null,
       hasTestScript ? 'npm run test' : null,
       testRoots.length ? `test root ${testRoots.join(', ')}` : null,
-      'npm run harness:check',
+      '.harness/bin/harness check',
     ].filter(Boolean).join(', ')}.`)
   } else {
     lines.push('테스트 루트나 test script가 없어 완료 기준이 사람마다 달라질 수 있습니다. 검증 전략을 선택해 workflow-rules.md 또는 decision-log.md에 남깁니다.')
@@ -654,14 +654,10 @@ function renderHarnessEffectSummary({ profile, pkg, sourceRoots, testRoots, exis
   return formatList(lines)
 }
 
-function renderDeveloperWorkflowChanges(pkg) {
-  const scripts = pkg?.scripts ?? []
-  const contextCommand = scripts.includes('harness:context')
-    ? '`npm run harness:context -- "<작업 설명>"`'
-    : '하네스 컨텍스트 명령'
-  const checkCommand = scripts.includes('harness:check')
-    ? '`npm run harness:check`'
-    : '하네스 검증 명령'
+function renderDeveloperWorkflowChanges() {
+  // 0.2.131: 주입 별칭 0개 — package.json scripts 유무와 무관하게 항상 .harness/bin/harness 런처를 안내한다.
+  const contextCommand = '`.harness/bin/harness context "<작업 설명>"`'
+  const checkCommand = '`.harness/bin/harness check`'
 
   return formatList([
     `작업 시작: ${contextCommand}로 작업에 필요한 기준 문서와 스킬만 좁혀 읽습니다.`,

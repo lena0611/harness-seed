@@ -154,7 +154,7 @@ function buildProjectMap(files) {
   const lines = []
   lines.push('# Generated Project Map')
   lines.push('')
-  lines.push('> 이 파일은 `npm run harness:sync`가 생성한 보조 컨텍스트입니다. 진실 출처는 실제 코드와 `.harness/**/*.md`입니다.')
+  lines.push('> 이 파일은 `.harness/bin/harness sync`가 생성한 보조 컨텍스트입니다. 진실 출처는 실제 코드와 `.harness/**/*.md`입니다.')
   lines.push('')
   lines.push(`- generatedAt: ${new Date().toISOString()}`)
   lines.push(`- files: ${files.length}`)

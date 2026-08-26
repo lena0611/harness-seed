@@ -48,5 +48,5 @@
 
 - 연결 설정: `.harness/spec-sources.json` (어느 저장소를 참조하는가)
 - 기준 시점: `.harness/spec-lock.json` (어느 시점 기획을 기준으로 개발했는가)
-- 명령: `npm run harness:spec:fetch` (최초 연동 기준 생성 / lock이 있으면 캐시만 갱신), `npm run harness:spec:status` (연동 상태와 미정산 확인), `npm run harness:spec:settle` (내 변경에 걸린 문서만 정산), 전체 기준 이동은 `npm run harness:spec:fetch -- --move-baseline`
+- 명령: `.harness/bin/harness spec:fetch` (최초 연동 기준 생성 / lock이 있으면 캐시만 갱신), `.harness/bin/harness spec:status` (연동 상태와 미정산 확인), `.harness/bin/harness spec:settle` (내 변경에 걸린 문서만 정산), 전체 기준 이동은 `.harness/bin/harness spec:fetch --move-baseline`
 - 이 표의 정합(문서가 기준에 존재하는가, 구현 경로가 실존하는가)은 커밋 검증이 확인합니다.

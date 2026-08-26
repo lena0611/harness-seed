@@ -69,19 +69,14 @@ function boolLabel(value) {
   return value ? '있음' : '없음'
 }
 
-// 0.2.126(결정 86): 프로젝트 lint/test/build는 profile verify 옵트인 시에만 하네스가 실행합니다.
-function verifyStageLabel(scripts, verifyPrefs, name) {
-  const pref = (verifyPrefs ?? {})[name]
-  if (pref === 'external') return 'external 위임'
-  if (pref === 'harness') return scripts[name] ? '하네스 실행 (옵트인)' : '옵트인 · script 없음'
-  return scripts[name] ? '감지됨 · 실행 안 함' : '없음'
+// 0.2.131: 코드 품질 검사(lint/test/build)는 하네스가 실행하지 않고 프로젝트가 소유합니다.
+// 카드는 script 유무만 사실로 보여주고, 실행 주체가 프로젝트임을 명시합니다.
+function projectScriptLabel(scripts, name) {
+  return scripts[name] ? '있음 · 하네스는 실행 안 함' : '없음'
 }
 
-function verifyStageNote(scripts, verifyPrefs, name) {
-  const pref = (verifyPrefs ?? {})[name]
-  if (pref === 'external') return '프로젝트 도구(husky 등)가 담당'
-  if (pref === 'harness') return '하네스 검증 단계에 포함'
-  return scripts[name] ? 'profile verify로 옵트인 가능 (config-contract.md)' : ''
+function projectScriptNote(scripts, name) {
+  return scripts[name] ? '프로젝트 소유 — husky·CI 등에서 실행 (hook-coexistence.md)' : ''
 }
 
 function fileUrl(absPath) {
@@ -127,10 +122,10 @@ function renderDashboard() {
     renderCard('스캔 리포트', boolLabel(exists('.harness/session/project-scan-report.md')), '.harness/session/project-scan-report.md'),
     renderCard('인수인계 요약', boolLabel(exists('.harness/session/handoff.md')), '.harness/session/handoff.md'),
     renderCard('에이전트 판단 컨텍스트', boolLabel(exists('.harness/session/task-context.md')), '.harness/session/task-context.md'),
-    renderCard('프로젝트 맵', boolLabel(exists('.harness/generated/project-map.md')), 'npm run harness:sync로 생성'),
-    renderCard('lint script', verifyStageLabel(scripts, profile.verify, 'lint'), verifyStageNote(scripts, profile.verify, 'lint')),
-    renderCard('test script', verifyStageLabel(scripts, profile.verify, 'test'), verifyStageNote(scripts, profile.verify, 'test')),
-    renderCard('build script', verifyStageLabel(scripts, profile.verify, 'build'), verifyStageNote(scripts, profile.verify, 'build')),
+    renderCard('프로젝트 맵', boolLabel(exists('.harness/generated/project-map.md')), '.harness/bin/harness sync로 생성'),
+    renderCard('lint script', projectScriptLabel(scripts, 'lint'), projectScriptNote(scripts, 'lint')),
+    renderCard('test script', projectScriptLabel(scripts, 'test'), projectScriptNote(scripts, 'test')),
+    renderCard('build script', projectScriptLabel(scripts, 'build'), projectScriptNote(scripts, 'build')),
   ].join('\n')
 
   const stackDecisionPanel = needsStackDecision
@@ -138,17 +133,17 @@ function renderDashboard() {
       <h2>스택 기준 없음: 정상 선택 가능</h2>
       <p>현재는 공통 하네스만 설치된 상태입니다. 맞는 스택 하네스가 있으면 지금 또는 나중에 추가 적용하고, 없거나 스택 독립 프로젝트라면 공통 기준만 유지해도 됩니다. 공통 기준만 유지한다면 이유를 decision-log에 남깁니다.</p>
       <div class="commands">
-        <code>npm run standards:list</code>
-        <code>npm run stack:status</code>
-        <code>npm run harness:scan</code>
-        <code>npm run harness:handoff</code>
+        <code>.harness/bin/harness standards:list</code>
+        <code>.harness/bin/harness stack:status</code>
+        <code>.harness/bin/harness scan</code>
+        <code>.harness/bin/harness handoff</code>
       </div>
     </section>`
     : `<section class="panel decision">
       <h2>스택 기준 적용됨</h2>
       <p><strong>${escapeHtml(activeStack)}</strong> 기준이 적용되어 있습니다. 스택 상세는 상태 명령과 프로젝트 로컬룰에서 확인합니다.</p>
       <div class="commands">
-        <code>npm run stack:status</code>
+        <code>.harness/bin/harness stack:status</code>
         <code>.harness/project/stack-preset-rules.md</code>
       </div>
     </section>`
@@ -325,8 +320,8 @@ function renderDashboard() {
       <h2>기획 문서 연동됨</h2>
       <p>코드 변경 전 관련 기획 확인이 절차입니다(작업 크기 무관). 작업 컨텍스트 생성이 기준 본문 수화, 최신 확인, 세 상태 표시를 함께 처리하고, 바뀐 기획을 반영했으면 정산(settle)해 spec-lock 변경을 커밋에 포함합니다.</p>
       <div class="commands">
-        <code>npm run harness:spec:status</code>
-        <code>npm run harness:spec:settle</code>
+        <code>.harness/bin/harness spec:status</code>
+        <code>.harness/bin/harness spec:settle</code>
         <code>.harness/project/spec-authority-workflow.md</code>
       </div>
     </section>` : ''}
@@ -335,11 +330,11 @@ function renderDashboard() {
       <h2>매일 쓰는 진입점</h2>
       <p>개발자는 상태 확인과 검증 명령을 주로 사용합니다. 작업별 판단 컨텍스트는 에이전트가 큰 작업 전에 필요할 때 생성합니다.</p>
       <div class="commands">
-        <code>npm run harness:scan</code>
-        <code>npm run harness:handoff</code>
-        <code>npm run harness:check</code>
+        <code>.harness/bin/harness scan</code>
+        <code>.harness/bin/harness handoff</code>
+        <code>.harness/bin/harness check</code>
       </div>
-      <p>직접 확인이 필요할 때만 <code>npm run harness:context -- "작업 설명"</code>으로 Agent Decision Context를 생성합니다.</p>
+      <p>직접 확인이 필요할 때만 <code>.harness/bin/harness context "작업 설명"</code>으로 Agent Decision Context를 생성합니다.</p>
     </section>
   </main>
 </body>
@@ -383,24 +378,24 @@ function main() {
   console.log(`  ${fileUrl(dashboardAbs)}`)
   console.log('')
   console.log('Recommended commands:')
-  console.log('  npm run harness:scan      프로젝트 상태를 다시 스캔할 때')
-  console.log('  npm run harness:handoff   설치/업데이트 후 확인할 일과 현재 상태를 볼 때')
-  console.log('  npm run harness:check     사용자가 최종 검증을 승인했을 때')
+  console.log('  .harness/bin/harness scan      프로젝트 상태를 다시 스캔할 때')
+  console.log('  .harness/bin/harness handoff   설치/업데이트 후 확인할 일과 현재 상태를 볼 때')
+  console.log('  .harness/bin/harness check     사용자가 최종 검증을 승인했을 때')
   console.log('')
   console.log('Commit / push guard:')
-  console.log('  npm run hooks:install 을 실행하면 사용자가 승인한 git commit/push 직전에 harness:check가 자동 실행됩니다.')
+  console.log('  .harness/bin/harness hooks:install 을 실행하면 사용자가 승인한 git commit/push 직전에 harness:check가 자동 실행됩니다.')
   console.log('  hook 설치 후 커밋/푸시 요청을 처리할 때는 commit 직전 수동 harness:check를 중복 실행하지 않습니다.')
   console.log('  세션 기록 전용 커밋(.harness/session/*만 스테이징)은 pre-commit 통합 검사가 자동 생략됩니다. --no-verify 수동 우회는 쓰지 않습니다.')
   console.log('')
   console.log('Agent decision context:')
   console.log('  일반 개발자가 매번 실행할 필요는 없습니다.')
-  console.log('  필요 시 에이전트 또는 고급 사용자가 npm run harness:context -- "작업 설명" 으로 생성합니다.')
+  console.log('  필요 시 에이전트 또는 고급 사용자가 .harness/bin/harness context "작업 설명" 으로 생성합니다.')
   if (fs.existsSync(path.join(repoRoot, '.harness/spec-lock.json'))) {
     console.log('')
     console.log('Spec sync:')
     console.log('  기획 문서 연동됨(.harness/spec-lock.json) — 코드 변경 전 관련 기획을 먼저 확인합니다(작업 크기 무관).')
-    console.log('  npm run harness:context -- "작업 설명" 이 기준 수화와 최신 확인을 함께 처리하고,')
-    console.log('  바뀐 기획을 반영했으면 npm run harness:spec:settle 로 정산합니다.')
+    console.log('  .harness/bin/harness context "작업 설명" 이 기준 수화와 최신 확인을 함께 처리하고,')
+    console.log('  바뀐 기획을 반영했으면 .harness/bin/harness spec:settle 로 정산합니다.')
   }
 
   const profile = readJson('.harness/policy/profile.json', {})
@@ -408,7 +403,7 @@ function main() {
     console.log('')
     console.log('Stack decision:')
     console.log('  현재는 공통 하네스만 설치된 상태입니다.')
-    console.log('  맞는 스택 하네스가 있으면 npm run standards:list 로 후보를 확인하세요.')
+    console.log('  맞는 스택 하네스가 있으면 .harness/bin/harness standards:list 로 후보를 확인하세요.')
     console.log('  맞는 스택 하네스가 없으면 공통 기준만 유지하고 decision-log에 이유를 남기세요.')
   }
 

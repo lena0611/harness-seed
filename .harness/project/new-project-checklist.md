@@ -7,8 +7,8 @@
 
 - [ ] 하네스 설치 — 신규는 `npx ai-standard-cli init`, 기존 저장소 편입은 시드 복제 후 정리
 - [ ] Node 버전 맞추기 — `nvm use` (`.nvmrc` 기준), 이어서 `npm install`
-- [ ] `npm run hooks:install` — git hook 설치. 기획 연동이 선언된 저장소라면 이때 기획 본문도 준비됩니다. husky를 쓰는 저장소는 [hook-coexistence.md](./hook-coexistence.md)를 따릅니다
-- [ ] 스택 프리셋 선택·적용 — `npm run stack:apply` (기준: [stack-preset-rules.md](./stack-preset-rules.md))
+- [ ] git hook 확인 — **최초 설치(init)가 자동으로 활성화합니다**(0.2.131, 끄려면 `--no-hooks`). 자동 활성화가 건너뛰어졌거나 나중에 켜려면 `.harness/bin/harness hooks:install`. 기획 연동이 선언된 저장소라면 이때 기획 본문도 준비됩니다. husky를 쓰는 저장소는 [hook-coexistence.md](./hook-coexistence.md)를 따릅니다
+- [ ] 스택 프리셋 선택·적용 — `.harness/bin/harness stack:apply` (기준: [stack-preset-rules.md](./stack-preset-rules.md))
 
 ## 2. 프로젝트 방향 채우기
 
@@ -33,11 +33,11 @@ push 훅이 못 보는 변경(서버 머지, 미매핑 신규 문서)을 스케�
 
 새로 합류하는 개발자에게 안내할 최소 절차:
 
-- [ ] 클론 → `nvm use` → `npm install` → `npm run hooks:install` (이 마지막 단계가 기획 본문까지 준비)
+- [ ] 클론 → `nvm use` → `npm install` → `.harness/bin/harness hooks:install` (이 마지막 단계가 기획 본문까지 준비)
 - [ ] 변경 알림을 받으면: 담당 문서는 `/기획확인` 으로 확인·기록, 확인 기록은 **커밋·푸시까지** 되어야 알림이 멈춤
 - [ ] 담당 밖 문서는 판정하지 말고 담당자에게 전달
 
 ## 완료 판정
 
-`npm run harness:check`가 통과하고, 팀원 1명이 클론부터 첫 커밋까지 이 문서만 보고 도달하면 셋업 완료입니다.
+`.harness/bin/harness check`가 통과하고, 팀원 1명이 클론부터 첫 커밋까지 이 문서만 보고 도달하면 셋업 완료입니다.
 막히는 단계가 있었다면 이 체크리스트가 아니라 **해당 정본 문서를 고치고**, 여기는 포인터만 유지합니다.

@@ -127,7 +127,7 @@ async function main() {
   if (dryRun) {
     console.log('')
     console.log('실제 제거하려면 다음 명령을 실행하세요:')
-    console.log('  npm run harness:uninstall -- --confirm')
+    console.log('  .harness/bin/harness uninstall --confirm')
     return
   }
 

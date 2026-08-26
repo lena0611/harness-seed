@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- | --- |
 | **Harness** | 방향, 읽기 순서, 운영 레일을 잡음 | 프로젝트/세션/기준/문서 체계를 만들 때 | 중간 | `session-harness`, `policy-harness`, `project-harness`, `documentation-harness` | `.harness/session/`, `.harness/policy/`, `.harness/project/`, `.harness/documentation/` |
 | **Trigger** | 특정 상황에서 무엇을 다시 떠올릴지 알려줌 | 파일 변경, 새 세션 시작, 문서 확장, 기준 수정 시 | 강함 | `session-start-alert.md`, `sync-protocol.md` | `.harness/session/session-start-alert.md`, `.harness/policy/sync-protocol.md` |
-| **Hook** | 실제 실행 시점에서 검사를 자동 실행하거나 통과를 막음 | push, PR, 배포, 로컬 실행 전 검증 | 가장 강함 | `npm run harness:check`, CI 검증 | `.harness/bin/`, `package.json`, CI 설정 |
+| **Hook** | 실제 실행 시점에서 검사를 자동 실행하거나 통과를 막음 | push, PR, 배포, 로컬 실행 전 검증 | 가장 강함 | `.harness/bin/harness check`, CI 검증 | `.harness/bin/`, `package.json`, CI 설정 |
 | **Skill** | 요청 유형별로 읽을 문서, 실행 명령, 기록 위치를 좁힘 | 버그 수정, 기능 개발, 최종 검증, 커밋/푸시 최종화처럼 반복 절차가 있을 때 | 낮음 | `harness.commit-push-finalization`, `harness.precommit-verification` | `.harness/skills/registry.json` |
 
 ## 쉽게 비유하면
@@ -35,7 +35,7 @@
 
 ### 3. Hook
 - push / PR / merge 전 프로젝트 CI가 기준 검사를 자동 실행
-- 로컬에서는 `npm run harness:check`가 기준 동기화 검사, 문서 검사, 적용된 프리셋 검사를 연속 실행
+- 로컬에서는 `.harness/bin/harness check`가 기준 동기화 검사, 문서 검사, 적용된 프리셋 검사를 연속 실행
 
 ### 4. Skill
 - 하네스 내부 스킬은 플랫폼별 slash command가 아니라 작업 판단 레지스트리입니다.

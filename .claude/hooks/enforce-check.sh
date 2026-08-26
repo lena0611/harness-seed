@@ -10,7 +10,7 @@ fi
 
 if [ "${HARNESS_AGENT_CHECK_APPROVED:-}" != "1" ]; then
   printf '사용자 완료 승인 전이므로 harness:check를 실행하지 않았습니다.\n'
-  printf '최종화가 승인되면 HARNESS_AGENT_CHECK_APPROVED=1 npm run harness:check 를 실행하세요.\n'
+  printf '최종화가 승인되면 HARNESS_AGENT_CHECK_APPROVED=1 .harness/bin/harness check 를 실행하세요.\n'
   exit 0
 fi
 
@@ -20,5 +20,5 @@ if [ ! -f "$root/package.json" ]; then
 fi
 
 cd "$root"
-printf 'Harness agent completion check: npm run harness:check\n'
-npm run harness:check
+printf 'Harness agent completion check: .harness/bin/harness check\n'
+.harness/bin/harness check

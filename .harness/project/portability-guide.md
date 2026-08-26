@@ -13,10 +13,10 @@
 2. 스택 하네스가 내부적으로 공통 하네스를 설치하거나 업데이트하고, 자기 스택 기준을 로컬룰로 정착했는지 확인합니다.
 3. `.harness/harness-lock.json`에서 실제 설치된 공통 하네스와 스택 하네스의 repo, ref, version을 확인합니다.
 4. `.harness/session/project-scan-report.md`에서 기존 프로젝트 기준, 기존 AI 작업 룰 후보, 스타일 출처, 버전 상태, 충돌 후보를 확인합니다.
-5. `npm run hooks:install`로 로컬 hook을 연결합니다.
-6. scaffold가 필요하면 `npm run templates:list`로 별도 템플릿 후보를 확인하고 `template:apply`로 적용합니다.
+5. 로컬 hook 연결을 확인합니다 — 최초 설치(init)가 자동으로 활성화하며(끄려면 `--no-hooks`), 새로 clone한 사람은 각자 1회 `.harness/bin/harness hooks:install`을 실행합니다.
+6. scaffold가 필요하면 `.harness/bin/harness templates:list`로 별도 템플릿 후보를 확인하고 `template:apply`로 적용합니다.
 7. scaffold 템플릿이 적용되었으면 `.harness/project/template-contract.md`에서 템플릿 사용 계약 브리지를 확인합니다.
-8. scaffold가 함께 적용되었으면 `npm install` 후 `npm run harness:check`로 검증합니다. lint/test/build까지 포함하려면 profile의 `verify` 선언이 필요합니다(옵트인, 결정 86 — `/검증설정`).
+8. scaffold가 함께 적용되었으면 `npm install` 후 `.harness/bin/harness check`로 검증합니다. 이 검사는 하네스 관문 검사이며 lint/test/build는 포함하지 않습니다 — 코드 품질 검사는 프로젝트 소유입니다(0.2.131).
 9. 새 스택 하네스가 필요하면 `.harness/stacks/authoring-guide.md`를 먼저 보고 외부 프리셋 저장소를 만듭니다. 기본 계약은 `package.json bin + scripts/init.mjs + manifest.json + policies.json + instructions/`입니다.
 10. 새 scaffold 템플릿이 필요하면 `kind=scaffold-template`, `requiredStackHarness`, `template.guideRoot`, `source` 계약을 가진 별도 저장소로 둡니다.
 11. `policy-registry.json`은 일반 개발 기준만 유지합니다. 스택-특화 기준은 스택의 `policies.json`으로만 둡니다.
@@ -56,8 +56,8 @@
 - `local`: manifest 기준 상대 경로의 `scaffold/` 폴더에서 직접 복사. 현재 기본.
 - `tiged`: 외부 원격 저장소에서 `npx tiged`로 scaffold를 가져오기.
 - `none`: scaffold 파일 복사 없이 instruction만 로컬룰로 정착.
-- 외부 스택 기준 연결: 일반 프로젝트 개발자는 스택 하네스의 `npx ... init`을 사용합니다. 관리자/고급 흐름에서는 `npm run stack:apply -- --preset-path <preset-dir>` 또는 `profile.json`의 `stackManifest`를 직접 사용할 수 있습니다.
-- 외부 scaffold 템플릿 연결: `npm run template:apply -- --preset-path <template-dir>` 또는 `npm run template:apply -- --preset-git <repo-url> --ref <tag-or-branch>`를 사용합니다.
+- 외부 스택 기준 연결: 일반 프로젝트 개발자는 스택 하네스의 `npx ... init`을 사용합니다. 관리자/고급 흐름에서는 `.harness/bin/harness stack:apply --preset-path <preset-dir>` 또는 `profile.json`의 `stackManifest`를 직접 사용할 수 있습니다.
+- 외부 scaffold 템플릿 연결: `.harness/bin/harness template:apply --preset-path <template-dir>` 또는 `.harness/bin/harness template:apply --preset-git <repo-url> --ref <tag-or-branch>`를 사용합니다.
 - 분리 시점: 스택을 다른 저장소에서 공유해야 하는 시점. 본체에 새 프리셋을 계속 추가하지 않습니다.
 - 전환 방법: 스택 `manifest.json`의 `source` 섹션을 `{ "type": "tiged", "ref": "owner/repo#tag-or-branch" }`로 바꾸면 됩니다 (인터페이스 동일).
 
@@ -66,8 +66,8 @@
 - 팀 배포 절차에는 `git+<stack-harness-repo-url>#vX.Y.Z`처럼 tag를 고정합니다.
 - 스택 하네스의 `manifest.json`은 내부에서 사용할 공통 하네스의 `baseHarness.ref`를 고정합니다.
 - 적용 프로젝트는 `.harness/harness-lock.json`으로 실제 설치된 일반/스택 하네스 ref와 version을 기록합니다.
-- 적용 후 패치나 마이너 업데이트 후보는 `npm run harness:outdated`로 확인하고, 반영하려면 `npm run harness:update`를 실행합니다. 기본 전략은 현재 설치 버전의 SemVer caret 범위 안에서 최신 태그를 다시 선택하는 방식입니다.
-- 기본 `npm run harness:update`는 스택과 공통 하네스를 함께 갱신합니다. 공통 하네스만 업데이트할 때는 `npm run harness:update -- --base-only`를 사용합니다. 이 경로는 다음 업데이트 감지를 위해 `.harness/harness-lock.json`과 `.harness/install-manifest.json`에 공통 하네스의 git repo/ref/version을 남겨야 합니다.
+- 적용 후 패치나 마이너 업데이트 후보는 `.harness/bin/harness outdated`로 확인하고, 반영하려면 `.harness/bin/harness update`를 실행합니다. 기본 전략은 현재 설치 버전의 SemVer caret 범위 안에서 최신 태그를 다시 선택하는 방식입니다.
+- 기본 `.harness/bin/harness update`는 스택과 공통 하네스를 함께 갱신합니다. 공통 하네스만 업데이트할 때는 `.harness/bin/harness update --base-only`를 사용합니다. 이 경로는 다음 업데이트 감지를 위해 `.harness/harness-lock.json`과 `.harness/install-manifest.json`에 공통 하네스의 git repo/ref/version을 남겨야 합니다.
 - update 경로에서 선택 ref가 `semver:*`이면 lock/manifest에는 실제 설치된 package version tag(`vX.Y.Z`)를 기록합니다. 그래야 다음 `harness:outdated`가 움직이는 range가 아니라 현재 설치된 기준을 명확히 비교합니다.
 - 과거 설치물에 base source가 `bundled`로 남아 있어도 스택 lock의 `requiredBaseHarness.repo`와 현재 base version으로 repo/ref를 복구할 수 있어야 합니다.
 - 여러 소비 프로젝트에 업데이트 MR을 만드는 자동화는 향후 `ai-standard-cli`가 담당합니다. 이식 대상 프로젝트 안에서는 outdated 확인과 update 실행까지만 다룹니다.
@@ -88,4 +88,4 @@
 - 본체(seed-mode) 전용 문서(0.2.69). 하네스 본체의 개발/배포/로드맵/거버넌스처럼 소비자 프로젝트에 무의미하거나 노출하면 안 되는 문서는 seed-only 목록으로 관리합니다. `init`은 `.harness-seed-mode` 마커 없는 타깃(소비자)에 이 목록을 복사하지 않고, 이전 버전이 설치한 기존본은 미수정이면 정리합니다. 소비자의 커밋/푸시 기준은 `commit-push-rules.md`를 따릅니다. 상세는 `.harness/policy/sync-protocol.md`.
 
 ## 검증
-- 이식 직후 `npm run harness:check`를 실행합니다. CI나 릴리스 검증에서는 `npm run harness:check:strict`로 자동 검증 실패와 `syncEnforcement`가 명시된 동기화 후보를 실패 처리합니다. 일반 한쪽 변경 후보는 strict에서도 비차단입니다.
+- 이식 직후 `.harness/bin/harness check`를 실행합니다. CI나 릴리스 검증에서는 `.harness/bin/harness check --strict`로 자동 검증 실패와 `syncEnforcement`가 명시된 동기화 후보를 실패 처리합니다. 일반 한쪽 변경 후보는 strict에서도 비차단입니다.

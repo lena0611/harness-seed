@@ -54,8 +54,8 @@
 
 질문 예시:
 > 사용할 스택 하네스를 골라주세요.
-> - 사내 스택 하네스 — `npm run standards:list`로 `ai-standard/harnesses`의 스택 하네스 패키지 조회
-> - scaffold 템플릿 — 스택 하네스 적용 후 `npm run templates:list`로 후보를 조회한 뒤 선택
+> - 사내 스택 하네스 — `.harness/bin/harness standards:list`로 `ai-standard/harnesses`의 스택 하네스 패키지 조회
+> - scaffold 템플릿 — 스택 하네스 적용 후 `.harness/bin/harness templates:list`로 후보를 조회한 뒤 선택
 > - 로컬 스택 자산 — 별도 폴더의 `manifest.json` 경로를 `stackManifest`에 기록
 > - `none` — 예외적으로 공통 기준만 운영. 사유를 `decision-log.md`에 기록
 
@@ -65,23 +65,23 @@
 선택된 스택이 동작 가능한 상태인지 다음으로 결정합니다.
 
 ```bash
-npm run stack:status            # 현재 적용 상태 확인
-npm run standards:list          # 사내 스택 하네스 후보 조회
-npm run stack:apply             # 스택 기준 로컬룰 적용
-npm run templates:list          # 새 프로젝트 scaffold가 필요할 때만 후보 조회
-npm run template:apply -- --preset-git <repo-url> --ref <tag-or-branch>
+.harness/bin/harness stack:status            # 현재 적용 상태 확인
+.harness/bin/harness standards:list          # 사내 스택 하네스 후보 조회
+.harness/bin/harness stack:apply             # 스택 기준 로컬룰 적용
+.harness/bin/harness templates:list          # 새 프로젝트 scaffold가 필요할 때만 후보 조회
+.harness/bin/harness template:apply --preset-git <repo-url> --ref <tag-or-branch>
 npm install
-npm run harness:check
+.harness/bin/harness check
 ```
 
-- 스택 미적용 상태(`activeStack: none`)에서는 `npm run harness:check`가 일반 인프라 검사(기준 동기화 + 문서)만 실행하고 lint/test/build는 건너뜁니다.
-- 스택 적용 후에는 `.harness/stacks/.applied/<stack>/manifest.json` 스냅샷을 기준으로 fresh clone, worktree, CI에서도 적용 상태를 복원합니다. `.harness/.stack-applied.json` 마커가 없더라도 스냅샷이 있으면 스택 검증 상태가 복원됩니다. npm script 기반 lint/test/build는 profile의 `verify` 선언(옵트인, 결정 86)이 있을 때만 실행됩니다.
-- `activeStack`이 설정됐지만 스택 스냅샷이 없으면 검증을 통과로 보지 않습니다. 이 경우 스택 하네스 init 또는 `npm run stack:apply`를 다시 실행합니다.
+- `.harness/bin/harness check`는 스택 적용 여부와 무관하게 하네스 관문 검사(기준 동기화 + 문서 + 기획 연동)만 실행합니다. lint/test/build는 하네스가 실행하지 않으며 소유는 프로젝트입니다(0.2.131).
+- 스택 적용 후에는 `.harness/stacks/.applied/<stack>/manifest.json` 스냅샷을 기준으로 fresh clone, worktree, CI에서도 적용 상태를 복원합니다. `.harness/.stack-applied.json` 마커가 없더라도 스냅샷이 있으면 스택 적용 상태가 복원됩니다.
+- `activeStack`이 설정됐지만 스택 스냅샷이 없으면 검증을 통과로 보지 않습니다. 이 경우 스택 하네스 init 또는 `.harness/bin/harness stack:apply`를 다시 실행합니다.
 - 일반 프로젝트 개발자에게는 스택 하네스의 `npx ... init` 흐름을 우선 안내합니다. 위 `stack:apply` 흐름은 이미 공통 하네스가 설치된 관리자/고급 흐름입니다.
 - `source.type=none`인 스택 기준은 파일 복사 없이 `.harness/project/stack-preset-rules.md`만 갱신합니다.
-- 스택을 바꾸고 싶으면 `npm run stack:reset` 으로 먼저 적용을 되돌린 뒤 `activeStack`을 바꾸고 다시 `stack:apply`를 실행합니다.
-- 원격 프리셋을 적용하려면 `npm run stack:apply -- --preset-git <repo-url> --ref <tag-or-branch>`를 사용합니다.
-- 외부 프리셋을 일회성으로 적용하려면 `npm run stack:apply -- --preset-path <preset-dir>`를 사용합니다.
+- 스택을 바꾸고 싶으면 `.harness/bin/harness stack:reset` 으로 먼저 적용을 되돌린 뒤 `activeStack`을 바꾸고 다시 `stack:apply`를 실행합니다.
+- 원격 프리셋을 적용하려면 `.harness/bin/harness stack:apply --preset-git <repo-url> --ref <tag-or-branch>`를 사용합니다.
+- 외부 프리셋을 일회성으로 적용하려면 `.harness/bin/harness stack:apply --preset-path <preset-dir>`를 사용합니다.
 - scaffold 템플릿은 스택 기준과 분리해 `template:apply`로 적용합니다. 적용 후 템플릿 사용 계약은 `template-contract.md`에 브리지로 남깁니다.
 - `"none"`으로 두면 스택 적용 없이 공통 하네스만 운영됩니다. 이 상태는 예외 또는 전환 중 상태로 보고 `harness:scan`의 충돌 후보를 확인합니다.
 
@@ -106,10 +106,10 @@ npm run harness:check
 - `owner`: 책임 주체(예: 팀, 개인)
 - `inject`: `always`면 `build-context`가 Always Read에 병합합니다. 그 외 값이면 선언만 하고 자동 주입하지 않습니다.
 
-등록 후 `npm run harness:scan`은 선언된 `path`가 실제 존재하는지 검증하고, 없으면 Open Questions로 표면화합니다. 상세는 저장소 루트 `README.md`의 "비표준 위치 룰 등록" 절과 `.harness/policy/profile.json`의 notes를 참고합니다.
+등록 후 `.harness/bin/harness scan`은 선언된 `path`가 실제 존재하는지 검증하고, 없으면 Open Questions로 표면화합니다. 상세는 저장소 루트 `README.md`의 "비표준 위치 룰 등록" 절과 `.harness/policy/profile.json`의 notes를 참고합니다.
 
 ## 인터뷰가 끝난 뒤
-1. `npm run harness:check` 1회 실행해 일반 인프라 + 스택 기준이 모두 통과하는지 확인합니다.
+1. `.harness/bin/harness check` 1회 실행해 일반 인프라 + 스택 기준이 모두 통과하는지 확인합니다.
 2. `active-context.md`에 "프로젝트 상태=`<status>`, 스택=`<id>`" 한 줄을 남깁니다.
 3. 작업 시작 시 `session-boot.md` 순서로 복귀합니다.
 

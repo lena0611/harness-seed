@@ -68,7 +68,7 @@
       ],
       "checks": [
         "npm run policy:check",
-        "npm run harness:check"
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [
@@ -105,8 +105,8 @@
         ".harness/project/standards-layers.md"
       ],
       "checks": [
-        "npm run harness:impact",
-        "npm run harness:check"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [],
@@ -148,9 +148,9 @@
         "scripts/test-init.mjs"
       ],
       "checks": [
-        "npm run harness:impact",
-        "npm run harness:check",
-        "npm run harness:check:strict"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check",
+        ".harness/bin/harness check --strict"
       ],
       "conflictsWith": [],
       "supersedes": [
@@ -186,7 +186,7 @@
       "checks": [
         "npm run docs:check",
         "npm run docs:check:strict",
-        "npm run harness:check"
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [
@@ -226,7 +226,7 @@
         ".harness/project/issue-adapter.example.md"
       ],
       "checks": [
-        "npm run harness:impact"
+        ".harness/bin/harness impact"
       ],
       "conflictsWith": [],
       "supersedes": [],
@@ -262,9 +262,9 @@
         ".harness/generated/**"
       ],
       "checks": [
-        "npm run harness:context -- \"작업 설명\"",
-        "npm run harness:sync",
-        "npm run harness:check"
+        ".harness/bin/harness context \"작업 설명\"",
+        ".harness/bin/harness sync",
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [],
@@ -310,7 +310,7 @@
       ],
       "checks": [
         "node scripts/test-init.mjs",
-        "npm run harness:check"
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [],
@@ -349,7 +349,7 @@
       ],
       "checks": [
         "node scripts/test-init.mjs",
-        "npm run harness:check"
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [],
@@ -393,7 +393,7 @@
       "checks": [
         "npm run node:check",
         "node scripts/test-init.mjs",
-        "npm run harness:check"
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [],
@@ -431,8 +431,8 @@
         ".harness/bin/list-stack-standards.mjs"
       ],
       "checks": [
-        "npm run stack:status",
-        "npm run harness:check"
+        ".harness/bin/harness stack:status",
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [
@@ -469,10 +469,10 @@
         ".harness/session/template-gap-report.md"
       ],
       "checks": [
-        "npm run template:status",
-        "npm run template:gap",
+        ".harness/bin/harness template:status",
+        ".harness/bin/harness template:gap",
         "node scripts/test-init.mjs",
-        "npm run harness:check"
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [],
@@ -512,7 +512,7 @@
         ".github/copilot-instructions/**"
       ],
       "checks": [
-        "npm run harness:check"
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [],
@@ -546,8 +546,8 @@
         ".github/commit-template.txt"
       ],
       "checks": [
-        "npm run hooks:install",
-        "npm run harness:check"
+        ".harness/bin/harness hooks:install",
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [],
@@ -586,8 +586,8 @@
         "AGENTS.md"
       ],
       "checks": [
-        "npm run harness:context -- \"작업 설명\"",
-        "npm run harness:check"
+        ".harness/bin/harness context \"작업 설명\"",
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [],
@@ -629,8 +629,8 @@
         ".harness/bin/policy-harness.mjs"
       ],
       "checks": [
-        "npm run harness:impact",
-        "npm run harness:check"
+        ".harness/bin/harness impact",
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [],
@@ -672,7 +672,7 @@
         ".harness/project/critical-paths.md"
       ],
       "checks": [
-        "npm run harness:check"
+        ".harness/bin/harness check"
       ],
       "conflictsWith": [],
       "supersedes": [],
@@ -723,7 +723,7 @@
         "scripts/test-init.mjs"
       ],
       "checks": [
-        "npm run harness:check",
+        ".harness/bin/harness check",
         "node scripts/test-init.mjs spec"
       ],
       "conflictsWith": [],

@@ -38,7 +38,7 @@ lock을 바꾸는 명령(최초 `fetch`·`--move-baseline`·`settle`)은 끝에 
 `.harness/spec-lock.json`이 있으면 **작업 크기와 무관하게** 관련 기획을 먼저 확인합니다. "간단한 수정이라 생략"하지 않습니다 — 사양이 바뀐 줄 모르고 고치는 것이 가장 비싼 실수입니다.
 
 ```bash
-npm run harness:context -- "<작업 설명>"
+.harness/bin/harness context "<작업 설명>"
 ```
 
 이 명령이 세 가지를 함께 처리합니다.
@@ -60,7 +60,7 @@ npm run harness:context -- "<작업 설명>"
 작업 후 처리:
 
 - 구현한 기능의 기획 문서가 있으면 `.harness/project/spec-map.md`에 매핑 한 줄을 남깁니다.
-- 바뀐 문서를 확인하고 반영했으면 `npm run harness:spec:settle`로 정산하고, `spec-lock.json` 변경을 커밋에 포함합니다.
+- 바뀐 문서를 확인하고 반영했으면 `.harness/bin/harness spec:settle`로 정산하고, `spec-lock.json` 변경을 커밋에 포함합니다.
 
 ## 2. 아직 연동되지 않은 프로젝트
 
@@ -132,7 +132,7 @@ npm run harness:context -- "<작업 설명>"
 이어서 최초 기준을 만듭니다. 실패하면 원인을 그대로 보고합니다(대개 주소 오타, 브랜치 이름, 읽기 권한). 추측으로 다른 주소를 시도하지 않습니다.
 
 ```bash
-npm run harness:spec:fetch
+.harness/bin/harness spec:fetch
 ```
 
 ## 3. 매핑 만들기
@@ -171,18 +171,18 @@ features/사이트전환.md → src/views/SiteSwitch.vue, src/store/site.js
 | `gate` (옵트인) | 안내 | 미정산 기획 변경이면 **차단**. 그리고 **전수 판정**: 이번 push의 구현 파일 전부에 매핑 또는 `(사양 없음)` 판정이 있어야 합니다(매핑 0건·기존 영역 밖도 예외 없음). 매핑의 구현 경로를 줄일 때 그 코드가 살아 있으면 다른 매핑·판정이 필요합니다 | 기획이 안정된 뒤 팀이 직접 올립니다. 디렉터리 판정 한 줄이 잡음 밸브입니다 |
 
 - **기본값은 `advisory`입니다.** 연동을 마쳐도 자동으로 `gate`가 되지 않습니다 — 초기에는 기획에 구멍이 많아 push가 자주 막히는 편이 더 해롭다는 판단입니다. 준비되면 `profile.json`에 `"specEnforcement": "gate"`를 넣고 커밋하세요.
-- **git hook은 clone으로 공유되지 않습니다.** `core.hooksPath`는 로컬 설정이라 저장소를 새로 받은 사람은 각자 `npm run hooks:install`을 한 번 실행해야 합니다. 미설치 상태는 커밋 검증이 감지해 안내하지만, 훅이 없으면 그 안내조차 자동으로 뜨지 않습니다(`npm run harness:check`로 확인).
+- **git hook은 clone으로 공유되지 않습니다.** `core.hooksPath`는 로컬 설정이라 저장소를 새로 받은 사람은 각자 `.harness/bin/harness hooks:install`을 한 번 실행해야 합니다(최초 설치는 init이 자동 활성화, 0.2.131). 미설치 clone에서는 세션 시작 어댑터가 매 세션 1줄로 알리고, `.harness/bin/harness impact`도 감지해 안내합니다.
 - **기획 저장소에 접근하지 못하면 push는 통과합니다**(fail-open). 오프라인이나 기획 저장소 장애가 개발을 멈추게 하지 않기 위함입니다. 대신 그 push는 최신 기획을 확인하지 않은 상태이며, 게이트가 그 사실을 출력합니다.
 - 따라서 이 장치는 **"최신 기획이 항상 반영됨을 보장"하지 않습니다.** 보장하는 것은: 훅이 설치되고 `gate`인 프로젝트에서, 기획 저장소에 접근할 수 있을 때, 내 코드에 매핑된 기획이 바뀌었으면 정산 없이는 push되지 않는다는 것입니다.
 
 ## 4. 이미 연동된 프로젝트의 업데이트
 
 ```bash
-npm run harness:spec:fetch -- --cache-only
+.harness/bin/harness spec:fetch --cache-only
 ```
 
 1. 기준 이동 없이 최신을 받고 변경/추가/삭제를 확인합니다.
-2. **변경 문서(담당 영역)**: 매핑된 코드가 새 사양과 어긋나는지 확인 → 반영 작업 보고(구현은 승인 후) → `npm run harness:spec:settle -- --doc <경로>`.
+2. **변경 문서(담당 영역)**: 매핑된 코드가 새 사양과 어긋나는지 확인 → 반영 작업 보고(구현은 승인 후) → `.harness/bin/harness spec:settle --doc <경로>`.
 3. **담당 밖 변경**: 대신 판정하지 않습니다. `developer-input-queue.md`에 등록하고 담당에게 전달하도록 안내합니다.
 4. **추가 문서**: 매핑 후보를 제안합니다. 미구현 사양이면 미매핑으로 남기고 그렇게 보고합니다.
 5. **삭제 문서**: `spec-map.md` 행을 정리하고 코드 폐기 여부를 확인한 뒤 `settle -- --doc <경로>`로 기준에서도 정리합니다.
@@ -214,12 +214,12 @@ hunk라 찢어질 수 없음), 최악의 해소(통째 ours, 손편집 후퇴)�
 **팀 기준(lock)을 움직이는 것은 `--move-baseline`과 `settle`뿐입니다.** 무인자 fetch는 최초 연동에서만 기준을 만들고, 이미 lock이 있으면 캐시만 갱신합니다.
 
 ```bash
-npm run harness:spec:status                       # 오프라인 상태 확인
-npm run harness:spec:fetch                        # lock 없으면 최초 기준 생성 / 있으면 캐시만(비파괴)
-npm run harness:spec:fetch -- --cache-only        # 최신 확인 (기준 불변)
-npm run harness:spec:fetch -- --at-lock           # 팀 기준 그대로 본문 복원
-npm run harness:spec:settle                       # 확인한 문서만 기준 전진 (--doc <경로>)
-npm run harness:spec:fetch -- --move-baseline [--source <id>]   # 전체/해당 소스 기준 이동
+.harness/bin/harness spec:status                       # 오프라인 상태 확인
+.harness/bin/harness spec:fetch                        # lock 없으면 최초 기준 생성 / 있으면 캐시만(비파괴)
+.harness/bin/harness spec:fetch --cache-only        # 최신 확인 (기준 불변)
+.harness/bin/harness spec:fetch --at-lock           # 팀 기준 그대로 본문 복원
+.harness/bin/harness spec:settle                       # 확인한 문서만 기준 전진 (--doc <경로>)
+.harness/bin/harness spec:fetch --move-baseline [--source <id>]   # 전체/해당 소스 기준 이동
 ```
 
 ## 기준

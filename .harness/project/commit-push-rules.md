@@ -10,10 +10,10 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 - git hook은 작업 완료 시점을 결정하지 않고, 사용자가 승인한 commit/push 직전에 실행되는 안전장치입니다.
 
 ## 요청별 검증 경로
-- 사용자가 `최종 검증만 해줘`처럼 검증만 요청하면 에이전트가 `npm run harness:check`를 직접 실행합니다. package.json이 없는 비-Node 프로젝트에서는 같은 검사인 `.harness/bin/harness check`를 실행합니다.
+- 사용자가 `최종 검증만 해줘`처럼 검증만 요청하면 에이전트가 `.harness/bin/harness check`를 직접 실행합니다. package.json이 없는 비-Node 프로젝트에서는 같은 검사인 `.harness/bin/harness check`를 실행합니다.
 - 사용자가 `커밋해줘`라고 요청하면 에이전트는 선행 검증을 별도로 실행하지 않고 `git commit`을 실행합니다. 설치된 pre-commit hook의 `.harness/bin/harness check`가 최종 검증 역할을 합니다.
 - 사용자가 `커밋하고 푸시해줘`라고 요청하면 pre-commit의 전체 검사와 pre-push의 `.harness/bin/harness check --fast`에 맡깁니다.
-- hook이 설치되어 있지 않거나 `--no-verify` 등으로 우회되는 환경이면 에이전트가 commit/push 전에 직접 `npm run harness:check`(비-Node 프로젝트는 `.harness/bin/harness check`)를 실행합니다.
+- hook이 설치되어 있지 않거나 `--no-verify` 등으로 우회되는 환경이면 에이전트가 commit/push 전에 직접 `.harness/bin/harness check`(비-Node 프로젝트는 `.harness/bin/harness check`)를 실행합니다.
 - 대형 변경에서 커밋 전에 빠른 실패 확인이 필요하면 수동 검증을 먼저 실행할 수 있습니다. 이 경우 이후 commit hook에서 같은 검증이 다시 실행될 수 있음을 사용자에게 먼저 알립니다.
 
 ## hook 구현 계약
@@ -21,7 +21,7 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 - nvm 로드(`. nvm.sh` + `nvm use`)는 `set -u`와 호환되지 않으므로 반드시 `set +u` … `set -u` 구간으로 감쌉니다. dash에서 미설정 변수 참조는 expansion error라 `|| true`로 잡히지 않고 hook 전체가 무출력 exit 2로 종료됩니다.
 - npm이 주입한 `npm_config_prefix`, `NPM_CONFIG_PREFIX`, `PREFIX`가 있으면 nvm.sh가 경고 후 실패할 수 있으므로, hook과 `.harness/bin/harness` 런처는 nvm 로드 직전에 이 prefix 환경변수를 제거합니다.
 - nvm 로드 다음에 `.harness/bin/dual-node.sh`를 source하고 `harness_dual_node_activate`를 호출합니다(dual-runtime, 0.2.63). 활성 Node가 하네스 최소 버전(20.19) 미만이거나 없으면 `$NVM_DIR/versions/node` 목록에서 최신(>=20.19)을 PATH 선두에 적용합니다. dual-node.sh는 nvm.sh를 source하지 않고 디렉터리 목록만 읽으므로 dash 무출력 사망 표면을 늘리지 않으며, `set -u` 안전을 유지해야 합니다.
-- 전환 시 원래 PATH는 `HARNESS_PREV_PATH`, 프로젝트 Node bin은 `HARNESS_PROJECT_NODE_BIN`으로 export됩니다. `run-previous-hook.mjs`는 기존 프로젝트 hook을 `HARNESS_PREV_PATH`로 실행하고, `guard.mjs`는 프로젝트 검증(lint/test/build, stack verify)을 `HARNESS_PROJECT_NODE_BIN`(또는 `.nvmrc` 해석)으로 실행합니다.
+- 전환 시 원래 PATH는 `HARNESS_PREV_PATH`, 프로젝트 Node bin은 `HARNESS_PROJECT_NODE_BIN`으로 export됩니다. `run-previous-hook.mjs`는 기존 프로젝트 hook을 `HARNESS_PREV_PATH`로 실행합니다. 하네스는 프로젝트 lint/test/build를 실행하지 않으므로(0.2.131) `HARNESS_PROJECT_NODE_BIN`을 소비하는 검증 경로는 없습니다 — 훅의 nvm 전환은 하네스 자신이 저버전 Node에서 죽지 않게 하는 장치로만 남습니다.
 - 다른 `node` 호출보다 먼저 `node .harness/bin/check-node-version.mjs`를 실행합니다. 낮은 Node에서 ESM 크래시 대신 업그레이드/dual-runtime 안내가 나오게 하기 위함입니다. dual-node 전환이 끝난 뒤의 최후 게이트입니다.
 - 하네스 검증은 npm을 경유하지 않고 `.harness/bin/harness` 런처를 호출합니다(비-Node 프로젝트 호환). 런처도 같은 dual-node 전환을 수행합니다.
 
@@ -31,7 +31,7 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 - 본문을 이 문서에 두지 않는 이유: 이 문서는 project-owned라 기존 소비자에게 업데이트로 전파되지 않습니다(결정 81).
 
 ## hook 설치 기준
-- `npm run hooks:install`은 `core.hooksPath`를 `.githooks`로 설정합니다.
+- `.harness/bin/harness hooks:install`은 `core.hooksPath`를 `.githooks`로 설정합니다.
 - git 저장소가 아닌 디렉터리에서는 hook을 설치하지 않고, `git init` 후 다시 실행하라는 짧은 안내로 실패합니다. 이때 Node stack trace를 출력하지 않습니다.
 - 기존 `.git/hooks/*` 또는 기존 `core.hooksPath`의 hook은 삭제하지 않습니다.
 - 기존 hook 경로는 `harness.previousHooksPath`에 저장하고, `.githooks/*`에서 먼저 체인 실행합니다.
@@ -42,7 +42,7 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 - 사용자가 커밋을 승인하고 실제 `git commit`이 실행될 때 동작합니다.
 - 기존 pre-commit hook이 있으면 먼저 실행합니다.
 - 스테이징 전부가 `.harness/session/` 아래인 기록 전용 커밋은 통합 검사를 자동 생략합니다(0.2.124). 다른 파일이 하나라도 섞이면 평소대로 전체 검사합니다. `--no-verify` 수동 우회 대신 이 자동 판정을 사용합니다.
-- 하네스 seed-mode 확인 후 `.harness/bin/harness check`를 실행합니다. npm 프로젝트의 `npm run harness:check`와 같은 검사이며, package.json 없는 비-Node 프로젝트(PHP/Java/Swift/Kotlin)에서도 hook이 동작하도록 npm을 경유하지 않습니다.
+- 하네스 seed-mode 확인 후 `.harness/bin/harness check`를 실행합니다. npm 프로젝트의 `.harness/bin/harness check`와 같은 검사이며, package.json 없는 비-Node 프로젝트(PHP/Java/Swift/Kotlin)에서도 hook이 동작하도록 npm을 경유하지 않습니다.
 - 이 단계는 전체 검증에 가깝기 때문에 사용자의 완료 승인 없이 에이전트가 임의로 유도하지 않습니다.
 - 에이전트는 pre-commit hook이 설치된 프로젝트에서 `커밋해줘` 요청을 받으면 중복 방지를 위해 commit 전 수동 검증을 생략합니다.
 

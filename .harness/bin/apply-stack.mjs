@@ -609,7 +609,7 @@ function renderStackLocalRules(stackId, manifest, manifestRoot) {
     `- framework: ${manifest.framework ? Object.values(manifest.framework).join(' / ') : 'TBD'}`,
     `- designPattern: ${(manifest.designPattern ?? []).join(' + ') || 'TBD'}`,
     '',
-    '이 섹션은 `npm run stack:apply`가 생성한 로컬 규칙입니다. 공통 하네스의 전역 강제가 아니라, 이 프로젝트가 선택한 스택 기준으로 해석합니다.',
+    '이 섹션은 `.harness/bin/harness stack:apply`가 생성한 로컬 규칙입니다. 공통 하네스의 전역 강제가 아니라, 이 프로젝트가 선택한 스택 기준으로 해석합니다.',
   ]
 
   for (const instructionRel of manifest.instructions ?? []) {
@@ -668,7 +668,7 @@ function renderTemplateContract(templateId, manifest, templateSnapshot) {
     lines.push('')
     lines.push('### 계약 갭 검사')
     lines.push(`- 선언된 검사: ${manifest.contractChecks.length}개`)
-    lines.push('- 현재 프로젝트 비교: `npm run template:gap`')
+    lines.push('- 현재 프로젝트 비교: `.harness/bin/harness template:gap`')
     lines.push('- 상세 리포트: `.harness/session/template-gap-report.md`')
   }
 
@@ -895,7 +895,7 @@ function commandStatus() {
     console.log(`  copiedFiles: ${copiedCount}`)
     if (sourceType === 'none') {
       console.log('  reason: 이 스택은 프로젝트 기준 문서만 적용하고 scaffold 파일은 복사하지 않습니다.')
-      console.log('  templateHint: scaffold가 필요하면 npm run templates:list')
+      console.log('  templateHint: scaffold가 필요하면 .harness/bin/harness templates:list')
     }
 
     if (profile.activeStack !== marker.stackId) {
@@ -953,7 +953,7 @@ function commandApplyTemplate(templateId, manifest, context, profile) {
   const existing = readTemplateMarker()
 
   if (existing) {
-    console.error(`이미 템플릿 계약이 연결되어 있습니다 (templateId=${existing.templateId}). 먼저 npm run template:reset 실행 후 다시 시도하세요.`)
+    console.error(`이미 템플릿 계약이 연결되어 있습니다 (templateId=${existing.templateId}). 먼저 .harness/bin/harness template:reset 실행 후 다시 시도하세요.`)
     process.exit(1)
   }
 
@@ -1023,7 +1023,7 @@ function commandApplyTemplate(templateId, manifest, context, profile) {
   console.log(`     ${scaffoldTemplate.guidePath ?? scaffoldTemplate.guideRoot ?? '템플릿 README'}`)
   console.log(`  2. ${templateContractRel} 확인`)
   if (!isContractOnly) console.log('  3. npm install')
-  console.log(`  ${isContractOnly ? '3' : '4'}. npm run harness:check`)
+  console.log(`  ${isContractOnly ? '3' : '4'}. .harness/bin/harness check`)
 }
 
 function commandApply() {
@@ -1033,7 +1033,7 @@ function commandApply() {
 
   if ((!stackId || stackId === 'none') && !hasExternalPresetInput) {
     console.error(`activeStack이 설정되지 않았습니다. ${toPosix(path.relative(repoRoot, profilePath))}의 activeStack을 먼저 지정하세요.`)
-    console.error('외부 스택 기준을 바로 적용하려면 npm run stack:apply -- --preset-path <dir> 또는 --preset-git <repo-url> --ref <tag>를 사용하세요.')
+    console.error('외부 스택 기준을 바로 적용하려면 .harness/bin/harness stack:apply --preset-path <dir> 또는 --preset-git <repo-url> --ref <tag>를 사용하세요.')
     process.exit(1)
   }
 
@@ -1061,7 +1061,7 @@ function commandApply() {
   const existing = readMarker()
 
   if (existing) {
-    console.error(`이미 스택이 적용되어 있습니다 (stackId=${existing.stackId}). 먼저 npm run stack:reset 실행 후 다시 시도하세요.`)
+    console.error(`이미 스택이 적용되어 있습니다 (stackId=${existing.stackId}). 먼저 .harness/bin/harness stack:reset 실행 후 다시 시도하세요.`)
     process.exit(1)
   }
 
@@ -1108,7 +1108,7 @@ function commandApply() {
     console.log('  복사하지 않는 것:')
     console.log('  - 업무 코드 scaffold 파일')
     console.log('  - UI, API, 상태, batch 등 스택별 예제 파일')
-    console.log('  scaffold 템플릿이 필요하면: npm run templates:list')
+    console.log('  scaffold 템플릿이 필요하면: .harness/bin/harness templates:list')
     console.log('')
   }
   console.log(`stackManifest: ${stackSnapshot.manifestPath}`)
@@ -1119,10 +1119,10 @@ function commandApply() {
     console.log('다음 단계:')
     if (sourceType !== 'none') {
       console.log('  1. npm install')
-      console.log('  2. npm run harness:check')
+      console.log('  2. .harness/bin/harness check')
     } else {
       console.log('  1. .harness/project/stack-preset-rules.md 확인')
-      console.log('  2. npm run harness:check')
+      console.log('  2. .harness/bin/harness check')
     }
   }
 }

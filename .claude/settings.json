@@ -21,7 +21,12 @@
       "Bash(npm run harness:handoff*)",
       "Bash(npm run harness:check*)",
       "Bash(npm run harness:impact*)",
-      "Bash(npm run stack:status*)"
+      "Bash(npm run stack:status*)",
+      "Bash(.harness/bin/harness scan*)",
+      "Bash(.harness/bin/harness handoff*)",
+      "Bash(.harness/bin/harness check*)",
+      "Bash(.harness/bin/harness impact*)",
+      "Bash(.harness/bin/harness stack:status*)"
     ],
     "deny": [
       "Bash(rm -rf /*)",

@@ -73,7 +73,9 @@ exit /b 0
 
 :usage_body
 echo Usage: harness ^<command^> [args...]
-echo   Runs harness without npm. With package.json, `npm run harness:*` behaves the same.
+echo   Standard entry point for harness commands. Legacy `npm run harness:*` aliases
+echo   from older installs still work (add-only contract), but new installs do not
+echo   inject them, so this launcher is the only guaranteed entry point.
 echo.
 echo Commands:
 echo   check [--strict^|--fast]    integrated check       (npm run harness:check)

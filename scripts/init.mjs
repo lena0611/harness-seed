@@ -81,6 +81,10 @@ const LEGACY_MANAGED_ROOT_SCRIPTS = [
 const PROJECT_OWNED_PATHS = new Set([
   '.harness/policy/profile.json',
   '.harness/policy/waivers.json',
+  // 프로젝트 문서 등록 지점(0.2.131, score-print 수용). managed registry는 본체 골격만 담고,
+  // 프로젝트가 만든 문서는 이 파일에 등록한다 — 업데이트가 덮지 않으므로 매 업데이트마다
+  // resync→재등록 한 바퀴가 필요 없어진다.
+  '.harness/documentation/document-registry.local.json',
   '.harness/project/project-charter.md',
   '.harness/project/scope-contract.md',
   '.harness/project/config-contract.md',
@@ -142,15 +146,19 @@ function isSessionHistoryLog(rel) {
   return SESSION_HISTORY_LOG_PATTERN.test(rel);
 }
 
-const CONSUMER_SCRIPT_NAMES = [
+// 0.2.131: 주입 별칭 0개 — 하네스는 package.json에 쓰지 않는다(은퇴 별칭 감지를 위해 읽기만 한다).
+// 모든 명령은 .harness/bin/harness 런처. 기존 소비자에 남은 별칭은 add-only 계약으로 삭제하지 않으며
+// 계속 동작한다.
+const RETIRED_CONSUMER_SCRIPTS = [
+  'harness:check',
+  'harness:impact',
+  'harness:context',
+  'hooks:install',
   'harness:guide',
   'harness:scan',
   'harness:handoff',
-  'harness:impact',
-  'harness:check',
   'harness:check:strict',
   'harness:sync',
-  'harness:context',
   'harness:spec:fetch',
   'harness:spec:status',
   'harness:spec:settle',
@@ -158,17 +166,24 @@ const CONSUMER_SCRIPT_NAMES = [
   'harness:update',
   'harness:changelog',
   'harness:uninstall',
-  'hooks:install',
   'standards:list',
   'templates:list',
-  'stack:status',
   'stack:apply',
   'stack:reset',
-  'template:status',
+  'stack:status',
   'template:apply',
   'template:reset',
+  'template:status',
   'template:gap',
 ];
+
+const RETIRED_SCRIPTS_NOTICE_SUFFIX =
+  ' — **계속 동작합니다**. 정리는 선택이며 다음 릴리스에서 도구를 제공합니다.';
+
+function renderRetiredScriptsNotice(retired) {
+  if (!retired || retired.length === 0) return null;
+  return `은퇴한 하네스 npm 별칭 ${retired.length}개가 package.json에 남아 있습니다${RETIRED_SCRIPTS_NOTICE_SUFFIX}`;
+}
 
 function parseNodeVersion(version) {
   const parts = version.split('.').map((part) => Number(part));
@@ -495,9 +510,9 @@ Options:
   --no-scan              설치 후 프로젝트 스캔 리포트를 자동 생성하지 않습니다.
   --no-handoff           설치/업데이트 인수인계 요약을 자동 생성하지 않습니다.
   --no-check             설치 후 하네스 기본 검사를 자동 실행하지 않습니다.
+  --no-hooks             최초 설치 시 git hook 자동 활성화를 건너뜁니다. (업데이트는 원래 재배선하지 않습니다)
   --embedded             스택 하네스 설치 흐름 내부에서 호출될 때 중간 안내를 줄입니다.
   --verbose              설치 내부 명령과 진단 출력을 자세히 표시합니다.
-  --with-package-json    package.json이 없을 때도 새로 만들어 harness npm 별칭을 주입합니다(기본은 비-Node 프로젝트로 보고 생성하지 않음).
   --project-node <ver>   .nvmrc가 없을 때 프로젝트 Node 버전을 사용자 확인 기반으로 .nvmrc에 기록합니다(예: 12, 12.18.4).
                          20.19 미만 버전은 dual-runtime 모드(하네스 Node와 프로젝트 Node 분리)로 동작합니다.
   --from-git <repo-url>  동봉본 대신 git 저장소에서 소스를 가져옵니다.
@@ -522,9 +537,9 @@ function parseArgs(argv) {
     noScan: false,
     noHandoff: false,
     noCheck: false,
+    noHooks: false,
     embedded: false,
     verbose: false,
-    withPackageJson: false,
     projectNode: null,
     fromGit: null,
     ref: 'main',
@@ -566,14 +581,14 @@ function parseArgs(argv) {
       case '--no-check':
         opts.noCheck = true;
         break;
+      case '--no-hooks':
+        opts.noHooks = true;
+        break;
       case '--embedded':
         opts.embedded = true;
         break;
       case '--verbose':
         opts.verbose = true;
-        break;
-      case '--with-package-json':
-        opts.withPackageJson = true;
         break;
       case '--project-node': {
         const version = args[++i];
@@ -717,6 +732,9 @@ function shouldIncludeInstallFile(relPath) {
     rel.startsWith('.harness/generated/') ||
     rel.startsWith('.harness/stacks/.applied/') ||
     rel.startsWith('.harness/templates/.applied/') ||
+    // 에이전트 세션이 만드는 격리 워크트리는 본체 저장소 상태다. 로컬 체크아웃에서
+    // 설치/테스트할 때 딸려 나가 소비자 쪽 .claude/** 정책(visible-trace)을 오발시킨다.
+    rel.startsWith('.claude/worktrees/') ||
     CONSUMER_PROJECT_STATE_PATHS.includes(rel) ||
     [
       '.harness/session/project-scan-report.md',
@@ -1165,8 +1183,8 @@ function consumerProjectStateTemplate(rel, context) {
 ## 확인할 일
 - 에이전트는 사용자가 "하네스"를 언급하지 않아도 루트의 \`.harness/\`를 감지하면 하네스 작업 프로토콜을 적용해야 합니다.
 - \`.harness/project/project-charter.md\`의 TBD 항목을 프로젝트 상황에 맞게 채웁니다.
-- 큰 작업이나 낯선 영역이면 에이전트가 \`npm run harness:context -- "<작업 설명>"\`으로 판단 컨텍스트를 만듭니다.
-- 작업 후 \`npm run harness:check\`로 기준, 링크, 검증 상태를 확인합니다.
+- 큰 작업이나 낯선 영역이면 에이전트가 \`.harness/bin/harness context "<작업 설명>"\`으로 판단 컨텍스트를 만듭니다.
+- 작업 후 \`.harness/bin/harness check\`로 기준, 링크, 검증 상태를 확인합니다.
 
 ## 슬림 유지 원칙
 - 이 문서는 프로젝트 고정 사실, 최신 작업 상태, 다음 핸드오프만 짧게 남깁니다.
@@ -1264,8 +1282,8 @@ function consumerProjectStateTemplate(rel, context) {
 
 ## 다음 작업
 - 프로젝트 헌장 TBD 항목을 확인합니다.
-- 이번 작업 설명이 있으면 \`npm run harness:context -- "<작업 설명>"\`으로 읽을 기준을 좁힙니다.
-- 작업 후 \`npm run harness:check\`를 실행합니다.
+- 이번 작업 설명이 있으면 \`.harness/bin/harness context "<작업 설명>"\`으로 읽을 기준을 좁힙니다.
+- 작업 후 \`.harness/bin/harness check\`를 실행합니다.
 
 ## 슬림 유지 원칙
 - 이 문서는 부트스트랩 체크리스트와 다음 세션 미결 항목만 남깁니다.
@@ -1393,44 +1411,54 @@ function renderNodeStep(target = TARGET) {
        Node 버전 적용 단계는 건너뜁니다. Node 계약을 정하려면 .nvmrc를 추가하거나 init --project-node <version>을 사용하세요.`;
 }
 
-function renderHookStep(target = TARGET, index = 7) {
+function renderHookStep(target = TARGET, index = 7, hooksResult = 'skipped') {
+  if (hooksResult === 'ok') {
+    return `  ${index}) git hook 활성화 — 이번 설치에서 자동으로 완료됨 (이 clone 기준)
+       사용자가 승인한 git commit/push 전에 .harness/bin/harness check가 자동 실행됩니다.
+       훅 설정은 clone으로 공유되지 않으므로, 새로 clone한 팀원은 각자 1회 .harness/bin/harness hooks:install이 필요합니다.
+       npm 프로젝트는 package.json의 prepare(또는 husky 공존 시 postprepare)에 걸어 자동화할 수 있습니다 — .harness/project/hook-coexistence.md 참고.`;
+  }
+
   if (isGitRepository(target)) {
     return `  ${index}) git hook 활성화
-       npm run hooks:install
-       이후 사용자가 승인한 git commit/push 전에 npm run harness:check가 자동 실행됩니다.`;
+       .harness/bin/harness hooks:install
+       이후 사용자가 승인한 git commit/push 전에 .harness/bin/harness check가 자동 실행됩니다.`;
   }
 
   return `  ${index}) git hook 활성화
-       현재 git 저장소가 아니므로 건너뜁니다. 필요하면 git init 후 npm run hooks:install을 실행하세요.`;
+       현재 git 저장소가 아니므로 건너뜁니다. 필요하면 git init 후 .harness/bin/harness hooks:install을 실행하세요.`;
 }
 
 function printConsumerCommandGuide(target = TARGET) {
   const hookGuide = isGitRepository(target)
     ? `  - git commit/push 전 자동 검증 연결
-       npm run hooks:install`
+       .harness/bin/harness hooks:install`
     : `  - git hook 연결
-       현재 git 저장소가 아니면 먼저 git init 후 npm run hooks:install`
+       현재 git 저장소가 아니면 먼저 git init 후 .harness/bin/harness hooks:install`
 
   console.log(`
 ::: 소비자 명령 빠른 안내 :::
-  - 현재 상태 가이드 열기
-       npm run harness:guide -- --open
-  - 프로젝트 구조와 로컬룰 후보 다시 스캔
-       npm run harness:scan
-  - 설치/업데이트 후 인수인계 요약 다시 생성
-       npm run harness:handoff
+  (npm 별칭은 주입하지 않습니다. 모든 명령은 .harness/bin/harness 런처로 실행하세요. --help로 전체 목록을 봅니다.)
   - 큰 작업 전 읽을 문서와 스킬 좁히기
-       npm run harness:context -- "<작업 설명>"
+       .harness/bin/harness context "<작업 설명>"
+  - 정책 영향 범위 확인
+       .harness/bin/harness impact
   - 작업 완료 전 검증
-       npm run harness:check
+       .harness/bin/harness check
+  - 현재 상태 가이드 열기
+       .harness/bin/harness guide --open
+  - 프로젝트 구조와 로컬룰 후보 다시 스캔
+       .harness/bin/harness scan
+  - 설치/업데이트 후 인수인계 요약 다시 생성
+       .harness/bin/harness handoff
   - 업데이트 후보 확인 및 적용
-       npm run harness:outdated
-       npm run harness:update
+       .harness/bin/harness outdated
+       .harness/bin/harness update
   - 마지막 업데이트로 바뀐 공통 하네스 변경 내역 다시 보기
-       npm run harness:changelog
+       .harness/bin/harness changelog
   - 설치 제거 계획 확인 및 제거
-       npm run harness:uninstall
-       npm run harness:uninstall -- --confirm
+       .harness/bin/harness uninstall
+       .harness/bin/harness uninstall --confirm
 ${hookGuide}
 `);
 }
@@ -1667,65 +1695,21 @@ function readJson(absPath, fallback) {
   }
 }
 
-function mergePackageJson(sourceRoot, target, opts) {
+// 0.2.131: 주입 별칭 0개. package.json에는 아무것도 쓰지 않는다 — 이미 있으면 읽어서
+// 은퇴 별칭(RETIRED_CONSUMER_SCRIPTS) 잔존 여부만 감지해 정리 안내에 쓴다(add-only 계약,
+// 기존 소비자 파일은 삭제하지 않는다). package.json이 없으면 비-Node 프로젝트로 보고
+// 생성하지 않는다.
+function mergePackageJson(target) {
   const pkgPath = join(target, 'package.json');
-  const exists = existsSync(pkgPath);
-
-  // P1(2026-06-09): package.json을 새로 만들지 않는다. 핵심 규칙은 "감지"가 아니라 "존재"다.
-  // 이미 있을 때만 harness npm 별칭을 머지하고, 없으면 비-Node 프로젝트로 보고 조용히 스킵한다
-  // (package.json 부재 자체가 신호 — 백엔드 매니페스트 감지 없이도 성립, 오탐 없음).
-  // 드문 greenfield Node 케이스는 --with-package-json opt-in으로만 새로 생성한다.
-  // 기존 소비자는 package.json이 이미 있어 동일 경로를 타므로 거동이 바뀌지 않는다.
-  if (!exists && !opts.withPackageJson) {
-    return { added: 0, skipped: [], created: false, skippedCreation: true };
+  if (!existsSync(pkgPath)) {
+    return { retired: [], skippedCreation: true };
   }
 
-  let userPkg;
-  let created = false;
+  const userPkg = readJson(pkgPath, {});
+  const scripts = userPkg.scripts || {};
+  const retired = RETIRED_CONSUMER_SCRIPTS.filter((name) => scripts[name] !== undefined);
 
-  if (!exists) {
-    created = true;
-    userPkg = { name: 'my-project', private: true, type: 'module', scripts: {} };
-  } else {
-    userPkg = readJson(pkgPath, {});
-  }
-
-  const seedPkg = readJson(join(sourceRoot, 'package.json'), { scripts: {} });
-  const before = JSON.stringify(userPkg, null, 2);
-  userPkg.scripts = userPkg.scripts || {};
-
-  let added = 0;
-  const skipped = [];
-  for (const [key, value] of Object.entries(buildConsumerScripts(seedPkg.scripts || {}))) {
-    if (userPkg.scripts[key] !== undefined) {
-      if (userPkg.scripts[key] !== value) skipped.push(key);
-      continue;
-    }
-    userPkg.scripts[key] = value;
-    added++;
-  }
-
-  const after = JSON.stringify(userPkg, null, 2);
-  if (!opts.dryRun && (created || before !== after)) {
-    writeFileSync(pkgPath, `${after}\n`);
-  }
-
-  return { added, skipped, created, skippedCreation: false };
-}
-
-function buildConsumerScripts(seedScripts) {
-  const scripts = {};
-
-  for (const name of CONSUMER_SCRIPT_NAMES) {
-    if (!seedScripts[name]) continue;
-
-    scripts[name] = seedScripts[name].replace(
-      /^npm run node:check --silent && /,
-      'node .harness/bin/check-node-version.mjs && ',
-    );
-  }
-
-  return scripts;
+  return { retired, skippedCreation: false };
 }
 
 // 소비자가 이미 .claude/settings.json을 갖고 있으면 그 파일은 project-owned로 보존된다.
@@ -1815,7 +1799,6 @@ function mergeClaudeSettings(sourceRoot, target, opts) {
 function mergeGitignore(target, opts) {
   const gitignorePath = join(target, '.gitignore');
   // P5(2026-06-09): node_modules/dist는 Node 프로젝트 전용 항목이므로 package.json이 있을 때만 주입한다.
-  // (mergePackageJson이 먼저 실행되므로 --with-package-json 생성분도 여기서 감지된다.)
   // 비-Node 프로젝트(PHP/Java 등)의 .gitignore를 프론트 항목으로 오염시키지 않는다.
   const isNodeProject = existsSync(join(target, 'package.json'));
   const entries = [
@@ -2176,12 +2159,25 @@ function runPostInstallStep(target, title, commandArgs, opts) {
   return false;
 }
 
-function runPostInstallDiagnostics(target, opts) {
+function runPostInstallDiagnostics(target, opts, { freshInstall = false } = {}) {
   if (opts.dryRun) {
-    return { scan: 'skipped', handoff: 'skipped', check: 'skipped' };
+    return { hooks: 'skipped', scan: 'skipped', handoff: 'skipped', check: 'skipped' };
   }
 
-  const result = { scan: 'skipped', handoff: 'skipped', check: 'skipped' };
+  const result = { hooks: 'skipped', scan: 'skipped', handoff: 'skipped', check: 'skipped' };
+
+  // 최초 설치에만 git hook을 자동 활성화한다(결정 94): 하네스 설치가 곧 관문 동의이고,
+  // "설치했는데 관문이 꺼진 상태"가 기본값이면 안내를 흘린 프로젝트가 무방비가 된다.
+  // 업데이트는 재배선하지 않는다 — 기존 clone이 내린 선택(훅 미사용 포함)을 존중한다.
+  // hooks:install은 멱등이고 uninstall이 설치 전 상태로 복원한다.
+  if (freshInstall && !opts.noHooks && isGitRepository(target)) {
+    result.hooks = runPostInstallStep(
+      target,
+      'git hook 활성화 (이 clone 기준 — 새로 clone한 팀원은 각자 1회 필요)',
+      [process.execPath, '.harness/bin/install-hooks.mjs'],
+      opts,
+    ) ? 'ok' : 'failed';
+  }
 
   if (!opts.noScan) {
     result.scan = runPostInstallStep(
@@ -2311,7 +2307,7 @@ function main() {
     const workHistoryYear = ensureCurrentWorkHistoryYear(TARGET, opts);
     const migration = removeLegacyManagedRootScripts(TARGET, legacyManagedRootScripts, opts);
     const seedOnlyCleanup = removeSeedOnlyDocs(TARGET, recognizedManifest, opts);
-    const pkg = mergePackageJson(sourceRoot, TARGET, opts);
+    const pkg = mergePackageJson(TARGET);
     const claudeSettings = mergeClaudeSettings(sourceRoot, TARGET, opts);
     const gitignoreAdded = mergeGitignore(TARGET, opts);
     const eslintPatch = patchEslintConfigForHarness(TARGET, opts);
@@ -2320,7 +2316,7 @@ function main() {
     const writtenManifest = writeInstallManifest(sourceRoot, TARGET, files, installed.copiedFiles, opts, recognizedManifest);
     const lockResult = writtenManifest ? writeHarnessLock(sourceRoot, TARGET, writtenManifest, opts) : null;
     const writtenLock = lockResult?.lock ?? null;
-    const diagnostics = runPostInstallDiagnostics(TARGET, opts);
+    const diagnostics = runPostInstallDiagnostics(TARGET, opts, { freshInstall: !recognizedManifest });
     const existingAiRuleCandidates = readExistingAiRuleCandidates(TARGET);
     const harnessEffectSummary = readHarnessEffectSummary(TARGET);
     const developerWorkflowChanges = readDeveloperWorkflowChanges(TARGET);
@@ -2332,12 +2328,11 @@ function main() {
         `project state: ${opts.dryRun ? `${projectState.planned}개 생성/교체 예정` : `${projectState.added}개 추가, ${projectState.updated}개 교체, ${projectState.preserved}개 보존`}`,
       );
       if (pkg.skippedCreation) {
-        console.log('package.json: 없음 → 생성하지 않음 (비-Node 프로젝트로 간주). 강제로 만들려면 --with-package-json');
+        console.log('package.json: 없음 → 생성하지 않음 (비-Node 프로젝트로 간주). 하네스 명령은 .harness/bin/harness 런처를 사용합니다.');
       } else {
-        console.log(
-          `package.json: ${pkg.created ? '신규 생성, ' : ''}scripts ${pkg.added}개 추가` +
-            (pkg.skipped.length ? `, 기존 scripts 보존 ${pkg.skipped.length}개 (${pkg.skipped.join(', ')})` : ''),
-        );
+        console.log('package.json: 주입 별칭 없음 (모든 하네스 명령은 .harness/bin/harness 런처)');
+        const retiredNotice = renderRetiredScriptsNotice(pkg.retired);
+        if (retiredNotice) console.log(`package.json: ${retiredNotice}`);
       }
       console.log(`.gitignore: harness entry ${gitignoreAdded}개 추가`);
       if (claudeSettings.skipped === 'parse-error') {
@@ -2355,6 +2350,7 @@ function main() {
       console.log(`work history: ${workHistoryYear.rel}${workHistoryYear.created ? ' 생성' : ' 준비됨'}`);
       console.log(`install manifest: ${opts.dryRun ? 'dry-run' : `${Object.keys(writtenManifest.managedFiles).length}개 managed file 기록`}`);
       console.log(`harness lock: ${opts.dryRun ? 'dry-run' : `${writtenLock.baseHarness.version} (${writtenLock.baseHarness.ref ?? writtenLock.baseHarness.source.type})`}`);
+      console.log(`hooks: ${diagnostics.hooks}`);
       console.log(`scan: ${diagnostics.scan}`);
       console.log(`handoff: ${diagnostics.handoff}`);
       console.log(`check: ${diagnostics.check}`);
@@ -2366,6 +2362,9 @@ function main() {
       console.log(`  - 프로젝트 상태 문서: ${projectState.added}개 준비, ${projectState.updated}개 갱신, ${projectState.preserved}개 보존`);
       if (pkg.skippedCreation) {
         console.log('  - package.json: 없음 → 생성하지 않음. 비-Node 프로젝트는 .harness/bin/harness 명령을 사용합니다.');
+      } else {
+        const retiredNotice = renderRetiredScriptsNotice(pkg.retired);
+        if (retiredNotice) console.log(`  - ${retiredNotice}`);
       }
       if (['updated', 'partial', 'manual'].includes(eslintPatch.status)) {
         console.log(`  - eslint config: ${eslintPatch.message}`);
@@ -2378,6 +2377,11 @@ function main() {
       }
       if (migration.removed > 0) {
         console.log(`  - legacy root scripts: ${migration.removed}개 제거`);
+      }
+      if (diagnostics.hooks === 'ok') {
+        console.log('  - git hook을 활성화했습니다 (이 clone 기준). 새로 clone한 팀원은 각자 1회 .harness/bin/harness hooks:install이 필요합니다.');
+      } else if (diagnostics.hooks === 'failed') {
+        console.log('  - git hook 자동 활성화에 실패했습니다. .harness/bin/harness hooks:install로 직접 실행해 원인을 확인하세요.');
       }
       console.log(`  - 프로젝트 스캔 리포트와 인수인계 요약을 생성했습니다. (scan ${diagnostics.scan}, handoff ${diagnostics.handoff})`);
       console.log(`  - 하네스 기준 검사를 실행했습니다. (check ${diagnostics.check})`);
@@ -2414,7 +2418,7 @@ function main() {
         }
       }
       console.log('');
-      console.log('이 내역은 나중에 npm run harness:changelog 로 다시 볼 수 있습니다.');
+      console.log('이 내역은 나중에 .harness/bin/harness changelog 로 다시 볼 수 있습니다.');
     }
 
     if (installed.skippedFiles.length > 0) {
@@ -2449,7 +2453,7 @@ function main() {
       console.log('그대로 두면 이번 업데이트뿐 아니라 앞으로의 모든 업데이트에서도 계속 제외됩니다.');
       console.log('가장 흔한 원인은 lint/formatter가 .harness/를 대상에 포함하는 것입니다.');
       console.log('  1) lint·formatter 설정에서 .harness/**를 제외하세요(eslint globalIgnores, .oxlintrc.json ignorePatterns, .prettierignore).');
-      console.log('  2) 그다음 원본으로 되돌리세요: npm run harness:update -- --resync-managed');
+      console.log('  2) 그다음 원본으로 되돌리세요: .harness/bin/harness update --resync-managed');
       console.log('     (managed 파일만 되돌립니다. spec-map.md·profile.json 같은 프로젝트 소유 파일은 건드리지 않습니다.)');
     }
 
@@ -2559,7 +2563,7 @@ function main() {
         console.log(`  - ${rel}`);
       }
       console.log('기존 개인/전용 룰을 보존했기 때문에, 위 파일에 .harness 읽기 순서를 연결할지 검토하세요.');
-      console.log('기준 계층과 충돌 후보는 npm run harness:scan 결과를 확인하세요.');
+      console.log('기준 계층과 충돌 후보는 .harness/bin/harness scan 결과를 확인하세요.');
     }
 
     if (pkg.skippedCreation) {
@@ -2594,33 +2598,33 @@ function main() {
   - 설치 버전: 공통 하네스 v${writtenLock?.baseHarness?.version ?? sourcePkg.version ?? 'dry-run'}
   - 설치/갱신된 하네스 관리 파일: ${installed.added + installed.updated}개
   - 보존된 프로젝트 소유/로컬 수정 파일: ${installed.skipped + projectState.preserved}개
-  - package.json에 연결된 하네스 명령: ${pkg.added}개 추가${pkg.skipped.length ? `, 기존 명령 ${pkg.skipped.length}개 보존` : ''}
+  - package.json 주입 별칭: 0개 (모든 하네스 명령은 .harness/bin/harness 런처)${renderRetiredScriptsNotice(pkg.retired) ? `\n  - ${renderRetiredScriptsNotice(pkg.retired)}` : ''}
   - 스택 기준은 나중에 추가할 수 있습니다.
   - 단순 운영 건이면 지금 상태로 작업을 시작해도 됩니다.
 
 ::: 다음 단계 :::
 ${renderNodeStep(TARGET)}
   1) 현재 상태를 브라우저로 확인
-       npm run harness:guide -- --open
+       .harness/bin/harness guide --open
   2) 자동 생성된 프로젝트 스캔/인수인계 확인
        .harness/session/project-scan-report.md
        .harness/session/handoff.md
   3) 필요하면 현재 프로젝트에 맞는 스택 기준 확인
-       npm run standards:list
-       npm run stack:status
+       .harness/bin/harness standards:list
+       .harness/bin/harness stack:status
   4) 맞는 스택 기준이 있으면 해당 스택 하네스의 init 명령을 실행
        예: npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init
   5) 팀 기준으로 남길 판단이 생기면 기록
        .harness/session/decision-log.md
        또는 판단이 필요하면 .harness/session/developer-input-queue.md
   6) 필요하면 scaffold 템플릿 후보 조회 후 적용
-       npm run templates:list
-       npm run template:apply -- --preset-git <repo-url> --ref <tag-or-branch>
-${renderHookStep(TARGET, 7)}
+       .harness/bin/harness templates:list
+       .harness/bin/harness template:apply --preset-git <repo-url> --ref <tag-or-branch>
+${renderHookStep(TARGET, 7, diagnostics.hooks)}
   8) 작업 완료 전 검증
-       npm run harness:check
+       .harness/bin/harness check
   9) 설치를 되돌려야 하면 먼저 제거 계획 확인
-       npm run harness:uninstall
+       .harness/bin/harness uninstall
 
 ::: 문서 :::
   - CLAUDE.md

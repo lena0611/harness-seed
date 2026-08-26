@@ -9,6 +9,11 @@ const repoRoot = path.resolve(__dirname, '..', '..')
 const harnessRootRel = fs.existsSync(path.join(repoRoot, '.harness')) ? '.harness' : '.github'
 const harnessRoot = path.join(repoRoot, harnessRootRel)
 const registryPath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'documentation' : 'documentation-harness', 'document-registry.json')
+// 프로젝트 소유 등록 지점(0.2.131, score-print 수용). managed registry를 편집하면 drift로
+// 업데이트에서 제외되고, 등록하지 않으면 orphan — 그 "출구 없는 두 규칙"의 출구다.
+// 형식: { "children": ["경로", ...] } — 프로젝트가 만든 파일이므로 부재가 정상이고, 등록 경로가
+// 실재하지 않으면 main registry와 동일하게 missing으로 잡힌다(오타 fail-loud).
+const localRegistryPath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'documentation' : 'documentation-harness', 'document-registry.local.json')
 const profilePath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'policy' : 'policy-harness', 'profile.json')
 const stacksRel = harnessRootRel === '.harness' ? '.harness/stacks' : '.github/stacks'
 const stacksRoot = path.join(repoRoot, stacksRel)
@@ -88,6 +93,8 @@ const dynamicArtifactPaths = new Set([
   // 이슈 어댑터 실물(결정 82): 프로젝트가 견본을 복사해 만드는 켬 스위치 — 존재가 정상이고
   // registry에는 견본만 등록된다. 본체 자신도 실물을 가진다(관문 이슈 조회).
   '.harness/project/issue-adapter.md',
+  // 프로젝트 문서 등록 지점(0.2.131): 프로젝트가 필요할 때 만드는 파일이라 부재가 정상이다.
+  '.harness/documentation/document-registry.local.json',
   // npx init 진입점은 사용자 프로젝트에 복사하지 않는다. 시드 결정 로그의
   // 역사적 참조는 사용자 프로젝트에서도 broken reference로 취급하지 않는다.
   'scripts/init.mjs',
@@ -187,11 +194,17 @@ function listMarkdownFiles() {
 }
 
 function readRegistry() {
-  if (!fs.existsSync(registryPath)) {
-    return { groups: [] }
+  const registry = fs.existsSync(registryPath)
+    ? JSON.parse(fs.readFileSync(registryPath, 'utf8'))
+    : { groups: [] }
+
+  if (fs.existsSync(localRegistryPath)) {
+    const local = JSON.parse(fs.readFileSync(localRegistryPath, 'utf8'))
+    const children = Array.isArray(local.children) ? local.children : []
+    registry.groups = [...(registry.groups ?? []), { id: 'project-local', children }]
   }
 
-  return JSON.parse(fs.readFileSync(registryPath, 'utf8'))
+  return registry
 }
 
 function collectRegisteredFiles(registry) {
@@ -479,7 +492,7 @@ export function findSpecLinkInconsistencies() {
   issues.push(...findDeclarationLockIssues(state.sources, state.lock).map((message) => (
     message.includes('선언(spec-sources.json)에서 사라졌습니다')
       ? `${message} spec-lock.json에서 해당 항목을 제거하거나 선언을 복원하세요.`
-      : `${message} 확인 후 npm run harness:spec:fetch -- --move-baseline --source <id> 로 기준을 재생성하세요.`
+      : `${message} 확인 후 .harness/bin/harness spec:fetch --move-baseline --source <id> 로 기준을 재생성하세요.`
   )))
 
   for (const collision of state.collisions) {
@@ -504,7 +517,7 @@ export function findSpecLinkInconsistencies() {
   // 그 상태를 "아직 기준이 없는 초기"로 오인했다(4차 리뷰 P1-3). 매핑 행이 있는데 기준이 비었으면
   // 그 자체가 정합 오류다.
   if (state.entries.length > 0 && lockFiles.size === 0 && state.lock.exists) {
-    issues.push('spec-lock.json에 기준 문서가 하나도 없는데 spec-map에는 매핑 행이 있습니다 — 기준이 비면 매핑된 문서가 어떤 검사도 받지 않습니다. npm run harness:spec:fetch -- --move-baseline 로 기준을 재생성하세요.')
+    issues.push('spec-lock.json에 기준 문서가 하나도 없는데 spec-map에는 매핑 행이 있습니다 — 기준이 비면 매핑된 문서가 어떤 검사도 받지 않습니다. .harness/bin/harness spec:fetch --move-baseline 로 기준을 재생성하세요.')
   }
 
   for (const entry of state.entries) {

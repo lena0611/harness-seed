@@ -85,7 +85,7 @@
 
 ### 11. 검증
 - 문서만 바뀌어도 필요한 guard가 있으면 실행합니다.
-- 현재 저장소에선 보통 `npm run harness:check`를 통합 검사 진입점으로 사용합니다.
+- 현재 저장소에선 보통 `.harness/bin/harness check`를 통합 검사 진입점으로 사용합니다.
 
 ### 12. 기록/인계
 - 다음 세션이 이어받아야 하면 `active-context.md`, `decision-log.md`를 갱신합니다.

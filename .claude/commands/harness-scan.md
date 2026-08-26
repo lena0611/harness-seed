@@ -9,8 +9,8 @@ allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 
 ## 0. 사전 점검
 1. `CLAUDE.md`를 읽고 지정된 순서의 `.harness/` 문서를 확인합니다.
-2. `npm run harness:impact`를 실행해 현재 변경 영향 범위를 봅니다.
-3. `npm run harness:scan`을 실행해 `.harness/session/project-scan-report.md`를 생성합니다.
+2. `.harness/bin/harness impact`를 실행해 현재 변경 영향 범위를 봅니다.
+3. `.harness/bin/harness scan`을 실행해 `.harness/session/project-scan-report.md`를 생성합니다.
 4. `.harness/project/project-charter.md`가 비어 있으면 `.harness/project/bootstrap.md`의 인터뷰 절차를 먼저 수행합니다.
 
 ## 1. 프로젝트 구조 조사
@@ -51,7 +51,7 @@ allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 마지막에 다음을 실행하고 결과를 보고합니다.
 
 ```bash
-npm run harness:check
+.harness/bin/harness check
 ```
 
 실패하면 실패한 검사와 후속 조치만 짧게 남깁니다.

@@ -56,9 +56,10 @@ Claude Code 환경에서는 `.claude/settings.json` hook으로 다음 방어를 
 - 외부 프리셋은 `stackManifest` 경로의 `manifest.json`으로 연결할 수 있습니다.
 - 접근 이름: 해당 스택 `manifest.json`의 `checksKey`를 기록할 수 있지만, 본체는 이를 실행하지 않고 안내만 합니다.
 - 기본값: `activeStack=none`.
-- 스택 미적용 상태(`activeStack: none`)에서도 일반 인프라 검사(doc-link, 기준 동기화 후보 분석)는 항상 동작합니다. lint/test/build는 자동으로 건너뛰어집니다.
-- 스택 적용 여부는 머신 로컬 `.harness/.stack-applied.json` 마커만 보지 않고, `profile.json`의 `activeStack`과 커밋된 `.harness/stacks/.applied/<stack>/manifest.json` 스냅샷에서 복원합니다. fresh clone, worktree, CI처럼 ignored 마커가 없는 환경에서도 스택 스냅샷이 있으면 프로젝트 검증 단계를 복원해야 합니다. 단, npm script 기반 lint/test/build의 실행 여부는 profile의 `verify` 선언을 따릅니다(옵트인, 결정 86) — 스택 manifest의 raw verify만 스택 계약으로 기본 실행됩니다.
-- `activeStack`은 있는데 커밋된 스택 스냅샷을 찾지 못하면 검증을 통과로 보지 않고 실패로 처리합니다. 이 경우 스택 하네스 init 또는 `npm run stack:apply`를 다시 실행해 `.harness/stacks/.applied/<stack>/`을 정착시켜야 합니다.
+- 스택 미적용 상태(`activeStack: none`)에서도 일반 인프라 검사(doc-link, 기준 동기화 후보 분석)는 항상 동작합니다.
+- 코드 품질 검사(lint/test/build)는 스택 적용 여부와 무관하게 **하네스의 자동 검증 범위가 아닙니다**(0.2.131). 소유는 각 프로젝트이며 husky·CI 등 프로젝트 도구가 담당합니다. 하네스는 옵트인 선언도 받지 않습니다.
+- 스택 적용 여부는 머신 로컬 `.harness/.stack-applied.json` 마커만 보지 않고, `profile.json`의 `activeStack`과 커밋된 `.harness/stacks/.applied/<stack>/manifest.json` 스냅샷에서 복원합니다. fresh clone, worktree, CI처럼 ignored 마커가 없는 환경에서도 스택 스냅샷이 있으면 스택 적용 상태를 복원해야 합니다.
+- `activeStack`은 있는데 커밋된 스택 스냅샷을 찾지 못하면 검증을 통과로 보지 않고 실패로 처리합니다. 이 경우 스택 하네스 init 또는 `.harness/bin/harness stack:apply`를 다시 실행해 `.harness/stacks/.applied/<stack>/`을 정착시켜야 합니다.
 
 ## 아직 수동 검토 필요
 | 항목 | 이유 |

@@ -297,7 +297,7 @@ function main() {
     console.error('  2. 영향이 있으면 코드를 고쳐서 커밋합니다.')
     console.error('     영향이 없으면 그 판단 근거를 .harness/session/decision-log.md에 한 줄 남깁니다.')
     console.error('     (기획 문서를 개발자가 직접 고치지는 않습니다. 문서가 틀렸다면 기획팀과 논의하세요.)')
-    console.error('  3. npm run harness:spec:settle     ← "확인했다"를 기록하는 명령입니다')
+    console.error('  3. .harness/bin/harness spec:settle     ← "확인했다"를 기록하는 명령입니다')
     console.error('  4. 바뀐 .harness/spec-lock.json을 커밋에 포함해서 다시 push 합니다.')
     console.error('     (이 파일이 "우리 팀은 이 시점 기획을 확인했다"는 팀 공유 기록입니다)')
   }

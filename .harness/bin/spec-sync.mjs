@@ -1457,7 +1457,7 @@ function linkedCodePaths(specRel, entries) {
 function printNotConfigured() {
   console.log('기획 문서 연동이 아직 설정되지 않았습니다.')
   console.log('- 설정: 에이전트에게 `/기획문서연동` 이라고 요청하면 기획 저장소 주소를 받아 연결과 매핑을 만듭니다.')
-  console.log(`- 수동 설정: ${toPosix(path.relative(repoRoot, sourcesPath))}에 기획 저장소를 선언한 뒤 npm run harness:spec:fetch 를 실행합니다.`)
+  console.log(`- 수동 설정: ${toPosix(path.relative(repoRoot, sourcesPath))}에 기획 저장소를 선언한 뒤 .harness/bin/harness spec:fetch 를 실행합니다.`)
 }
 
 function printConfigErrors(errors) {
@@ -1490,7 +1490,7 @@ function promoteV1Sources(lockNorm, sources, { allowNetwork, skipSourceIds = new
 
     const dir = allowNetwork ? ensureCacheRepo(source) : cacheDirFor(source.id)
     if (!fs.existsSync(path.join(dir, '.git'))) {
-      failures.push({ id: source.id, rel: '(전체)', reason: '로컬 캐시가 없습니다 — npm run harness:spec:fetch 로 캐시를 먼저 받으세요' })
+      failures.push({ id: source.id, rel: '(전체)', reason: '로컬 캐시가 없습니다 — .harness/bin/harness spec:fetch 로 캐시를 먼저 받으세요' })
       continue
     }
 
@@ -1498,7 +1498,7 @@ function promoteV1Sources(lockNorm, sources, { allowNetwork, skipSourceIds = new
       if (allowNetwork) {
         ensureCommitAvailable(dir, source, recorded.commit)
       } else {
-        failures.push({ id: source.id, rel: '(전체)', reason: `기준 commit ${recorded.commit.slice(0, 10)}이 로컬 캐시에 없습니다 — npm run harness:spec:fetch 로 먼저 받으세요` })
+        failures.push({ id: source.id, rel: '(전체)', reason: `기준 commit ${recorded.commit.slice(0, 10)}이 로컬 캐시에 없습니다 — .harness/bin/harness spec:fetch 로 먼저 받으세요` })
         continue
       }
     }
@@ -1527,7 +1527,7 @@ function printPromotionFailures(failures) {
   }
   console.error('')
   console.error('확인된 소비자에는 이 상태가 없어야 정상입니다. 위 문서의 변경 내용을 검토한 뒤')
-  console.error('npm run harness:spec:fetch -- --move-baseline [--source <id>] 로 기준을 재생성하세요.')
+  console.error('.harness/bin/harness spec:fetch --move-baseline [--source <id>] 로 기준을 재생성하세요.')
 }
 
 function serializeLock(lockNorm) {
@@ -1830,7 +1830,7 @@ function runCacheOnly(state, { explicitFlag }) {
     console.log('')
     console.log(`- ${summary.id}: 문서 ${summary.total}건, 원격 commit ${summary.commit.slice(0, 10)}`)
     if (!summary.hasBaseline) {
-      console.log(`  아직 기준에 편입되지 않은 소스입니다. 편입: npm run harness:spec:fetch -- --move-baseline --source ${summary.id}`)
+      console.log(`  아직 기준에 편입되지 않은 소스입니다. 편입: .harness/bin/harness spec:fetch --move-baseline --source ${summary.id}`)
       continue
     }
     const pending = summary.changed.length + summary.added.length + summary.removed.length
@@ -1847,10 +1847,10 @@ function runCacheOnly(state, { explicitFlag }) {
     }
   }
   console.log('')
-  console.log('팀 기준(lock)과 기준 본문은 그대로입니다. 위 최신 본문을 읽고 확인했으면 npm run harness:spec:settle 로 정산합니다.')
+  console.log('팀 기준(lock)과 기준 본문은 그대로입니다. 위 최신 본문을 읽고 확인했으면 .harness/bin/harness spec:settle 로 정산합니다.')
   console.log('정산은 방금 읽은 그 시점만 기록합니다 — 그 사이 기획이 더 나가면 다음 확인에서 다시 알려줍니다.')
   if (!explicitFlag) {
-    console.log('전체 기준 이동이 필요하면: npm run harness:spec:fetch -- --move-baseline [--source <id>]')
+    console.log('전체 기준 이동이 필요하면: .harness/bin/harness spec:fetch --move-baseline [--source <id>]')
   }
 }
 
@@ -1912,7 +1912,7 @@ function runMoveBaseline(state) {
 function runRehydrateAtLock(state) {
   if (!state.lock.exists) {
     console.error('기준 시점이 없어 --at-lock 수화를 할 수 없습니다.')
-    console.error('먼저 npm run harness:spec:fetch 로 최초 기준을 만듭니다.')
+    console.error('먼저 .harness/bin/harness spec:fetch 로 최초 기준을 만듭니다.')
     process.exitCode = 1
     return
   }
@@ -1924,7 +1924,7 @@ function runRehydrateAtLock(state) {
     const recorded = state.lock.sources[source.id]
     if (!recorded?.commit) {
       console.error(`기준 시점이 없어 --at-lock 수화를 할 수 없습니다: ${source.id}`)
-      console.error(`편입: npm run harness:spec:fetch -- --move-baseline --source ${source.id}`)
+      console.error(`편입: .harness/bin/harness spec:fetch --move-baseline --source ${source.id}`)
       process.exitCode = 1
       return
     }
@@ -1977,7 +1977,7 @@ function runRehydrateAtLock(state) {
     for (const item of mismatches) {
       console.error(`  - [${item.id}] ${item.rel}: ${item.reason}`)
     }
-    console.error('변경 내용을 검토한 뒤 npm run harness:spec:fetch -- --move-baseline [--source <id>] 로 기준을 재생성하세요.')
+    console.error('변경 내용을 검토한 뒤 .harness/bin/harness spec:fetch --move-baseline [--source <id>] 로 기준을 재생성하세요.')
     process.exitCode = 1
     return
   }
@@ -2041,7 +2041,7 @@ function reportHydrationAfterLockChange(result) {
     console.log(`[harness] 기준 본문을 맞추지 못했습니다 (${failure.id}): ${failure.reason}`)
   }
   if ((result?.failures ?? []).length > 0) {
-    console.log('  기준 기록은 갱신됐지만 로컬 본문은 아직 그 기준이 아닙니다. 복구: npm run harness:spec:fetch -- --at-lock')
+    console.log('  기준 기록은 갱신됐지만 로컬 본문은 아직 그 기준이 아닙니다. 복구: .harness/bin/harness spec:fetch --at-lock')
   }
   return result
 }
@@ -2327,7 +2327,7 @@ function runSettle({ docs = [] } = {}) {
     return
   }
   if (!state.lock.exists) {
-    console.error('기준 시점이 없습니다. 먼저 npm run harness:spec:fetch 로 최초 연동을 만듭니다.')
+    console.error('기준 시점이 없습니다. 먼저 .harness/bin/harness spec:fetch 로 최초 연동을 만듭니다.')
     process.exitCode = 1
     return
   }
@@ -2338,7 +2338,7 @@ function runSettle({ docs = [] } = {}) {
   if (declarationIssues.length > 0) {
     console.error('연동 선언과 기준 기록이 어긋난 상태에서는 정산할 수 없습니다 (lock을 건드리지 않았습니다):')
     for (const message of declarationIssues) console.error(`  - ${message}`)
-    console.error('선언을 되돌리거나, 변경 내용을 검토한 뒤 npm run harness:spec:fetch -- --move-baseline --source <id> 로 기준을 재생성하세요.')
+    console.error('선언을 되돌리거나, 변경 내용을 검토한 뒤 .harness/bin/harness spec:fetch --move-baseline --source <id> 로 기준을 재생성하세요.')
     process.exitCode = 1
     return
   }
@@ -2361,7 +2361,7 @@ function runSettle({ docs = [] } = {}) {
     latestManifest = readLatestManifest()
   } catch (error) {
     console.error(String(error.message ?? error))
-    console.error('npm run harness:spec:fetch -- --cache-only 로 최신 확인을 다시 수행해 기록을 재생성하세요.')
+    console.error('.harness/bin/harness spec:fetch --cache-only 로 최신 확인을 다시 수행해 기록을 재생성하세요.')
     process.exitCode = 1
     return
   }
@@ -2445,7 +2445,7 @@ function runSettle({ docs = [] } = {}) {
     // 정산할 것이 없으므로 실패할 검증도 없다 — 여기서 승격을 확정해도 계약을 어기지 않는다.
     applyPendingPromotion()
     console.log('정산 범위가 비어 있습니다: push 대기 변경에 매핑된 기획 문서가 없습니다.')
-    console.log('특정 문서를 명시하려면: npm run harness:spec:settle -- --doc <기획 문서 경로>')
+    console.log('특정 문서를 명시하려면: .harness/bin/harness spec:settle --doc <기획 문서 경로>')
     return
   }
 
@@ -2508,7 +2508,7 @@ function runSettle({ docs = [] } = {}) {
   if (identityIssues.length > 0) {
     console.error('최신 확인 기록이 지금 연동된 기획 저장소의 것이 아니어서 정산할 수 없습니다:')
     for (const message of identityIssues) console.error(`  - ${message}`)
-    console.error('npm run harness:spec:fetch -- --cache-only 로 현재 선언 기준의 최신 확인을 다시 수행하세요.')
+    console.error('.harness/bin/harness spec:fetch --cache-only 로 현재 선언 기준의 최신 확인을 다시 수행하세요.')
     process.exitCode = 1
     return
   }
@@ -2590,7 +2590,7 @@ function runSettle({ docs = [] } = {}) {
         continue
       }
       if (direction === 'unknown-base' || direction === 'unknown') {
-        provenanceFailures.push({ rel, reason: `현재 기준(${String(lockedCommit).slice(0, 10)}) 대비 전진인지 확인할 수 없습니다(로컬 기획 이력이 부족) — npm run harness:spec:fetch -- --cache-only 로 이력을 채운 뒤 다시 정산하세요` })
+        provenanceFailures.push({ rel, reason: `현재 기준(${String(lockedCommit).slice(0, 10)}) 대비 전진인지 확인할 수 없습니다(로컬 기획 이력이 부족) — .harness/bin/harness spec:fetch --cache-only 로 이력을 채운 뒤 다시 정산하세요` })
         continue
       }
 
@@ -2652,7 +2652,7 @@ function runSettle({ docs = [] } = {}) {
     for (const rel of staleSnapshots) {
       console.error(`  - ${rel}`)
     }
-    console.error('npm run harness:spec:fetch -- --cache-only 로 최신을 다시 확인한 뒤 정산하세요.')
+    console.error('.harness/bin/harness spec:fetch --cache-only 로 최신을 다시 확인한 뒤 정산하세요.')
     process.exitCode = 1
     return
   }
@@ -2662,7 +2662,7 @@ function runSettle({ docs = [] } = {}) {
     for (const rel of notReviewed) {
       console.error(`  - ${rel}`)
     }
-    console.error('먼저 npm run harness:spec:fetch -- --cache-only 로 최신을 확인하고, 꺼내진 본문을 읽은 뒤 다시 정산하세요.')
+    console.error('먼저 .harness/bin/harness spec:fetch --cache-only 로 최신을 확인하고, 꺼내진 본문을 읽은 뒤 다시 정산하세요.')
     process.exitCode = 1
     return
   }
@@ -2673,7 +2673,7 @@ function runSettle({ docs = [] } = {}) {
       console.error(`  - ${failure.rel}: ${failure.reason}`)
     }
     console.error('기준(lock)에는 기획 저장소에 실제로 있는 내용만 들어갑니다.')
-    console.error('npm run harness:spec:fetch -- --cache-only 로 최신을 다시 확인한 뒤 정산하세요.')
+    console.error('.harness/bin/harness spec:fetch --cache-only 로 최신을 다시 확인한 뒤 정산하세요.')
     process.exitCode = 1
     return
   }
@@ -2729,7 +2729,7 @@ function runSettle({ docs = [] } = {}) {
       for (const item of partialUnits) {
         console.error(`  - ${item.unit}: ${item.reason}`)
       }
-      console.error('npm run harness:spec:fetch -- --cache-only 로 두 파일을 함께 확인한 뒤 다시 정산하세요.')
+      console.error('.harness/bin/harness spec:fetch --cache-only 로 두 파일을 함께 확인한 뒤 다시 정산하세요.')
       process.exitCode = 1
       return
     }
@@ -2841,7 +2841,7 @@ function buildBroadcastMessage() {
     // 끝나면 "미확인 변경 0건"으로 오판된다(멀티사이트 실증). fetch --cache-only는 변화가 없어도
     // 소스별 기록을 항상 남기므로, 정상 CI 순서(fetch --cache-only → broadcast)는 이 분기에 오지 않는다.
     if (state.lock.exists && latestSourceCount === 0) {
-      return '[기획-개발 동기화] 최신 확인 기록이 없어 기획 변경 여부를 알 수 없습니다 — 먼저 npm run harness:spec:fetch -- --cache-only 를 실행하세요 (개발리더 확인)'
+      return '[기획-개발 동기화] 최신 확인 기록이 없어 기획 변경 여부를 알 수 없습니다 — 먼저 .harness/bin/harness spec:fetch --cache-only 를 실행하세요 (개발리더 확인)'
     }
     return null
   }
@@ -2900,7 +2900,7 @@ function runStatus() {
     const recorded = state.lock.sources[source.id]
     console.log(`- ${source.id}: ${source.repo}${source.ref ? ` (${source.ref})` : ''}`)
     if (!recorded) {
-      console.log(`  기준 시점 없음 — npm run harness:spec:fetch${state.lock.exists ? ` -- --move-baseline --source ${source.id}` : ''} 로 먼저 편입합니다.`)
+      console.log(`  기준 시점 없음 — .harness/bin/harness spec:fetch${state.lock.exists ? ` --move-baseline --source ${source.id}` : ''} 로 먼저 편입합니다.`)
       continue
     }
     console.log(`  기준 commit: ${recorded.commit?.slice(0, 10) ?? '(없음)'} (${recorded.fetchedAt ?? '기록 없음'})`)
@@ -2973,7 +2973,7 @@ function runStatus() {
     for (const item of notReady) {
       console.log(`  - ${item.id} (${item.reason})`)
     }
-    console.log('- 준비: npm run harness:spec:fetch -- --at-lock  (팀 기준 시점 그대로, 기준은 옮기지 않습니다)')
+    console.log('- 준비: .harness/bin/harness spec:fetch --at-lock  (팀 기준 시점 그대로, 기준은 옮기지 않습니다)')
   }
 
   console.log('')
@@ -3009,7 +3009,7 @@ function runStatus() {
     for (const line of formatLockScreenIssues(lockScreenIssues)) {
       console.log(`  - ${line}`)
     }
-    console.log('  npm run harness:spec:fetch -- --cache-only 로 확인한 뒤 다시 정산하면 같은 시점으로 맞춰집니다.')
+    console.log('  .harness/bin/harness spec:fetch --cache-only 로 확인한 뒤 다시 정산하면 같은 시점으로 맞춰집니다.')
     process.exitCode = 1
   }
 
@@ -3020,7 +3020,7 @@ function runStatus() {
   } catch (error) {
     console.log('')
     console.log(`⚠ ${String(error.message ?? error)}`)
-    console.log('  npm run harness:spec:fetch -- --cache-only 로 최신 확인을 다시 수행하면 기록이 재생성됩니다.')
+    console.log('  .harness/bin/harness spec:fetch --cache-only 로 최신 확인을 다시 수행하면 기록이 재생성됩니다.')
     process.exitCode = 1
   }
   if (pending.length > 0) {
@@ -3035,7 +3035,7 @@ function runStatus() {
     }
     console.log('')
     console.log('판단: 구현에 영향을 주면 코드/테스트를 반영합니다. 영향 없음이 자명하면 커밋 메시지 한 줄, 자명하지 않은 판단만 decision-log에 남깁니다.')
-    console.log('확인이 끝났으면 npm run harness:spec:settle 로 정산합니다.')
+    console.log('확인이 끝났으면 .harness/bin/harness spec:settle 로 정산합니다.')
   } else if (state.lock.exists && notReady.length === 0) {
     // "읽고"를 명시한다 — 아래 "마지막 최신 확인"의 원격 감지와는 다른 축이라, 축을 안 밝히면
     // 두 줄이 모순처럼 읽힌다(멀티사이트 실증: "정산 대기 없음" + "감지 2건"을 버그로 의심).
@@ -3057,12 +3057,12 @@ function runStatus() {
     console.log(`마지막 최신 확인: ${lastFreshness.checkedAt} — 기준 이후 원격 변경 ${detected}건`)
     if (detected > 0) {
       console.log('  위의 정산 대기와는 다른 축입니다(원격 확인 결과 — 아직 본문을 받지 않았을 수 있습니다).')
-      console.log('  본문 받기·검토: npm run harness:spec:fetch -- --cache-only (기준은 옮기지 않습니다)')
+      console.log('  본문 받기·검토: .harness/bin/harness spec:fetch --cache-only (기준은 옮기지 않습니다)')
     }
   }
 
   console.log('')
-  console.log('원격 최신 여부는 이 명령이 확인하지 않습니다(네트워크 미사용). 최신 확인은 harness:spec:fetch -- --cache-only 입니다.')
+  console.log('원격 최신 여부는 이 명령이 확인하지 않습니다(네트워크 미사용). 최신 확인은 .harness/bin/harness spec:fetch --cache-only 입니다.')
 }
 
 function main() {
@@ -3136,7 +3136,7 @@ function main() {
         console.log(`[harness] 기획 본문 준비 실패 (${failure.id}): ${failure.reason}`)
       }
       console.log('  pull은 완료됐지만 에이전트가 기획 본문을 읽을 수 없습니다. 개발 작업 전에 다시 받아야 합니다.')
-      console.log('  재시도: npm run harness:spec:fetch -- --at-lock')
+      console.log('  재시도: .harness/bin/harness spec:fetch --at-lock')
     }
     return
   }

@@ -18,8 +18,8 @@ Claude Code에서는 `SessionStart` hook이 `next-session-reminder.md`를 자동
 6. `.harness/session/developer-input-queue.md`의 `open`/`deferred` 항목은 새 세션에서 다시 확인합니다.
 7. 문서를 키워야 한다면 먼저 `.harness/documentation/indexing-rules.md`에 맞게 인덱스/세부 문서 분리를 판단합니다.
 8. 강제 강도와 예외 허용 범위가 애매하면 `.harness/policy/enforcement-ladder.md`를 보고 사용자에게 묻습니다.
-9. 프로젝트 품질 검사(lint/test/build)는 profile의 `verify` 선언을 따릅니다 — 하네스는 자동 실행하지 않으며, 담당 설정은 `/검증설정`으로 합니다(결정 86).
-10. 새 환경을 준비한 뒤에는 `npm run hooks:install`로 로컬 훅과 커밋 템플릿을 연결합니다.
+9. 코드 품질 검사(lint/test/build)는 하네스가 실행하지 않습니다 — 소유는 프로젝트이며 husky·CI 등 프로젝트 도구가 담당합니다(0.2.131).
+10. 새 환경을 준비한 뒤에는 `.harness/bin/harness hooks:install`로 로컬 훅과 커밋 템플릿을 연결합니다.
 11. 스타일이 반복 패턴으로 굳어지기 시작하면 `.harness/style/style-evolution.md` 기준으로 규칙 승격 후보를 확인합니다.
 12. 로컬룰 승격 시 "문서 규칙인가, 실행 가능한 검증인가"를 먼저 판단합니다 — 사람이 매번 기억해야 지켜지는 런타임 불변식은 문서 대신 테스트/CI/lint 가드로 만듭니다(`enforcement-ladder.md` 0번).
 13. 감사·리뷰가 근거와 함께 비권장한 것을 뒤집어 채택할 때는 채택 전에 `decision-log.md`에 `[권고 뒤집기]` 항목(`근거 반박:` 필수)을 남기고, 결정 폐기/번복은 원문 삭제 대신 `⛔ 폐기됨`/`⛔ 번복됨` 배너를 붙입니다(상세: `.harness/session/README.md`).
@@ -53,8 +53,8 @@ Claude Code에서는 `SessionStart` hook이 `next-session-reminder.md`를 자동
 ## 세션 시작 기본 명령
 ```bash
 git --no-pager status --short
-npm run hooks:install
-npm run harness:impact
+.harness/bin/harness hooks:install
+.harness/bin/harness impact
 # 최종화 승인 후에만 실행:
-# HARNESS_AGENT_CHECK_APPROVED=1 npm run harness:check
+# HARNESS_AGENT_CHECK_APPROVED=1 .harness/bin/harness check
 ```

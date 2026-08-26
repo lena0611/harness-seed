@@ -18,8 +18,8 @@ if [ -s "$NVM_DIR/nvm.sh" ]; then
 fi
 
 # dual-runtime(0.2.63): 프로젝트 Node(.nvmrc)가 하네스 최소 버전(20.19) 미만이거나 node가 없으면
-# 하네스 스크립트만 nvm 설치본 중 최신(>=20.19)으로 전환한다. 프로젝트 검증(lint/test/build)은
-# guard.mjs가 HARNESS_PROJECT_NODE_BIN으로 프로젝트 Node로 되돌려 실행한다.
+# 하네스 스크립트만 nvm 설치본 중 최신(>=20.19)으로 전환한다. 프로젝트 코드는 건드리지 않으며,
+# 하네스는 프로젝트 lint/test/build를 실행하지 않는다(verify 제거, 0.2.131).
 . .harness/bin/dual-node.sh
 harness_dual_node_activate
 

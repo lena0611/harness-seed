@@ -82,11 +82,6 @@ function changedFiles(limit = 20) {
     .slice(0, limit)
 }
 
-function readPackageScripts() {
-  const pkg = readJson('package.json', {})
-  return Object.keys(pkg.scripts ?? {}).sort()
-}
-
 function readScanSection(title) {
   const rel = '.harness/session/project-scan-report.md'
   if (!exists(rel)) return []
@@ -133,7 +128,7 @@ function renderHarnessEffectSummary() {
 
   if (effects.length === 0 && workflow.length === 0) {
     return `## Harness Effect Summary
-- 프로젝트 스캔 리포트를 아직 읽지 못했습니다. \`npm run harness:scan\` 후 다시 생성하세요.
+- 프로젝트 스캔 리포트를 아직 읽지 못했습니다. \`.harness/bin/harness scan\` 후 다시 생성하세요.
 `
   }
 
@@ -160,7 +155,7 @@ function renderExistingAiRuleSummary() {
 ${formatList(candidates.slice(0, 10))}
 ${candidates.length > 10 ? `- ... 외 ${candidates.length - 10}건` : ''}
 
-팀 공유 기준이면 \`.harness/policy/profile.json\`의 \`sources[]\`에 등록합니다. 등록하면 \`harness:scan\`이 팀 기준으로 인식하고, \`inject: "always"\`인 문서는 \`harness:context\`의 Always Read에 포함됩니다.
+팀 공유 기준이면 \`.harness/policy/profile.json\`의 \`sources[]\`에 등록합니다. 등록하면 \`.harness/bin/harness scan\`이 팀 기준으로 인식하고, \`inject: "always"\`인 문서는 \`.harness/bin/harness context\`의 Always Read에 포함됩니다.
 
 개인/임시 기준이면 등록하지 말고 커밋 방지 상태를 확인합니다. 후보에 \`.gitignore 미적용\`이 보이면 ignore 패턴을 추가하고, \`git tracked\`가 보이면 \`git rm --cached <path>\` 후 ignore 처리해야 합니다.
 `
@@ -184,7 +179,6 @@ function renderProjectRuleAuthoringGuide() {
 function buildReport() {
   const profile = readJson('.harness/policy/profile.json', {})
   const lock = readJson('.harness/harness-lock.json', {})
-  const scripts = readPackageScripts()
   const branch = runGit(['branch', '--show-current']) || '(unknown)'
   const changes = changedFiles()
   const generatedAt = new Date().toISOString()
@@ -194,14 +188,16 @@ function buildReport() {
   const activeStack = profile.activeStack ?? 'none'
   const needsStackDecision = activeStack === 'none'
 
+  // 표준 진입면은 런처(.harness/bin/harness)다 — package.json에 별칭이 있는지와 무관하게
+  // 항상 동작하므로 더 이상 scripts.includes로 존재 여부를 가리지 않는다.
   const availableCommands = [
-    scripts.includes('harness:guide') ? '`npm run harness:guide -- --open`' : null,
-    scripts.includes('harness:scan') ? '`npm run harness:scan`' : null,
-    scripts.includes('harness:impact') ? '`npm run harness:impact`' : null,
-    scripts.includes('harness:check') ? '`npm run harness:check`' : null,
-    scripts.includes('harness:update') ? '`npm run harness:update`' : null,
-    scripts.includes('template:gap') ? '`npm run template:gap`' : null,
-  ].filter(Boolean)
+    '`.harness/bin/harness guide --open`',
+    '`.harness/bin/harness scan`',
+    '`.harness/bin/harness impact`',
+    '`.harness/bin/harness check`',
+    '`.harness/bin/harness update`',
+    '`.harness/bin/harness template:gap`',
+  ]
 
   const stackDecision = needsStackDecision
     ? `## Next Decision
@@ -214,23 +210,23 @@ function buildReport() {
 
 판단 순서:
 
-1. \`npm run standards:list\`로 회사가 제공하는 스택 하네스 후보를 확인합니다.
+1. \`.harness/bin/harness standards:list\`로 회사가 제공하는 스택 하네스 후보를 확인합니다.
 2. 맞는 후보가 없으면 \`.harness/session/decision-log.md\`에 "공통 기준만 운영" 이유를 남깁니다.
 3. 반복될 프로젝트 유형이라 새 스택 하네스가 필요해 보이면 \`.harness/session/developer-input-queue.md\`에 후보 요청을 남깁니다.
 
 나중에 맞는 스택 하네스가 제공되면 재설치가 아니라 스택 기준 추가 적용으로 진행합니다.
 
 \`\`\`bash
-npm run standards:list
+.harness/bin/harness standards:list
 npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init
-npm run stack:status
-npm run harness:check
+.harness/bin/harness stack:status
+.harness/bin/harness check
 \`\`\`
 `
     : `## Stack Decision
 선택된 스택 기준: \`${activeStack}\`
 
-스택 기준 상세는 \`.harness/project/stack-preset-rules.md\`와 \`npm run stack:status\`에서 확인합니다.
+스택 기준 상세는 \`.harness/project/stack-preset-rules.md\`와 \`.harness/bin/harness stack:status\`에서 확인합니다.
 `
 
   return `# Harness Handoff
@@ -296,7 +292,7 @@ ${readManualActionsSummary()}
 [harness] impact: 영향 파일군과 충돌 후보
 [harness] action: 실행한 명령 또는 수정한 범위
 [harness] decision: 선택한 기준, 예외, 보류 질문
-[harness] verify: harness:check/lint/test/build 결과
+[harness] verify: harness:check 결과 (프로젝트 도구로 확인한 것이 있으면 함께)
 \`\`\`
 
 ## Commit Message Format
@@ -317,16 +313,16 @@ ${readManualActionsSummary()}
 ## Local Rule Growth Guard
 - 새 규칙은 한 번의 구현 세부사항이 아니라 반복되는 도메인, 구조, 검증 기준일 때만 승격합니다.
 - 길어진 프로젝트 룰은 인덱스, 세부 문서, 요약으로 나눕니다.
-- 에이전트는 항상 모든 로컬룰을 읽지 않고 \`harness:context -- "<작업 설명>"\`으로 이번 작업의 판단 컨텍스트를 만듭니다.
+- 에이전트는 항상 모든 로컬룰을 읽지 않고 \`.harness/bin/harness context "<작업 설명>"\`으로 이번 작업의 판단 컨텍스트를 만듭니다.
 - 오래된 판단은 삭제보다 먼저 \`decision-log.md\`에 변경 이유를 남기고 최신 요약을 \`project-memory.md\`나 해당 룰 문서 상단에 둡니다.
 
 ## 확인할 일
 1. 새 터미널이면 프로젝트 루트에서 \`nvm use\`를 실행합니다.
-2. \`npm run harness:guide -- --open\`으로 현재 상태와 클릭형 가이드를 확인합니다.
-3. 큰 작업이나 낯선 영역이면 에이전트가 \`npm run harness:context -- "<이번 작업>"\`으로 판단 컨텍스트를 만듭니다.
-4. \`npm run hooks:install\`을 실행하면 이후 사용자가 승인한 \`git commit\`/\`git push\` 직전에 \`harness:check\`가 자동 실행됩니다.
+2. \`.harness/bin/harness guide --open\`으로 현재 상태와 클릭형 가이드를 확인합니다.
+3. 큰 작업이나 낯선 영역이면 에이전트가 \`.harness/bin/harness context "<이번 작업>"\`으로 판단 컨텍스트를 만듭니다.
+4. \`.harness/bin/harness hooks:install\`을 실행하면 이후 사용자가 승인한 \`git commit\`/\`git push\` 직전에 \`harness:check\`가 자동 실행됩니다.
 5. 사용자가 \`커밋해줘\`라고 요청했고 hook이 설치되어 있으면 에이전트는 선행 \`harness:check\`를 중복 실행하지 않고 commit hook 검증에 맡깁니다.
-6. hook을 설치하지 않았거나 커밋 전 미리 보고 싶으면 사용자가 최종 검증을 승인한 뒤 \`npm run harness:check\`로 직접 검증합니다.
+6. hook을 설치하지 않았거나 커밋 전 미리 보고 싶으면 사용자가 최종 검증을 승인한 뒤 \`.harness/bin/harness check\`로 직접 검증합니다.
 `
 }
 

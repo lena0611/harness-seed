@@ -17,7 +17,7 @@ const DEFAULT_BASE_HARNESS_REPO = process.env.AI_STANDARD_BASE_HARNESS_REPO
 
 function printUsageAndExit(code = 0) {
   console.log(`Usage:
-  npm run harness:outdated [-- options]
+  .harness/bin/harness outdated [options]
 
 Options:
   --json                  JSON으로 출력합니다.
@@ -28,7 +28,7 @@ Options:
   -h, --help              도움말을 출력합니다.
 
 기본 동작은 lock에 기록된 공통 하네스와 스택 하네스를 모두 검사합니다.
-프로젝트 파일은 수정하지 않습니다. 실제 반영은 npm run harness:update로 수행합니다.
+프로젝트 파일은 수정하지 않습니다. 실제 반영은 .harness/bin/harness update로 수행합니다.
 `)
   process.exit(code)
 }
@@ -284,8 +284,8 @@ function resolveHarnessMetadata(target, installManifest, lock) {
 
 function updateCommandForTarget(label) {
   return label === 'baseHarness'
-    ? 'npm run harness:update -- --base-only'
-    : 'npm run harness:update'
+    ? '.harness/bin/harness update --base-only'
+    : '.harness/bin/harness update'
 }
 
 function stackInitCommand(lock) {

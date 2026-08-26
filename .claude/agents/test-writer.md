@@ -22,4 +22,4 @@ Read these first:
 - Keep tests deterministic and runnable from the project root.
 
 ## Verification
-Run the targeted check first, then `npm run harness:check` when practical.
+Run the targeted check first, then `.harness/bin/harness check` when practical.

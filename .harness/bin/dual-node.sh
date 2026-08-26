@@ -11,7 +11,8 @@
 # - 활성 node가 낮거나 없으면 nvm 설치본 중 최소 버전 이상의 최신 Node를 PATH 선두에 적용한다.
 # - 전환 시 원래 PATH는 HARNESS_PREV_PATH로, 프로젝트 Node bin 디렉터리는
 #   HARNESS_PROJECT_NODE_BIN으로 export한다. run-previous-hook.mjs는 이전 hook을 원래 PATH로
-#   실행하고, guard.mjs는 프로젝트 검증(lint/test/build, stack verify)을 프로젝트 Node로 실행한다.
+#   실행한다. HARNESS_PROJECT_NODE_BIN을 소비하던 프로젝트 검증(lint/test/build) 경로는
+#   verify 제거(0.2.131)로 사라졌고, export는 이전 hook 체인·진단용으로만 남는다.
 # - 최소 버전을 올리면 check-node-version.mjs, node-env.mjs, scripts/init.mjs도 함께 바꾼다.
 
 HARNESS_MIN_NODE_MAJOR=20

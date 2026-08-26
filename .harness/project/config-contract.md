@@ -21,14 +21,13 @@
 
 ## harnessMode (.harness/policy/profile.json)
 
-하네스 전반의 집행 강도입니다. 소유는 프로젝트입니다.
+**기준 동기화 신호의 등급을 조절하는 3단 다이얼**입니다. 소유는 프로젝트입니다. (이름이 넓게 들리지만 조절 대상은 동기화 신호 등급 하나입니다 — 다른 검사에는 영향이 없습니다.)
 
-- `bootstrap`: 소스 변경이 없는 커밋의 기준 동기화 후보를 참고 등급으로 완화합니다. 초기 정착 단계용 기본값입니다.
+- `bootstrap`: 소스 변경이 없는 커밋의 기준 동기화 후보를 참고 등급으로 완화합니다. 초기 정착 단계용 기본값이며, impact가 "정착이 끝났으면 active로" 한 줄로 졸업을 상기시킵니다.
 - `active`: 위 완화가 풀립니다. 규칙이 자리 잡은 일반 운영 상태입니다.
-- `maintenance`: **현재 `active`와 동일하게 동작합니다.** 런타임 분기가 없고, handoff·scan 리포트와 `harness:guide` 카드에 "유지보수 국면"임을 표시하는 선언용 라벨입니다. 프로젝트 성격 구분 자체는 `project-charter.md`의 상태 필드가 맡습니다.
 - `strict`: "확인 필수" 항목이 경고에서 **커밋 차단**으로 승격됩니다. 문서/링크 검사 등 하위 검사도 strict로 전파됩니다.
 
-즉 런타임 거동이 갈리는 값은 `bootstrap`과 `strict` 둘뿐입니다.
+`maintenance`는 0.2.131에서 은퇴했습니다(결정 95) — 런타임 분기가 없는 선언용 라벨이었고, 아무것도 바꾸지 않는 값은 사용자를 속입니다. 국면 선언이 필요하면 `project-charter.md`의 상태 필드를 씁니다. 잔존 값은 설정 오류로 표면화됩니다(침묵 강등 없음).
 
 ## specEnforcement (.harness/policy/profile.json)
 
@@ -40,31 +39,19 @@
 - 그 외 값 또는 profile JSON 파싱 실패: push 게이트가 **fail-closed**로 중단합니다. 조용히 advisory로 낮추지 않습니다 — 설정 오류는 고쳐서 커밋하는 것이 유일한 통과 경로입니다.
 - 판정은 push되는 커밋의 값 기준이므로 작업 트리의 미커밋 편집은 게이트에 영향을 주지 않습니다.
 
-## verify (.harness/policy/profile.json)
+## 코드 품질 검사는 프로젝트 소유 (0.2.131)
 
-커밋/푸시 검증에서 프로젝트 품질 단계(lint/test/build)를 누가 실행하는지의 선언입니다. 소유는 프로젝트입니다.
-
-- **기본값(필드 부재): 하네스는 프로젝트 npm script를 실행하지 않습니다.** package.json에 `lint`/`test`/`build` 스크립트가 있어도 감지 안내만 표시합니다(결정 86, 0.2.126 — 존재만으로 자동 실행하면 커밋에 담기지 않은 파일의 오류가 커밋을 막고, husky 등 프로젝트 도구와 이중 실행됩니다).
-- `verify.lint` / `verify.test` / `verify.build` 값 도메인:
-  - `"harness"`: 하네스가 해당 npm script를 검증 단계로 실행합니다(옵트인). lint는 fast(pre-push)에서도 실행, test/build는 full에서만.
-  - `"external"`: husky·lint-staged·CI 같은 프로젝트 도구가 담당한다는 선언. 하네스는 스택 raw verify까지 포함해 건너뛰고 검증 출력에 위임 사실만 표기합니다(프로젝트 선언이 스택 기준을 이깁니다 — 충돌 해석 순서).
-  - 그 외 값: 실행하지 않되 경고를 표시합니다. 오타가 조용히 옵트인되지 않습니다.
-- 스택 manifest의 raw `verify` 명령(비-Node 스택용)은 스택 계약의 명시 선언이므로 기본 유지됩니다. 끄려면 해당 단계에 `"external"`을 선언합니다.
-- 예시 (lint는 husky lint-staged가 커밋 파일만 검사하는 프로젝트):
-
-  ```json
-  { "verify": { "lint": "external" } }
-  ```
+하네스는 프로젝트의 `lint`/`test`/`build`를 **실행하지 않습니다.** 옵트인 설정도 받지 않습니다. package.json에 해당 script가 있어도, 스택이 적용되어 있어도 하네스 검증 단계에서 돌지 않습니다. 코드 품질 검사의 소유는 전적으로 프로젝트이며, husky·lint-staged·CI 같은 프로젝트 도구가 담당합니다(설정 방법은 [hook-coexistence.md](./hook-coexistence.md)). 따라서 `profile.json`에는 `verify` 필드가 없고, 스택 manifest도 `verify`를 선언하지 않습니다. 하네스가 커밋/푸시에서 보는 것은 기준·문서·기획 연동 같은 하네스 자신의 관문 검사뿐입니다.
 
 ## 하네스 메타데이터 계약
 - `.harness/harness-lock.json`과 `.harness/install-manifest.json`의 source metadata는 하네스 업데이트 감지를 위한 설정 계약입니다.
 - 공통 하네스가 git source로 설치 또는 업데이트되면 `repo`, `ref`, `packageVersion`, `spec`을 git source 기준으로 기록합니다.
-- 업데이트로 공통 하네스 버전이 오르면 init은 이전 버전 → 새 버전 사이의 CHANGELOG 변경 항목을 `.harness/harness-lock.json`의 `lastUpdate`(`from`, `to`, `at`, `entries`)에 기록합니다. 이는 업데이트 변경 내역을 보여주기 위한 설정 데이터이며 `npm run harness:changelog`로 다시 읽습니다. 최초 설치처럼 이전 버전이 없으면 기록하지 않습니다.
+- 업데이트로 공통 하네스 버전이 오르면 init은 이전 버전 → 새 버전 사이의 CHANGELOG 변경 항목을 `.harness/harness-lock.json`의 `lastUpdate`(`from`, `to`, `at`, `entries`)에 기록합니다. 이는 업데이트 변경 내역을 보여주기 위한 설정 데이터이며 `.harness/bin/harness changelog`로 다시 읽습니다. 최초 설치처럼 이전 버전이 없으면 기록하지 않습니다.
 - 이 metadata 정규화는 프로젝트 런타임 `.nvmrc`나 Jenkins Node 계약을 바꾸지 않습니다. 하네스 실행 최소 Node는 계속 `20.19.0` 이상입니다.
 - 설치 완료 안내는 `.nvmrc`가 있을 때만 `nvm use`를 다음 단계로 보여줍니다. `.nvmrc`가 없으면 `nvm use` 단계는 건너뛰고, Node 계약이 필요할 때 `.nvmrc` 또는 `init --project-node <ver>`를 사용하라고 안내합니다. 이는 콘솔 안내 계약이며 프로젝트 런타임 설정을 자동 생성하지 않습니다.
-- `init`은 package.json이 없으면 새로 만들지 않습니다(비-Node 프로젝트 보호). 이는 설치 표면 설정이며 프로젝트 런타임/환경값 계약을 바꾸지 않습니다. package.json이 있을 때만 harness npm 별칭을 멱등 머지하고, greenfield Node에서 강제로 만들려면 `init --with-package-json`을 사용합니다. package.json 유무와 무관하게 하네스 명령 실행에는 도구 런타임으로 Node 20.19 이상이 필요합니다(별칭이 없는 비-Node 프로젝트는 `.harness/bin/harness` 런처 또는 `node .harness/bin/<script>.mjs`로 직접 실행).
-- npm 없이 하네스를 실행하는 `.harness/bin/harness` 런처도 각 명령 dispatch 전에 `.harness/bin/check-node-version.mjs`를 먼저 호출해 최소 Node(20.19+)를 강제합니다. npm 경로(`npm run node:check`)와 동일한 런타임 계약을 npm 없는 비-Node 프로젝트에도 적용하기 위함입니다.
-- `template:gap`을 포함해 설치기가 새로 병합하는 하네스 npm 별칭도 모두 `node:check`를 선행하며, package.json이 없는 프로젝트에서는 같은 최소 Node 계약을 적용하는 하네스 런처로 실행합니다.
+- `init`은 package.json이 없으면 새로 만들지 않습니다(비-Node 프로젝트 보호). 이는 설치 표면 설정이며 프로젝트 런타임/환경값 계약을 바꾸지 않습니다. 0.2.131부터 `init`은 package.json에 harness npm 별칭을 주입하지 않습니다(과거 4개 keep 결정을 번복) — package.json 유무와 무관하게 모든 하네스 명령은 `.harness/bin/harness <command>` 런처 또는 `node .harness/bin/<script>.mjs`로 실행하며, 실행에는 도구 런타임으로 Node 20.19 이상이 필요합니다. 이전 버전이 주입한 별칭이 기존 package.json에 남아 있으면 삭제하지 않고 계속 동작합니다(add-only).
+- npm 없이 하네스를 실행하는 `.harness/bin/harness` 런처도 각 명령 dispatch 전에 `.harness/bin/check-node-version.mjs`를 먼저 호출해 최소 Node(20.19+)를 강제합니다. 하네스가 더 이상 주입하지 않는 레거시 npm 경로(`npm run node:check`)와 동일한 런타임 계약을 모든 프로젝트에 적용하기 위함입니다.
+- `template:gap`을 포함한 모든 하네스 명령은 런처를 통해 실행될 때 `node:check`를 먼저 거치며, package.json이 없는 프로젝트에서도 같은 최소 Node 계약을 적용합니다.
 - 플랫폼 어댑터(`.claude/`, `.codex/`, `.github/copilot-instructions*`) 설치와 갱신은 하네스 실행 표면 설정이며 프로젝트 런타임 `.nvmrc`, Jenkins Node 계약, 애플리케이션 환경값 계약을 바꾸지 않습니다.
 - `.claude/settings.json`은 project-owned 설정이지만, 에이전트 안전 훅 wiring이 빠지지 않도록 `init`이 하네스의 hooks/permissions(deny·allow)/env/statusLine을 기존 소비자 설정에 멱등·비파괴로 병합합니다. 기존 키와 값은 보존하고 누락된 안전 표면만 추가하며, 이 병합은 프로젝트 런타임/환경값 계약을 바꾸지 않습니다.
 - `init` 기본 출력은 설치 결과, 자동 스캔/인수인계/검사 성공 여부, 기존 AI 작업 룰 후보 수만 요약합니다. 내부 `node .harness/bin/...` 실행 명령과 원문 진단 로그는 실패 시 또는 `init --verbose`에서만 표시합니다. 이는 콘솔 표시 계약이며 설치 manifest, lock, Node 런타임 계약을 바꾸지 않습니다.

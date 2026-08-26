@@ -5,7 +5,7 @@
 | 용어 | 의미 | 소비자 프로젝트에서 보이는 형태 |
 | --- | --- | --- |
 | 하네스 | AI 에이전트와 사람이 같은 기준으로 작업하도록 돕는 문서, 명령, 검증, 훅의 전체 체계 | `.harness/`, `CLAUDE.md`, `AGENTS.md`, npm scripts, hook |
-| 공통 하네스 | 특정 기술스택과 무관한 회사 공통 개발 흐름, 세션 복구, 기준 동기화, 검증 절차 | `.harness/policy`, `.harness/session`, `.harness/bin`, `npm run harness:*` |
+| 공통 하네스 | 특정 기술스택과 무관한 회사 공통 개발 흐름, 세션 복구, 기준 동기화, 검증 절차 | `.harness/policy`, `.harness/session`, `.harness/bin`, `.harness/bin/harness <명령>` |
 | 하네스시드 | 공통 하네스를 설치하거나 업데이트하는 저장소와 패키지 이름 | 설치 명령의 package/repo 이름으로만 노출 |
 | 스택 하네스 | 특정 기술스택의 개발 기준을 공통 하네스 위에 얹는 패키지 | `.harness/project/stack-preset-rules.md`, `.harness/stacks/.applied/*` |
 | 템플릿 | 실제 업무 코드 scaffold를 제공하는 별도 저장소 | `.harness/project/template-contract.md`, 적용된 코드 파일 |
@@ -28,7 +28,7 @@
 | 세션 리마인더 | 다음 세션의 에이전트가 자동으로 읽는 인수인계 메모 | `.harness/session/next-session-reminder.md` |
 | 프로젝트 메모리 | 오래 유지되는 사실들 — 리마인더보다 수명이 긴 기억 | `.harness/session/project-memory.md` |
 | 핸드오프 | 긴 작업 중 대화가 비대해지면 상태를 파일에 적고 대화를 리셋하는 절차 | `.harness/session/handoff.md` |
-| 판단 컨텍스트 | 이번 작업에 관련된 문서·명령만 색인에서 골라 싣는 것 — 백과사전 통독 대신 색인 | `npm run harness:context -- "작업 설명"` |
+| 판단 컨텍스트 | 이번 작업에 관련된 문서·명령만 색인에서 골라 싣는 것 — 백과사전 통독 대신 색인 | `.harness/bin/harness context "작업 설명"` |
 | 스킬 | 작업 유형별 절차서. 슬래시 명령으로 호출 | `.harness/skills/registry.json`, `/기획확인` 등 |
 | visible trace | 에이전트가 속마음 대신 요청→영향→실행→검증 형식으로 정리해 보고하는 것 | `[harness] request/.../verify` |
 
@@ -36,13 +36,12 @@
 
 | 용어 | 쉽게 말하면 | 실물 |
 | --- | --- | --- |
-| harness:check | 전체 검사 한 방 — 정책·문서·회귀·(옵트인 시) 프로젝트 검증까지 | `npm run harness:check` |
-| harness:impact | 커밋 전 "이 변경이 어디에 영향 주나" 미리보기. 가볍고 안 막음 | `npm run harness:impact` |
-| 훅(hook) | 커밋/푸시 순간 자동으로 도는 검사 관문 — 평소엔 존재감 없는 안전벨트 | `.githooks/`, `npm run hooks:install` |
+| harness:check | 전체 검사 한 방 — 정책·문서·회귀·(옵트인 시) 프로젝트 검증까지 | `.harness/bin/harness check` |
+| harness:impact | 커밋 전 "이 변경이 어디에 영향 주나" 미리보기. 가볍고 안 막음 | `.harness/bin/harness impact` |
+| 훅(hook) | 커밋/푸시 순간 자동으로 도는 검사 관문 — 평소엔 존재감 없는 안전벨트 | `.githooks/`, `.harness/bin/harness hooks:install` |
 | 회귀 | 한 번 잡은 사고가 재발하면 커밋을 막는 자동 테스트 — "다시는 안 깨진다"의 박제 | 본체 `scripts/test-init.mjs` |
-| harnessMode | 검사 강도 다이얼. strict면 경고가 차단으로 승격 | `.harness/policy/profile.json` |
+| harnessMode | 동기화 신호 3단 다이얼 — bootstrap(정착기 완화)/active(기본)/strict(차단 승격) | `.harness/policy/profile.json` |
 | waiver | "이 규칙, 이 범위에서 잠깐 예외" — 사유·만료와 함께 기록하는 면제증 | `.harness/policy/waivers.json` |
-| verify 선언 | lint/test/build를 누가 돌릴지의 소유권 표시 — harness(하네스가) / external(husky 등이) | profile의 `verify` 필드, `/검증설정` |
 | sync-gap | 문서와 코드 중 한쪽만 바뀌었다는 신호 — "반대쪽도 봐야 하나?" 알림 | impact 출력의 동기화 후보 |
 
 ## 쉬운 풀이 — 기획 연동
@@ -51,7 +50,7 @@
 | --- | --- | --- |
 | spec-lock (기준 시점) | "우리 팀은 이 시점의 기획을 보고 개발했다"는 도장 — package-lock의 기획판 | `.harness/spec-lock.json` |
 | 수화(hydrate) | 팀 기준 시점의 기획 본문을 내 PC로 내려받기 — node_modules 받는 것과 같은 급 | `generated/spec-cache/` |
-| 정산(settle) | "바뀐 기획 봤고 반영했다"는 확인 도장 — 찍어야 기준이 전진 | `npm run harness:spec:settle` |
+| 정산(settle) | "바뀐 기획 봤고 반영했다"는 확인 도장 — 찍어야 기준이 전진 | `.harness/bin/harness spec:settle` |
 | drift (어긋남) | 기획서와 코드가 서로 다른 말을 하는 상태 | `harness:spec:status` |
 | spec-map (매핑) | "이 기획서는 이 코드로 구현했다"의 연결표 — 도면↔시공 대응표 | `.harness/project/spec-map.md` |
 | advisory / gate | 기획 어긋남을 참고로만 알릴지, push를 막을지의 집행 등급 | profile의 `specEnforcement` |

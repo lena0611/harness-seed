@@ -56,7 +56,7 @@ AI 에이전트에게 모든 문서를 한 번에 주입하지 않습니다. 항
 - `impact`: 영향 파일군, 기준 충돌 후보, 검증 범위
 - `action`: 실행 명령, 수정 범위, 생성 산출물
 - `decision`: 선택한 기준, 예외, 보류 질문, 기록 위치
-- `verify`: `harness:check`, lint, test, build 결과
+- `verify`: `harness:check` 결과와, 프로젝트 도구(husky·CI 등)로 확인한 것이 있으면 그 결과
 
 trace는 프롬프트 진행 중 짧은 상태 로그, `harness:handoff` 산출물, 에이전트 최종 응답에서 같은 언어로 반복될 수 있습니다. 응답 형식 자체는 런타임 행동이므로 정적 검사로 강제하지 않고, Claude/Codex/Copilot 어댑터의 주입 문구와 진입점 문서로 조건부 리마인드합니다. 장기 보존이 필요한 판단은 trace가 아니라 `decision-log.md`, `developer-input-queue.md`, `waivers.json`, 프로젝트 룰 문서 중 맞는 곳으로 승격합니다.
 
@@ -81,12 +81,12 @@ trace는 프롬프트 진행 중 짧은 상태 로그, `harness:handoff` 산출�
 
 | 항목 | 진실 출처 | 검증 |
 | --- | --- | --- |
-| 공통 운영 원칙 | `.harness/policy/*.md` | `npm run harness:impact`, `npm run harness:check` |
-| 스택/템플릿 계약 | `stack-preset-rules.md`, `template-contract.md`, 외부 manifest/README | `npm run stack:status`, `npm run template:status`, `npm run harness:check` |
-| 프로젝트 로컬룰 | `.harness/project/*.md` | `npm run harness:check`, 코드/설정 한쪽 변경 후보 중 실제 기준 변경 여부 확인 |
+| 공통 운영 원칙 | `.harness/policy/*.md` | `.harness/bin/harness impact`, `.harness/bin/harness check` |
+| 스택/템플릿 계약 | `stack-preset-rules.md`, `template-contract.md`, 외부 manifest/README | `.harness/bin/harness stack:status`, `.harness/bin/harness template:status`, `.harness/bin/harness check` |
+| 프로젝트 로컬룰 | `.harness/project/*.md` | `.harness/bin/harness check`, 코드/설정 한쪽 변경 후보 중 실제 기준 변경 여부 확인 |
 | 세션 상태 | `.harness/session/*.md` | 항상 읽는 최소 기준, 세션 재개 항목, 미해결 항목 확인 |
-| 프로젝트 구조 요약 | 실제 코드와 설정 파일 | `npm run harness:sync`로 재생성 |
-| 작업별 판단 컨텍스트 | 실제 문서와 생성 컨텍스트의 조합 | 에이전트가 필요 시 `npm run harness:context -- "<작업>"`로 재생성 |
+| 프로젝트 구조 요약 | 실제 코드와 설정 파일 | `.harness/bin/harness sync`로 재생성 |
+| 작업별 판단 컨텍스트 | 실제 문서와 생성 컨텍스트의 조합 | 에이전트가 필요 시 `.harness/bin/harness context "<작업>"`로 재생성 |
 
 `.harness/generated/**`와 `.harness/session/task-context.md`는 재생성 산출물입니다. 사람이 직접 편집해 기준으로 삼지 않습니다.
 
@@ -106,8 +106,8 @@ trace는 프롬프트 진행 중 짧은 상태 로그, `harness:handoff` 산출�
 ## 작업 흐름
 
 1. 새 세션은 `CLAUDE.md`의 항상 읽는 최소 기준을 먼저 따릅니다.
-2. 큰 작업이나 생소한 영역을 다룰 때 `npm run harness:sync`로 프로젝트 맵을 최신화합니다.
-3. 에이전트가 `npm run harness:context -- "<작업 설명>"`으로 이번 작업의 Agent Decision Context를 생성합니다.
+2. 큰 작업이나 생소한 영역을 다룰 때 `.harness/bin/harness sync`로 프로젝트 맵을 최신화합니다.
+3. 에이전트가 `.harness/bin/harness context "<작업 설명>"`으로 이번 작업의 Agent Decision Context를 생성합니다.
 4. 후보 문서를 실제로 읽고, 상충되는 기준이 있으면 충돌 해석 순서에 따라 판단합니다.
 5. 코드나 기준을 바꾼 뒤 반복 패턴이 드러나면 `.harness/project/domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`, `commit-push-rules.md` 중 맞는 곳에 로컬룰 후보로 승격합니다.
 6. 최종화(검증·커밋·푸시)는 `CLAUDE.md` 작업 원칙의 "최종화 규칙(정본)"을 따릅니다.

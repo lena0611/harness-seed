@@ -26,8 +26,8 @@ Read these first:
 ```bash
 git status --short
 git diff --stat
-npm run harness:impact
-npm run harness:check
+.harness/bin/harness impact
+.harness/bin/harness check
 ```
 
 Return the failing command, observed symptom, likely cause, and the smallest fix path.

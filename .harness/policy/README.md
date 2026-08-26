@@ -26,10 +26,10 @@
 일반 설치 프로젝트는 아래 공개 명령을 먼저 사용합니다.
 
 ```bash
-npm run harness:scan
-npm run harness:handoff
-npm run harness:impact
-npm run harness:check
+.harness/bin/harness scan
+.harness/bin/harness handoff
+.harness/bin/harness impact
+.harness/bin/harness check
 ```
 
 아래 명령은 하네스 본체 저장소에서 세부 원인 분석이나 CI 검증이 필요할 때 사용하는 내부 개발 명령입니다. `harness:sync`와 `harness:context`는 소비자 프로젝트에도 제공되지만, 일반 개발자가 업무 지시 때마다 직접 실행하는 명령이 아니라 에이전트가 큰 작업 전에 판단 컨텍스트를 만들 때 사용하는 보조 명령입니다.
@@ -39,8 +39,8 @@ npm run policy:impact
 npm run policy:check
 npm run policy:guard
 npm run policy:guard:strict
-npm run harness:sync
-npm run harness:context -- "작업 설명"
+.harness/bin/harness sync
+.harness/bin/harness context "작업 설명"
 npm run docs:check
 ```
 
@@ -48,11 +48,11 @@ npm run docs:check
 
 | 검증 | 본체 개발 | 소비자 프로젝트 | 역할 |
 | --- | --- | --- | --- |
-| `npm run harness:check` | 사용 | 사용 | 표준 통합 검사입니다. 소비자 프로젝트에서는 `최종 검증만` 요청 또는 hook 미설치/우회 환경에서 직접 실행하고, hook 설치 후 commit/push 요청에는 hook이 실행합니다. |
-| `npm run harness:impact` | 사용 | 사용 | 변경 파일과 기준의 연결을 확인합니다. |
-| `npm run harness:scan` | 사용 | 사용 | 프로젝트 구조와 기준 후보를 스캔합니다. |
-| `npm run harness:handoff` | 사용 | 사용 | 설치/업데이트 후 확인할 일과 현재 상태를 요약합니다. |
-| `npm run hooks:install` | 사용 | 사용 | commit/push 전 `harness:check` 자동 실행을 연결합니다. 설치 후 에이전트는 commit 직전 수동 `harness:check`를 중복 실행하지 않습니다. |
+| `.harness/bin/harness check` | 사용 | 사용 | 표준 통합 검사입니다. 소비자 프로젝트에서는 `최종 검증만` 요청 또는 hook 미설치/우회 환경에서 직접 실행하고, hook 설치 후 commit/push 요청에는 hook이 실행합니다. |
+| `.harness/bin/harness impact` | 사용 | 사용 | 변경 파일과 기준의 연결을 확인합니다. |
+| `.harness/bin/harness scan` | 사용 | 사용 | 프로젝트 구조와 기준 후보를 스캔합니다. |
+| `.harness/bin/harness handoff` | 사용 | 사용 | 설치/업데이트 후 확인할 일과 현재 상태를 요약합니다. |
+| `.harness/bin/harness hooks:install` | 사용 | 사용 | commit/push 전 `harness:check` 자동 실행을 연결합니다. 설치 후 에이전트는 commit 직전 수동 `harness:check`를 중복 실행하지 않습니다. |
 | `npm run policy:check` | 주로 사용 | 기본 script 아님 | 정책 레지스트리 자체를 직접 검사합니다. |
 | `npm run docs:check:strict` | 사용 | 기본 script 아님 | 하네스 문서 레지스트리와 링크를 엄격히 검사합니다. |
 | `node scripts/test-init.mjs` | 사용 | 사용 안 함 | 설치기 smoke test입니다. |
@@ -72,7 +72,7 @@ npm run docs:check
 - `.harness/bin/sync-context.mjs`: 프로젝트 맵, import 맵, 패턴 후보를 `.harness/generated/**`로 재생성
 - `.harness/bin/build-context.mjs`: 작업 설명을 기준으로 `.harness/session/task-context.md`에 Agent Decision Context 생성
 - `.harness/bin/doc-link-check.mjs`: 문서 레지스트리 일관성과 마크다운 링크/코드 경로 참조 검증
-- CI 설정: 푸시/PR 시 `npm run harness:check:strict` 실행
+- CI 설정: 푸시/PR 시 `.harness/bin/harness check --strict` 실행
 
 ## 운영 원칙
 - 개발 기준 변경은 문서 수정으로 끝내지 않습니다. 영향을 받는 코드 영역을 반드시 다시 봅니다.

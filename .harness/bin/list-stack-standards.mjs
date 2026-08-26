@@ -41,7 +41,7 @@ function printStackList(stacks, heading) {
     console.log(`  repo: ${stack.repo}`)
     console.log(`  기준: ${stack.ref ?? '저장소 기본 브랜치'}`)
     console.log(`  설치: npx -y git+${stack.repo}${stack.ref ? `#${stack.ref}` : ''} init`)
-    console.log(`  적용: npm run stack:apply -- --preset-git ${stack.repo}${stack.ref ? ` --ref ${stack.ref}` : ''}`)
+    console.log(`  적용: .harness/bin/harness stack:apply --preset-git ${stack.repo}${stack.ref ? ` --ref ${stack.ref}` : ''}`)
   }
 
   console.log('')
@@ -57,7 +57,7 @@ function printRemoteFallback(stacks, status = null) {
   console.log('관리자용 원격 조회 설정:')
   console.log('  HARNESS_GITLAB_URL=https://git.smartscore.kr')
   console.log('  HARNESS_STACK_STANDARD_GROUP=ai-standard/harnesses')
-  console.log('  GITLAB_TOKEN=<read_api token> npm run standards:list -- --remote')
+  console.log('  GITLAB_TOKEN=<read_api token> .harness/bin/harness standards:list --remote')
 }
 
 async function main() {

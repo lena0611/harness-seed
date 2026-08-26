@@ -26,6 +26,11 @@ function run(command, args, options = {}) {
   })
 }
 
+// 0.2.131: 소비자 npm 별칭은 0개 — 모든 명령은 harness 런처로 호출한다.
+function harnessBin(target) {
+  return path.join(target, '.harness/bin/harness')
+}
+
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message)
@@ -86,6 +91,14 @@ function makeNoGitTarget() {
 }
 
 function runInit(target, ...args) {
+  // 0.2.131: 최초 설치는 기본으로 git hook을 자동 활성화한다(결정 94). 대다수 기존 테스트는
+  // 훅 상태와 무관하고 install-hooks 반복 실행은 러너만 느리게 하므로 여기서는 끈다.
+  // 자동 활성화의 실제 기본 경로는 freshInstallAutoActivatesGitHooks가 전용으로 검증한다.
+  return run(nodeBin, [path.join(repoRoot, 'scripts/init.mjs'), 'init', '--no-hooks', ...args], { cwd: target })
+}
+
+// 자동 활성화 기본 경로 검증용 — --no-hooks를 붙이지 않는 원형 호출.
+function runInitDefaultHooks(target, ...args) {
   return run(nodeBin, [path.join(repoRoot, 'scripts/init.mjs'), 'init', ...args], { cwd: target })
 }
 
@@ -152,7 +165,9 @@ function cleanInstallCreatesExpectedFiles() {
   assert(exists(target, '.claude/commands/운영업무.md'), 'clean install should copy operational work slash command')
   assert(exists(target, '.claude/commands/업무요약.md'), 'clean install should copy work summary slash command')
   assert(exists(target, '.claude/commands/하네스업데이트.md'), 'clean install should copy harness update slash command')
-  assert(exists(target, '.claude/commands/검증설정.md'), 'clean install should copy verify ownership slash command')
+  // 0.2.131: verify(검증 소유) 개념 자체를 제거했으므로 슬래시 명령도 배포되면 안 된다.
+  // 삭제를 잠그는 assert — 되살아나면 "누가 lint/test/build를 돌릴지" 문답이 다시 생긴다.
+  assert(!exists(target, '.claude/commands/검증설정.md'), 'verify ownership slash command must not be installed after the 0.2.131 verify removal')
   assert(exists(target, '.claude/commands/하네스용어.md'), 'clean install should copy terminology lookup slash command')
   assert(read(target, '.claude/commands/하네스용어.md').includes('.harness/project/terminology.md'), 'terminology command must point at the terminology source of truth')
   const terminologySkill = JSON.parse(read(target, '.harness/skills/registry.json')).skills.find((skill) => skill.id === 'harness.terminology')
@@ -221,8 +236,8 @@ function cleanInstallCreatesExpectedFiles() {
   assert(commitPushSkill.outputs.includes('중복 검증 생략 여부'), 'commit/push finalization skill should report duplicate check avoidance')
   assert(updateSkill, 'consumer skill registry should include harness update flow')
   assert(updateSkill.audience.includes('consumer'), 'harness update flow should be consumer-facing')
-  assert(updateSkill.commands.includes('npm run harness:outdated'), 'harness update flow should check outdated state')
-  assert(updateSkill.commands.includes('npm run harness:update -- --base-only'), 'harness update flow should document base-only update')
+  assert(updateSkill.commands.includes('.harness/bin/harness outdated'), 'harness update flow should check outdated state')
+  assert(updateSkill.commands.includes('.harness/bin/harness update --base-only'), 'harness update flow should document base-only update')
 
   const decisionLog = read(target, '.harness/session/decision-log.md')
   assert(decisionLog.includes('소비자 프로젝트 전용 로그'), 'consumer decision log should explain project scope')
@@ -258,23 +273,26 @@ function cleanInstallCreatesExpectedFiles() {
   assert(cleanGitignore.includes('dist/'), 'Node install should keep adding dist/ to .gitignore')
 
   const pkg = JSON.parse(read(target, 'package.json'))
-  assert(pkg.scripts['harness:scan'], 'clean install should merge harness scan script')
-  assert(pkg.scripts['harness:handoff'], 'clean install should merge harness handoff script')
-  assert(pkg.scripts['harness:check'], 'clean install should merge harness check script')
-  assert(pkg.scripts['harness:impact'], 'clean install should merge harness impact script')
-  assert(pkg.scripts['harness:outdated'], 'clean install should merge harness outdated script')
-  assert(pkg.scripts['harness:update'], 'clean install should merge harness update script')
-  assert(pkg.scripts['harness:guide'], 'clean install should merge harness guide script')
-  assert(pkg.scripts['harness:sync'], 'clean install should merge harness sync script')
-  assert(pkg.scripts['harness:context'], 'clean install should merge harness context script')
-  assert(pkg.scripts['standards:list'], 'clean install should merge stack standard listing script')
+  // 0.2.131: 주입 별칭 0개 — 하네스는 package.json에 쓰지 않는다. 모든 명령은 .harness/bin/harness 런처.
+  const harnessAliases = Object.keys(pkg.scripts).filter((name) => /^(harness|hooks|stack|template|standards|templates):/.test(name))
+  assert(harnessAliases.length === 0, `clean install should inject zero harness aliases (got ${harnessAliases.join(', ')})`)
+  // 은퇴 별칭(25종, harness:*/hooks:install 계열 전부)은 새 설치에 주입하지 않는다(기존 소비자 파일에서는 삭제하지 않음 — add-only).
+  for (const retired of [
+    'harness:check', 'harness:impact', 'harness:context', 'hooks:install',
+    'harness:guide', 'harness:scan', 'harness:handoff', 'harness:check:strict', 'harness:sync',
+    'harness:spec:fetch', 'harness:spec:status', 'harness:spec:settle',
+    'harness:outdated', 'harness:update', 'harness:changelog', 'harness:uninstall',
+    'standards:list', 'templates:list',
+    'stack:apply', 'stack:reset', 'stack:status',
+    'template:apply', 'template:reset', 'template:status', 'template:gap',
+  ]) {
+    assert(!pkg.scripts[retired], `clean install should not inject retired alias ${retired}`)
+  }
   assert(!pkg.scripts.guard, 'clean install should not add deprecated guard alias')
   assert(!pkg.scripts['stack:list'], 'clean install should not add deprecated stack list alias')
   assert(!pkg.scripts['node:check'], 'clean install should not expose harness internal node check script')
   assert(!pkg.scripts['policy:impact'], 'clean install should not expose harness internal policy script')
   assert(!pkg.scripts['docs:check'], 'clean install should not expose harness internal docs script')
-  assert(pkg.scripts['harness:check'].startsWith('node .harness/bin/check-node-version.mjs &&'), 'consumer harness scripts should not depend on node:check npm script')
-  assert(pkg.scripts['template:apply'], 'clean install should merge template apply script')
   assert(exists(target, '.harness/project/template-contract.md'), 'clean install should copy template contract bridge')
   assert(exists(target, '.harness/project/commit-push-rules.md'), 'clean install should copy commit/push rules')
 
@@ -295,8 +313,8 @@ function cleanInstallCreatesExpectedFiles() {
   const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
   assert(profile.activeStack === 'none', 'clean install should default to stack-agnostic mode')
 
-  run('npm', ['run', 'harness:sync'], { cwd: target })
-  run('npm', ['run', 'harness:context', '--', 'context smoke'], { cwd: target })
+  run(harnessBin(target), ['sync'], { cwd: target })
+  run(harnessBin(target), ['context', 'context smoke'], { cwd: target })
   assert(exists(target, '.harness/generated/project-map.md'), 'harness sync should generate project map')
   assert(exists(target, '.harness/session/task-context.md'), 'harness context should generate task context')
 
@@ -329,6 +347,79 @@ function cleanInstallCreatesExpectedFiles() {
   assert(!exists(target, 'scripts/release-notice.mjs'), 'seed release-notice tool must not ship to consumers')
 }
 
+function installExcludesSessionWorktrees() {
+  // 에이전트 세션이 본체 체크아웃에 만드는 .claude/worktrees/* 는 저장소 상태이지 배포물이 아니다.
+  // 유출되면 소비자 설치본의 .claude/** 정책(visible-trace)이 무관한 변경에 깨어난다(2026-08-26 실측).
+  // 본체에 워크트리가 없을 때도 검사가 공허해지지 않도록 탐침을 직접 만들었다 지운다.
+  const probeDir = path.join(repoRoot, '.claude/worktrees/__regression-probe__')
+  fs.mkdirSync(probeDir, { recursive: true })
+  fs.writeFileSync(path.join(probeDir, 'probe.md'), 'install exclusion probe\n')
+
+  try {
+    const target = makeTarget()
+    runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+    assert(!exists(target, '.claude/worktrees'), 'session worktrees must not ship to consumers')
+    const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+    const leaked = Object.keys(manifest.managedFiles).filter((rel) => rel.startsWith('.claude/worktrees/'))
+    assert(leaked.length === 0, `session worktrees must not enter the install manifest: ${leaked.join(', ')}`)
+  } finally {
+    fs.rmSync(probeDir, { recursive: true, force: true })
+  }
+}
+
+function freshInstallAutoActivatesGitHooks() {
+  // 결정 94: 하네스 설치가 곧 관문 동의 — 최초 설치는 hooks:install을 자동 실행한다.
+  // 업데이트는 재배선하지 않는다(기존 clone의 선택 존중). --no-hooks는 옵트아웃.
+  const target = makeTarget()
+  const out = runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const hooksPath = run('git', ['config', 'core.hooksPath'], { cwd: target }).trim()
+  assert(hooksPath === '.githooks', `fresh install must auto-activate hooks (got '${hooksPath}')`)
+  const template = run('git', ['config', 'commit.template'], { cwd: target }).trim()
+  assert(template === '.github/commit-template.txt', 'fresh install must set commit template')
+  assert(out.includes('자동으로 완료됨'), 'next-steps guidance must reflect auto activation')
+  assert(out.includes('각자 1회'), 'guidance must warn that hooks do not travel with clones')
+
+  // 사용자가 의도적으로 훅을 끈 뒤 업데이트(manifest 존재) — 재배선하지 않아야 한다.
+  run('git', ['config', '--unset', 'core.hooksPath'], { cwd: target })
+  runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
+  let rewired = '.githooks'
+  try {
+    rewired = run('git', ['config', 'core.hooksPath'], { cwd: target }).trim()
+  } catch {
+    rewired = ''
+  }
+  assert(rewired !== '.githooks', 'update must not re-wire hooks the project turned off')
+
+  // 옵트아웃: --no-hooks 최초 설치는 훅을 건드리지 않는다.
+  const optOut = makeTarget()
+  runInitDefaultHooks(optOut, '--no-hooks', '--no-scan', '--no-handoff', '--no-check')
+  let optOutPath = ''
+  try {
+    optOutPath = run('git', ['config', 'core.hooksPath'], { cwd: optOut }).trim()
+  } catch {
+    optOutPath = ''
+  }
+  assert(optOutPath === '', '--no-hooks fresh install must leave hooksPath unset')
+}
+
+function sessionStartAdapterWarnsWhenHooksMissing() {
+  // 결정 94: 훅 설정은 clone으로 공유되지 않는다 — 세션 시작 어댑터가 미설치를 매 세션 알린다.
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const adapter = path.join(target, '.claude/hooks/inject-context.sh')
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: target }
+
+  const before = run('/bin/bash', [adapter], { cwd: target, env })
+  assert(before.includes('hooks not installed'), 'adapter must warn when hooks are missing')
+
+  run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target })
+  const after = run('/bin/bash', [adapter], { cwd: target, env })
+  assert(!after.includes('hooks not installed'), 'adapter must stay quiet once hooks are installed')
+}
+
 function installOutputUsesConditionalNvmAndGitGuidance() {
   const gitTarget = makeTarget()
   const gitOutput = runInit(gitTarget, '--no-scan', '--no-handoff', '--no-check')
@@ -341,7 +432,7 @@ function installOutputUsesConditionalNvmAndGitGuidance() {
   const noGitOutput = runInit(noGitTarget, '--no-scan', '--no-handoff', '--no-check')
 
   assert(noGitOutput.includes('현재 git 저장소가 아니므로 건너뜁니다'), 'non-git install output should not present hook install as an immediate step')
-  assert(noGitOutput.includes('git init 후 npm run hooks:install'), 'non-git install output should explain how to enable hooks later')
+  assert(noGitOutput.includes('git init 후 .harness/bin/harness hooks:install'), 'non-git install output should explain how to enable hooks later')
 }
 
 function hooksInstallFailsClearlyOutsideGit() {
@@ -350,7 +441,7 @@ function hooksInstallFailsClearlyOutsideGit() {
 
   let failed = false
   try {
-    run('npm', ['run', '--silent', 'hooks:install'], { cwd: target })
+    run(harnessBin(target), ['hooks:install'], { cwd: target })
   } catch (error) {
     failed = error.status === 1
     const output = `${error.stdout ?? ''}\n${error.stderr ?? ''}`
@@ -392,21 +483,6 @@ function nonNodeInstallSkipsPackageJson() {
   run(nodeBin, [path.join(target, '.harness/bin/guard.mjs')], { cwd: target })
 }
 
-function optInCreatesPackageJsonForGreenfieldNode() {
-  // 드문 greenfield Node 케이스: --with-package-json 명시 시에만 생성한다.
-  const target = makeBareTarget()
-
-  runInit(target, '--with-package-json', '--no-scan', '--no-handoff', '--no-check')
-
-  assert(exists(target, 'package.json'), 'opt-in should create package.json when missing')
-  const pkg = JSON.parse(read(target, 'package.json'))
-  assert(pkg.scripts['harness:check'], 'opt-in package.json should merge harness check script')
-  assert(
-    pkg.scripts['harness:check'].startsWith('node .harness/bin/check-node-version.mjs &&'),
-    'opt-in consumer scripts should not depend on node:check npm script',
-  )
-}
-
 function launcherRunsHarnessWithoutNpm() {
   // P2(2026-06-09): npm/package.json 없이도 `.harness/bin/harness <command>`로 하네스를 실행한다.
   const target = makeBareTarget()
@@ -445,13 +521,16 @@ function launcherRunsHarnessWithoutNpm() {
   assert(exists(target, cmdRel), 'install should include Windows cmd shim for the harness launcher')
   const cmdText = read(target, cmdRel)
 
-  // 드리프트 가드: 소비자 npm script가 호출하는 .harness/bin/*.mjs를 sh 런처와 .cmd shim이 모두 커버해야 한다.
+  // 드리프트 가드: 은퇴 별칭(과거 npm script)이 호출하던 .harness/bin/*.mjs를 sh 런처와 .cmd shim이
+  // 모두 커버해야 한다. 0.2.131부터 주입 별칭은 0개지만, 은퇴 목록이 가리키던 명령은 런처로 계속
+  // 도달해야 한다(기존 소비자 package.json에 남은 별칭도 계속 동작해야 하므로).
   const launcherText = read(target, launcherRel)
   const seedPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'))
   const initSrc = fs.readFileSync(path.join(repoRoot, 'scripts/init.mjs'), 'utf8')
-  const namesBlock = initSrc.match(/const CONSUMER_SCRIPT_NAMES = \[([\s\S]*?)\]/)
-  assert(namesBlock, 'test should locate CONSUMER_SCRIPT_NAMES in init.mjs')
-  const consumerNames = [...namesBlock[1].matchAll(/'([^']+)'/g)].map((m) => m[1])
+  const retiredBlock = initSrc.match(/const RETIRED_CONSUMER_SCRIPTS = \[([\s\S]*?)\]/)
+  assert(retiredBlock, 'test should locate RETIRED_CONSUMER_SCRIPTS in init.mjs')
+  const consumerNames = [...retiredBlock[1].matchAll(/'([^']+)'/g)].map((m) => m[1])
+  assert(consumerNames.length === 25, `test should locate all 25 retired consumer script names (got ${consumerNames.length})`)
   const referenced = new Set()
   for (const name of consumerNames) {
     const script = seedPkg.scripts[name]
@@ -500,6 +579,43 @@ function gitHooksRunWithoutNpm() {
   run('sh', [path.join(target, '.githooks/pre-push')], { cwd: target, env: prefixEnv })
 }
 
+// 회귀: previousHooksPath 체인이 순환하면(husky가 hooksPath 주인인 상태에서 하네스 훅이
+// 다시 husky를 부르는 핑퐁 구성 등, 멀티사이트 시뮬레이션에서 깊이 13 실측) 무한 재귀 대신
+// 한계(3)에서 명확한 한국어 메시지와 함께 중단돼야 한다. 정상 체인(깊이 1~2)은 영향 없어야 한다.
+function previousHookChainStopsOnRecursion() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run(path.join(target, '.harness/bin/harness'), ['hooks:install'], { cwd: target })
+  const runPreviousHook = path.join(target, '.harness/bin/run-previous-hook.mjs')
+
+  // 자기 자신 직행 순환: previousHooksPath가 하네스 자신의 훅 디렉터리(.githooks)를 가리킨다.
+  run('git', ['config', 'harness.previousHooksPath', '.githooks'], { cwd: target })
+  const selfLoopOut = expectFailure(
+    () => run(nodeBin, [runPreviousHook, 'pre-commit'], { cwd: target }),
+    'previousHooksPath pointing at the harness hooks dir itself must be rejected, not silently skipped',
+  )
+  assert(selfLoopOut.includes('순환'), 'self-loop must be reported as a cycle')
+  assert(selfLoopOut.includes('hook-coexistence.md'), 'self-loop message must point at the coexistence doc')
+
+  // 정상 previous hook 체인(깊이 1)은 그대로 통과해야 한다 — 가드가 정상 케이스를 막으면 안 된다.
+  fs.mkdirSync(path.join(target, '.git/custom-hooks'), { recursive: true })
+  fs.writeFileSync(path.join(target, '.git/custom-hooks/pre-commit'), '#!/bin/sh\nexit 0\n')
+  fs.chmodSync(path.join(target, '.git/custom-hooks/pre-commit'), 0o755)
+  run('git', ['config', 'harness.previousHooksPath', '.git/custom-hooks'], { cwd: target })
+  run(nodeBin, [runPreviousHook, 'pre-commit'], { cwd: target })
+
+  // 프로세스 경계를 넘어 이미 한계 깊이(3)에 도달한 상태로 들어오면 4번째 홉을 시도하지 않고
+  // 즉시 같은 메시지로 중단된다 (previousHooksPath 자체는 정상 체인이어도 깊이가 우선한다).
+  const deepOut = expectFailure(
+    () => run(nodeBin, [runPreviousHook, 'pre-commit'], {
+      cwd: target,
+      env: { ...process.env, HARNESS_PREV_HOOK_DEPTH: '3' },
+    }),
+    'depth already at the cap must abort before spawning another hop',
+  )
+  assert(deepOut.includes('순환'), 'depth-cap abort must use the same cycle message')
+}
+
 // 0.2.124: 세션 기록 전용 커밋은 통합 검사를 생략한다. --no-verify는 에이전트 가드가 막는
 // 것이 맞으므로(사람 판단의 우회 방지), 훅이 스테이징 파일 목록으로 스스로 판정한다.
 // 경계가 계약이다: 다른 파일이 하나라도 섞이면 평소 검사 — 이게 무너지면 우회 통로가 된다.
@@ -520,104 +636,9 @@ function sessionOnlyCommitSkipsHeavyCheck() {
   assert(full.includes('Harness check summary'), 'mixed staging must run the full check')
 }
 
-function makeVerifyPreset() {
-  // P4: lint/test를 npm script가 아니라 raw shell 명령으로 선언하는 비-Node 스택 프리셋.
-  const preset = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-verify-preset-test-'))
-
-  fs.mkdirSync(path.join(preset, 'instructions'), { recursive: true })
-  fs.writeFileSync(path.join(preset, 'instructions/rules.md'), '# Backend Rule\n\nUse raw verify commands.\n')
-  fs.writeFileSync(path.join(preset, 'manifest.json'), JSON.stringify({
-    id: 'backend-verify-demo',
-    title: 'Backend Verify Demo',
-    stackHarness: {
-      repo: 'https://example.test/backend-verify-demo.git',
-      ref: 'v1.0.0',
-    },
-    baseHarness: {
-      repo: 'https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git',
-      ref: packageRef,
-      minVersion: packageVersion,
-    },
-    framework: {
-      runtime: 'php',
-    },
-    designPattern: ['Raw Verify Contract'],
-    instructions: ['instructions/rules.md'],
-    policiesFile: 'policies.json',
-    checksKey: null,
-    verify: {
-      lint: 'echo lint-ok > raw-verify-lint.txt',
-      test: 'echo test-ok > raw-verify-test.txt',
-    },
-    source: {
-      type: 'none',
-    },
-  }, null, 2))
-  fs.writeFileSync(path.join(preset, 'policies.json'), JSON.stringify({
-    version: 1,
-    stackId: 'backend-verify-demo',
-    policies: [],
-  }, null, 2))
-
-  return preset
-}
-
-// verify 명령이 `node --version`을 파일로 남겨, 검증이 어느 Node로 실행됐는지 확인할 수 있는 프리셋.
-function makeNodeVersionVerifyPreset() {
-  const preset = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-nodever-preset-test-'))
-  fs.mkdirSync(path.join(preset, 'instructions'), { recursive: true })
-  fs.writeFileSync(path.join(preset, 'instructions/rules.md'), '# Node Version Probe\n\nVerify runs node --version.\n')
-  fs.writeFileSync(path.join(preset, 'manifest.json'), JSON.stringify({
-    id: 'nodever-verify-demo',
-    title: 'Node Version Verify Demo',
-    stackHarness: { repo: 'https://example.test/nodever-verify-demo.git', ref: 'v1.0.0' },
-    baseHarness: {
-      repo: 'https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git',
-      ref: packageRef,
-      minVersion: packageVersion,
-    },
-    framework: { runtime: 'php' },
-    designPattern: ['Node Version Probe'],
-    instructions: ['instructions/rules.md'],
-    policiesFile: 'policies.json',
-    checksKey: null,
-    verify: { lint: 'node --version > verify-node.txt' },
-    source: { type: 'none' },
-  }, null, 2))
-  fs.writeFileSync(path.join(preset, 'policies.json'), JSON.stringify({
-    version: 1,
-    stackId: 'nodever-verify-demo',
-    policies: [],
-  }, null, 2))
-
-  return preset
-}
-
-function stackVerifyRunsRawCommandsWithoutNpm() {
-  // P4(2026-06-09): 스택 manifest의 verify 섹션(raw shell 명령)이 npm script 없이 실행된다.
-  const target = makeBareTarget()
-  fs.writeFileSync(path.join(target, 'composer.json'), '{\n  "name": "acme/app"\n}\n')
-  runInit(target, '--no-scan', '--no-handoff', '--no-check')
-
-  const launcher = path.join(target, '.harness/bin/harness')
-  const preset = makeVerifyPreset()
-  run(launcher, ['stack:apply', '--preset-path', preset], { cwd: target })
-
-  const checkOut = run(launcher, ['check'], { cwd: target })
-  assert(checkOut.includes('Stack verify (lint)'), 'check should announce raw lint verify command')
-  assert(checkOut.includes('Stack verify (test)'), 'check should announce raw test verify command')
-  assert(read(target, 'raw-verify-lint.txt').includes('lint-ok'), 'raw lint verify command should run from project root')
-  assert(read(target, 'raw-verify-test.txt').includes('test-ok'), 'raw test verify command should run from project root')
-  assert(checkOut.includes('verify:lint, verify:test 통과'), 'summary should report raw verify stages as passed')
-
-  // fast check는 npm script와 동일하게 test/build stage를 건너뛴다.
-  fs.rmSync(path.join(target, 'raw-verify-lint.txt'))
-  fs.rmSync(path.join(target, 'raw-verify-test.txt'))
-  const fastOut = run(launcher, ['check', '--fast'], { cwd: target })
-  assert(fastOut.includes('Fast check mode'), 'fast check should announce skipped stages')
-  assert(exists(target, 'raw-verify-lint.txt'), 'fast check should still run lint stage')
-  assert(!exists(target, 'raw-verify-test.txt'), 'fast check should skip raw test stage')
-}
+// 스택 manifest의 raw verify(lint/test) 실행 회귀(P4, 2026-06-09)와 그 픽스처 프리셋
+// (makeVerifyPreset / makeNodeVersionVerifyPreset)은 0.2.131 verify 제거와 함께 삭제했다.
+// 스택은 더 이상 검증 명령을 선언하지 않는다.
 
 function initPatchesEslintConfigForHarnessFiles() {
   const target = makeTarget()
@@ -721,6 +742,37 @@ function reinstallPreservesProjectOwnedFiles() {
   assert(read(target, '.harness/project/local-methodology.md') === sentinel, 'reinstall should preserve local methodology')
   assert(read(target, '.harness/policy/profile.json').includes('"custom"'), 'reinstall should preserve profile')
   assert(exists(target, '.harness-backup'), 'reinstall should create backup directory')
+}
+
+// 0.2.131: 주입 별칭 0개여도, pre-0.2.131 소비자가 이미 가진 은퇴 별칭은 add-only로 보존하고
+// 남아 있다는 사실만 알린다(삭제하거나 새로 주입하지 않는다).
+function retiredAliasNoticeSurvivesZeroInjection() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  // pre-0.2.131 소비자를 재현: 은퇴 별칭 2개가 이미 package.json에 있다.
+  const pkg = JSON.parse(read(target, 'package.json'))
+  pkg.scripts['harness:check'] = 'node .harness/bin/check-node-version.mjs && node .harness/bin/guard.mjs'
+  pkg.scripts['harness:guide'] = 'node .harness/bin/check-node-version.mjs && node .harness/bin/harness-guide.mjs'
+  writeJson(target, 'package.json', pkg)
+
+  const output = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  assert(output.includes('은퇴한 하네스 npm 별칭 2개가 package.json에 남아 있습니다'), 'reinstall should report the count of retired aliases still present')
+  assert(output.includes('계속 동작합니다'), 'retired alias notice should reassure the alias still works')
+
+  const finalPkg = JSON.parse(read(target, 'package.json'))
+  assert(finalPkg.scripts['harness:check'], 'add-only contract should keep the pre-existing retired alias')
+  assert(finalPkg.scripts['harness:guide'], 'add-only contract should keep the pre-existing retired alias')
+  const harnessAliases = Object.keys(finalPkg.scripts).filter((name) => /^(harness|hooks|stack|template|standards|templates):/.test(name))
+  assert(harnessAliases.length === 2, `reinstall should not inject any new alias beyond the pre-existing 2 (got ${harnessAliases.join(', ')})`)
+}
+
+// 은퇴 별칭이 하나도 없는 소비자에게는 정리 안내 자체가 나오면 안 된다(있지도 않은 것을 알리는 노이즈).
+function retiredAliasNoticeOmittedWhenNoneExist() {
+  const target = makeTarget()
+  const output = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!output.includes('은퇴한 하네스 npm 별칭'), 'a fresh install without legacy scripts should not print the retired alias notice')
 }
 
 function reinstallMigratesUnchangedSeedSessionStateToConsumerTemplates() {
@@ -939,55 +991,12 @@ function dualNodeDoesNotExportDotWhenNodeIsShellFunction() {
   assert(result.stdout.includes('BIN=[unset]'), `node-as-function must not export HARNESS_PROJECT_NODE_BIN='.': ${result.stdout}`)
 }
 
-// guard는 hook이 넘긴 HARNESS_PROJECT_NODE_BIN이 .nvmrc와 불일치하면 맹신하지 않고,
-// .nvmrc Node가 미설치면 '검증 신뢰성 우선'으로 하드페일해야 한다(hook 경로의 우회 차단).
-function guardRejectsHookNodeMismatchingNvmrc() {
-  const target = makeBareTarget()
-  fs.writeFileSync(path.join(target, 'composer.json'), '{\n  "name": "acme/app"\n}\n')
-  // fake nvm에는 v24만 있고 .nvmrc가 요구하는 v12는 없다.
-  const fakeNvm = makeFakeNvmDir(['v24.15.0'])
-  const v24Bin = path.join(fakeNvm, 'versions', 'node', 'v24.15.0', 'bin')
-  runInitWithEnv(target, { NVM_DIR: fakeNvm }, '--project-node', '12', '--no-scan', '--no-handoff', '--no-check')
-
-  const launcher = path.join(target, '.harness/bin/harness')
-  const preset = makeVerifyPreset()
-  run(launcher, ['stack:apply', '--preset-path', preset], { cwd: target, env: { ...process.env, NVM_DIR: fakeNvm } })
-
-  let failed = false
-  let combined = ''
-  try {
-    // 불일치 fromHook(v24)을 직접 주입한 채 guard 실행. .nvmrc=12, v12 미설치 → 하드페일 기대.
-    run(nodeBin, [path.join(target, '.harness/bin/guard.mjs')], {
-      cwd: target,
-      env: { ...process.env, NVM_DIR: fakeNvm, HARNESS_PROJECT_NODE_BIN: v24Bin, PATH: `${v24Bin}:/usr/bin:/bin` },
-    })
-  } catch (error) {
-    failed = error.status !== 0
-    combined = `${error.stdout ?? ''}\n${error.stderr ?? ''}`
-  }
-
-  assert(failed, 'guard must not trust a hook-provided node that mismatches .nvmrc when the .nvmrc node is missing')
-  assert(combined.includes('nvm install 12'), `guard should hard-fail asking for the .nvmrc node, got: ${combined}`)
-}
-
-// 반대로 .nvmrc와 일치하는 fromHook은 신뢰하고, 프로젝트 검증을 그 Node로 실행한다.
-function guardRunsStackVerifyOnProjectNode() {
-  const target = makeBareTarget()
-  fs.writeFileSync(path.join(target, 'composer.json'), '{\n  "name": "acme/app"\n}\n')
-  const fakeNvm = makeFakeNvmDir(['v12.18.4', 'v24.15.0'])
-  const v12Bin = path.join(fakeNvm, 'versions', 'node', 'v12.18.4', 'bin')
-  runInitWithEnv(target, { NVM_DIR: fakeNvm }, '--project-node', '12', '--no-scan', '--no-handoff', '--no-check')
-
-  const launcher = path.join(target, '.harness/bin/harness')
-  const preset = makeNodeVersionVerifyPreset()
-  run(launcher, ['stack:apply', '--preset-path', preset], { cwd: target, env: { ...process.env, NVM_DIR: fakeNvm } })
-
-  run(nodeBin, [path.join(target, '.harness/bin/guard.mjs')], {
-    cwd: target,
-    env: { ...process.env, NVM_DIR: fakeNvm, HARNESS_PROJECT_NODE_BIN: v12Bin, PATH: `${v12Bin}:/usr/bin:/bin` },
-  })
-  assert(read(target, 'verify-node.txt').includes('v12.18.4'), 'stack verify should run on the project (.nvmrc) node, not the harness node')
-}
+// 0.2.63 dual-runtime 계약은 verify(0.2.131 제거)를 유일 소비처로 삼고 있었다. 훅의 nvm 전환
+// (.githooks/* 가 부르는 .harness/bin/dual-node.sh, .harness/bin/check-node-version.mjs)은 별개
+// 장치로 남아 있으며 그쪽 회귀가 하네스 자신의 저버전 Node 보호를 계속 잠근다.
+// 여기 있던 guardRejectsHookNodeMismatchingNvmrc / guardRunsStackVerifyOnProjectNode는 guard가
+// HARNESS_PROJECT_NODE_BIN을 해석해 프로젝트 검증을 프로젝트 Node로 되돌리던 경로를 잠그던
+// 회귀라, 그 소비처가 사라진 지금은 재현할 대상이 없어 함께 삭제했다.
 
 function backendWithoutNvmrcSkipsProjectNodeInterview() {
   const target = makeBareTarget()
@@ -1053,7 +1062,7 @@ function scanReportSuggestsBridgeCandidates() {
 
   fs.writeFileSync(path.join(target, 'CLAUDE.md'), '# Personal Rules\n')
   runInit(target)
-  run('npm', ['run', 'harness:scan'], { cwd: target })
+  run(harnessBin(target), ['scan'], { cwd: target })
 
   const report = read(target, '.harness/session/project-scan-report.md')
   assert(report.includes('## Bridge Section Candidates'), 'scan report should include bridge section candidate section')
@@ -1241,7 +1250,7 @@ function stackApplyMaterializesPresetAsLocalRules() {
     ],
   }
   writeJson(target, '.harness/harness-lock.json', lockBeforeStackApply)
-  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
 
   const localRules = read(target, '.harness/project/stack-preset-rules.md')
   assert(localRules.includes('## 적용된 스택:'), 'stack apply should write applied stack section')
@@ -1262,7 +1271,7 @@ function stackApplyMaterializesPresetAsLocalRules() {
   ]
   writeJson(target, '.harness/policy/profile.json', profileBeforeReset)
 
-  run('npm', ['run', 'stack:reset'], { cwd: target })
+  run(harnessBin(target), ['stack:reset'], { cwd: target })
 
   const resetRules = read(target, '.harness/project/stack-preset-rules.md')
   assert(resetRules.includes('적용된 스택 프리셋이 없습니다.'), 'stack reset should restore previous local rules file')
@@ -1287,7 +1296,7 @@ function stackApplySupportsExternalPresetPath() {
     available: ['none'],
     stackManifest: null,
   })
-  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
 
   assert(read(target, 'hello.txt').includes('external preset'), 'external preset should copy scaffold files')
 
@@ -1315,7 +1324,7 @@ function stackApplySupportsExternalPresetPath() {
   assert(lock.stackHarness.manifestPath === '.harness/stacks/.applied/external-demo/manifest.json', 'harness lock should record stack manifest snapshot')
   assert(lock.stackHarness.requiredBaseHarness.ref === packageRef, 'harness lock should record required base harness ref')
 
-  const updatePlan = run('npm', ['run', 'harness:update', '--', '--dry-run'], { cwd: target })
+  const updatePlan = run(harnessBin(target), ['update', '--dry-run'], { cwd: target })
   assert(updatePlan.includes('npx -y git+https://example.test/external-demo.git#semver:^9.8.7 init'), 'harness update dry-run should target compatible stack range')
 }
 
@@ -1341,25 +1350,25 @@ function harnessOutdatedDetectsBaseAndStackUpdates() {
   }
   writeJson(target, '.harness/harness-lock.json', lock)
 
-  const output = run('npm', ['run', '--silent', 'harness:outdated', '--', '--json'], { cwd: target })
+  const output = run(harnessBin(target), ['outdated', '--json'], { cwd: target })
   const status = JSON.parse(output)
   assert(status.overall === 'outdated', 'harness outdated should report overall outdated when base is outdated')
   assert(status.targets.baseHarness.outdated === true, 'harness outdated should check base harness by default')
   assert(status.targets.baseHarness.latestVersion === '0.2.49', 'base outdated should stay inside compatible minor range')
-  assert(status.targets.baseHarness.updateCommand === 'npm run harness:update -- --base-only', 'base outdated should print base update command')
+  assert(status.targets.baseHarness.updateCommand === '.harness/bin/harness update --base-only', 'base outdated should print base update command')
   assert(status.targets.stackHarness.outdated === false, 'harness outdated should also check stack harness by default')
   assert(status.targets.stackHarness.updateCommand === null, 'up-to-date stack should not require update command')
 
-  const baseOnly = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json', '--base-only'], { cwd: target }))
+  const baseOnly = JSON.parse(run(harnessBin(target), ['outdated', '--json', '--base-only'], { cwd: target }))
   assert(baseOnly.checkedTargets.length === 1 && baseOnly.checkedTargets[0] === 'baseHarness', '--base-only should only check base harness')
 
-  const stackOnly = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json', '--stack-only'], { cwd: target }))
+  const stackOnly = JSON.parse(run(harnessBin(target), ['outdated', '--json', '--stack-only'], { cwd: target }))
   assert(stackOnly.checkedTargets.length === 1 && stackOnly.checkedTargets[0] === 'stackHarness', '--stack-only should only check stack harness')
   assert(stackOnly.overall === 'up-to-date', '--stack-only should report up-to-date when stack has no update')
 
   let failed = false
   try {
-    run('npm', ['run', '--silent', 'harness:outdated', '--', '--fail-on-outdated'], { cwd: target })
+    run(harnessBin(target), ['outdated', '--fail-on-outdated'], { cwd: target })
   } catch (error) {
     failed = error.status === 1
   }
@@ -1371,12 +1380,12 @@ function harnessOutdatedDetectsBaseAndStackUpdates() {
   lock.stackHarness.ref = 'v1.0.0'
   writeJson(target, '.harness/harness-lock.json', lock)
 
-  const stackUpdate = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json'], { cwd: target }))
+  const stackUpdate = JSON.parse(run(harnessBin(target), ['outdated', '--json'], { cwd: target }))
   assert(stackUpdate.overall === 'outdated', 'harness outdated should report overall outdated when stack is outdated')
   assert(stackUpdate.targets.baseHarness.outdated === false, 'base should be up-to-date after lock update')
   assert(stackUpdate.targets.stackHarness.outdated === true, 'stack outdated should be detected by default')
   assert(stackUpdate.targets.stackHarness.latestVersion === '1.0.1', 'stack outdated should stay inside compatible major range')
-  assert(stackUpdate.targets.stackHarness.updateCommand === 'npm run harness:update', 'stack outdated should print stack update command')
+  assert(stackUpdate.targets.stackHarness.updateCommand === '.harness/bin/harness update', 'stack outdated should print stack update command')
 
   lock.baseHarness.repo = null
   lock.baseHarness.ref = null
@@ -1391,7 +1400,7 @@ function harnessOutdatedDetectsBaseAndStackUpdates() {
   lock.stackHarness = null
   writeJson(target, '.harness/harness-lock.json', lock)
 
-  const recoveredBase = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json', '--base-only'], { cwd: target }))
+  const recoveredBase = JSON.parse(run(harnessBin(target), ['outdated', '--json', '--base-only'], { cwd: target }))
   assert(recoveredBase.targets.baseHarness.outdated === true, 'base outdated should recover repo/ref from lock source metadata')
 
   lock.baseHarness.repo = null
@@ -1420,12 +1429,12 @@ function harnessOutdatedDetectsBaseAndStackUpdates() {
   })
 
   const envWithDefaultBaseRepo = { ...process.env, AI_STANDARD_BASE_HARNESS_REPO: baseRepo }
-  const recoveredBundledBaseOnly = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json', '--base-only'], { cwd: target, env: envWithDefaultBaseRepo }))
+  const recoveredBundledBaseOnly = JSON.parse(run(harnessBin(target), ['outdated', '--json', '--base-only'], { cwd: target, env: envWithDefaultBaseRepo }))
   assert(recoveredBundledBaseOnly.overall === 'up-to-date', 'base-only bundled install should recover the default base repo')
   assert(recoveredBundledBaseOnly.targets.baseHarness.repo === baseRepo, 'base-only bundled install should use the configured default base repo')
   assert(recoveredBundledBaseOnly.targets.baseHarness.currentRef === 'v0.2.49', 'base-only bundled install should infer current ref from installed version')
 
-  const bundledBaseOnlyUpdatePlan = run('npm', ['run', '--silent', 'harness:update', '--', '--base-only', '--dry-run'], { cwd: target, env: envWithDefaultBaseRepo })
+  const bundledBaseOnlyUpdatePlan = run(harnessBin(target), ['update', '--base-only', '--dry-run'], { cwd: target, env: envWithDefaultBaseRepo })
   assert(bundledBaseOnlyUpdatePlan.includes(`npx -y git+${baseRepo}#semver:^0.2.49 init`), 'base-only update dry-run should recover default base repo for bundled installs')
 
   lock.baseHarness.repo = null
@@ -1463,7 +1472,7 @@ function harnessOutdatedDetectsBaseAndStackUpdates() {
     managedFiles: {},
   })
 
-  const recoveredFromStackRequirement = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json'], { cwd: target }))
+  const recoveredFromStackRequirement = JSON.parse(run(harnessBin(target), ['outdated', '--json'], { cwd: target }))
   assert(recoveredFromStackRequirement.overall === 'up-to-date', 'bundled base metadata should recover repo from stack requiredBaseHarness')
   assert(recoveredFromStackRequirement.targets.baseHarness.status === 'up-to-date', 'recovered bundled base should not be unavailable')
   assert(recoveredFromStackRequirement.targets.baseHarness.repo === baseRepo, 'recovered bundled base should use required base repo')
@@ -1472,7 +1481,7 @@ function harnessOutdatedDetectsBaseAndStackUpdates() {
   lock.baseHarness.version = '0.2.48'
   writeJson(target, '.harness/harness-lock.json', lock)
 
-  const bundledBaseUpdate = JSON.parse(run('npm', ['run', '--silent', 'harness:outdated', '--', '--json', '--base-only'], { cwd: target }))
+  const bundledBaseUpdate = JSON.parse(run(harnessBin(target), ['outdated', '--json', '--base-only'], { cwd: target }))
   assert(bundledBaseUpdate.targets.baseHarness.outdated === true, 'bundled base should still report outdated when a newer base tag exists')
   assert(bundledBaseUpdate.targets.baseHarness.updateCommand === `npx -y git+${stackRepo}#semver:^1.0.1 init`, 'bundled base update should point to stack harness init instead of base-only update')
   assert(bundledBaseUpdate.targets.baseHarness.updateNote.includes('--base-only'), 'bundled base update should explain why base-only update is not valid')
@@ -1501,7 +1510,7 @@ function baseOnlyUpdateDryRunPassesSourceMetadata() {
 
   runInit(target, '--source-repo', baseRepo, '--source-ref', 'v0.2.49', '--no-scan', '--no-handoff', '--no-check')
 
-  const output = run('npm', ['run', '--silent', 'harness:update', '--', '--base-only', '--dry-run'], { cwd: target })
+  const output = run(harnessBin(target), ['update', '--base-only', '--dry-run'], { cwd: target })
   assert(output.includes(`--source-repo ${baseRepo}`), 'base-only update should pass source repo into init')
   assert(output.includes(`--source-ref semver:^${packageVersion}`), 'base-only update should pass selected semver ref into init')
 }
@@ -1518,7 +1527,7 @@ function stackApplySupportsExternalPresetGit() {
   run('git', ['branch', '-M', 'main'], { cwd: preset })
 
   runInit(target)
-  run('npm', ['run', 'stack:apply', '--', '--preset-git', preset, '--ref', 'main'], { cwd: target })
+  run(harnessBin(target), ['stack:apply', '--preset-git', preset, '--ref', 'main'], { cwd: target })
 
   assert(read(target, 'hello.txt').includes('external preset'), 'git preset should copy scaffold files')
 
@@ -1535,7 +1544,7 @@ function stackApplySupportsRulesOnlyPreset() {
   const preset = makeRulesOnlyPreset()
 
   runInit(target)
-  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
 
   assert(!exists(target, 'scaffold'), 'rules-only preset should not copy scaffold files')
 
@@ -1562,8 +1571,8 @@ function templateApplyCreatesBridgeWithoutReplacingActiveStack() {
 
   runInit(target)
   fs.writeFileSync(path.join(target, '.nvmrc'), '20.19.0\n')
-  run('npm', ['run', 'stack:apply', '--', '--preset-path', stackPreset], { cwd: target })
-  run('npm', ['run', 'template:apply', '--', '--preset-path', templatePreset], { cwd: target })
+  run(harnessBin(target), ['stack:apply', '--preset-path', stackPreset], { cwd: target })
+  run(harnessBin(target), ['template:apply', '--preset-path', templatePreset], { cwd: target })
 
   assert(exists(target, 'src/App.vue'), 'template apply should copy scaffold files')
   assert(read(target, '.nvmrc') === '20.19.0\n', 'template apply should preserve existing project .nvmrc')
@@ -1571,7 +1580,6 @@ function templateApplyCreatesBridgeWithoutReplacingActiveStack() {
   assert(!exists(target, 'manifest.json'), 'template apply should not copy template manifest to project root')
 
   const pkg = JSON.parse(read(target, 'package.json'))
-  assert(pkg.scripts['harness:check'], 'template package merge should preserve harness scripts')
   assert(pkg.scripts.dev === 'vite', 'template package merge should add template scripts')
   assert(pkg.dependencies.vue === '^3.5.0', 'template package merge should add template dependencies')
 
@@ -1595,11 +1603,11 @@ function templateApplyCreatesBridgeWithoutReplacingActiveStack() {
   assert(exists(target, '.harness/templates/.applied/demo-template/manifest.json'), 'template apply should snapshot manifest')
   assert(exists(target, '.harness/templates/.applied/demo-template/developmentGuide/README.md'), 'template apply should snapshot guide docs')
 
-  const status = run('npm', ['run', 'template:status'], { cwd: target })
+  const status = run(harnessBin(target), ['template:status'], { cwd: target })
   assert(status.includes('template: demo-template 1.2.3'), 'template status should show template version')
   assert(status.includes('requiredStack: rules-only-demo'), 'template status should show required stack')
 
-  run('npm', ['run', 'template:reset'], { cwd: target })
+  run(harnessBin(target), ['template:reset'], { cwd: target })
   assert(!exists(target, 'src/App.vue'), 'template reset should remove scaffold files')
   assert(!exists(target, '.harness/.template-applied.json'), 'template reset should remove marker')
   const resetLock = JSON.parse(read(target, '.harness/harness-lock.json'))
@@ -1613,8 +1621,8 @@ function templateApplyCreatesProjectNvmrcWhenMissing() {
   const templatePreset = makeScaffoldTemplatePreset()
 
   runInit(target)
-  run('npm', ['run', 'stack:apply', '--', '--preset-path', stackPreset], { cwd: target })
-  run('npm', ['run', 'template:apply', '--', '--preset-path', templatePreset], { cwd: target })
+  run(harnessBin(target), ['stack:apply', '--preset-path', stackPreset], { cwd: target })
+  run(harnessBin(target), ['template:apply', '--preset-path', templatePreset], { cwd: target })
 
   assert(read(target, '.nvmrc') === 'v24.14.0\n', 'template apply should create project .nvmrc when missing')
 }
@@ -1625,11 +1633,11 @@ function templateApplyStopsWhenRequiredStackDoesNotMatch() {
   const templatePreset = makeScaffoldTemplatePreset('other-stack')
 
   runInit(target)
-  run('npm', ['run', 'stack:apply', '--', '--preset-path', stackPreset], { cwd: target })
+  run(harnessBin(target), ['stack:apply', '--preset-path', stackPreset], { cwd: target })
 
   let failed = false
   try {
-    run('npm', ['run', 'template:apply', '--', '--preset-path', templatePreset], { cwd: target })
+    run(harnessBin(target), ['template:apply', '--preset-path', templatePreset], { cwd: target })
   } catch (error) {
     failed = error.status === 1
     assert(String(error.stderr).includes('템플릿 요구 스택'), 'template mismatch should explain required stack failure')
@@ -1646,7 +1654,7 @@ function scanReportSuggestsStylePresetsWhenStyleSourceMissing() {
   fs.rmSync(path.join(target, '.editorconfig'), { force: true })
   runInit(target)
   fs.rmSync(path.join(target, '.editorconfig'), { force: true })
-  run('npm', ['run', 'harness:scan'], { cwd: target })
+  run(harnessBin(target), ['scan'], { cwd: target })
 
   const report = read(target, '.harness/session/project-scan-report.md')
   assert(report.includes('## Code Formatting Preset Candidates'), 'scan report should include code formatting preset candidates')
@@ -1674,7 +1682,7 @@ insert_final_newline = true
     },
   }, null, 2))
 
-  run('npm', ['run', 'harness:scan'], { cwd: target })
+  run(harnessBin(target), ['scan'], { cwd: target })
 
   const report = read(target, '.harness/session/project-scan-report.md')
   assert(report.includes('## Code Formatting Rule Draft'), 'scan report should include code formatting rule draft')
@@ -1765,64 +1773,75 @@ function guardDerivesAppliedStackFromTrackedSnapshotWhenMarkerMissing() {
     name: 'stack-derived-check-target',
     private: true,
     type: 'module',
-    scripts: {
-      lint: "node -e \"require('fs').writeFileSync('lint-ran.txt', 'yes')\"",
-    },
+    scripts: {},
   })
 
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
-  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
-  const derivedProfile = JSON.parse(read(target, '.harness/policy/profile.json'))
-  derivedProfile.verify = { lint: 'harness' } // 결정 86: npm script 실행은 옵트인
-  writeJson(target, '.harness/policy/profile.json', derivedProfile)
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
   fs.rmSync(path.join(target, '.harness/.stack-applied.json'), { force: true })
 
-  const output = run('npm', ['run', 'harness:check', '--', '--no-cache', '--brief'], { cwd: target })
+  const output = run(harnessBin(target), ['check', '--no-cache', '--brief'], { cwd: target })
   assert(output.includes('Stack applied state derived from tracked snapshot'), 'guard should derive stack state from tracked snapshot when marker is missing')
-  assert(!output.includes('Stack not applied'), 'guard should not silently skip project validations when tracked stack snapshot exists')
-  assert(exists(target, 'lint-ran.txt'), 'guard should run lint when stack snapshot exists without local marker')
+  // 0.2.131 이전에는 "profile.verify 옵트인 lint가 실제로 돌았는가"로 이 파생을 증명했다.
+  // verify 제거 후에는 스택 상태 파생 자체(= 스킵 안내가 나오지 않음)가 계약이다.
+  assert(!output.includes('Stack not applied'), 'guard should not silently skip stack-derived checks when a tracked stack snapshot exists')
 }
 
-function npmVerifyStagesRequireOptIn() {
-  // 결정 86(멀티사이트 실측): package.json에 lint가 있어도 profile.verify 옵트인 없이는
-  // 실행하지 않는다 — 전체 lint가 커밋 범위 밖 파일을 심판해 커밋을 막던 문제의 구조적 제거.
+// 결정 86의 npm verify 옵트인 회귀(npmVerifyStagesRequireOptIn)는 0.2.131에서 삭제했다.
+// "옵트인하면 하네스가 lint를 돌린다"는 계약 자체가 사라져, profile.verify 값이 무엇이든
+// 하네스는 프로젝트 스크립트를 실행하지 않는다 — harnessNeverRunsProjectQualityScripts가 잠근다.
+
+// 0.2.131 핵심 계약: 하네스는 프로젝트 품질 스크립트(lint/test/build)를 절대 실행하지 않는다.
+// 옵트인도, "감지했지만 안 돌립니다" 안내도 없다 — 안내가 남으면 "누가 돌리나" 문답이 되살아난다.
+// 실행 여부는 마커 파일로, 안내 여부는 출력 문자열로, 관문 검사 통과 여부는 요약으로 각각 잠근다.
+function harnessNeverRunsProjectQualityScripts() {
   const target = makeTarget()
-  const preset = makeRulesOnlyPreset()
   writeJson(target, 'package.json', {
-    name: 'verify-opt-in-target',
+    name: 'quality-scripts-target',
     private: true,
     type: 'module',
-    scripts: { lint: "node -e \"require('fs').writeFileSync('lint-ran.txt', 'yes')\"" },
+    scripts: {
+      lint: "node -e \"require('fs').writeFileSync('lint-ran.txt', 'yes')\"",
+      test: "node -e \"require('fs').writeFileSync('test-ran.txt', 'yes')\"",
+      build: "node -e \"require('fs').writeFileSync('build-ran.txt', 'yes')\"",
+    },
   })
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
-  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
 
-  // 기본: 실행 안 함 + 감지 안내
-  const defaultOut = run('npm', ['run', 'harness:check', '--', '--no-cache', '--brief'], { cwd: target })
-  assert(!exists(target, 'lint-ran.txt'), 'lint must NOT run without explicit opt-in (결정 86)')
-  assert(defaultOut.includes('하네스는 실행하지 않습니다'), 'check must announce detected-but-not-run stages')
+  let output = ''
+  let failed = false
+  try {
+    output = runGuard(target, '--no-cache')
+  } catch (error) {
+    failed = true
+    output = `${error.stdout ?? ''}${error.stderr ?? ''}`
+  }
 
-  // external: 위임 표기 + 미실행
-  const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
-  profile.verify = { lint: 'external' }
-  writeJson(target, '.harness/policy/profile.json', profile)
-  const externalOut = run('npm', ['run', 'harness:check', '--', '--no-cache', '--brief'], { cwd: target })
-  assert(externalOut.includes('external 위임'), 'external delegation must be announced in check output')
-  assert(!exists(target, 'lint-ran.txt'), 'external delegation must not run lint')
+  // (a) 프로젝트가 선언한 품질 스크립트는 하나도 실행되지 않는다.
+  for (const stage of ['lint', 'test', 'build']) {
+    assert(!exists(target, `${stage}-ran.txt`), `harness must never run the project ${stage} script`)
+  }
 
-  // harness 옵트인: 실행
-  profile.verify = { lint: 'harness' }
-  writeJson(target, '.harness/policy/profile.json', profile)
-  run('npm', ['run', 'harness:check', '--', '--no-cache', '--brief'], { cwd: target })
-  assert(exists(target, 'lint-ran.txt'), 'opt-in must run the npm lint script')
+  // (b) 제거된 verify 개념의 흔적(옵트인 안내·위임 표기·스테이지 이름)이 출력에 남으면 안 된다.
+  const removedTraces = [
+    '하네스는 실행하지 않습니다',
+    'external 위임',
+    'Stack verify',
+    'verify:lint',
+    'verify:test',
+    'verify:build',
+    'profile.verify',
+    '검증설정',
+  ]
+  for (const trace of removedTraces) {
+    assert(!output.includes(trace), `check output must not carry removed verify guidance (${trace}): ${output}`)
+  }
 
-  // 알 수 없는 값: 조용히 옵트인되지 않고 경고
-  fs.rmSync(path.join(target, 'lint-ran.txt'))
-  profile.verify = { lint: 'huskyy' }
-  writeJson(target, '.harness/policy/profile.json', profile)
-  const typoOut = run('npm', ['run', 'harness:check', '--', '--no-cache', '--brief'], { cwd: target })
-  assert(!exists(target, 'lint-ran.txt'), 'unknown verify value must not silently opt in')
-  assert(typoOut.includes('인식할 수 없어'), 'unknown verify value must warn')
+  // (c) 그럼에도 하네스 자신의 관문 검사는 그대로 실행되고 통과한다 — 제거가 검사 약화가 아님을 잠근다.
+  assert(!failed, `harness gate check must pass on a project that owns lint/test/build: ${output}`)
+  assert(output.includes('Harness check summary'), 'harness gate check must still report a summary')
+  assert(!output.includes('결과: 실패'), `harness gate check must not report failure: ${output}`)
+  assert(output.includes('관문 검사: 실행'), '--no-cache must actually execute the gate check instead of reusing a cache')
 }
 
 function guardFailsWhenActiveStackHasNoTrackedSnapshot() {
@@ -2356,7 +2375,8 @@ function seedModeTargetKeepsSeedOnlyDocs() {
   }
 }
 
-// 검증 캐시(0.2.70): 같은 git tree면 policy/doc-link/test-init/stack verify 전체를 스킵해 push/배포 중복 검사를 제거.
+// 검증 캐시(0.2.70): 같은 git tree면 관문 검사(policy/doc-link/managed drift 등) 전체를 스킵해
+// push/배포 중복 검사를 제거한다. 캐시 축에 있던 stack verify는 0.2.131 verify 제거로 빠졌다.
 function guardCacheHitSkipsRevalidationOnSameTree() {
   const target = makeTarget()
   runInit(target)
@@ -2407,7 +2427,7 @@ function buildContextMergesProfileAlwaysSources() {
   ]
   writeJson(target, '.harness/policy/profile.json', profile)
 
-  run('npm', ['run', 'harness:context', '--', 'context smoke'], { cwd: target })
+  run(harnessBin(target), ['context', 'context smoke'], { cwd: target })
   const context = read(target, '.harness/session/task-context.md')
   const alwaysSection = (context.split('## Always Read\n')[1] ?? '').split('\n## ')[0]
 
@@ -2432,7 +2452,7 @@ function scanValidatesDeclaredProjectSources() {
   ]
   writeJson(target, '.harness/policy/profile.json', profile)
 
-  run('npm', ['run', 'harness:scan'], { cwd: target })
+  run(harnessBin(target), ['scan'], { cwd: target })
   const report = read(target, '.harness/session/project-scan-report.md')
 
   assert(report.includes('### Declared Project Sources (profile.json sources[])'), 'scan report should include the declared project sources inventory')
@@ -2455,13 +2475,13 @@ function installReportsExistingAiRuleDocuments() {
   assert(output.includes('::: 하네스가 바로 확인한 것 :::'), 'install output should show immediate harness effect summary')
   assert(output.includes('이번 설치는'), 'install output should explain what harness applied in this project')
   assert(output.includes('::: 다음 작업에서 달라지는 점 :::'), 'install output should include workflow change heading')
-  assert(output.includes('작업 시작: `npm run harness:context -- "<작업 설명>"`'), 'install output should explain how future work starts')
+  assert(output.includes('작업 시작: `.harness/bin/harness context "<작업 설명>"`'), 'install output should explain how future work starts')
   assert(report.includes('### Existing AI Rule Document Candidates'), 'scan report should include existing AI rule candidate section')
   assert(report.includes('## Harness Effect Summary'), 'scan report should include a project-level harness effect summary')
   assert(report.includes('이번 설치는'), 'effect summary should explain what harness applied')
   assert(report.includes('## What Changes For Developers'), 'scan report should explain how developer workflow changes')
-  assert(report.includes('작업 시작: `npm run harness:context -- "<작업 설명>"`'), 'workflow summary should name context command')
-  assert(report.includes('작업 완료: `npm run harness:check`'), 'workflow summary should name final check command')
+  assert(report.includes('작업 시작: `.harness/bin/harness context "<작업 설명>"`'), 'workflow summary should name context command')
+  assert(report.includes('작업 완료: `.harness/bin/harness check`'), 'workflow summary should name final check command')
   assert(report.includes('테스트 루트나 test script가 없어 완료 기준이 사람마다 달라질 수 있습니다'), 'effect summary should expose missing verification strategy')
   assert(report.includes('docs/standards/agent-rules.md (미등록 후보'), 'scan report should list the pre-existing AI rule doc as unregistered')
   assert(report.includes('docs/standards/agent-rules.md (미등록 후보, rule-like markdown name, git tracked)'), 'scan report should show git tracked safety state')
@@ -2475,7 +2495,7 @@ function installReportsExistingAiRuleDocuments() {
   assert(report.includes('.harness/project/workflow-rules.md'), 'project rule authoring guide should explain workflow rules target')
   assert(handoff.includes('## Harness Effect Summary'), 'handoff should include harness effect summary')
   assert(handoff.includes('## What Changes For Developers'), 'handoff should include workflow effect summary')
-  assert(handoff.includes('작업 완료: `npm run harness:check`'), 'handoff should repeat final check effect')
+  assert(handoff.includes('작업 완료: `.harness/bin/harness check`'), 'handoff should repeat final check effect')
   assert(handoff.includes('## Existing AI Rules'), 'handoff should include existing AI rules summary')
   assert(handoff.includes('docs/standards/agent-rules.md'), 'handoff should repeat the detected AI rule doc')
   assert(handoff.includes('git rm --cached <path>'), 'handoff should explain tracked personal-rule removal')
@@ -2701,7 +2721,7 @@ function guardSummaryStillDetailsMustActSyncCandidates() {
   const preset = makeSyncHookPreset()
 
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
-  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
   fs.mkdirSync(path.join(target, 'docs'), { recursive: true })
   fs.writeFileSync(path.join(target, 'docs/contract.md'), '# 계약 문서\n')
   gitCommitAll(target, 'baseline')
@@ -2768,7 +2788,7 @@ function setupSyncReviewTarget() {
   const preset = makeSyncReviewPreset()
 
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
-  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
   fs.mkdirSync(path.join(target, 'docs'), { recursive: true })
   fs.writeFileSync(path.join(target, 'docs/contract.md'), '# 계약 문서\n')
   gitCommitAll(target, 'baseline')
@@ -2913,35 +2933,10 @@ function promotionReminderAsksExecutableGuardBranch() {
   assert(detailed.includes('실행 가능한 검증으로 만들 것인가'), 'verbose promotion reminder should ask the doc-vs-guard question')
 }
 
-// 의존성 미설치 진단(0.2.97): node_modules 없이 검증하면 `run-s: command not found` 같은
-// 원인 불명 실패로 보이던 것을 명확한 진단+다음 행동 안내로 바꾼다(신규 설치 온보딩 실측 2회).
-function guardExplainsMissingNodeModulesInsteadOfRawToolError() {
-  const target = makeTarget()
-  const preset = makeRulesOnlyPreset()
-  runInit(target, '--no-scan', '--no-handoff', '--no-check')
-  run('npm', ['run', 'stack:apply', '--', '--preset-path', preset], { cwd: target })
-
-  const pkg = JSON.parse(read(target, 'package.json'))
-  pkg.scripts.lint = 'run-s lint:*'
-  pkg.devDependencies = { 'npm-run-all2': '^7.0.0' }
-  writeJson(target, 'package.json', pkg)
-  const nmProfile = JSON.parse(read(target, '.harness/policy/profile.json'))
-  nmProfile.verify = { lint: 'harness' } // 결정 86: npm script 실행은 옵트인
-  writeJson(target, '.harness/policy/profile.json', nmProfile)
-
-  let failed = false
-  let combined = ''
-  try {
-    runGuard(target, '--no-cache')
-  } catch (error) {
-    failed = true
-    combined = `${error.stdout ?? ''}${error.stderr ?? ''}`
-  }
-  assert(failed, 'guard must still fail when dependencies are not installed')
-  assert(combined.includes('node_modules가 없습니다'), 'failure must name the real cause (dependencies not installed)')
-  assert(combined.includes('npm install'), 'failure must tell the next action')
-  assert(!combined.includes('command not found'), 'raw tool-not-found error must not be the visible diagnosis')
-}
+// 의존성 미설치 진단(0.2.97) 회귀는 0.2.131에서 삭제했다. 그 진단은 하네스가 프로젝트 lint를
+// 대신 실행하던 verify 경로에서만 나오던 실패(`run-s: command not found`)를 해설하는 장치였고,
+// verify 제거로 실행 지점 자체가 사라졌다. "하네스는 프로젝트 품질 스크립트를 실행하지 않는다"는
+// harnessNeverRunsProjectQualityScripts가 대신 잠근다.
 
 // 기획 문서 연동(0.2.99): 외부 기획 저장소 fetch → lock 기록 → 컨텍스트 주입 → 커밋 advisory.
 // 로컬 git 저장소를 기획 저장소로 써서 네트워크 없이 전 흐름을 검증한다.
@@ -2981,7 +2976,7 @@ function hooksInstallHydratesSpecBodiesForFreshClone() {
   fs.rmSync(path.join(target, '.harness/generated'), { recursive: true, force: true })
   assert(!exists(target, '.harness/generated/spec-cache'), 'fresh clone must start without spec bodies (precondition)')
 
-  const output = run('npm', ['run', '--silent', 'hooks:install'], { cwd: target })
+  const output = run(harnessBin(target), ['hooks:install'], { cwd: target })
 
   assert(output.includes('기획 본문 준비'), 'hooks:install should report that it prepares spec bodies')
   assert(exists(target, '.harness/generated/spec-cache'), 'hooks:install must leave the spec bodies ready to read')
@@ -2992,7 +2987,7 @@ function hooksInstallStaysQuietWithoutSpecLink() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
 
-  const output = run('npm', ['run', '--silent', 'hooks:install'], { cwd: target })
+  const output = run(harnessBin(target), ['hooks:install'], { cwd: target })
   assert(!output.includes('기획 본문 준비'), 'a project without spec linkage must not see spec output at hook install')
 }
 
@@ -3212,7 +3207,7 @@ function specPushGateBlocksDriftThenPassesAfterSettle() {
   assert(blocked, 'push gate must block when a mapped spec changed after the baseline')
   assert(combined.includes('push 중단'), 'gate block message should say the push was stopped')
   assert(combined.includes('features/로그인.md'), 'gate block message should name the drifted spec document')
-  assert(combined.includes('harness:spec:settle'), 'gate block message should point to the settle command')
+  assert(combined.includes('.harness/bin/harness spec:settle'), 'gate block message should point to the settle command')
   assert(read(target, '.harness/spec-lock.json') === lockBefore, 'a blocked gate must not move the team baseline')
 
   const settleOut = run(nodeBin, [path.join(target, '.harness/bin/spec-sync.mjs'), 'settle'], { cwd: target })
@@ -3423,7 +3418,7 @@ function broadcastWithoutCheckRecordAsksForFetchFirst() {
   assert(raw.trim() !== '', 'without any check record broadcast must not be silent — silence would read as "no changes"')
   const text = JSON.parse(raw).text
   assert(text.includes('최신 확인 기록이 없어'), 'the message must name the actual state (no check record yet)')
-  assert(text.includes('fetch -- --cache-only'), 'the message must hand over the command that creates the record')
+  assert(text.includes('spec:fetch --cache-only'), 'the message must hand over the command that creates the record')
 
   // 확인을 실제로 수행하면(변화가 없어도) 기록이 생겨 다시 정당한 무음이 된다.
   specSyncCli(target, ['fetch', '--cache-only'])
@@ -3451,7 +3446,7 @@ function specStatusSeparatesAxesAndFoldsDetectedCount() {
   assert(status.includes('기준 이후 원격 변경 1건'), 'the remote-axis count must fold a doc+screen pair into one unit (decision 79)')
   assert(!status.includes('원격 변경 2건'), 'the remote-axis count must not be counted per raw file')
   assert(status.includes('다른 축입니다'), 'the status must say the two lines measure different things')
-  assert(status.includes('fetch -- --cache-only'), 'the remote-axis line must hand over the next command')
+  assert(status.includes('spec:fetch --cache-only'), 'the remote-axis line must hand over the next command')
 
   // 작업 컨텍스트의 라벨도 원격 축으로 말한다 — "미정산"은 읽은 스냅샷의 축이라 여기에 쓰면
   // status의 "정산 대기 없음"과 정면 모순으로 읽힌다.
@@ -3529,6 +3524,7 @@ function releaseNoticeBuildsPayloadFromLatestChangelogSection() {
   assert(!payload.text.includes('내부 리팩터링'), 'detail block (dev record) must never reach the channel')
   assert(!payload.text.includes('이전 릴리스 항목'), 'notice must not leak older sections')
   assert(payload.text.includes('/하네스업데이트'), 'notice must hand leaders the update command')
+  assert(payload.text.includes('harness-seed/-/blob/master/CHANGELOG.md'), 'notice must link the full changelog — the channel gets easy summaries only (2026-08-25)')
 
   // 태그와 CHANGELOG 최상단이 어긋나면 조용히 보내지 않고 멈춘다 — 공지가 거짓말이 되는 경로 차단.
   const out = expectFailure(
@@ -5253,7 +5249,7 @@ function specGuardNoticesMissingHookInstall() {
 
   const out = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
   assert(out.includes('git hook 미설치'), 'a clone without hooks must be told')
-  assert(out.includes('npm run hooks:install'), 'the install command must be shown')
+  assert(out.includes('.harness/bin/harness hooks:install'), 'the install command must be shown')
   assert(!out.includes('harness:hooks:install'), 'the command must be the one that actually exists')
 
   run('git', ['config', 'core.hooksPath', '.githooks'], { cwd: target })
@@ -5750,6 +5746,20 @@ function guardFlagsInvalidHarnessModeInsteadOfSilentlyDowngrading() {
   const fixed = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
   assert(!fixed.includes('유효하지 않습니다'), 'a valid harnessMode must not produce the warning')
   assert(fixed.includes('Harness mode: active'), 'valid mode should be reported as-is')
+  assert(!fixed.includes('active로 올리세요'), 'graduation hint must not appear outside bootstrap')
+
+  // (3-1) maintenance는 0.2.131에서 은퇴(결정 95) — 유효 값이 아니라 설정 오류로 표면화된다.
+  writeJson(target, rel, { ...profile, harnessMode: 'maintenance' })
+  const retiredOut = expectFailure(
+    () => run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target }),
+    'retired harnessMode maintenance must be surfaced as a config error, not silently mapped',
+  )
+  assert(retiredOut.includes('maintenance'), 'the retired value should be echoed')
+
+  // (3-2) bootstrap에는 졸업 이정표 한 줄이 뜬다.
+  writeJson(target, rel, { ...profile, harnessMode: 'bootstrap' })
+  const bootstrapOut = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(bootstrapOut.includes('active로 올리세요'), 'bootstrap mode should surface the graduation hint')
 
   // (4) 필드가 아예 없으면 bootstrap으로 계약대로 동작한다.
   const withoutMode = { ...profile }
@@ -5899,21 +5909,68 @@ function updateSkipsStackForBaseOnlyFlags() {
   assert(rejected, 'stack-only + base-only flag must exit nonzero')
 }
 
+// score-print 개선요청(2026-08-25): 프로젝트가 만든 문서는 registry에 등록하지 않으면 orphan,
+// 등록하면 managed drift로 업데이트에서 제외 — 출구가 없었다. 프로젝트 소유 등록 지점
+// (document-registry.local.json)이 그 출구다. 부재가 정상이고, 등록 경로는 main registry와 같이
+// missing 검사를 받으며(오타 fail-loud), 컨텍스트 후보 선별에도 포함된다(orphan 면제 우회를 기각한 이유).
+function localDocumentRegistryGivesProjectOwnedRegistrationPoint() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const localRel = '.harness/documentation/document-registry.local.json'
+  const managedRel = '.harness/documentation/document-registry.json'
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  assert(!manifest.managedFiles[localRel], 'the local registry must not be managed — it is the project-owned escape hatch')
+  assert(!exists(target, localRel), 'the local registry must not ship — absence is the normal state')
+
+  const docRel = '.claude/commands/project-own.md'
+  fs.mkdirSync(path.join(target, '.claude/commands'), { recursive: true })
+  fs.writeFileSync(path.join(target, docRel), '# 프로젝트 자체 명령\n\n다국어 리소스 싱크 절차입니다.\n')
+  const before = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target, stdio: ['ignore', 'pipe', 'pipe'] }).toString()
+  assert(before.includes(docRel), 'an unregistered project doc must still be reported as orphan')
+
+  fs.writeFileSync(path.join(target, localRel), JSON.stringify({ children: [docRel] }, null, 2))
+  const after = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(!after.includes(`- ${docRel}`), 'registering in the local registry must clear the orphan report')
+  const managedSha = sha256Text(read(target, managedRel))
+  assert(managedSha === manifest.managedFiles[managedRel].sha256, 'the managed registry must stay untouched — that is the whole point')
+
+  // 오타 경로는 조용히 무시되지 않고 missing으로 잡혀야 한다.
+  fs.writeFileSync(path.join(target, localRel), JSON.stringify({ children: [docRel, '.claude/commands/typo.md'] }, null, 2))
+  let flagged = false
+  try {
+    const out = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+    flagged = out.includes('typo.md')
+  } catch (error) {
+    flagged = String(error.stdout ?? '').includes('typo.md')
+  }
+  assert(flagged, 'a typo in the local registry must fail loud, not vanish')
+
+  // 컨텍스트 후보 선별에도 들어가야 한다(orphan 면제 glob 우회를 기각한 이유).
+  fs.writeFileSync(path.join(target, localRel), JSON.stringify({ children: [docRel] }, null, 2))
+  run(nodeBin, [path.join(target, '.harness/bin/build-context.mjs'), '다국어 리소스 싱크 절차'], { cwd: target })
+  assert(read(target, '.harness/session/task-context.md').includes(docRel), 'locally registered docs must be selectable as task context candidates')
+}
+
 const tests = [
   sessionStartHookSnoozesQueueRowsUntilReviewDate,
+  localDocumentRegistryGivesProjectOwnedRegistrationPoint,
   updateSkipsStackForBaseOnlyFlags,
   cleanInstallCreatesExpectedFiles,
+  installExcludesSessionWorktrees,
+  freshInstallAutoActivatesGitHooks,
+  sessionStartAdapterWarnsWhenHooksMissing,
   installOutputUsesConditionalNvmAndGitGuidance,
   hooksInstallFailsClearlyOutsideGit,
   nonNodeInstallSkipsPackageJson,
-  optInCreatesPackageJsonForGreenfieldNode,
   launcherRunsHarnessWithoutNpm,
   gitHooksRunWithoutNpm,
+  previousHookChainStopsOnRecursion,
   sessionOnlyCommitSkipsHeavyCheck,
-  stackVerifyRunsRawCommandsWithoutNpm,
   initPatchesEslintConfigForHarnessFiles,
   initAddsHarnessBackupIgnoreWhenNodeOverrideExists,
   reinstallPreservesProjectOwnedFiles,
+  retiredAliasNoticeSurvivesZeroInjection,
+  retiredAliasNoticeOmittedWhenNoneExist,
   reinstallMigratesUnchangedSeedSessionStateToConsumerTemplates,
   reinstallPreservesEditedConsumerSessionState,
   reinstallMigratesManagedRootScriptsIntoHarnessBin,
@@ -5930,8 +5987,6 @@ const tests = [
   dualNodeShSwitchesHarnessNodeWhenActiveNodeIsLow,
   dualNodeHelpersAreArgSafeUnderSetU,
   dualNodeDoesNotExportDotWhenNodeIsShellFunction,
-  guardRejectsHookNodeMismatchingNvmrc,
-  guardRunsStackVerifyOnProjectNode,
   existingProjectNvmrcIsPreserved,
   externalHarnessWithoutManifestIsPreserved,
   scanReportSuggestsBridgeCandidates,
@@ -5950,7 +6005,7 @@ const tests = [
   workflowWorkstreamChangeDoesNotTriggerCommitPushHookPolicy,
   harnessBaselineDocUpdateDoesNotTriggerSyncGap,
   guardDerivesAppliedStackFromTrackedSnapshotWhenMarkerMissing,
-  npmVerifyStagesRequireOptIn,
+  harnessNeverRunsProjectQualityScripts,
   guardFailsWhenActiveStackHasNoTrackedSnapshot,
   updateRecordsAndReplaysChangelogDelta,
   existingClaudeSettingsGetsHarnessHooksMerged,
@@ -6001,7 +6056,6 @@ const tests = [
   guardLintsOverrideEntryRebuttalField,
   guardNudgesDecisionLogArchiveWhenOversizedAndTouched,
   promotionReminderAsksExecutableGuardBranch,
-  guardExplainsMissingNodeModulesInsteadOfRawToolError,
   hooksInstallHydratesSpecBodiesForFreshClone,
   hooksInstallStaysQuietWithoutSpecLink,
   specSyncFetchRecordsLockAndDetectsChanges,

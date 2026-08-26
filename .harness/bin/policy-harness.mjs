@@ -26,7 +26,10 @@ const specRuntime = fs.existsSync(path.join(__dirname, 'spec-sync.mjs'))
 // harnessMode 값 검증(0.2.102): 종전에는 'strict'와의 문자열 비교뿐이라 오타('strct')를 내면
 // 조용히 비-strict로 동작했다 — "차단을 켰다고 믿는데 실제로는 꺼져 있는" 상태다.
 // 알 수 없는 값은 필수 조치로 표면화하고, strict가 의도였을 수 있으므로 완화 쪽으로 해석하지 않는다.
-const HARNESS_MODES = ['bootstrap', 'active', 'maintenance', 'strict']
+// maintenance는 0.2.131에서 은퇴(결정 95): 런타임 분기가 없는 선언용 라벨은 사용자를 속이는
+// 가짜 손잡이였다. 국면 선언은 project-charter.md의 몫. 잔존 값은 invalid-value 경로가
+// 필수 조치로 표면화한다(침묵 강등 없음 — guardFlagsInvalidHarnessModeInsteadOfSilentlyDowngrading).
+const HARNESS_MODES = ['bootstrap', 'active', 'strict']
 
 // 파일 부재 / JSON 깨짐 / 값 오류를 구분한다(0.2.102 리뷰 P1-10).
 // 앞의 둘을 하나로 뭉치면 malformed profile이 "설정 없음"으로 통과해버린다.
@@ -586,12 +589,12 @@ function printSpecLinkNotice(specLink) {
   if (specLink.stateError) {
     console.log(`- ⚠ 기획 연동 상태를 읽을 수 없습니다: ${specLink.stateError}`)
     console.log('  이 상태에서는 기획 변경 안내가 나오지 않습니다. 복구 전에는 "변경 없음"으로 보지 마세요.')
-    console.log('  복구: 손상 파일을 git 이력에서 되돌리거나, npm run harness:spec:fetch -- --cache-only')
+    console.log('  복구: 손상 파일을 git 이력에서 되돌리거나, .harness/bin/harness spec:fetch --cache-only')
   }
   if (missingCaches.length > 0) {
     // 캐시 없음은 잘못이 아니라 "아직 안 받은 상태"다. 차단하지 않고 받는 방법만 알린다.
     console.log(`- 기획 문서 본문이 이 환경에 없습니다(${missingCaches.join(', ')}). 기획서가 없는 것이 아니라 로컬에 내려받지 않은 상태입니다.`)
-    console.log('  받기: npm run harness:spec:fetch -- --at-lock  (팀 기준 시점 그대로, 기준은 옮기지 않습니다)')
+    console.log('  받기: .harness/bin/harness spec:fetch --at-lock  (팀 기준 시점 그대로, 기준은 옮기지 않습니다)')
   }
   if (specLink.touchedMappings.length > 0) {
     console.log('- 이번 변경이 기획 문서와 매핑된 구현 경로에 걸립니다. 해당 사양과 어긋나지 않는지 확인하세요.')
@@ -600,7 +603,7 @@ function printSpecLinkNotice(specLink) {
     }
   }
   if (specLink.changedSpecs.length > 0) {
-    console.log(`- 읽었지만 아직 정산하지 않은 기획 변경이 ${specLink.changedSpecs.length}건 있습니다. 상세: npm run harness:spec:status`)
+    console.log(`- 읽었지만 아직 정산하지 않은 기획 변경이 ${specLink.changedSpecs.length}건 있습니다. 상세: .harness/bin/harness spec:status`)
   }
   if (unmapped.length > 0) {
     // 매핑이 0건이면 커버리지 검사가 침묵한다 — 시작하라고 말해주는 곳이 여기뿐이다(0.2.104).
@@ -608,7 +611,7 @@ function printSpecLinkNotice(specLink) {
       console.log(`- 기획 ${unmapped.length}건이 연동됐고 매핑은 아직 0건입니다. 정상적인 시작 상태입니다.`)
       console.log('  기능을 만들면서 한 줄씩 채우면, 그때부터 그 기획이 바뀔 때 이 코드로 연결됩니다.')
     } else {
-      console.log(`- 매핑되지 않은 기획이 ${unmapped.length}건 있습니다 — 그 기획이 바뀌어도 알림이 코드로 연결되지 않습니다. 상세: npm run harness:spec:status`)
+      console.log(`- 매핑되지 않은 기획이 ${unmapped.length}건 있습니다 — 그 기획이 바뀌어도 알림이 코드로 연결되지 않습니다. 상세: .harness/bin/harness spec:status`)
     }
     for (const item of unmapped.slice(0, 3)) {
       console.log(`  - ${item.file}`)
@@ -665,10 +668,7 @@ function printHookInstallNotice() {
     ? `- core.hooksPath가 '${hooksPath}'로 설정되어 있어 하네스 훅이 실행되지 않습니다.`
     : '- core.hooksPath가 설정되어 있지 않아 커밋·push 검사가 실행되지 않습니다.')
   console.log('- 훅 설정은 clone으로 공유되지 않습니다. 저장소를 새로 받은 사람은 각자 한 번 실행해야 합니다:')
-  // 스크립트 이름은 `hooks:install`이다(`harness:` 접두사 없음). 실물 E2E에서 오타를 발견했다 —
-  // 안내가 존재하지 않는 명령을 가리키면 안내가 없느니만 못하다.
-  console.log('    npm run hooks:install')
-  console.log('    (package.json이 없는 프로젝트: node .harness/bin/install-hooks.mjs)')
+  console.log('    .harness/bin/harness hooks:install')
 }
 
 function collectViolations() {
@@ -1004,7 +1004,7 @@ function printChangedFileGroups(changedFiles) {
       ['other', groups.other.length],
     ].filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`)
     const breakdown = breakdownParts.length > 0 ? ` (${breakdownParts.join(', ')})` : ''
-    console.log(`Changed files: user ${userChangeCount}${breakdown}, baseline/generated ${baselineCount} — 상세: npm run harness:impact 또는 --verbose`)
+    console.log(`Changed files: user ${userChangeCount}${breakdown}, baseline/generated ${baselineCount} — 상세: .harness/bin/harness impact 또는 --verbose`)
     console.log('')
     return groups
   }
@@ -1203,6 +1203,11 @@ function runImpact() {
   console.log('Policy impact analysis')
   if (harnessModeState.valid) {
     console.log(`Harness mode: ${harnessMode}${strictMode ? ' (strict)' : ''}`)
+    if (harnessMode === 'bootstrap' && !harnessModeState.missingProfile) {
+      // 졸업 이정표(결정 95): bootstrap은 정착기 완화 모드라 영구 체류를 알아챌 신호가 없다.
+      // 추적·집계 없이 상태 한 줄만 — 올릴지 말지는 프로젝트 판단이다.
+      console.log('  (bootstrap = 정착기 완화 — 기준이 자리 잡았다면 profile.json에서 active로 올리세요)')
+    }
   } else {
     // fail-closed: 설정 오류는 조용히 완화하지도, strict로 추측하지도 않고 검사를 실패시킨다.
     // specEnforcement 오값이 push를 막는 것과 같은 기준이다 — 더 넓은 harnessMode만 통과시킬 이유가 없다.
@@ -1417,7 +1422,7 @@ function runImpact() {
         .map((level) => `${syncReviewLevelLabel(level)} ${syncGapLevels[level]}건`)
         .join(', ')
       if (advisorySummary) {
-        console.log(`- ${advisorySummary} — 상세 기준과 파일 목록은 npm run harness:impact 또는 npm run harness:check -- --verbose 로 확인하세요.`)
+        console.log(`- ${advisorySummary} — 상세 기준과 파일 목록은 .harness/bin/harness impact 또는 .harness/bin/harness check --verbose 로 확인하세요.`)
       }
       for (const gap of mustActGaps) {
         printGapDetail(gap)

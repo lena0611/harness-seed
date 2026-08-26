@@ -29,13 +29,13 @@
 ## 작성 순서
 
 1. 프로젝트에 맞는 스택 하네스를 먼저 설치합니다.
-2. `npm run harness:scan`으로 현재 구조, 스타일 설정, 기존 문서, 충돌 후보를 확인합니다.
+2. `.harness/bin/harness scan`으로 현재 구조, 스타일 설정, 기존 문서, 충돌 후보를 확인합니다.
 3. `project-charter.md`와 `scope-contract.md`에 프로젝트 목적과 범위를 채웁니다.
 4. 기존 README, 위키, ADR, CI, 설정 파일, 반복 코드 패턴을 확인합니다.
 5. 발견한 내용을 도메인, 아키텍처, 작업 흐름, 설정 계약으로 나눕니다.
 6. 충돌이 있으면 `standards-layers.md`의 우선순위로 해석하고 `decision-log.md`에 선택 이유를 남깁니다.
 7. 검증 가능한 규칙은 관련 테스트, lint, build, 문서 검사, 리뷰 체크리스트와 연결합니다.
-8. `npm run harness:check`로 문서 링크와 기준 동기화 상태를 확인합니다.
+8. `.harness/bin/harness check`로 문서 링크와 기준 동기화 상태를 확인합니다.
 
 ## 파일별 책임
 
@@ -123,7 +123,7 @@
 
 기존 프로젝트에서는 새 규칙을 처음부터 쓰기보다 이미 존재하는 기준을 흡수합니다.
 
-1. `npm run harness:scan`의 `.harness/session/project-scan-report.md`를 확인합니다.
+1. `.harness/bin/harness scan`의 `.harness/session/project-scan-report.md`를 확인합니다.
 2. 기존 README, 위키, ADR, 에이전트 설정, CI 설정, 운영 문서를 기준 출처로 봅니다.
 3. `.editorconfig`, ESLint, Prettier, tsconfig 같은 설정은 스타일 출처로 보고 프로젝트 규칙 초안에 반영합니다.
 4. 코드에서 같은 패턴이 2곳 이상 반복되면 로컬룰 후보로 기록합니다.
@@ -151,10 +151,10 @@
 
 ## 검증과 유지보수
 
-- 프로젝트 하네스를 바꾼 뒤에는 `npm run harness:check`를 실행합니다.
+- 프로젝트 하네스를 바꾼 뒤에는 `.harness/bin/harness check`를 실행합니다.
 - 문서가 길어지면 README에 계속 붙이지 말고 인덱스와 하위 문서로 분리합니다.
 - 룰 문서 상단에는 현재 따라야 할 요약과 적용 범위를 두고, 오래된 사례와 세부 근거는 하위 문서나 decision-log로 분리합니다.
-- 에이전트가 모든 프로젝트 룰을 매번 읽는다고 가정하지 말고 `npm run harness:context -- "<작업 설명>"`으로 판단 기준과 충돌 우선순위를 좁히게 합니다.
+- 에이전트가 모든 프로젝트 룰을 매번 읽는다고 가정하지 말고 `.harness/bin/harness context "<작업 설명>"`으로 판단 기준과 충돌 우선순위를 좁히게 합니다.
 - 규칙을 바꾸면 관련 테스트, CI, README, 운영 문서도 함께 봅니다.
 - 더 이상 맞지 않는 규칙은 삭제보다 먼저 `decision-log.md`에 변경 이유를 남깁니다.
 - 임시 예외는 범위와 만료 조건을 남기고, 가능하면 `waivers.json`에 기록합니다.
