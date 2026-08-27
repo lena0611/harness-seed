@@ -29,6 +29,7 @@ husky, lefthook처럼 `core.hooksPath`를 쓰는 git 훅 도구와 하네스 훅
 ```
 
 - 순서가 지켜져야 하는 이유(실측): husky 9.1.7은 실행 시 `core.hooksPath`를 **조건 없이** 자기 경로로 덮어씁니다. 따라서 하네스 설치는 항상 husky *뒤에* 와야 하며, 두 패턴 모두 그 순서를 보장합니다.
+- 프로젝트 쪽 검사(lint·test·build)를 어떻게 구성할지는 이 문서의 범위가 아닙니다 — 견본 정본은 회사 툴킷 `ai-standard/toolkits/quality-gates`(https://git.smartscore.kr/ai-standard/toolkits/quality-gates)이고, 에이전트에게 요청하면 조달해 설치합니다(`/검증게이트설치`). 이 문서는 그 구성과 하네스 깃훅이 **공존하는 배선**만 정합니다.
 - 하한선(실측 2026-08-26): `postprepare`는 **npm 7부터** 생명주기로 인정됩니다. npm 6(Node 12·14 동봉분)은 `prepare`가 있어도 `postprepare`를 실행하지 않습니다. husky 9 자체가 Node 18+를 요구하므로 이 공존 패턴을 쓸 프로젝트는 하한선이 자동 충족되고, husky 없이 하네스 훅만 쓰는 프로젝트는 `prepare` 직행이면 npm 6에서도 동작합니다. 덤: npm 7+에서는 `prepare`를 지워도 `postprepare`가 단독으로 실행되므로, husky를 걷어내도 하네스 훅 설치는 살아남습니다.
 - 멱등입니다: husky가 자기 경로로 설정 → `install-hooks.mjs`가 그 경로를 저장·체인하고 `.githooks`로 재설정. `npm install`을 반복해도 같은 상태로 수렴합니다.
 - 부수 이점: 훅 설치는 git 로컬 설정이라 clone으로 공유되지 않는데, prepare에 물리면 팀원이 `npm install`만 해도 husky 훅과 하네스 훅이 함께 장착됩니다(별도 온보딩 단계 불필요).

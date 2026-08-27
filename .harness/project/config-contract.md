@@ -41,7 +41,7 @@
 
 ## 코드 품질 검사는 프로젝트 소유 (0.2.131)
 
-하네스는 프로젝트의 `lint`/`test`/`build`를 **실행하지 않습니다.** 옵트인 설정도 받지 않습니다. package.json에 해당 script가 있어도, 스택이 적용되어 있어도 하네스 검증 단계에서 돌지 않습니다. 코드 품질 검사의 소유는 전적으로 프로젝트이며, husky·lint-staged·CI 같은 프로젝트 도구가 담당합니다(설정 방법은 [hook-coexistence.md](./hook-coexistence.md)). 따라서 `profile.json`에는 `verify` 필드가 없고, 스택 manifest도 `verify`를 선언하지 않습니다. 하네스가 커밋/푸시에서 보는 것은 기준·문서·기획 연동 같은 하네스 자신의 관문 검사뿐입니다.
+하네스는 프로젝트의 `lint`/`test`/`build`를 **실행하지 않습니다.** 옵트인 설정도 받지 않습니다. package.json에 해당 script가 있어도, 스택이 적용되어 있어도 하네스 검증 단계에서 돌지 않습니다. 코드 품질 검사의 소유는 전적으로 프로젝트이며, husky·lint-staged·CI 같은 프로젝트 도구가 담당합니다. **설정 견본의 정본은 회사 툴킷 `ai-standard/toolkits/quality-gates`**(https://git.smartscore.kr/ai-standard/toolkits/quality-gates)이고, 에이전트에게 "커밋할 때 lint 돌게 해줘"처럼 요청하면 거기서 조달해 설치를 도와줍니다(`/검증게이트설치`). 하네스 깃훅과의 공존 배선은 [hook-coexistence.md](./hook-coexistence.md)가 정본입니다. 따라서 `profile.json`에는 `verify` 필드가 없고, 스택 manifest도 `verify`를 선언하지 않습니다. 하네스가 커밋/푸시에서 보는 것은 기준·문서·기획 연동 같은 하네스 자신의 관문 검사뿐입니다.
 
 ## 하네스 메타데이터 계약
 - `.harness/harness-lock.json`과 `.harness/install-manifest.json`의 source metadata는 하네스 업데이트 감지를 위한 설정 계약입니다.

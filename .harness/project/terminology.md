@@ -42,6 +42,7 @@
 | 회귀 | 한 번 잡은 사고가 재발하면 커밋을 막는 자동 테스트 — "다시는 안 깨진다"의 박제 | 본체 `scripts/test-init.mjs` |
 | harnessMode | 동기화 신호 3단 다이얼 — bootstrap(정착기 완화)/active(기본)/strict(차단 승격) | `.harness/policy/profile.json` |
 | waiver | "이 규칙, 이 범위에서 잠깐 예외" — 사유·만료와 함께 기록하는 면제증 | `.harness/policy/waivers.json` |
+| 검증 게이트 | 커밋·push 때 자동으로 도는 프로젝트 소유 코드 품질 검사(lint·테스트·빌드). 하네스는 실행하지 않고, 요청하면 설치를 도와줌 | 견본 정본: `ai-standard/toolkits/quality-gates`, 설치: `/검증게이트설치` |
 | sync-gap | 문서와 코드 중 한쪽만 바뀌었다는 신호 — "반대쪽도 봐야 하나?" 알림 | impact 출력의 동기화 후보 |
 
 ## 쉬운 풀이 — 기획 연동
