@@ -509,22 +509,68 @@ function freshInstallAutoActivatesGitHooks() {
     optOutPath = ''
   }
   assert(optOutPath === '', '--no-hooks fresh install must leave hooksPath unset')
+  const optOutMarker = run('git', ['config', 'harness.hooksAutoEnable'], { cwd: optOut }).trim()
+  assert(optOutMarker === 'false', '--no-hooks must record the opt-out marker so session auto-heal respects it')
 }
 
 function sessionStartAdapterWarnsWhenHooksMissing() {
-  // 결정 94: 훅 설정은 clone으로 공유되지 않는다 — 세션 시작 어댑터가 미설치를 매 세션 알린다.
+  // 결정 94(보강): 프롬프트 어댑터는 훅 꺼짐을 감지하면 "지금 켜라"고 지시한다 —
+  // 세션 시작 자동 복원이 실패했거나(비Claude 경로) 그 사이 꺼진 경우의 뒷받침.
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  // 픽스처는 속도상 --no-hooks로 설치하는데 그 플래그는 옵트아웃 표식을 남긴다.
+  // 진짜 clone에는 git config가 따라오지 않으므로, clone 상태를 재현하려면 표식을 지운다.
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
 
   const adapter = path.join(target, '.claude/hooks/inject-context.sh')
   const env = { ...process.env, CLAUDE_PROJECT_DIR: target }
 
   const before = run('/bin/bash', [adapter], { cwd: target, env })
-  assert(before.includes('hooks not installed'), 'adapter must warn when hooks are missing')
+  assert(before.includes('hooks are OFF'), 'adapter must flag hooks-off state')
+  assert(before.includes('Turn them on NOW'), 'adapter must instruct enabling now, not wait for a request')
 
   run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target })
   const after = run('/bin/bash', [adapter], { cwd: target, env })
-  assert(!after.includes('hooks not installed'), 'adapter must stay quiet once hooks are installed')
+  assert(!after.includes('hooks are OFF'), 'adapter must stay quiet once hooks are installed')
+}
+
+function sessionStartHookAutoEnablesGitHooks() {
+  // 결정 94(보강, 2026-08-28): clone의 훅 꺼짐은 누가 끈 선택이 아니라 git 설정이
+  // clone을 따라가지 않는 물리 기본값이다 — 세션 시작 훅이 기계적으로 복원한다(fail-open).
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  // 픽스처는 속도상 --no-hooks로 설치하는데 그 플래그는 옵트아웃 표식을 남긴다.
+  // 진짜 clone에는 git config가 따라오지 않으므로, clone 상태를 재현하려면 표식을 지운다.
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
+
+  const hook = path.join(target, '.claude/hooks/session-start-reminder.sh')
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: target }
+
+  // (1) 꺼진 상태(clone 직후와 동일) → 자동으로 켜고 알린다.
+  const first = run('/bin/sh', [hook], { cwd: target, env })
+  assert(first.includes('자동으로 켰습니다'), 'session start must auto-enable hooks and say so')
+  const hooksPath = run('git', ['config', 'core.hooksPath'], { cwd: target }).trim()
+  assert(hooksPath === '.githooks', `auto-heal must actually set core.hooksPath (got '${hooksPath}')`)
+
+  // (2) 이미 켜진 상태 → 침묵(같은 안내 반복 없음).
+  const second = run('/bin/sh', [hook], { cwd: target, env })
+  assert(!second.includes('자동으로 켰습니다'), 'session start must stay quiet when hooks are already on')
+
+  // (3) 명시적 옵트아웃(init --no-hooks가 남기는 표식)은 자동 복원이 존중한다.
+  run('git', ['config', '--unset', 'core.hooksPath'], { cwd: target })
+  run('git', ['config', 'harness.hooksAutoEnable', 'false'], { cwd: target })
+  const optedOut = run('/bin/sh', [hook], { cwd: target, env })
+  assert(!optedOut.includes('자동으로 켰습니다'), 'explicit opt-out must not be overridden by auto-heal')
+  let stillOff = ''
+  try { stillOff = run('git', ['config', 'core.hooksPath'], { cwd: target }).trim() } catch { stillOff = '' }
+  assert(stillOff === '', 'opt-out clone must stay off after session start')
+  run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target })
+
+  // (4) git 저장소가 아니어도 죽지 않는다(fail-open).
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-nogit-session-'))
+  fs.mkdirSync(path.join(bare, '.harness/session'), { recursive: true })
+  const noGit = run('/bin/sh', [hook], { cwd: bare, env: { ...process.env, CLAUDE_PROJECT_DIR: bare } })
+  assert(noGit.includes('session-start'), 'non-git target must not crash the session hook')
 }
 
 function installOutputUsesConditionalNvmAndGitGuidance() {
@@ -6120,6 +6166,7 @@ const tests = [
   installExcludesSessionWorktrees,
   freshInstallAutoActivatesGitHooks,
   sessionStartAdapterWarnsWhenHooksMissing,
+  sessionStartHookAutoEnablesGitHooks,
   installOutputUsesConditionalNvmAndGitGuidance,
   hooksInstallFailsClearlyOutsideGit,
   uninstallUnsetsHarnessGitConfigWhenNothingPreceded,

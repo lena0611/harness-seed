@@ -2185,6 +2185,12 @@ function runPostInstallDiagnostics(target, opts, { freshInstall = false } = {}) 
   // "설치했는데 관문이 꺼진 상태"가 기본값이면 안내를 흘린 프로젝트가 무방비가 된다.
   // 업데이트는 재배선하지 않는다 — 기존 clone이 내린 선택(훅 미사용 포함)을 존중한다.
   // hooks:install은 멱등이고 uninstall이 설치 전 상태로 복원한다.
+  if (freshInstall && opts.noHooks && isGitRepository(target)) {
+    // --no-hooks는 "이 PC에서는 켜지 말라"는 명시적 선택이다. 세션 시작 자동 복원(결정 94 보강)이
+    // 이 선택을 무력화하지 않도록 표식을 남긴다. 되돌리기: git config --unset harness.hooksAutoEnable
+    spawnSync('git', ['config', 'harness.hooksAutoEnable', 'false'], { cwd: target, stdio: 'ignore' });
+  }
+
   if (freshInstall && !opts.noHooks && isGitRepository(target)) {
     result.hooks = runPostInstallStep(
       target,

@@ -7,6 +7,24 @@ QUEUE="$ROOT/.harness/session/developer-input-queue.md"
 
 printf '[harness] session-start\n'
 
+# 커밋·푸시 검사(git hook) 자동 복원 (결정 94 보강, 2026-08-28):
+# 훅 설정은 저장소가 아니라 각자 PC의 .git/config에 저장되므로 clone에는 따라오지 않는다.
+# clone 직후의 "꺼짐"은 누가 끈 선택이 아니라 물리 기본값이다 — 팀은 하네스를 저장소에
+# 넣으며 이미 이 검사를 쓰기로 했으므로, 세션 시작이 그 상태를 복원한다.
+# 멱등·fail-open: 이미 켜져 있으면 침묵, 실패해도 세션은 계속된다.
+if [ -d "$ROOT/.git" ] || git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  HOOKS_PATH="$(git -C "$ROOT" config core.hooksPath 2>/dev/null || printf '')"
+  AUTO_ENABLE="$(git -C "$ROOT" config harness.hooksAutoEnable 2>/dev/null || printf '')"
+  # harness.hooksAutoEnable=false 는 이 PC의 명시적 옵트아웃(init --no-hooks가 기록) — 존중한다.
+  if [ "$HOOKS_PATH" != ".githooks" ] && [ "$AUTO_ENABLE" != "false" ] && [ -f "$ROOT/.harness/bin/install-hooks.mjs" ]; then
+    if (cd "$ROOT" && node .harness/bin/install-hooks.mjs >/dev/null 2>&1); then
+      printf '[harness] 커밋·푸시 검사가 꺼져 있어 자동으로 켰습니다. (이 설정은 PC마다 따로라 clone에는 따라오지 않습니다 — 사용자에게 이 사실을 한 줄로 알려주세요)\n'
+    else
+      printf '[harness] 커밋·푸시 검사가 꺼져 있는데 자동으로 켜지 못했습니다. .harness/bin/harness hooks:install 을 직접 실행해 원인을 확인하세요.\n'
+    fi
+  fi
+fi
+
 if [ -f "$REMINDER" ]; then
   printf '\n[harness] next-session-reminder\n'
   sed -n '1,120p' "$REMINDER"

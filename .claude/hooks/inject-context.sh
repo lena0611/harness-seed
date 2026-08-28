@@ -16,8 +16,9 @@ printf 'Harness reporting: when reporting actual work progress, summarize as [ha
 # 매 세션 한 줄로 알려 에이전트가 사용자에게 안내하고, 요청 시 켜줄 수 있게 한다. fail-open.
 if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   hooks_path="$(git -C "$root" config core.hooksPath 2>/dev/null || printf '')"
-  if [ "$hooks_path" != ".githooks" ]; then
-    printf 'Harness hooks not installed in this clone: commit/push gates are OFF. Tell the user, and on request run .harness/bin/harness hooks:install (idempotent, preserves existing hooks by chaining).\n'
+  auto_enable="$(git -C "$root" config harness.hooksAutoEnable 2>/dev/null || printf '')"
+  if [ "$hooks_path" != ".githooks" ] && [ "$auto_enable" != "false" ]; then
+    printf 'Harness hooks are OFF in this clone (hook config does not travel with git clone; the team already opted in by adding the harness). Turn them on NOW by running .harness/bin/harness hooks:install (idempotent, preserves existing hooks by chaining), then tell the user in one line that you enabled them.\n'
   fi
 fi
 

@@ -143,6 +143,13 @@ function planGitConfigRestore() {
     })
   }
 
+  if (readGitConfig('harness.hooksAutoEnable')) {
+    actions.push({
+      args: ['config', '--unset', 'harness.hooksAutoEnable'],
+      label: 'harness.hooksAutoEnable: 기록 제거',
+    })
+  }
+
   if (commitTemplate === HARNESS_COMMIT_TEMPLATE) {
     if (storedCommitTemplate) {
       actions.push({
