@@ -1457,6 +1457,37 @@ function makeTaggedHarnessRepo(tags) {
   return repo
 }
 
+function stackResetDoesNotResurrectDeletedProfileKeys() {
+  // score-print 결함 보고(2026-08-28): reset의 profile 복원이 { ...snapshot, ...current }로
+  // 스냅샷 전체를 바탕에 깔아, 스택 적용 "이후" 소비자가 지운 키가 재적용마다 부활했다.
+  // 스프레드는 없는 키를 삭제 지시로 표현할 수 없다. reset이 되돌릴 것은 apply가 쓰는
+  // 스택 소유 3필드(activeStack/available/stackManifest)뿐이다.
+  const target = makeTarget()
+  const preset = makePreset()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  // 적용 "이전" profile에 키를 심어 스냅샷(profileBackup)에 들어가게 한다.
+  const rel = '.harness/policy/profile.json'
+  const before = JSON.parse(read(target, rel))
+  writeJson(target, rel, { ...before, verify: { lint: 'harness' }, consumerKeepMe: 'v1' })
+
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
+
+  // 적용 "이후" 소비자가 verify를 지우고, 다른 키는 값을 바꾼다.
+  const applied = JSON.parse(read(target, rel))
+  delete applied.verify
+  applied.consumerKeepMe = 'v2'
+  writeJson(target, rel, applied)
+
+  run(harnessBin(target), ['stack:reset'], { cwd: target })
+
+  const afterReset = JSON.parse(read(target, rel))
+  assert(afterReset.verify === undefined, 'reset must not resurrect keys the consumer deleted after apply')
+  assert(afterReset.consumerKeepMe === 'v2', 'reset must keep consumer edits made after apply')
+  assert(afterReset.activeStack === 'none' || afterReset.activeStack === (before.activeStack ?? 'none'),
+    'reset must still revert the stack-owned activeStack field')
+}
+
 function stackApplyMaterializesPresetAsLocalRules() {
   const target = makeTarget()
   const preset = makePreset()
@@ -6222,6 +6253,7 @@ const tests = [
   existingProjectNvmrcIsPreserved,
   externalHarnessWithoutManifestIsPreserved,
   scanReportSuggestsBridgeCandidates,
+  stackResetDoesNotResurrectDeletedProfileKeys,
   stackApplyMaterializesPresetAsLocalRules,
   stackApplySupportsExternalPresetPath,
   harnessOutdatedDetectsBaseAndStackUpdates,

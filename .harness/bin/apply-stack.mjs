@@ -448,10 +448,13 @@ function restoreStackProfileFields(snapshot) {
   }
 
   const current = readProfile()
+  // stack:reset reverts only stack-owned profile fields — apply가 profile에 쓰는 필드는
+  // 아래 3개뿐이므로(updateProfileForAppliedStack) 되돌릴 것도 그 3개뿐이다.
+  // 과거에는 { ...snapshot, ...current }로 스냅샷 전체를 바탕에 깔았는데, 스프레드는
+  // "없는 키"를 삭제 지시로 표현할 수 없어 소비자가 지운 키(verify 등)가 스택 재적용마다
+  // 부활했다(score-print 결함 보고 2026-08-28 — 0.2.132 verify 안내가 반대 집단에 뜬 원인).
   const restored = {
-    ...snapshot,
     ...current,
-    // stack:reset reverts only stack-owned profile fields.
     activeStack: snapshot.activeStack ?? 'none',
     available: snapshot.available ?? ['none'],
     stackManifest: snapshot.stackManifest ?? null,
