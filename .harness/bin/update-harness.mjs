@@ -20,7 +20,7 @@ function printUsageAndExit(code = 0) {
   .harness/bin/harness update [options]
 
 Options:
-  --dry-run                 실행할 업데이트 명령만 출력합니다.
+  --dry-run                 업데이트 명령과 각 단계의 변경 계획(무엇이 추가/갱신되는지)을 출력합니다. 파일은 바꾸지 않습니다.
   --strategy <mode>         업데이트 전략입니다. compatible | locked | latest. 기본값: compatible
   --range <semver-range>    SemVer range를 직접 지정합니다. 예: ^1.0.0
   --ref <ref>               git branch/tag/sha를 직접 지정합니다.
@@ -412,7 +412,22 @@ function main() {
     console.log(`  command: ${[plan.command, ...plan.args].join(' ')}`)
   }
 
-  if (opts.dryRun) return
+  if (opts.dryRun) {
+    // 계획 실행(score-print 요청, 2026-08-28): 호출 명령만 찍으면 "무엇이 바뀌는지"를
+    // 소비자가 저장소를 직접 clone해 diff로 알아내야 했다. --dry-run을 각 단계에
+    // 그대로 전달해 실행한다 — init의 dry-run은 파일을 쓰지 않으므로 안전하고,
+    // 새 스택(v0.2.35+)은 스택 적용 계획(추가/갱신/동일 목록)까지 보여준다.
+    console.log('')
+    console.log('  아래는 각 단계의 --dry-run 실행 결과입니다 (파일은 바뀌지 않습니다):')
+    for (const { targetKind, plan } of plans) {
+      const status = run(plan.command, [...plan.args, '--dry-run'])
+      if (status !== 0) {
+        const label = targetKind === 'base' ? '공통 하네스' : '스택 하네스'
+        console.log(`  (${label} 단계의 dry-run 실행에 실패했습니다 — 위 command를 직접 실행해 원인을 확인하세요. 계획 확인이므로 파일은 바뀌지 않았습니다.)`)
+      }
+    }
+    return
+  }
 
   // 앞 단계 실패가 뒤 단계를 조용히 삼키지 않는다 — 무엇이 실행되지 않았는지 밝히고 종료한다
   // (score-print 보고 6번: 실패가 옵션 오타처럼 보여 "안내된 명령이 실행 불가"를 알아채기 어려웠다).

@@ -407,6 +407,16 @@ function printConsumerSummary({ edgeResult, criticalResult, cacheHit = false, fa
   console.log(`수동 조치: ${openManualActions === 0 ? '없음' : `${openManualActions}건 (.harness/session/manual-actions.md 확인)`}`)
   console.log(`추천 조치: ${recommendedActions.length === 0 ? '없음' : recommendedActions.join(', ')}`)
   console.log(`관문 검사: ${cacheHit ? '캐시 재사용' : '실행'}`)
+  // 죽은 verify 선언 감지(score-print 요청, 2026-08-28): 과거에 검증을 하네스에 맡겼던
+  // 프로젝트는 profile에 verify 키가 남아 "켜져 있다"고 오해하기 좋다 — 0.2.126의 감지
+  // 안내가 0.2.131에서 개념과 함께 사라져, "있던 것이 없어진" 상태가 무표시였다.
+  // 걸리는 조건이 정확히 그 위험 집단만 골라내므로(새 프로젝트는 키가 없음) 안내 한 줄만 띄운다.
+  const profileForNotice = readJson(profilePath, {})
+  if (profileForNotice.verify !== undefined) {
+    console.log('ℹ profile.json에 verify 선언이 남아 있으나 0.2.131부터 하네스는 읽지 않습니다.')
+    console.log('  코드 품질 게이트는 프로젝트 소유입니다 — /검증게이트설치 로 설치하거나,')
+    console.log('  이미 husky 등으로 돌고 있으면 이 키를 지워도 됩니다.')
+  }
   if (failedReason) {
     console.log(`실패 사유: ${failedReason}`)
   }

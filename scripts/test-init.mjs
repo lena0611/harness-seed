@@ -432,6 +432,27 @@ function pruneAliasesRemovesOnlyRecognizedInjectedValues() {
     `prune tool retired list drifted from init.mjs: init=${initList.length} prune=${pruneList.length}`)
 }
 
+function staleVerifyDeclarationGetsNoticed() {
+  // score-print 요청(2026-08-28): verify 폐지 후 "게이트가 비었다"는 신호가 없었다.
+  // 과거에 검증을 하네스에 맡겼던 프로젝트(profile.verify 잔존)에만 안내 한 줄을 띄운다 —
+  // 새 프로젝트는 키가 없어 침묵. 검사 실패로 만들지 않는다(길라잡이).
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const rel = '.harness/policy/profile.json'
+  const profile = JSON.parse(read(target, rel))
+  writeJson(target, rel, { ...profile, verify: { lint: 'harness', test: 'harness', build: 'harness' } })
+
+  const withKey = runGuard(target, '--no-cache')
+  assert(withKey.includes('verify 선언이 남아 있으나'), 'stale verify declaration must be surfaced')
+  assert(withKey.includes('검증게이트설치'), 'notice must point at the migration path')
+  assert(withKey.includes('결과: 통과'), 'the notice must stay informational, not a failure')
+
+  writeJson(target, rel, profile)
+  const withoutKey = runGuard(target, '--no-cache')
+  assert(!withoutKey.includes('verify 선언'), 'projects without the key must hear nothing')
+}
+
 function retiredInitFlagsStayAcceptedForSiblingHarnesses() {
   // 2026-08-27 실측 사고: 0.2.131이 --with-package-json을 제거했는데 스택 하네스의
   // buildSeedArgs가 그 플래그를 본체 init에 넘겨(공개 계약, 결정 83) 스택 설치가 exit 1로
@@ -6102,7 +6123,7 @@ function updateSkipsStackForBaseOnlyFlags() {
 
   const plain = run(nodeBin, [updater, '--dry-run'], { cwd: target })
   assert(plain.includes('target: 스택 하네스') && plain.includes('target: 공통 하네스'), 'default path must keep stack then base')
-  assert(!plain.includes('건너뜁니다'), 'no skip note without base-only flags')
+  assert(!plain.includes('공통 하네스 전용입니다'), 'no base-only skip note without base-only flags')
 
   let rejected = false
   try {
@@ -6162,6 +6183,7 @@ const tests = [
   updateSkipsStackForBaseOnlyFlags,
   cleanInstallCreatesExpectedFiles,
   pruneAliasesRemovesOnlyRecognizedInjectedValues,
+  staleVerifyDeclarationGetsNoticed,
   retiredInitFlagsStayAcceptedForSiblingHarnesses,
   installExcludesSessionWorktrees,
   freshInstallAutoActivatesGitHooks,
