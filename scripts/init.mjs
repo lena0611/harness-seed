@@ -511,6 +511,7 @@ Options:
   --no-handoff           설치/업데이트 인수인계 요약을 자동 생성하지 않습니다.
   --no-check             설치 후 하네스 기본 검사를 자동 실행하지 않습니다.
   --no-hooks             최초 설치 시 git hook 자동 활성화를 건너뜁니다. (업데이트는 원래 재배선하지 않습니다)
+  --with-package-json    은퇴(0.2.131) — 받아들이지만 아무 동작도 하지 않습니다. 하네스는 package.json을 만들거나 쓰지 않습니다.
   --embedded             스택 하네스 설치 흐름 내부에서 호출될 때 중간 안내를 줄입니다.
   --verbose              설치 내부 명령과 진단 출력을 자세히 표시합니다.
   --project-node <ver>   .nvmrc가 없을 때 프로젝트 Node 버전을 사용자 확인 기반으로 .nvmrc에 기록합니다(예: 12, 12.18.4).
@@ -548,6 +549,7 @@ function parseArgs(argv) {
     sourceCommit: null,
   };
 
+  const retiredFlagsUsed = [];
   const args = argv.slice(3);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -583,6 +585,13 @@ function parseArgs(argv) {
         break;
       case '--no-hooks':
         opts.noHooks = true;
+        break;
+      // 은퇴 플래그: 받아들이지만 아무것도 하지 않는다. 0.2.131에서 별칭 주입이 0개가 되어
+      // 용도가 사라졌으나, 스택 하네스의 buildSeedArgs가 이 플래그를 본체 init에 넘긴다
+      // (공개 계약 — 결정 83). 거부하면 구버전 스택 하네스의 설치가 전면 실패한다(실측 exit 1).
+      // 스택 하네스가 전달을 멈춘 뒤에도 이미 배포된 태그가 남아 있으므로 계속 수용한다.
+      case '--with-package-json':
+        retiredFlagsUsed.push(arg);
         break;
       case '--embedded':
         opts.embedded = true;
@@ -648,6 +657,10 @@ function parseArgs(argv) {
         console.error(`알 수 없는 옵션: ${arg}`);
         printUsageAndExit(1);
     }
+  }
+
+  if (retiredFlagsUsed.length > 0) {
+    opts.retiredFlagsUsed = retiredFlagsUsed;
   }
 
   return opts;
@@ -2350,6 +2363,9 @@ function main() {
       console.log(`work history: ${workHistoryYear.rel}${workHistoryYear.created ? ' 생성' : ' 준비됨'}`);
       console.log(`install manifest: ${opts.dryRun ? 'dry-run' : `${Object.keys(writtenManifest.managedFiles).length}개 managed file 기록`}`);
       console.log(`harness lock: ${opts.dryRun ? 'dry-run' : `${writtenLock.baseHarness.version} (${writtenLock.baseHarness.ref ?? writtenLock.baseHarness.source.type})`}`);
+      if (opts.retiredFlagsUsed) {
+        console.log(`retired flags (무시됨): ${opts.retiredFlagsUsed.join(', ')}`);
+      }
       console.log(`hooks: ${diagnostics.hooks}`);
       console.log(`scan: ${diagnostics.scan}`);
       console.log(`handoff: ${diagnostics.handoff}`);

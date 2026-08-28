@@ -31,10 +31,12 @@
 - **`/검증게이트설치` 스킬 신설 + quality-gates 툴킷 v0.1.0** — 요청 시 회사 툴킷(`ai-standard/toolkits/quality-gates`)에서 견본을 조달해 프로젝트 소유 husky·lint-staged 구성을 설치하는 도우미. 정신 3조(부르지 않으면 안 함·설치물은 프로젝트 소유·하네스 제거 후 생존)를 스킬 계약에 명문화. 툴킷이 검증 게이트 견본·설정법의 **회사 정본**(결정 96) — 사람 직접 설치와 에이전트 대리 설치가 같은 정본을 따르고, 품질 구성=툴킷 정본 / 공존 배선=하네스 정본으로 분할. 툴킷 초기 내용: frontend-node 프리셋(멀티사이트 검증 실물), 공존 요약(정본 포인터), `.harness/**` 제외 필수 안내.
 - **hook-coexistence postprepare 표준 대안** — `prepare: "husky"` + `postprepare: install-hooks` 패턴 문서화(husky 9.1.7의 무조건 hooksPath 덮어쓰기 실측, npm prepare→postprepare 순서 실측, npm 7+ 하한선 실측: npm 6은 postprepare 미실행).
 - **document-registry.local.json (결정 91)** — project-owned 등록 지점 신설, doc-link/build-context가 pseudo-group으로 병합, drift 경고에 전용 안내 1줄(오진 방지). score-print 요청서 #2 수용(A안).
+- **형제 저장소 계약 보호 (결정 97)** — 신규 Vue3 프로젝트 실전 설치에서 릴리스 차단 결함 2건 발견·수정: ① 제거한 `--with-package-json`을 스택 하네스가 계속 넘겨 스택 설치가 exit 1로 전면 실패 → 본체가 은퇴 플래그를 영구 수용(무동작, 요약에 표기) ② 별칭 주입 0개로 스택 init의 `npm run stack:apply` 등 5곳이 Missing script → 스택을 런처 호출로 전환. 둘 다 본체 회귀는 통과했다(본체가 형제 저장소 경유 경로를 시험하지 않음). 회귀 retiredInitFlagsStayAcceptedForSiblingHarnesses 추가. 동반: 스택 v0.2.34 소스에서 은퇴 플래그 전달 제거·안내 문구 36곳 런처화·`--project-node`/`--no-hooks` 수용, 스택 회귀 픽스처 재편(package.json 자체 생성·별칭 0개 단언).
+- **드리프트 경고의 스택 오진 수정** — 2단계 설치(공통→스택)에서 `profile.json`·`stack-preset-rules.md`가 설치 기록과 달라지는 것은 정상인데 경고가 `--resync-managed`를 안내해, 따르면 activeStack과 스택 룰이 지워지는 상태였다. 스택 적용 프로젝트에서 이 두 파일만 드리프트면 정상임을 알리고 resync 안내를 내지 않는다.
 - **harnessMode 3단 정리 (결정 95)** — maintenance를 유효 목록에서 제거(사용 0 확인, 별칭 수용 대신 기존 invalid-value 필수 조치 경로가 안전망). 다이얼의 실제 조절 대상(동기화 신호 등급)대로 config-contract·terminology·profile notes 재서술. bootstrap 졸업 이정표 1줄(impact). 회귀 확장(guardFlagsInvalidHarnessMode... 에 maintenance 거부+졸업 안내 2단언).
 - **최초 설치 훅 자동 활성화 (결정 94)** — init이 최초 설치(manifest 부재)에서만 hooks:install을 자동 실행(git 저장소 한정, `--no-hooks` 옵트아웃). 업데이트 경로는 재배선하지 않음(기존 clone의 선택 존중). 세션 시작 어댑터(Claude·Codex inject-context.sh)에 훅 미설치 감지 1줄 추가 — clone 층은 git 설계상 로컬 강제 불가라 신호로 보강, 진짜 강제는 서버측 CI 몫(관문 #4·#8). 회귀 2건.
 - **`.claude/worktrees` 배포 유출 차단** — 에이전트 세션 워크트리가 로컬 설치·테스트에 딸려 나가 소비자 `.claude/**` 정책(visible-trace)을 오발시키던 결함. 제외 규칙+탐침 자가생성형 회귀.
-- 총 회귀 194종(worktree 유출 1·retired 안내 2·재귀 가드 1·훅 자동 활성화 1·세션 감지 1 신규, verify 회귀 재편, `--with-package-json` 회귀 1 은퇴).
+- 총 회귀 197종(worktree 유출 1·retired 안내 2·재귀 가드 1·훅 자동 활성화 1·세션 감지 1·은퇴 플래그 수용 1 신규, verify 회귀 재편, `--with-package-json` 회귀 1 은퇴).
 
 ## 0.2.130 - 2026-08-25
 

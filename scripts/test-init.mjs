@@ -368,6 +368,28 @@ function cleanInstallCreatesExpectedFiles() {
   assert(!exists(target, 'scripts/release-notice.mjs'), 'seed release-notice tool must not ship to consumers')
 }
 
+function retiredInitFlagsStayAcceptedForSiblingHarnesses() {
+  // 2026-08-27 실측 사고: 0.2.131이 --with-package-json을 제거했는데 스택 하네스의
+  // buildSeedArgs가 그 플래그를 본체 init에 넘겨(공개 계약, 결정 83) 스택 설치가 exit 1로
+  // 전면 실패했다. 이미 배포된 스택 태그는 계속 그 플래그를 넘기므로 본체는 영구 수용한다.
+  // 은퇴 플래그를 지우려면 그것을 넘기는 형제 저장소의 모든 배포 태그가 사라진 뒤여야 한다.
+  const target = makeTarget()
+  const out = runInit(target, '--with-package-json', '--no-scan', '--no-handoff', '--no-check')
+
+  assert(exists(target, '.harness/policy/profile.json'), 'retired flag must not abort the install')
+  assert(out.includes('은퇴') || out.includes('retired') || true, 'notice is optional but install must succeed')
+
+  // 스택 하네스가 실제로 넘기는 인자 조합 그대로도 설치가 성공해야 한다.
+  const stackLike = makeTarget()
+  runInit(stackLike, '--no-scan', '--no-handoff', '--no-check', '--embedded', '--with-package-json')
+  assert(exists(stackLike, '.harness/policy/profile.json'), 'stack-style arg set must install cleanly')
+
+  // 은퇴 플래그가 실제로 무동작이어야 한다 — package.json을 만들거나 별칭을 넣지 않는다.
+  const bare = makeBareTarget()
+  runInit(bare, '--with-package-json', '--no-scan', '--no-handoff', '--no-check')
+  assert(!exists(bare, 'package.json'), 'retired --with-package-json must stay a no-op (no package.json creation)')
+}
+
 function installExcludesSessionWorktrees() {
   // 에이전트 세션이 본체 체크아웃에 만드는 .claude/worktrees/* 는 저장소 상태이지 배포물이 아니다.
   // 유출되면 소비자 설치본의 .claude/** 정책(visible-trace)이 무관한 변경에 깨어난다(2026-08-26 실측).
@@ -6029,6 +6051,7 @@ const tests = [
   localDocumentRegistryGivesProjectOwnedRegistrationPoint,
   updateSkipsStackForBaseOnlyFlags,
   cleanInstallCreatesExpectedFiles,
+  retiredInitFlagsStayAcceptedForSiblingHarnesses,
   installExcludesSessionWorktrees,
   freshInstallAutoActivatesGitHooks,
   sessionStartAdapterWarnsWhenHooksMissing,

@@ -628,9 +628,34 @@ function printManagedDriftNotice(drift) {
     console.log('  document-registry.json은 프로젝트 문서를 등록하려다 달라졌을 수 있습니다 — 그 등록은')
     console.log('  document-registry.local.json(프로젝트 소유)으로 옮기면 업데이트에서 제외되지 않습니다.')
   }
+  // 2단계 설치(공통 → 스택)의 정상 결과를 lint 오염으로 오진하지 않는다(2026-08-27 신규 설치 실측).
+  // 스택 적용은 공통 설치가 manifest를 기록한 뒤에 profile.json(activeStack)과
+  // stack-preset-rules.md를 쓰므로, 스택을 쓰는 프로젝트에서 이 두 파일의 드리프트는 당연하다.
+  // 여기서 --resync-managed를 안내하면 방금 적용한 스택 설정이 지워진다 — 그 안내를 내지 않는다.
+  const stackWrittenFiles = new Set([
+    '.harness/policy/profile.json',
+    '.harness/project/stack-preset-rules.md',
+  ])
+  const driftedPosix = drift.drifted.map((rel) => rel.split(path.sep).join('/'))
+  const stackApplied = readJson(profilePath, { activeStack: 'none' }).activeStack
+  const hasStack = Boolean(stackApplied) && stackApplied !== 'none'
+  const onlyStackFiles = driftedPosix.every((rel) => stackWrittenFiles.has(rel))
+
+  if (hasStack && onlyStackFiles) {
+    console.log(`  ⓘ 이 프로젝트는 스택(${stackApplied})을 적용했고, 위 파일은 스택 적용이 쓰는 파일입니다.`)
+    console.log('     공통 하네스 설치 → 스택 적용 순서로 두 단계를 거치므로 설치 기록과 달라지는 것이 정상입니다.')
+    console.log('     이 경우 --resync-managed를 실행하지 마세요 — activeStack과 스택 룰이 함께 지워집니다.')
+    console.log('     다음 스택 하네스 업데이트가 이 파일들을 함께 갱신합니다.')
+    return
+  }
+
   console.log('  1) lint·formatter 설정에서 .harness/**를 제외하세요(eslint globalIgnores, .oxlintrc.json ignorePatterns, .prettierignore).')
   console.log('  2) 그다음 원본으로 되돌리세요: .harness/bin/harness update --resync-managed')
   console.log('     (managed 파일만 되돌립니다. 프로젝트 소유 파일은 건드리지 않습니다.)')
+  if (hasStack) {
+    console.log('     ⚠ 스택 적용 프로젝트입니다 — profile.json·stack-preset-rules.md가 위 목록에 있으면 그 두 개는')
+    console.log('       스택 적용의 정상 결과일 수 있습니다. resync는 activeStack과 스택 룰을 지웁니다.')
+  }
 }
 
 // P1(2026-06-09): 비-Node 프로젝트(package.json 없음)에서도 `node .harness/bin/guard.mjs`가
