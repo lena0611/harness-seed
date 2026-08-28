@@ -1,7 +1,7 @@
-# 이슈 조회 설정 (issue-adapter.md) — 본체: 표준화 관문 조회
+# 이슈 조회 설정 (issue-adapter.md) — 본체: 결정 요청 조회
 
-**커밋·푸시를 마친 뒤** 열린 하네스 관문(회사 미결정 사항) 요약 한 줄을 완료 보고에
-덧붙입니다. 관문 이슈의 정본 맥락은
+**커밋·푸시를 마친 뒤** 열린 결정 요청(회사가 정해줘야 하는 미결정 사항) 요약 한 줄을 완료 보고에
+덧붙입니다. 결정 요청 이슈의 정본 맥락은
 [standards-adoption-roadmap.md](./standards-adoption-roadmap.md)(참조)와
 `ai-standard/docs`의 로드맵 정본입니다.
 
@@ -14,11 +14,11 @@
 
 ```bash
 [ -f .issue-adapter.env ] && DOCS_ISSUE_TOKEN_RO=$(sed -n 's/^DOCS_ISSUE_TOKEN_RO=//p' .issue-adapter.env | tr -d '\r')
-curl --silent --header "PRIVATE-TOKEN: $DOCS_ISSUE_TOKEN_RO" "https://git.smartscore.kr/api/v4/projects/ai-standard%2Fdocs/issues?labels=%ED%95%98%EB%84%A4%EC%8A%A4%EA%B4%80%EB%AC%B8&state=opened&per_page=50"
+curl --silent --header "PRIVATE-TOKEN: $DOCS_ISSUE_TOKEN_RO" "https://git.smartscore.kr/api/v4/projects/ai-standard%2Fdocs/issues?labels=%EA%B2%B0%EC%A0%95%EC%9A%94%EC%B2%AD&state=opened&per_page=50"
 ```
 
 - 프로젝트 식별은 숫자 ID 대신 URL 인코딩된 전체 경로(`ai-standard%2Fdocs`)를 씁니다.
-- 라벨 쿼리 값은 `하네스관문`의 URL 인코딩입니다.
+- 라벨 쿼리 값은 `결정요청`의 URL 인코딩입니다. (2026-08-28에 `하네스관문`에서 개명 — 쉬운 말 원칙)
 - 응답의 `iid`, `title`, `labels`(미결정/논의중), `milestone.title`을 사용합니다.
 
 ## ② 토큰 환경변수 (필수)
@@ -29,7 +29,7 @@ curl --silent --header "PRIVATE-TOKEN: $DOCS_ISSUE_TOKEN_RO" "https://git.smarts
 | 권한 | 읽기 전용(`read_api`) — 개발자가 자기 계정에서 발급 |
 | 파일 | 프로젝트 루트 `.issue-adapter.env` 한 줄: `DOCS_ISSUE_TOKEN_RO=<토큰 값>` (`.gitignore` 등록됨) |
 
-토큰이 없거나 호출이 실패하면 요약 대신 "관문 조회 실패(원인)"라고 적습니다.
+토큰이 없거나 호출이 실패하면 요약 대신 "결정 요청 조회 실패(원인)"라고 적습니다.
 이슈 0건과 조회 실패는 다른 말입니다. 커밋·푸시 결과에는 영향이 없습니다.
 
 ### 토큰이 없을 때 (에이전트가 보고에 실어줄 안내)

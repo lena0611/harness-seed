@@ -178,7 +178,7 @@ const RETIRED_CONSUMER_SCRIPTS = [
 ];
 
 const RETIRED_SCRIPTS_NOTICE_SUFFIX =
-  ' — **계속 동작합니다**. 정리는 선택이며 다음 릴리스에서 도구를 제공합니다.';
+  ' — **계속 동작합니다**. 정리는 선택입니다: .harness/bin/harness prune:aliases (미리보기 후 --write, 하네스가 주입한 그대로인 것만 지웁니다)';
 
 function renderRetiredScriptsNotice(retired) {
   if (!retired || retired.length === 0) return null;
@@ -1831,6 +1831,8 @@ function mergeGitignore(target, opts) {
     '.harness/session/task-context.md',
     '.harness/session/template-gap-report.md',
     '.harness-backup/',
+    // prune:aliases와 managed 파일 덮어쓰기가 남기는 사이드카 백업. 커밋에 딸려 들어가지 않게 한다.
+    '*.harness-bak',
     'CLAUDE.local.md',
     '.harness/project/personal-methodology.local.md',
     '.claude/settings.local.json',

@@ -368,6 +368,70 @@ function cleanInstallCreatesExpectedFiles() {
   assert(!exists(target, 'scripts/release-notice.mjs'), 'seed release-notice tool must not ship to consumers')
 }
 
+function pruneAliasesRemovesOnlyRecognizedInjectedValues() {
+  // 0.2.131: 은퇴 별칭 정리 도구. 안전 원칙 — 하네스가 주입한 형태 그대로일 때만 지우고,
+  // 프로젝트가 값을 고친 별칭과 프로젝트 자신의 스크립트는 절대 건드리지 않는다.
+  const target = makeTarget()
+  writeJson(target, 'package.json', {
+    name: 'consumer', private: true,
+    scripts: {
+      dev: 'vite',
+      'harness:check': 'node .harness/bin/check-node-version.mjs && node .harness/bin/guard.mjs',
+      'harness:scan': 'npm run node:check --silent && node .harness/bin/scan-project.mjs --write',
+      'stack:apply': 'npm run node:check --silent && node scripts/apply-stack.mjs',
+      'harness:guide': 'MY_ENV=1 node .harness/bin/harness-guide.mjs',
+      'harness:update': 'node .harness/bin/check-node-version.mjs && node .harness/bin/update-harness.mjs && echo done',
+    },
+  })
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  // (1) 미리보기 기본 — 파일을 바꾸지 않는다.
+  const preview = run(nodeBin, [path.join(target, '.harness/bin/prune-aliases.mjs')], { cwd: target })
+  assert(preview.includes('지울 수 있는 것 3개'), 'preview should classify the 3 pristine aliases (current + 2 legacy forms)')
+  assert(preview.includes('보존할 것 2개'), 'customized aliases must be classified as preserved')
+  assert(preview.includes('미리보기'), 'default run must be a dry preview')
+  const before = JSON.parse(read(target, 'package.json'))
+  assert(before.scripts['harness:check'], 'preview must not modify package.json')
+
+  // (2) --write — 인식된 것만 지우고, 백업을 남기고, 나머지는 그대로.
+  run(nodeBin, [path.join(target, '.harness/bin/prune-aliases.mjs'), '--write'], { cwd: target })
+  const after = JSON.parse(read(target, 'package.json'))
+  assert(after.scripts['harness:check'] === undefined, 'pristine current-form alias must be removed')
+  assert(after.scripts['harness:scan'] === undefined, 'pristine legacy npm-run form must be removed')
+  assert(after.scripts['stack:apply'] === undefined, 'pristine legacy scripts/ form must be removed')
+  assert(after.scripts['harness:guide'], 'env-prefixed alias must be preserved (project customized it)')
+  assert(after.scripts['harness:update'], 'suffix-appended alias must be preserved (project customized it)')
+  assert(after.scripts.dev === 'vite', 'project own scripts must never be touched')
+  assert(exists(target, 'package.json.harness-bak'), 'write mode must leave a backup sidecar')
+
+  // (3) 멱등 — 다시 돌리면 지울 게 없다고만 한다.
+  const again = run(nodeBin, [path.join(target, '.harness/bin/prune-aliases.mjs'), '--write'], { cwd: target })
+  assert(again.includes('보존할 것 2개') || again.includes('자동으로 지울 수 있는 별칭이 없습니다'), 'second run must find nothing new to remove')
+
+  // (4) 본체 저장소 방어 — .harness-seed-mode가 있으면 거부한다(본체 scripts는 원본이다).
+  const seedish = makeTarget()
+  runInit(seedish, '--no-scan', '--no-handoff', '--no-check')
+  fs.writeFileSync(path.join(seedish, '.harness-seed-mode'), '')
+  const refusal = expectFailure(
+    () => run(nodeBin, [path.join(seedish, '.harness/bin/prune-aliases.mjs')], { cwd: seedish }),
+    'seed-mode must refuse the prune tool (exit 1)',
+  )
+  assert(refusal.includes('본체 저장소'), 'refusal must explain why (body scripts are originals, not injected aliases)')
+  assert(JSON.parse(read(seedish, 'package.json')), 'seed-mode refusal must leave package.json intact')
+
+  // (5) 도구의 은퇴 목록이 init.mjs의 RETIRED_CONSUMER_SCRIPTS와 어긋나지 않는지(드리프트 가드).
+  const initSrc = fs.readFileSync(path.join(repoRoot, 'scripts/init.mjs'), 'utf8')
+  const pruneSrc = fs.readFileSync(path.join(repoRoot, '.harness/bin/prune-aliases.mjs'), 'utf8')
+  const extract = (src, name) => {
+    const m = src.match(new RegExp(`const ${name} = \\[([^\\]]+)\\]`))
+    return m[1].match(/'[^']+'/g).map((x) => x.slice(1, -1)).sort()
+  }
+  const initList = extract(initSrc, 'RETIRED_CONSUMER_SCRIPTS')
+  const pruneList = extract(pruneSrc, 'RETIRED')
+  assert(JSON.stringify(initList) === JSON.stringify(pruneList),
+    `prune tool retired list drifted from init.mjs: init=${initList.length} prune=${pruneList.length}`)
+}
+
 function retiredInitFlagsStayAcceptedForSiblingHarnesses() {
   // 2026-08-27 실측 사고: 0.2.131이 --with-package-json을 제거했는데 스택 하네스의
   // buildSeedArgs가 그 플래그를 본체 init에 넘겨(공개 계약, 결정 83) 스택 설치가 exit 1로
@@ -6051,6 +6115,7 @@ const tests = [
   localDocumentRegistryGivesProjectOwnedRegistrationPoint,
   updateSkipsStackForBaseOnlyFlags,
   cleanInstallCreatesExpectedFiles,
+  pruneAliasesRemovesOnlyRecognizedInjectedValues,
   retiredInitFlagsStayAcceptedForSiblingHarnesses,
   installExcludesSessionWorktrees,
   freshInstallAutoActivatesGitHooks,
