@@ -134,6 +134,17 @@ const SEED_ONLY_DOC_PATHS = new Set([
   '.harness/project/standards-adoption-roadmap.md',
 ]);
 
+// 은퇴한 관리 파일(0.2.134, score-print 보고): 예전 버전이 배포했지만 본체가 삭제·개명해
+// 더 이상 배포하지 않는 파일. 업데이트가 지우지 않으면 소비자 디스크에 영원히 남고,
+// 레지스트리(정상)가 모르는 유령 파일이 되어 doc-link-check가 매 검사마다 고아로 신고한다.
+// 규칙은 세션 이력 아카이브(0.2.95)와 동일: manifest sha 일치(미수정)면 제거, 소비자가
+// 수정했으면 보존+안내, manifest 기록이 없으면(출처 불명) 건드리지도 보고하지도 않는다.
+// manifest 승계에서도 제외해, 보존된 파일은 소비자 소유로 재분류된다.
+const RETIRED_MANAGED_PATHS = new Set([
+  '.claude/commands/검증설정.md', // 0.2.131 verify 제거와 함께 삭제된 명령 문서
+  '.claude/commands/harness-absorb.md', // 0.2.25에서 harness-scan.md로 개명되기 전 이름
+]);
+
 // 세션 이력 아카이브(0.2.95): decision-log 2계층 관례(0.2.92)로 본체 자신의 아카이브
 // (decision-log-2026H1.md 등)가 생기면서, 어떤 제외 목록에도 없어 일반 managed 파일로
 // 소비자에 복사되는 회귀가 발생했다(clubadm 보고 — "하네스 팀 회의록 458줄").
@@ -1095,7 +1106,7 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
 // manifest에 managed로 기록되고 미수정(sha 일치)이면 제거하고, 소비자가 수정했으면 보존 + 리포트한다.
 // 본체(마커 있음) 타깃은 건드리지 않는다.
 function removeSeedOnlyDocs(target, manifest, opts) {
-  const result = { removed: [], preservedModified: [] };
+  const result = { removed: [], preservedModified: [], retiredRemoved: [], retiredPreserved: [] };
 
   if (existsSync(join(target, SEED_MODE_MARKER))) {
     return result;
@@ -1159,6 +1170,30 @@ function removeSeedOnlyDocs(target, manifest, opts) {
       }
       result.removed.push(rel);
     }
+  }
+
+  // 은퇴한 관리 파일도 같은 규칙으로 정리한다(0.2.134). 세션 이력 아카이브와 같은 계열:
+  // manifest 기록이 없는 파일은 소비자 자신의 파일일 수 있으므로 건드리지도, 보고하지도 않는다.
+  for (const rel of RETIRED_MANAGED_PATHS) {
+    const abs = join(target, rel);
+    if (!existsSync(abs) || !statSync(abs).isFile()) {
+      continue;
+    }
+
+    const recordedSha = manifest?.managedFiles?.[toPosix(rel)]?.sha256;
+    if (!recordedSha) {
+      continue;
+    }
+
+    if (sha256(abs) !== recordedSha) {
+      result.retiredPreserved.push(rel);
+      continue;
+    }
+
+    if (!opts.dryRun) {
+      rmSync(abs, { force: true });
+    }
+    result.retiredRemoved.push(rel);
   }
 
   return result;
@@ -1530,7 +1565,9 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, prev
   for (const [rel, entry] of Object.entries(previousManifest?.managedFiles ?? {})) {
     const normalized = toPosix(rel)
     const abs = join(target, normalized)
-    if (!isProjectOwned(normalized) && existsSync(abs) && statSync(abs).isFile()) {
+    // 은퇴한 관리 파일은 승계하지 않는다(0.2.134) — 제거되면 엔트리도 함께 사라지고,
+    // 수정 흔적으로 보존된 파일은 managed에서 이탈해 소비자 소유로 재분류된다.
+    if (!isProjectOwned(normalized) && !RETIRED_MANAGED_PATHS.has(normalized) && existsSync(abs) && statSync(abs).isFile()) {
       managedFiles[normalized] = entry
     }
   }
@@ -2577,6 +2614,23 @@ function main() {
         console.log(`  - ${rel}`);
       }
       console.log('내용을 확인하고 불필요하면 직접 삭제하세요(본체 전용 문서라 소비자 프로젝트에는 의미가 없습니다).');
+    }
+
+    if (seedOnlyCleanup.retiredRemoved.length > 0) {
+      console.log('');
+      console.log('예전 버전이 설치했지만 지금은 은퇴한 하네스 파일을 정리했습니다:');
+      for (const rel of seedOnlyCleanup.retiredRemoved) {
+        console.log(`  - ${rel}`);
+      }
+    }
+
+    if (seedOnlyCleanup.retiredPreserved.length > 0) {
+      console.log('');
+      console.log('은퇴한 하네스 파일이지만 로컬 수정 흔적이 있어 보존했습니다 (이제 이 프로젝트 소유입니다):');
+      for (const rel of seedOnlyCleanup.retiredPreserved) {
+        console.log(`  - ${rel}`);
+      }
+      console.log('계속 쓰려면 .harness/documentation/document-registry.local.json에 등록하고, 불필요하면 직접 삭제하세요.');
     }
 
     const bridgeCandidates = detectBridgeCandidates(TARGET, installed.skippedFiles);

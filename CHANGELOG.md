@@ -14,9 +14,10 @@
 ## 0.2.134 - 미배포
 
 ### 공지
-없음
+- [개선] 예전 버전이 설치했지만 지금은 없어진 하네스 파일(`/검증설정` 명령 문서)을 업데이트가 정리합니다. 이 파일 때문에 매 검사마다 뜨던 "등록 안 된 문서" 안내가 사라집니다. 직접 고쳐 쓰던 경우에는 지우지 않고 보존합니다. (스코어카드출력 개선요청 반영)
 
 ### 상세
+- **은퇴 관리 파일 정리 (score-print 보고, 2026-08-31)** — 보고 진단은 "본체 registry에 `.claude/commands/검증설정.md` 누락"(권고 A: registry 추가)이었으나, 실측 결과 그 파일은 본체가 0.2.131에서 verify 제거와 함께 **삭제한 은퇴 파일**(신규 설치 고아 0건, registry 정상). 진짜 원인은 manifest 승계가 "디스크에 있으면 유지"라 시드가 배포를 끊은 파일이 소비자에 영구 잔존하는 것. A는 죽은 명령 문서를 재인증하는 꼴이라 기각하고, `RETIRED_MANAGED_PATHS` 목록(검증설정.md + 0.2.25 개명 전 harness-absorb.md — 역대 은퇴 파일 전수 2건)을 신설해 이력 아카이브(0.2.95)와 동일 규칙으로 정리: 미수정(sha 일치)=제거+manifest 이탈, 소비자 수정=보존+안내+소비자 소유 재분류, 기록 없음=불간섭. 권고 B(재발 방지)는 수용 — 회귀 updateRemovesRetiredManagedCommandDoc(제거·보존 양 경로, 기준선 실패 증명), freshInstallHasNoRegistryOrphans(신규 설치 고아 0건 잠금 — 배포 md의 registry 동반 갱신 누락을 소비자 시점으로 감지).
 - **본체 검사 속도 개선 (2026-08-31 실측 30분대 → 커밋 수십 초·push 1회 2분대)** — 릴리스 한 번에 회귀 201종 전량이 커밋·push마다 4~5회 반복되던 것이 원인. 소비자 프로젝트는 회귀 스위트 자체가 없어 두 변경 모두 무영향.
   - **① 회귀 스위트 병렬화** — `scripts/test-init.mjs`가 CPU에 맞춰 최대 8샤드(`--shard=k/N`)로 나눠 병렬 실행(직렬 4~5분 → 83초 실측, 201/201 2회 연속). 폴백 `--sequential`(또는 `HARNESS_TESTS_SEQUENTIAL=1`), 이름 필터 단건 실행은 종전대로 직렬. 함께: run() 헬퍼가 자식 PATH 머리에 스위트 실행 Node를 박아(`withSuiteNodeFirst`) 셸 nvm 상태(실측: 기본 node가 v12로 바뀌자 설치본 guard가 ESM 크래시)와 무관하게 재현되도록 고정.
   - **③ 본체 2단계 게이트** — pre-commit은 `HARNESS_GUARD_STAGE=commit`으로 가벼운 검사만(정책·문서·계약, 회귀 생략), pre-push가 회귀 포함 전량. 회귀를 건너뛴 실행은 "전체 통과" 캐시를 남기지 않아 push의 `--fast`가 오신하지 않고, 첫 push가 전량을 돌아 캐시를 남기면 둘째 원격·태그 push는 캐시 재사용. guard의 seed-mode 블록 분기 + 캐시 기록 2곳 가드 + pre-commit 훅 env 지정. 회귀 seedCommitStageDefersRegressionsToPush(스킵·캐시 미기록·push 전량·재사용까지 한 사이클), commitStageEnvIsNoopForConsumers(소비자 무영향).

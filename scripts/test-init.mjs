@@ -2634,6 +2634,54 @@ function updatePreservesConsumerOwnedHistoryLog() {
   assert(!output.includes(ownArchive), 'consumer-created archive must not be reported at all')
 }
 
+// 은퇴 관리 파일 정리(0.2.134, score-print 보고): 예전 버전이 배포한 파일을 본체가 삭제하면
+// 업데이트가 소비자 디스크에서도 정리해야 한다 — 안 지우면 파일이 유령으로 남아
+// doc-link-check가 매 검사마다 고아로 신고한다(실측: /검증설정 명령 문서,
+// 0.2.126 배포 → 0.2.131 본체 삭제 → 0.2.133 소비자 잔존).
+function updateRemovesRetiredManagedCommandDoc() {
+  const retiredRel = '.claude/commands/검증설정.md'
+  const staleBody = '# /검증설정 — verify 소유 전환 안내 (0.2.126 배포본)\n'
+
+  // (a) 미수정 잔존본: 제거 + manifest 이탈 + 고아 경고 소멸
+  const target = makeTarget()
+  runInit(target)
+  fs.writeFileSync(path.join(target, retiredRel), staleBody)
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  manifest.managedFiles[retiredRel] = { sha256: sha256Text(staleBody) }
+  writeJson(target, '.harness/install-manifest.json', manifest)
+
+  const output = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!exists(target, retiredRel), 'unmodified retired managed file must be removed on update')
+  const after = JSON.parse(read(target, '.harness/install-manifest.json'))
+  assert(!after.managedFiles[retiredRel], 'removed retired file must leave managed entries')
+  assert(output.includes('은퇴한 하네스 파일'), 'update must report the retired-file cleanup')
+  const doc = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(!doc.includes(retiredRel), 'doc-link-check must stop flagging the removed retired file')
+
+  // (b) 소비자 수정본: 보존 + managed 이탈(소비자 소유 재분류) + 안내
+  const target2 = makeTarget()
+  runInit(target2)
+  fs.writeFileSync(path.join(target2, retiredRel), '# 소비자가 고쳐 쓰던 내용\n')
+  const manifest2 = JSON.parse(read(target2, '.harness/install-manifest.json'))
+  manifest2.managedFiles[retiredRel] = { sha256: sha256Text(staleBody) }
+  writeJson(target2, '.harness/install-manifest.json', manifest2)
+
+  const output2 = runInit(target2, '--no-scan', '--no-handoff', '--no-check')
+  assert(exists(target2, retiredRel), 'consumer-modified retired file must be preserved')
+  const after2 = JSON.parse(read(target2, '.harness/install-manifest.json'))
+  assert(!after2.managedFiles[retiredRel], 'preserved retired file must be reclassified as consumer-owned (out of managed entries)')
+  assert(output2.includes('로컬 수정 흔적이 있어 보존'), 'update must report the preserved retired file')
+}
+
+// score-print 권고 B(2026-08-31): 배포하는 md가 본체 registry에 빠지면 모든 소비자가
+// 매 검사마다 고아 경고를 보게 된다. 본체는 소비자 시점을 겪지 않으므로 픽스처로 대신 겪는다.
+function freshInstallHasNoRegistryOrphans() {
+  const target = makeTarget()
+  runInit(target)
+  const output = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(!/orphan/i.test(output), 'a fresh install must report zero registry orphans — every shipped md must be registered in document-registry.json')
+}
+
 function seedModeTargetKeepsSeedOnlyDocs() {
   const target = makeTarget()
   // seed-mode 마커가 있으면 본체 타깃으로 간주 → seed-only 문서를 그대로 설치한다.
@@ -6355,6 +6403,8 @@ const tests = [
   reinstallRemovesPreexistingSeedOnlyDocWhenUnmodified,
   reinstallPreservesModifiedSeedOnlyDoc,
   seedModeTargetKeepsSeedOnlyDocs,
+  updateRemovesRetiredManagedCommandDoc,
+  freshInstallHasNoRegistryOrphans,
   guardCacheHitSkipsRevalidationOnSameTree,
   guardFullCacheSatisfiesFastRequest,
   seedCommitStageDefersRegressionsToPush,
