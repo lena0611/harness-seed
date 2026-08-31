@@ -1410,6 +1410,11 @@ function runImpact() {
     console.log('기준 동기화 검토 후보 (의미 불일치 판정 아님):')
     console.log('- 연결된 문서와 코드 중 한쪽이 변경됐다는 파일 경로 신호입니다.')
     console.log('- 구조·계약·팀 기준이 실제로 바뀐 경우에만 반대쪽 갱신이 필요합니다.')
+    // 멀티사이트 회신(0.2.135): 강제 선언이 하나도 없는 bootstrap 프로젝트는 완화가
+    // "기본 등급 완화"가 아니라 전면 참고화로 떨어진다 — 그 상태임을 자기가 알게 한다.
+    if (bootstrapRelaxed && syncGapLevels.blocking === 0 && syncGapLevels['action required'] === 0) {
+      console.log('- bootstrap 완화 적용 중: 강제 선언(확인 필수·차단)이 없어 이번 후보는 모두 참고입니다. 지키고 싶은 항목이 있으면 syncEnforcement를 선언하거나 harnessMode를 active로 올리세요.')
+    }
 
     const printGapDetail = (gap) => {
       const sideLabel = gap.side === 'document-only' ? '문서만 변경됨' : '소스만 변경됨'

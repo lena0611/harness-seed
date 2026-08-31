@@ -333,7 +333,8 @@ function printCriticalPathExistenceNotice(paths) {
   console.log('')
   console.log(`critical path 선언 ${paths.length}건 중 ${ghosts.length}건은 저장소에 실존 대상이 없습니다 — 경로를 고치거나 행을 제거하세요:`)
   for (const entry of ghosts.slice(0, 10)) {
-    console.log(`  - ${entry.glob} (${entry.prefix}/ 없음)`)
+    // 와일드카드 없는 선언은 파일 자체를 확인한 것 — 폴더 표기(`x/ 없음`)가 어색하다(clubadm 회신).
+    console.log(`  - ${entry.glob} (${entry.prefix === entry.glob ? '파일 없음' : `${entry.prefix}/ 없음`})`)
   }
   if (ghosts.length === checkable.length && paths.length > 0) {
     console.log('전부 실존하지 않습니다 — 설치 템플릿 예시가 그대로 남아 있는지 확인하세요.')

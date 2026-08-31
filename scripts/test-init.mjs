@@ -2698,10 +2698,21 @@ function criticalPathGhostDeclarationsGetNoticed() {
     '',
   ].join('\n'))
 
+  // clubadm 회신(2026-08-31) 확인 요청: 루트 직속 파일 선언은 폴더가 없어도
+  // 파일 실존으로 판정해야 한다 — vite.config.js가 유령으로 잡히면 오탐.
+  fs.writeFileSync(path.join(target, 'vite.config.js'), 'export default {}\n')
+  fs.appendFileSync(path.join(target, '.harness/project/critical-paths.md'), [
+    '| `vite.config.js` | 빌드 설정 | 빌드 |',
+    '| `missing.config.js` | 없는 루트 파일 | - |',
+    '',
+  ].join('\n'))
+
   const out = runGuard(target)
   assert(out.includes('실존 대상이 없습니다'), 'ghost critical-path declarations must be surfaced')
   assert(out.includes('src/domain/**'), 'the ghost glob must be named')
   assert(!out.includes('- src/api/** ('), 'existing declarations must not be flagged')
+  assert(!out.includes('vite.config.js ('), 'an existing root-level file declaration must not be flagged (clubadm reply)')
+  assert(out.includes('missing.config.js (파일 없음)'), 'a missing wildcard-free declaration must be reported as a missing file')
   assert(!out.includes('템플릿 예시'), 'partial ghosts must not claim template leftovers')
 
   // 전부 유령이면 템플릿 잔존 의심 한 줄이 추가된다.
@@ -2837,10 +2848,13 @@ function bootstrapModeAlwaysRelaxesSyncCandidates() {
   const relaxed = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
   assert(/참고 \d+건/.test(relaxed), 'bootstrap must grade sync candidates as informational even with source changes')
   assert(!/가볍게 확인 \d+건/.test(relaxed), 'bootstrap must not leave candidates at the default advisory grade')
+  // 멀티사이트 회신 제안: 강제 선언 0건이면 완화가 전면 참고화임을 스스로 알게 한다.
+  assert(relaxed.includes('bootstrap 완화 적용 중'), 'a fully-relaxed bootstrap project must be told all candidates are informational')
 
   writeJson(target, profileRel, { ...profile, harnessMode: 'active' })
   const active = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
   assert(/가볍게 확인 \d+건/.test(active), 'active must keep the default advisory grade')
+  assert(!active.includes('bootstrap 완화 적용 중'), 'the full-relaxation notice must not appear outside bootstrap')
 }
 
 function seedModeTargetKeepsSeedOnlyDocs() {
