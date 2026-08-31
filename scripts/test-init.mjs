@@ -27,13 +27,23 @@ function withoutCallerGitEnv(env) {
   return clean
 }
 
+// 자식이 PATH에서 `node`를 찾을 때(설치본 guard의 내부 호출, 런처, 훅) 셸의 nvm 상태와
+// 무관하게 이 스위트를 실행한 Node가 잡히도록 PATH 머리에 박는다. 실측(2026-08-31):
+// 셸 기본 node가 v12로 바뀌자 대상 프로젝트 guard가 ESM 크래시 — 테스트가 코드가 아니라
+// 실행 셸 상태에 좌우되면 안 된다.
+const nodeBinDir = path.dirname(process.execPath)
+
+function withSuiteNodeFirst(env) {
+  return { ...env, PATH: `${nodeBinDir}:${env.PATH ?? ''}` }
+}
+
 function run(command, args, options = {}) {
   return execFileSync(command, args, {
     cwd: options.cwd ?? repoRoot,
     encoding: 'utf8',
     // input은 stdio[0]이 'ignore'면 전달되지 않는다(실측) — input이 있으면 pipe로 연다.
     stdio: options.stdio ?? (options.input !== undefined ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe']),
-    env: withoutCallerGitEnv(options.env),
+    env: withSuiteNodeFirst(withoutCallerGitEnv(options.env)),
     input: options.input,
   })
 }
@@ -115,7 +125,9 @@ function runInitDefaultHooks(target, ...args) {
 }
 
 function runGuard(target, ...args) {
-  return run(nodeBin, [path.join(target, '.harness/bin/guard.mjs'), ...args], { cwd: target })
+  // 마지막 인자가 객체면 run() 옵션(env 등)으로 넘긴다 — 나머지는 guard CLI 인자.
+  const options = typeof args.at(-1) === 'object' && args.at(-1) !== null ? args.pop() : {}
+  return run(nodeBin, [path.join(target, '.harness/bin/guard.mjs'), ...args], { cwd: target, ...options })
 }
 
 function readTargetGitConfig(target, key) {
@@ -2648,6 +2660,52 @@ function guardFullCacheSatisfiesFastRequest() {
   runGuard(target) // full 통과 기록 (commit hook 시뮬)
   const fast = runGuard(target, '--fast') // push hook 시뮬: full ⊇ fast 이므로 full 캐시 재사용
   assert(fast.includes('캐시 재사용'), 'fast request should reuse a full cache on the same tree (full superset of fast)')
+}
+
+// 본체 2단계 게이트(0.2.134): 커밋 단계(HARNESS_GUARD_STAGE=commit)는 회귀 스위트를 건너뛰고
+// push 단계가 전량을 돈다. 건너뛴 실행이 "전체 통과" 캐시를 남기면 push의 --fast가 그 캐시를
+// 재사용해 회귀가 영영 안 돌게 되므로, 캐시 미기록까지 함께 잠근다.
+function seedCommitStageDefersRegressionsToPush() {
+  const target = makeTarget()
+  fs.writeFileSync(path.join(target, '.harness-seed-mode'), 'seed mode marker for test\n')
+  runInit(target)
+  // 본체의 회귀 스위트를 흉내내는 더미: 실행되면 표식 파일을 남긴다.
+  // 표식은 저장소 밖에 쓴다 — 저장소 안에 쓰면 untracked 파일이 tree 키를 바꿔
+  // 캐시 재사용 검증이 성립하지 않는다(진짜 스위트도 산출물은 임시 폴더에 쓴다).
+  const sentinel = path.join(path.dirname(target), `${path.basename(target)}-regression-ran.txt`)
+  fs.rmSync(sentinel, { force: true })
+  fs.mkdirSync(path.join(target, 'scripts'), { recursive: true })
+  fs.writeFileSync(
+    path.join(target, 'scripts/test-init.mjs'),
+    `import fs from 'node:fs'\nfs.writeFileSync(${JSON.stringify(sentinel)}, 'ran')\n`,
+  )
+  const cacheRel = '.harness/generated/check-cache.json'
+  fs.rmSync(path.join(target, cacheRel), { force: true })
+
+  // 커밋 단계: 회귀 스킵을 말하고, 더미를 실행하지 않고, 캐시도 남기지 않는다.
+  const commitStage = runGuard(target, { env: { ...process.env, HARNESS_GUARD_STAGE: 'commit' } })
+  assert(commitStage.includes('커밋 단계에서 건너뜁니다'), 'commit-stage guard must announce the regression skip')
+  assert(!fs.existsSync(sentinel), 'commit-stage guard must not run the seed regression suite')
+  assert(!exists(target, cacheRel), 'a regression-skipping run must not record a full-pass cache')
+
+  // push 단계(--fast, 단계 미지정): 캐시가 없으므로 전량 실행 → 회귀가 돌고 캐시가 기록된다.
+  const pushStage = runGuard(target, '--fast')
+  assert(!pushStage.includes('캐시 재사용'), 'push after a commit-stage skip must not see a usable cache')
+  assert(fs.existsSync(sentinel), 'push-stage guard must run the seed regression suite')
+  assert(exists(target, cacheRel), 'push-stage full pass must record the cache')
+
+  // 둘째 원격 push: 같은 tree + fast 캐시 → 재사용(릴리스의 양원격 push가 한 번만 돌게).
+  const secondPush = runGuard(target, '--fast')
+  assert(secondPush.includes('캐시 재사용'), 'second push on the same tree should reuse the push-stage cache')
+}
+
+function commitStageEnvIsNoopForConsumers() {
+  const target = makeTarget()
+  runInit(target) // seed 마커 없음 = 소비자
+  fs.rmSync(path.join(target, '.harness/generated/check-cache.json'), { force: true })
+  const output = runGuard(target, { env: { ...process.env, HARNESS_GUARD_STAGE: 'commit' } })
+  assert(!output.includes('커밋 단계에서 건너뜁니다'), 'consumers have no seed regression suite to skip')
+  assert(exists(target, '.harness/generated/check-cache.json'), 'consumer commit-stage guard must keep writing the cache as before')
 }
 
 function guardNoCacheForcesRevalidation() {
@@ -6299,6 +6357,8 @@ const tests = [
   seedModeTargetKeepsSeedOnlyDocs,
   guardCacheHitSkipsRevalidationOnSameTree,
   guardFullCacheSatisfiesFastRequest,
+  seedCommitStageDefersRegressionsToPush,
+  commitStageEnvIsNoopForConsumers,
   guardNoCacheForcesRevalidation,
   guardCacheMissAfterTreeChange,
   buildContextMergesProfileAlwaysSources,
@@ -6412,13 +6472,71 @@ const tests = [
   approvedRegistryListingsStayConsistent,
 ]
 
-// 인자를 주면 이름에 그 문자열을 포함한 테스트만 돌린다(개발 반복용). 게이트(pre-commit)는 무인자 전체 실행.
-const nameFilter = process.argv[2]
-const selectedTests = nameFilter ? tests.filter((test) => test.name.includes(nameFilter)) : tests
+// 인자를 주면 이름에 그 문자열을 포함한 테스트만 돌린다(개발 반복용). 게이트는 무인자 전체 실행.
+//
+// 병렬 실행(0.2.134): 테스트는 각자 임시 디렉터리를 만들어 서로 독립이므로,
+// 무인자 전체 실행은 샤드 자식 프로세스로 나눠 병렬로 돈다(10코어에서 직렬로 돌던
+// 3~5분이 릴리스마다 4~5회 반복되던 것이 원인 — 2026-08-31 실측). 이름 필터·--sequential·
+// HARNESS_TESTS_SEQUENTIAL=1 은 종전처럼 직렬. 샤드는 인덱스 라운드로빈으로 나눠
+// 무거운 spec 군집이 한 샤드에 몰리지 않게 한다.
+const rawArgs = process.argv.slice(2)
+const shardArg = rawArgs.find((arg) => arg.startsWith('--shard='))
+const sequential = rawArgs.includes('--sequential') || process.env.HARNESS_TESTS_SEQUENTIAL === '1'
+const nameFilter = rawArgs.find((arg) => !arg.startsWith('--'))
 
-console.log(nameFilter ? `Init smoke tests (filter: ${nameFilter}, ${selectedTests.length}/${tests.length})` : 'Init smoke tests')
+function runSerial(list, header) {
+  console.log(header)
+  for (const test of list) {
+    test()
+    console.log(`  OK ${test.name}`)
+  }
+}
 
-for (const test of selectedTests) {
-  test()
-  console.log(`  OK ${test.name}`)
+if (shardArg) {
+  const match = shardArg.match(/^--shard=(\d+)\/(\d+)$/)
+  if (!match) {
+    console.error(`잘못된 샤드 지정: ${shardArg} (예: --shard=0/8)`)
+    process.exit(1)
+  }
+  const shardIndex = Number(match[1])
+  const shardCount = Number(match[2])
+  const mine = tests.filter((_, index) => index % shardCount === shardIndex)
+  runSerial(mine, `Init smoke tests (shard ${shardIndex + 1}/${shardCount}, ${mine.length}/${tests.length})`)
+} else if (nameFilter) {
+  const selected = tests.filter((test) => test.name.includes(nameFilter))
+  runSerial(selected, `Init smoke tests (filter: ${nameFilter}, ${selected.length}/${tests.length})`)
+} else if (sequential) {
+  runSerial(tests, 'Init smoke tests (sequential)')
+} else {
+  const { spawn } = await import('node:child_process')
+  const shardCount = Math.max(2, Math.min(8, os.cpus().length - 2))
+  const startedAt = Date.now()
+  console.log(`Init smoke tests (${tests.length} tests, ${shardCount} shards)`)
+
+  const children = Array.from({ length: shardCount }, (_, index) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [__filename, `--shard=${index}/${shardCount}`], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let output = ''
+    child.stdout.on('data', (chunk) => { output += chunk })
+    child.stderr.on('data', (chunk) => { output += chunk })
+    child.on('close', (code) => resolve({ index, code, output }))
+  }))
+
+  const results = await Promise.all(children)
+  let passed = 0
+  for (const result of results) {
+    passed += (result.output.match(/^  OK /gm) ?? []).length
+  }
+  const failed = results.filter((result) => result.code !== 0)
+  for (const result of failed) {
+    console.error(`--- shard ${result.index + 1}/${shardCount} 실패 ---`)
+    console.error(result.output.split('\n').slice(-25).join('\n'))
+  }
+  const seconds = ((Date.now() - startedAt) / 1000).toFixed(0)
+  console.log(`  OK ${passed}/${tests.length} tests (${shardCount} shards, ${seconds}s)`)
+  if (failed.length > 0 || passed !== tests.length) {
+    console.error(`실패 샤드 ${failed.length}개 / 통과 ${passed}/${tests.length}`)
+    process.exit(1)
+  }
 }

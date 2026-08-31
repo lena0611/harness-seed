@@ -716,8 +716,17 @@ run('node', ['.harness/bin/check-template-contract.mjs', ...(strictMode ? ['--st
 checkHarnessVersionLock()
 printManagedDriftNotice(managedDrift)
 
-if (fs.existsSync(path.join(repoRoot, '.harness-seed-mode')) && fs.existsSync(path.join(repoRoot, 'scripts/test-init.mjs'))) {
+// 본체 2단계 게이트(0.2.134): 회귀 201종은 본체에서만 돌고 릴리스마다 4~5회 반복돼
+// 30분을 넘겼다(2026-08-31 실측). 커밋 단계(HARNESS_GUARD_STAGE=commit, seed 전용)는
+// 정책·문서·계약 검사만 하고 회귀는 push 단계로 미룬다. 회귀를 건너뛴 실행은 "전체 통과"
+// 캐시를 남기지 않으므로(아래 seedRegressionSkipped 분기) push의 --fast가 캐시를 오신하지
+// 않는다. 소비자는 seed-mode가 아니라 이 분기 자체가 없다 — 종전과 동일.
+const seedMode = fs.existsSync(path.join(repoRoot, '.harness-seed-mode')) && fs.existsSync(path.join(repoRoot, 'scripts/test-init.mjs'))
+const seedRegressionSkipped = seedMode && process.env.HARNESS_GUARD_STAGE === 'commit'
+if (seedMode && !seedRegressionSkipped) {
   run('node', ['scripts/test-init.mjs'])
+} else if (seedRegressionSkipped) {
+  console.log('본체 회귀 스위트는 커밋 단계에서 건너뜁니다 — push 단계(pre-push)가 전량 실행합니다.')
 }
 
 if (!stackState.applied) {
@@ -737,7 +746,7 @@ if (!stackState.applied) {
   console.log('Stack not applied: activeStack=none. 스택 기준은 적용되지 않았습니다.')
   console.log('스택 기준을 적용하려면: .harness/bin/harness standards:list 후 해당 스택 하네스 init을 실행하세요.')
   // 전체 관문 검사 통과(정책/문서/test-init)를 캐시에 기록해 같은 tree 재검사를 스킵한다.
-  writeCheckCache(cacheKey)
+  if (!seedRegressionSkipped) writeCheckCache(cacheKey)
   printConsumerSummary({ edgeResult, criticalResult })
   process.exit(0)
 }
@@ -749,6 +758,7 @@ if (stackState.markerMissing) {
 }
 
 // 전체 관문 검사 통과를 캐시에 기록(스택 적용/미적용 무관). 같은 tree 재검사(둘째 원격·태그 push)를 스킵.
-writeCheckCache(cacheKey)
+// 단 커밋 단계에서 회귀를 건너뛴 실행은 "전체 통과"가 아니므로 기록하지 않는다.
+if (!seedRegressionSkipped) writeCheckCache(cacheKey)
 
 printConsumerSummary({ edgeResult, criticalResult })

@@ -44,7 +44,8 @@ if [ -n "$staged" ] && ! printf '%s\n' "$staged" | grep -qv '^\.harness/session/
   exit 0
 fi
 
-# 통합 검사: 스택 미적용 시 lint/test/build를 자동 스킵, 적용 시 전체 검사
+# 통합 검사. HARNESS_GUARD_STAGE=commit은 본체(.harness-seed-mode) 전용 신호로,
+# 커밋 단계에서는 회귀 스위트를 건너뛰고 push 단계(pre-push)가 전량을 돈다(0.2.134).
+# 소비자 프로젝트는 seed-mode가 아니라 이 변수를 무시하므로 종전과 동일하게 동작한다.
 # P3(2026-06-09): npm/package.json 없는 비-Node 프로젝트에서도 동작하도록 npm 대신 harness 런처를 호출한다.
-# npm 프로젝트에서도 같은 .harness/bin/guard.mjs를 실행하므로 검증 결과는 동일하다.
-.harness/bin/harness check
+HARNESS_GUARD_STAGE=commit .harness/bin/harness check
