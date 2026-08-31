@@ -11,6 +11,25 @@
 - 명령어·플래그·내부 용어·결정 번호는 꼭 필요한 한 개까지만. 배경 설명·경위는 전부 `### 상세`로.
 - **출처 팀 언급, 감사 인사, "누가 도움을 줬다"류는 쓰지 않습니다.** 그런 인사는 해당 팀 회신문에서 합니다.
 
+## 0.2.135 - 미배포
+
+### 공지
+- [개선] 중요 경로(critical path) 선언이 저장소에 실제로 없는 경로를 가리키면 검사가 알려줍니다. 설치 때 들어 있는 예시 표가 그대로 남은 경우를 잡아줍니다. (멀티사이트·관제어드민 공동 보고)
+- [결함픽스] 중요 경로 표의 한 칸에 경로를 여러 개 적으면 하나도 안 걸리던 문제를 고쳤습니다. 백틱 하나가 경로 하나입니다. (관제어드민)
+- [개선] "등록 안 된 문서" 목록이 등록하는 곳(document-registry.local.json)을 같이 알려줍니다. (관제어드민)
+- [개선] 훅을 연결할 때 기존에 이어 부르던 훅 체인이 교체되면 무엇이 밀려나는지 경고합니다. (관제어드민)
+- [결함픽스] 설정 파일(profile.json)의 안내문이 없어진 값(maintenance)을 계속 권하던 것을 업데이트가 바로잡습니다. 직접 고쳐 쓴 안내문은 건드리지 않습니다. (멀티사이트)
+- [개선] harnessMode의 bootstrap(정착기)이 이제 실제로 느슨합니다 — 기본 등급의 기준 동기화 안내가 항상 '참고'로 내려갑니다. 프로젝트가 명시로 강제한 항목(확인 필수·차단)은 그대로입니다. (멀티사이트)
+
+### 상세
+- **critical path 실존 신호 (멀티 1 = clubadm B, 두 소비자 동시 보고)** — 선언 glob의 와일드카드 이전 앞머리 디렉터리 실존을 대조해 정보 등급으로 안내(차단 아님), 전부 유령이면 "템플릿 예시 잔존" 의심 한 줄. profile sources[]에는 이미 있던 실존 검사(scan-project)와의 비대칭 해소. 본체(seed-mode)는 템플릿 원본이라 면제. 앞머리가 없는 glob(`**/*.sql`)은 오탐 대신 침묵. 회귀 criticalPathGhostDeclarationsGetNoticed.
+- **critical path 파서: 백틱 하나 = 경로 하나 (clubadm A)** — 표 칸 전체를 glob 하나로 읽던 것을 백틱 전역 추출로(백틱 없는 칸은 하위 호환 유지), 백틱 없이 쉼표만 남으면 안내 1줄. 본체 배포 템플릿의 spec 3파일 행이 이 결함의 실사례였다(그 행 자체가 유령 glob이었음 — 픽스로 자동 치유). 회귀 criticalPathCellWithMultipleBacktickPathsMatchesEach.
+- **orphan 출구 안내 (clubadm C)** — doc-link-check의 orphan 목록 아래에 document-registry.local.json 등록 안내 1줄(0.2.131이 만든 출구를 걸린 자리에서). 회귀 orphanNoticePointsToLocalRegistryExit.
+- **훅 체인 교체 경고 (clubadm D)** — install-hooks가 harness.previousHooksPath를 다른 값으로 덮어쓸 때 무엇이 실행에서 빠지는지 경고 2줄(자동 이어붙이기는 하지 않음 — 길라잡이 원칙). hook-coexistence.md에 "이미 체인 중인 저장소에 husky를 나중에 얹는 경우" 절 신설(복구 레시피 포함). 회귀 hooksInstallWarnsWhenStoredChainIsReplaced.
+- **화석 notes 마이그레이션 (멀티 2)** — maintenance 은퇴(0.2.131) 이전 설치본의 profile notes 옛 문장(이력상 1종)을 업데이트가 원문 바이트 치환으로 갱신(JSON 재직렬화 없음 — 소비자 필드·서식 보존, 문장을 고쳐 쓴 notes는 불일치라 자동 보존). 값 오류 메시지에도 "notes가 낡았을 수 있음" 힌트 1줄. 릴리스 체크리스트에 "enum 축소 시 안내문 동기화+마이그레이션" 항목. 회귀 updateRefreshesStaleHarnessModeNotes.
+- **bootstrap 완화 실효화 (멀티 3)** — syncReviewLevel에 bootstrapRelaxed 층위 신설: bootstrap이면 **기본 등급 후보만** 참고로 낮추고 명시 hook/block 선언은 유지(명시 > 완화 — 기준 계층 사상과 정합). 종전 "소스 변경 0건" 조건은 other 분류 파일 하나로도 무효 — 실측 1개월 112커밋 발동 0회, bootstrap과 active가 사실상 동일했다. 기존 0.2.86 완화(소스 0건이면 등급 불문 참고)는 그대로 별도 층위로 유지. 본체 profile notes의 bootstrap 서술 동기화. 회귀 bootstrapModeAlwaysRelaxesSyncCandidates.
+- (툴킷 별도 배포) quality-gates v0.7.1 — frontend-vue pre-push의 `nvm use` 출력을 하네스 훅과 같은 조용한 형태로 (clubadm E).
+
 ## 0.2.134 - 2026-08-31
 
 ### 공지

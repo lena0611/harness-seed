@@ -565,6 +565,9 @@ function main() {
     for (const f of orphans) {
       console.log(`  - ${f}`)
     }
+    // 출구 안내(0.2.135, clubadm C): 등록 지점(0.2.131 신설)은 있는데 걸린 자리에서
+    // 알려주지 않아 목록만 보며 방치됐다(실측 10건 2개월). 한 줄이면 소비자가 스스로 닫는다.
+    console.log('프로젝트가 만든 문서는 .harness/documentation/document-registry.local.json 의 children에 등록하세요(파일이 없으면 새로 만들면 됩니다).')
     console.log('')
   }
 

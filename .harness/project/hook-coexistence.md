@@ -43,6 +43,28 @@ husky, lefthook처럼 `core.hooksPath`를 쓰는 git 훅 도구와 하네스 훅
 - **하네스는 lint를 실행하지 않습니다. husky 등 프로젝트 도구가 담당합니다.** test/build도 마찬가지이며, 옵트인 설정도 없습니다 — 코드 품질 검사의 소유는 전적으로 프로젝트입니다. 상세 계약: [config-contract.md](./config-contract.md).
 - 하네스 훅이 하는 일은 체인 실행(기존 husky 훅 먼저)과 하네스 자신의 관문 검사뿐입니다. 그래서 husky 쪽 lint 설정을 그대로 두면 됩니다.
 
+## 이미 체인 중인 저장소에 husky를 나중에 얹는 경우 (0.2.135)
+
+하네스의 "이전 훅 보관함"(`harness.previousHooksPath`)은 **한 칸**입니다. 하네스는 자기 훅을 돌린 뒤
+보관함에 적힌 경로의 훅을 이어 부르는데, 보관함에는 마지막으로 밀려난 경로 하나만 남습니다.
+
+그래서 이 순서를 밟으면 —
+
+1. 하네스가 옛 커스텀 훅(`.git/hooks` 등)을 보관함에 담아 체인 중이었고
+2. 나중에 husky를 도입하면(`prepare`가 `core.hooksPath=.husky/_` 설정)
+3. 다음 `hooks:install`(postprepare)이 보관함을 `.husky/_`로 갈아끼웁니다
+
+husky 훅은 잘 돌지만, **옛 `.git/hooks` 훅들은 실행 경로에서 조용히 빠집니다.** 파일은 그대로라
+"삭제하지 않는다"는 약속은 지켜지지만 기능은 사라지므로, 0.2.135부터 교체가 일어나는 순간
+`hooks:install`이 무엇이 밀려나는지 경고 1줄을 출력합니다.
+
+밀려난 훅이 여전히 필요하면 **새 체인(husky) 쪽에서 직접 호출**하세요:
+
+```sh
+# .husky/pre-commit 등에서
+sh "$(git rev-parse --show-toplevel)/.git/hooks/pre-commit"
+```
+
 ## 하지 않는 것
 
 - `install-hooks.mjs`가 `"prepare": "husky"`를 감지해 경고하는 코드 개입은 하지 않습니다(코드는 최후 수단, 2026-08-13 합의). `postprepare` 대안에서는 `prepare`가 husky 단독인 것이 정상이므로, 값만 보고 경고하면 오탐이 됩니다. 같은 질문이 실전에서 반복되면 재고합니다.

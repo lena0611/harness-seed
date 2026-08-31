@@ -1105,6 +1105,32 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
 // 소비자(마커 없음) 타깃에서 이미 설치된 seed-only 문서를 정리한다.
 // manifest에 managed로 기록되고 미수정(sha 일치)이면 제거하고, 소비자가 수정했으면 보존 + 리포트한다.
 // 본체(마커 있음) 타깃은 건드리지 않는다.
+// 화석 notes 마이그레이션(0.2.135, 멀티사이트 보고): profile.json은 프로젝트 소유라
+// 업데이트가 덮지 않는데, notes의 harnessMode 안내문은 하네스가 최초 설치 때 써준 문장이다.
+// maintenance 은퇴(0.2.131) 이전 설치본에는 은퇴 값을 권장하는 옛 문장이 화석으로 남아,
+// 그대로 따르면 값 검증이 차단한다("자기 안내 → 자기 차단"). 옛 문장은 이력상 한 종류뿐이라
+// 정확 문자열 치환이 안전하고, 소비자가 문장을 고쳐 썼다면 불일치라 자동 보존된다.
+// JSON 재직렬화 없이 원문 바이트 치환만 해 소비자의 다른 필드·서식을 건드리지 않는다.
+const STALE_HARNESS_MODE_NOTE = 'harnessMode는 bootstrap, active, maintenance, strict 중 하나를 권장합니다.'
+const CURRENT_HARNESS_MODE_NOTE = 'harnessMode는 기준 동기화 신호의 등급을 조절하는 3단 다이얼입니다: bootstrap(정착기 — 기본 등급 동기화 후보를 참고로 완화, 명시 강제 선언은 유지), active(기본), strict(확인 필수 항목을 커밋 차단으로 승격). maintenance는 0.2.131에서 은퇴했습니다.'
+
+function migrateStaleProfileNotes(target, opts) {
+  const profilePath = join(target, '.harness/policy/profile.json')
+  if (!existsSync(profilePath)) {
+    return false
+  }
+
+  const raw = readFileSync(profilePath, 'utf8')
+  if (!raw.includes(STALE_HARNESS_MODE_NOTE)) {
+    return false
+  }
+
+  if (!opts.dryRun) {
+    writeFileSync(profilePath, raw.replace(STALE_HARNESS_MODE_NOTE, CURRENT_HARNESS_MODE_NOTE))
+  }
+  return true
+}
+
 function removeSeedOnlyDocs(target, manifest, opts) {
   const result = { removed: [], preservedModified: [], retiredRemoved: [], retiredPreserved: [] };
 
@@ -2365,6 +2391,7 @@ function main() {
     const workHistoryYear = ensureCurrentWorkHistoryYear(TARGET, opts);
     const migration = removeLegacyManagedRootScripts(TARGET, legacyManagedRootScripts, opts);
     const seedOnlyCleanup = removeSeedOnlyDocs(TARGET, recognizedManifest, opts);
+    const staleNotesMigrated = migrateStaleProfileNotes(TARGET, opts);
     const pkg = mergePackageJson(TARGET);
     const claudeSettings = mergeClaudeSettings(sourceRoot, TARGET, opts);
     const gitignoreAdded = mergeGitignore(TARGET, opts);
@@ -2631,6 +2658,11 @@ function main() {
         console.log(`  - ${rel}`);
       }
       console.log('계속 쓰려면 .harness/documentation/document-registry.local.json에 등록하고, 불필요하면 직접 삭제하세요.');
+    }
+
+    if (staleNotesMigrated) {
+      console.log('');
+      console.log('profile.json notes의 낡은 harnessMode 안내를 갱신했습니다 (maintenance 은퇴 반영 — 다른 필드는 그대로).');
     }
 
     const bridgeCandidates = detectBridgeCandidates(TARGET, installed.skippedFiles);

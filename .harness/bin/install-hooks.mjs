@@ -63,6 +63,13 @@ const shouldStoreCustomHooksPath = previousHooksPath && previousHooksPath !== '.
 const shouldStoreDefaultGitHooks = !previousHooksPath && !storedPreviousHooksPath && legacyHookFiles.length > 0
 
 if (shouldStoreCustomHooksPath) {
+  // 체인 교체 경고(0.2.135, clubadm D): 보관함은 한 칸이라 새 값이 오면 옛 체인이 실행에서
+  // 빠진다(예: .git/hooks 체인 중에 husky를 나중에 얹는 표준 경로). 파일은 그대로지만
+  // 기능이 조용히 사라지므로, 덮어쓰는 순간만큼은 무엇이 밀려나는지 말한다.
+  if (storedPreviousHooksPath && storedPreviousHooksPath !== previousHooksPath) {
+    console.log(`⚠ 이전 훅 체인 '${storedPreviousHooksPath}' 가 '${previousHooksPath}' 로 교체됩니다.`)
+    console.log(`  '${storedPreviousHooksPath}' 의 훅은 더 이상 실행되지 않습니다 — 필요하면 새 훅에서 직접 호출하세요.`)
+  }
   runGit(['config', 'harness.previousHooksPath', previousHooksPath])
 } else if (shouldStoreDefaultGitHooks) {
   runGit(['config', 'harness.previousHooksPath', '.git/hooks'])

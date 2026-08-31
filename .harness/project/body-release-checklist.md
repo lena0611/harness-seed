@@ -34,6 +34,7 @@
 - [ ] 문서 ↔ 코드 ↔ 검사를 같이 맞춘다. 정책을 추가했으면 `policy-registry.json`과 guard 연결을 확인한다.
 - [ ] 새 `.md`를 추가하면 [document-registry.json](../documentation/document-registry.json)에 등록한다(미등록 = orphan → strict 검사 실패).
 - [ ] **새 문서·범용 안내의 자리를 정할 때 소유 계층부터 판정한다** — managed(업데이트로 전파) / project-owned(기존 소비자에 전파 안 됨) / marker-managed. 범용 안내를 project-owned에 두면 공지가 기존 소비자에게 거짓이 된다(결정 81, 0.2.122 실증).
+- [ ] **허용 값 목록(enum)을 좁히면 하네스가 써준 안내문도 함께 정리한다** — 본체 템플릿(profile notes 등)만 고치면 구설치 소비자에는 화석 안내가 남아 "파일이 시킨 대로 했는데 그 파일 때문에 차단"이 된다(2026-08-31 멀티사이트 실증: maintenance). 옛 문장 정확 치환 마이그레이션까지 한 세트로 검토한다.
 - [ ] **소비자가 본체 스크립트의 함수·출력을 쓰기 시작하면 그 표면은 공개 계약이다** — 발견 즉시 회귀로 잠근다(결정 83, specSyncPublicSurfaceStaysLocked가 예). 바꿔야 하면 그 회귀를 깨뜨리는 커밋이 소비자 마이그레이션을 함께 안내한다.
 - [ ] 새 작업 절차가 생기면 [skills/registry.json](../skills/registry.json)과 [context-registry.json](../documentation/context-registry.json)에 연결한다.
 - [ ] 훅(`.githooks/**`)을 바꾸면 [commit-push-rules.md](./commit-push-rules.md)의 "변경 시 함께 확인할 것"도 갱신한다.

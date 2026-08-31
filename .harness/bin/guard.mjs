@@ -266,11 +266,14 @@ function readCriticalPaths() {
     .filter((line) => line.startsWith('|') && !line.includes('---') && !line.includes('path |'))
     .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
     .filter((cells) => cells.length >= 3)
-    .map(([rawPath, why, verification]) => ({
-      glob: rawPath.replaceAll('`', '').trim(),
-      why,
-      verification,
-    }))
+    // 한 칸 다중 경로(0.2.135, clubadm A): 백틱 하나 = 경로 하나. 칸 전체를 glob 하나로
+    // 읽으면 `a.js`, `b.js` 가 "a.js, b.js" 라는 유령 glob이 되어 조용히 매칭 0이 된다.
+    // 백틱이 없는 칸은 종전대로 칸 전체를 하나로 읽는다(하위 호환).
+    .flatMap(([rawPath, why, verification]) => {
+      const ticked = [...rawPath.matchAll(/`([^`\n]+)`/g)].map((match) => match[1].trim())
+      const globs = ticked.length > 0 ? ticked : [rawPath.trim()]
+      return globs.map((glob) => ({ glob, why, verification }))
+    })
     .filter((entry) => entry.glob)
 
   if (tableRows.length > 0) {
@@ -291,11 +294,59 @@ function globToRegExp(glob) {
   return new RegExp(`^${escaped}$`)
 }
 
+// critical path 선언의 실존 신호(0.2.135, 멀티사이트·clubadm 동시 보고): 선언 glob의
+// 앞머리(와일드카드 이전 부분)가 저장소에 없으면 그 선언은 영원히 매칭될 수 없다 —
+// 템플릿 예시 잔존이 대표 사례(두 팀 모두 1~2개월 무신호 운용 실측). profile sources[]는
+// 이미 같은 실존 검사를 하므로(scan-project) 비대칭을 없앤다. 정보 등급 — 차단하지 않는다.
+function criticalPathExistencePrefix(glob) {
+  const wildcardIndex = glob.search(/[*?]/)
+  if (wildcardIndex === -1) return glob
+  const prefix = glob.slice(0, wildcardIndex)
+  const lastSlash = prefix.lastIndexOf('/')
+  // `**/*.sql`처럼 앞머리가 없으면 검증 불가 — 오탐 대신 침묵을 택한다.
+  return lastSlash === -1 ? null : prefix.slice(0, lastSlash)
+}
+
+function printCriticalPathExistenceNotice(paths) {
+  // 본체(seed-mode)는 이 파일의 배포 원본이라 예시 행이 유령인 것이 정상이다 — 면제.
+  if (fs.existsSync(path.join(repoRoot, '.harness-seed-mode'))) {
+    return
+  }
+  const checkable = paths
+    .map((entry) => ({ ...entry, prefix: criticalPathExistencePrefix(entry.glob) }))
+    .filter((entry) => entry.prefix !== null)
+  const ghosts = checkable.filter((entry) => !fs.existsSync(path.join(repoRoot, entry.prefix)))
+  const commaSuspects = paths.filter((entry) => entry.glob.includes(','))
+
+  if (commaSuspects.length > 0) {
+    console.log('')
+    console.log('critical-paths.md에 쉼표가 든 경로 선언이 있습니다 — 한 칸에 여러 경로를 두려면 각각 백틱으로 감싸세요:')
+    for (const entry of commaSuspects) {
+      console.log(`  - "${entry.glob}"`)
+    }
+  }
+
+  if (ghosts.length === 0) {
+    return
+  }
+
+  console.log('')
+  console.log(`critical path 선언 ${paths.length}건 중 ${ghosts.length}건은 저장소에 실존 대상이 없습니다 — 경로를 고치거나 행을 제거하세요:`)
+  for (const entry of ghosts.slice(0, 10)) {
+    console.log(`  - ${entry.glob} (${entry.prefix}/ 없음)`)
+  }
+  if (ghosts.length === checkable.length && paths.length > 0) {
+    console.log('전부 실존하지 않습니다 — 설치 템플릿 예시가 그대로 남아 있는지 확인하세요.')
+  }
+}
+
 function printCriticalPathReview() {
   const paths = readCriticalPaths()
   if (paths.length === 0) {
     return { matches: [], recommendations: [] }
   }
+
+  printCriticalPathExistenceNotice(paths)
 
   const changed = getChangedFiles()
   const matches = []

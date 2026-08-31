@@ -1089,6 +1089,10 @@ function printHarnessBaselineNotice(changedGroups) {
 }
 
 function isInformationalSyncGap(changedGroups, harnessMode) {
+  // "소스 변경 없는 커밋" 완화(0.2.86 거동): baseline/generated만 움직인 커밋은 등급 불문
+  // 참고로 낮춘다. bootstrap의 정착기 완화(0.2.135)는 여기가 아니라 syncReviewLevel의
+  // bootstrapRelaxed 인자로 간다 — 기본 등급만 낮추고 명시 hook/block 선언은 유지해야
+  // 해서 층위가 다르다(이 함수의 완화는 명시 선언보다도 우선하는 더 강한 완화).
   const sourceChangeCount = changedGroups.feature.length + changedGroups.harnessScripts.length + changedGroups.other.length
   return sourceChangeCount === 0 && (
     harnessMode === 'bootstrap' ||
@@ -1109,7 +1113,7 @@ function writeImpactSummary(summary) {
   }
 }
 
-function syncReviewLevel(policy, informational, reversalEscalated = false) {
+function syncReviewLevel(policy, informational, reversalEscalated = false, bootstrapRelaxed = false) {
   // 정책 번복 커밋(P2)은 informational 완화보다 우선한다. 폐기/번복 시점이야말로
   // 연결 계약 문서에 반대 서술이 남기 가장 쉬운 지점이라 이 커밋에서만 확인을 강제한다.
   // 번복이 아닐 때의 등급 순서(informational이 block/hook보다 우선)는 0.2.86 거동을 그대로 유지한다.
@@ -1127,6 +1131,14 @@ function syncReviewLevel(policy, informational, reversalEscalated = false) {
 
   if (policy.syncEnforcement === 'hook') {
     return 'action required'
+  }
+
+  // bootstrap 정착기 완화(0.2.135, 멀티사이트 보고): 기본 등급 후보만 참고로 낮춘다.
+  // 종전에는 "소스 변경 0건"일 때만 완화가 닿아 .gitlab-ci.yml 하나(other)로도 무효 —
+  // 실측 1개월 112커밋 발동 0회, bootstrap과 active의 차이가 사실상 없었다.
+  // 명시 hook/block 선언은 위에서 이미 반환되어 모드 완화보다 세다(명시 > 완화).
+  if (bootstrapRelaxed) {
+    return 'info'
   }
 
   return 'review suggested'
@@ -1219,6 +1231,9 @@ function runImpact() {
     } else {
       console.error(`설정 오류: harnessMode 값이 유효하지 않습니다: ${JSON.stringify(harnessModeState.raw)}`)
       console.error(`- 허용 값: ${HARNESS_MODES.join(', ')} (필드가 없으면 bootstrap)`)
+      // 멀티사이트 보고(0.2.135): 구버전 설치본의 profile notes가 은퇴 값(maintenance)을 계속
+      // 권장한다 — 파일 자신의 안내를 따랐다가 막힌 사용자가 자기 탓으로 오해하지 않게 한다.
+      console.error('- 이 파일의 notes 안내가 낡았을 수 있습니다 — 허용 값은 위 목록이 정본입니다.')
       console.error('- strict를 의도했다면 차단이 켜지지 않은 상태입니다. 값을 고쳐 커밋한 뒤 다시 검사하세요.')
     }
     process.exit(1)
@@ -1341,9 +1356,10 @@ function runImpact() {
   }
 
   const informational = isInformationalSyncGap(changedGroups, harnessMode)
+  const bootstrapRelaxed = harnessMode === 'bootstrap'
   const logFindings = { ...analyzeDecisionLogChanges(), ...analyzeDecisionLogSize(changedFiles) }
   for (const gap of syncGaps) {
-    syncGapLevels[syncReviewLevel(gap, informational, logFindings.reversalDetected)]++
+    syncGapLevels[syncReviewLevel(gap, informational, logFindings.reversalDetected, bootstrapRelaxed)]++
   }
 
   writeImpactSummary({
@@ -1397,7 +1413,7 @@ function runImpact() {
 
     const printGapDetail = (gap) => {
       const sideLabel = gap.side === 'document-only' ? '문서만 변경됨' : '소스만 변경됨'
-      const level = syncReviewLevel(gap, informational, logFindings.reversalDetected)
+      const level = syncReviewLevel(gap, informational, logFindings.reversalDetected, bootstrapRelaxed)
       console.log(`- [${syncReviewLevelLabel(level)}] [${gap.id}] ${gap.title} — ${sideLabel}`)
       console.log(`  동기화 강제 설정: ${gap.syncEnforcement}`)
       console.log('  변경 파일:')
@@ -1414,7 +1430,7 @@ function runImpact() {
 
     // '차단/확인 필수'는 정책이 syncEnforcement로 명시 강제한 후보라 요약 모드에서도 상세를 편다.
     // 나머지는 개수와 상세 경로만 안내해 신호 대 잡음비를 지킨다.
-    const mustActGaps = syncGaps.filter((gap) => ['blocking', 'action required'].includes(syncReviewLevel(gap, informational, logFindings.reversalDetected)))
+    const mustActGaps = syncGaps.filter((gap) => ['blocking', 'action required'].includes(syncReviewLevel(gap, informational, logFindings.reversalDetected, bootstrapRelaxed)))
 
     if (summaryMode) {
       const advisorySummary = ['review suggested', 'info']

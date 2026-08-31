@@ -2682,6 +2682,167 @@ function freshInstallHasNoRegistryOrphans() {
   assert(!/orphan/i.test(output), 'a fresh install must report zero registry orphans — every shipped md must be registered in document-registry.json')
 }
 
+// 0.2.135 — 멀티사이트·clubadm 동시 보고: 선언 glob의 앞머리가 실존하지 않으면 그 선언은
+// 영원히 매칭 불가(템플릿 예시 잔존이 대표 사례)인데 무신호였다. 정보 등급 안내를 잠근다.
+function criticalPathGhostDeclarationsGetNoticed() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  fs.mkdirSync(path.join(target, 'src/api'), { recursive: true })
+  fs.writeFileSync(path.join(target, '.harness/project/critical-paths.md'), [
+    '# Critical Paths',
+    '',
+    '| path | 왜 중요한가 | 권장 검증 |',
+    '| --- | --- | --- |',
+    '| `src/domain/**` | 유령 | 테스트 |',
+    '| `src/api/**` | 실존 | 테스트 |',
+    '',
+  ].join('\n'))
+
+  const out = runGuard(target)
+  assert(out.includes('실존 대상이 없습니다'), 'ghost critical-path declarations must be surfaced')
+  assert(out.includes('src/domain/**'), 'the ghost glob must be named')
+  assert(!out.includes('- src/api/** ('), 'existing declarations must not be flagged')
+  assert(!out.includes('템플릿 예시'), 'partial ghosts must not claim template leftovers')
+
+  // 전부 유령이면 템플릿 잔존 의심 한 줄이 추가된다.
+  const target2 = makeTarget()
+  runInit(target2, '--no-scan', '--no-handoff', '--no-check')
+  fs.writeFileSync(path.join(target2, '.harness/project/critical-paths.md'), [
+    '| path | 왜 중요한가 | 권장 검증 |',
+    '| --- | --- | --- |',
+    '| `src/domain/**` | 유령 | 테스트 |',
+    '| `ios/**` | 유령 | 확인 |',
+    '',
+  ].join('\n'))
+  const out2 = runGuard(target2)
+  assert(out2.includes('템플릿 예시'), 'all-ghost declarations should hint at template leftovers')
+
+  // 본체(seed-mode)는 템플릿 원본이라 예시가 유령인 게 정상 — 면제.
+  fs.writeFileSync(path.join(target2, '.harness-seed-mode'), '')
+  const out3 = runGuard(target2)
+  assert(!out3.includes('실존 대상이 없습니다'), 'seed-mode target must be exempt from the ghost notice')
+}
+
+// 0.2.135 — clubadm A: 표 한 칸의 백틱 여러 개는 각각 경로다. 종전에는 칸 전체가 유령 glob
+// 하나가 되어 조용히 매칭 0이었다(본체 배포 템플릿의 spec 3파일 행이 실사례).
+function criticalPathCellWithMultipleBacktickPathsMatchesEach() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  fs.mkdirSync(path.join(target, 'src/api'), { recursive: true })
+  fs.writeFileSync(path.join(target, '.harness/project/critical-paths.md'), [
+    '| path | 왜 중요한가 | 권장 검증 |',
+    '| --- | --- | --- |',
+    '| `src/api/a.js`, `src/api/b.js` | 판정 출처 | 테스트 |',
+    '',
+  ].join('\n'))
+  fs.writeFileSync(path.join(target, 'src/api/a.js'), 'export const a = 1\n')
+  fs.writeFileSync(path.join(target, 'src/api/b.js'), 'export const b = 1\n')
+
+  const out = runGuard(target)
+  assert(out.includes('Critical path review'), 'multi-path cell must produce critical path matches')
+  assert(out.includes('src/api/a.js') && out.includes('src/api/b.js'), 'each backticked path must match independently')
+
+  // 백틱 없이 쉼표만 있으면 깨진 선언 — 안내 한 줄.
+  fs.writeFileSync(path.join(target, '.harness/project/critical-paths.md'), [
+    '| path | 왜 중요한가 | 권장 검증 |',
+    '| --- | --- | --- |',
+    '| src/api/a.js, src/api/b.js | 판정 출처 | 테스트 |',
+    '',
+  ].join('\n'))
+  const out2 = runGuard(target)
+  assert(out2.includes('쉼표가 든 경로'), 'a comma glob without backticks must get a guidance line')
+}
+
+// 0.2.135 — clubadm C: orphan 목록은 출구(document-registry.local.json, 0.2.131 신설)를
+// 걸린 자리에서 알려줘야 한다. 목록만 나열하면 방치된다(실측 10건 2개월).
+function orphanNoticePointsToLocalRegistryExit() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  fs.writeFileSync(path.join(target, '.claude/commands/team-custom.md'), '# 팀 자체 명령\n')
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(out.includes('team-custom.md'), 'the unregistered doc must be listed as orphan')
+  assert(out.includes('document-registry.local.json'), 'orphan listing must point to the local registry exit')
+}
+
+// 0.2.135 — clubadm D: 이전 훅 보관함은 한 칸이라 새 값이 오면 옛 체인이 실행에서 빠진다.
+// 파일은 그대로지만 기능이 사라지므로, 교체 순간의 경고 1줄을 잠근다.
+function hooksInstallWarnsWhenStoredChainIsReplaced() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run('git', ['config', 'harness.previousHooksPath', '.git/hooks'], { cwd: target })
+  run('git', ['config', 'core.hooksPath', '.husky/_'], { cwd: target })
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target })
+  assert(out.includes("'.git/hooks'") && out.includes("'.husky/_'"), 'the replacement warning must name both chains')
+  assert(out.includes('더 이상 실행되지 않습니다'), 'the warning must say the old hooks stop running')
+  const stored = run('git', ['config', '--get', 'harness.previousHooksPath'], { cwd: target }).trim()
+  assert(stored === '.husky/_', 'the new chain must still be stored (warning, not a block)')
+
+  // 같은 값 재실행이면 경고 없음 (덮어쓰기 자체가 없다).
+  const out2 = run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target })
+  assert(!out2.includes('교체됩니다'), 'reinstall with an unchanged chain must not warn')
+}
+
+// 0.2.135 — 멀티사이트 2: maintenance 은퇴(0.2.131) 이전 설치본의 profile notes에는
+// 은퇴 값을 권장하는 화석 문장이 남는다(project-owned라 업데이트가 안 덮음). 옛 문장은
+// 이력상 한 종류뿐이라 정확 치환하고, 소비자가 고친 notes는 불일치라 보존된다.
+function updateRefreshesStaleHarnessModeNotes() {
+  const staleSentence = 'harnessMode는 bootstrap, active, maintenance, strict 중 하나를 권장합니다.'
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const profileRel = '.harness/policy/profile.json'
+  const profile = JSON.parse(read(target, profileRel))
+  profile.notes = `옛 설치본 서문. ${staleSentence} 옛 설치본 후문.`
+  profile.customField = 'keep-me'
+  writeJson(target, profileRel, profile)
+
+  const out = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(out.includes('harnessMode 안내를 갱신'), 'update must report the notes refresh')
+  const after = JSON.parse(read(target, profileRel))
+  assert(!after.notes.includes(staleSentence), 'the stale sentence must be gone')
+  assert(after.notes.includes('은퇴했습니다'), 'the refreshed sentence must state the retirement')
+  assert(after.notes.startsWith('옛 설치본 서문.') && after.notes.endsWith('옛 설치본 후문.'), 'surrounding consumer text must be preserved')
+  assert(after.customField === 'keep-me', 'other consumer fields must be preserved byte-for-byte')
+
+  // 소비자가 문장을 고쳐 쓴 경우(원문 부재)는 건드리지 않는다.
+  const target2 = makeTarget()
+  runInit(target2, '--no-scan', '--no-handoff', '--no-check')
+  const profile2 = JSON.parse(read(target2, profileRel))
+  profile2.notes = '팀이 직접 정리한 안내문.'
+  writeJson(target2, profileRel, profile2)
+  const out2 = runInit(target2, '--no-scan', '--no-handoff', '--no-check')
+  assert(!out2.includes('harnessMode 안내를 갱신'), 'consumer-edited notes must not be touched or reported')
+  assert(JSON.parse(read(target2, profileRel)).notes === '팀이 직접 정리한 안내문.', 'edited notes must stay verbatim')
+}
+
+// 0.2.135 — 멀티사이트 3: bootstrap(정착기)은 동기화 후보를 항상 참고 등급으로 낮춘다.
+// 종전 조건(소스 변경 0건)은 .gitlab-ci.yml 하나(other)로도 무효가 되어 실측 발동 0회 —
+// bootstrap과 active의 차이가 사실상 없었다.
+function bootstrapModeAlwaysRelaxesSyncCandidates() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  gitCommitAll(target, 'baseline')
+
+  fs.appendFileSync(
+    path.join(target, '.harness/project/portability-guide.md'),
+    '\n## Local project edit\n- 프로젝트가 직접 수정한 런타임 기준입니다.\n',
+  )
+  fs.writeFileSync(path.join(target, '.gitlab-ci.yml'), 'stages: [test]\n')
+
+  const profileRel = '.harness/policy/profile.json'
+  const profile = JSON.parse(read(target, profileRel))
+
+  writeJson(target, profileRel, { ...profile, harnessMode: 'bootstrap' })
+  const relaxed = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(/참고 \d+건/.test(relaxed), 'bootstrap must grade sync candidates as informational even with source changes')
+  assert(!/가볍게 확인 \d+건/.test(relaxed), 'bootstrap must not leave candidates at the default advisory grade')
+
+  writeJson(target, profileRel, { ...profile, harnessMode: 'active' })
+  const active = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(/가볍게 확인 \d+건/.test(active), 'active must keep the default advisory grade')
+}
+
 function seedModeTargetKeepsSeedOnlyDocs() {
   const target = makeTarget()
   // seed-mode 마커가 있으면 본체 타깃으로 간주 → seed-only 문서를 그대로 설치한다.
@@ -3151,6 +3312,11 @@ function setupSyncReviewTarget() {
   const preset = makeSyncReviewPreset()
 
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  // 이 픽스처군은 기본 등급(가볍게 확인)의 표시·승격 거동을 검증한다. 설치 기본값
+  // bootstrap은 0.2.135부터 기본 등급을 참고로 완화하므로, 여기서는 active로 고정한다
+  // (bootstrap 완화 자체는 bootstrapModeAlwaysRelaxesSyncCandidates가 전용 검증).
+  const profileRel = '.harness/policy/profile.json'
+  writeJson(target, profileRel, { ...JSON.parse(read(target, profileRel)), harnessMode: 'active' })
   run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
   fs.mkdirSync(path.join(target, 'docs'), { recursive: true })
   fs.writeFileSync(path.join(target, 'docs/contract.md'), '# 계약 문서\n')
@@ -6402,6 +6568,12 @@ const tests = [
   consumerDocLinkCheckHandlesAbsentSeedOnlyDoc,
   reinstallRemovesPreexistingSeedOnlyDocWhenUnmodified,
   reinstallPreservesModifiedSeedOnlyDoc,
+  criticalPathGhostDeclarationsGetNoticed,
+  criticalPathCellWithMultipleBacktickPathsMatchesEach,
+  orphanNoticePointsToLocalRegistryExit,
+  hooksInstallWarnsWhenStoredChainIsReplaced,
+  updateRefreshesStaleHarnessModeNotes,
+  bootstrapModeAlwaysRelaxesSyncCandidates,
   seedModeTargetKeepsSeedOnlyDocs,
   updateRemovesRetiredManagedCommandDoc,
   freshInstallHasNoRegistryOrphans,
