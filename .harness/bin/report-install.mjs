@@ -20,6 +20,7 @@
 
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -64,14 +65,22 @@ function projectName() {
   return path.basename(repoRoot)
 }
 
-// 토큰은 값을 로그에 절대 남기지 않는다. .issue-adapter.env는 git 미추적 로컬 파일이다.
+// 토큰은 값을 로그에 절대 남기지 않는다. 두 위치를 읽고, 둘 다 있으면
+// 프로젝트 루트 .issue-adapter.env가 홈(~/.config/ai-standard/report.env)을 이긴다
+// (배열에서 나중에 읽는 쪽이 덮어씀). 홈에 공용 토큰을 개발자당 1회만 두면
+// 모든 프로젝트에서 동작하고, 프로젝트별 예외만 로컬 파일로 둔다.
 function readAdapterEnv() {
-  const envPath = path.join(repoRoot, '.issue-adapter.env')
   const values = {}
-  if (!fs.existsSync(envPath)) return values
-  for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
-    const match = line.match(/^([A-Z0-9_]+)=(.*)$/)
-    if (match) values[match[1]] = match[2].trim()
+  const candidates = [
+    path.join(os.homedir(), '.config/ai-standard/report.env'),
+    path.join(repoRoot, '.issue-adapter.env'),
+  ]
+  for (const envPath of candidates) {
+    if (!fs.existsSync(envPath)) continue
+    for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+      const match = line.match(/^([A-Z0-9_]+)=(.*)$/)
+      if (match) values[match[1]] = match[2].trim()
+    }
   }
   return values
 }
@@ -125,7 +134,9 @@ if (!token) {
   fs.writeFileSync(outPath, `# ${title}\n\n${description}\n\n${historyRow}\n`)
   console.log('HARNESS_BODY_ISSUE_TOKEN이 없어 이슈 등록 대신 파일로 남겼습니다:')
   console.log(`  ${path.relative(repoRoot, outPath)}`)
-  console.log('본체 팀에 이 파일을 전달하거나, .issue-adapter.env에 토큰을 넣고 다시 실행하세요(토큰 값은 채팅·로그에 붙여넣지 않습니다).')
+  console.log('본체 팀에 이 파일을 전달하거나, 토큰을 넣고 다시 실행하세요(토큰 값은 채팅·로그에 붙여넣지 않습니다):')
+  console.log('  ~/.config/ai-standard/report.env 에 HARNESS_BODY_ISSUE_TOKEN=<값> — 한 번 두면 모든 프로젝트에서 동작')
+  console.log('  (프로젝트별로 다르게 쓰려면 프로젝트 루트 .issue-adapter.env가 우선합니다)')
   process.exit(0)
 }
 
