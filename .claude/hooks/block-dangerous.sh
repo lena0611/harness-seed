@@ -106,16 +106,19 @@ dangerous_patterns=(
   '>[[:space:]]*(\.env|.*\.pem|.*id_rsa|.*id_ed25519|.*\.aws/credentials)'
 )
 
-# 줄 어디에 있어도 위험한 부분문자열(파괴·유출 계열)은 전체 텍스트로 검사한다.
-for pattern in "${dangerous_patterns[@]}"; do
-  if [[ "$cmd" =~ $pattern ]]; then
-    if [ "$profile" = "permissive" ]; then
-      warn "$pattern"
+# 줄 어디에 있어도 위험한 부분문자열(파괴·유출 계열). 검사는 줄 단위다 —
+# 전체 텍스트로 하면 [^|><]* 같은 조각이 줄바꿈을 넘어 이어 붙어, 서로 무관한 두 줄이
+# 하나의 "위험 명령"으로 오탐된다(0.2.136 구현 중 실측: tail -1 …\n… .env 파일명).
+while IFS= read -r line; do
+  for pattern in "${dangerous_patterns[@]}"; do
+    if [[ "$line" =~ $pattern ]]; then
+      if [ "$profile" = "permissive" ]; then
+        warn "$pattern"
+      fi
+      deny "하네스가 차단함: 명령이 위험 패턴 '${pattern}'와 일치합니다. 걸린 줄: $(printf '%s' "$line" | cut -c1-160) (cat/tee heredoc 본문은 검사 제외 — 이 매칭은 실행부입니다). 필요하면 사용자에게 목적과 영향 범위를 확인하세요."
     fi
-    hit="$(printf '%s\n' "$cmd" | grep -E -m1 -- "$pattern" | cut -c1-160 || true)"
-    deny "하네스가 차단함: 명령이 위험 패턴 '${pattern}'와 일치합니다. 걸린 줄: ${hit} (cat/tee heredoc 본문은 검사 제외 — 이 매칭은 실행부입니다). 필요하면 사용자에게 목적과 영향 범위를 확인하세요."
-  fi
-done
+  done
+done <<< "$cmd"
 
 # 명령 위치에서만 위험한 것들(⑧, 0.2.136): 문서 본문·산문에서 이름만 언급되는 경우가 잦아
 # 줄머리(또는 ; & | ( 뒤)에서 시작할 때만 잡는다. --no-verify는 git 명령줄에 묶는다.
@@ -149,11 +152,13 @@ if [ "$profile" = "strict" ]; then
     'truncate[[:space:]]'
     '>[[:space:]]*/etc/'
   )
-  for pattern in "${strict_patterns[@]}"; do
-    if [[ "$cmd" =~ $pattern ]]; then
-      deny "하네스 strict 프로파일이 차단함: 명령이 '${pattern}' 패턴과 일치합니다."
-    fi
-  done
+  while IFS= read -r line; do
+    for pattern in "${strict_patterns[@]}"; do
+      if [[ "$line" =~ $pattern ]]; then
+        deny "하네스 strict 프로파일이 차단함: 명령이 '${pattern}' 패턴과 일치합니다. 걸린 줄: $(printf '%s' "$line" | cut -c1-160)"
+      fi
+    done
+  done <<< "$cmd"
 fi
 
 exit 0

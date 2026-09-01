@@ -1942,6 +1942,9 @@ function mergeGitignore(target, opts) {
     '.env',
     '.env.local',
     '.env.*.local',
+    // 이슈 어댑터·리포트 토큰 파일(결정 98). 견본 문서가 ".gitignore 등록됨"이라 약속하는데
+    // 정작 소비자 목록에 없었다(본체에만 있던 것) — 토큰 유출 방지로 반드시 등록한다.
+    '.issue-adapter.env',
     '.node-version.cache',
     '.package-json.hash',
     '.harness/.stack-applied.json',

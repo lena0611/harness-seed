@@ -2977,6 +2977,10 @@ function dangerousHookAllowsWriterHeredocMentions() {
   const docWrite = "cat > doc.md <<'EOF'\n--no-verify 우회는 금지합니다\nsudo apt install nginx 예시\nEOF"
   assert(denyCount(docWrite) === 0, 'mentioning dangerous flags inside a cat-heredoc document must be allowed')
   assert(denyCount('echo "문서: git push --force 금지" >> rules.md') === 0, 'prose mention of a git flag mid-line must be allowed')
+  // 크로스라인 오탐(0.2.136 구현 중 실측): 전체 텍스트 매칭에서는 [^|><]* 조각이 줄바꿈을
+  // 넘어 이어 붙어, 서로 무관한 두 줄(읽기 명령 + env 파일명)이 하나로 오탐됐다.
+  assert(denyCount('grep OK out.log\nls .issue-adapter.env') === 0, 'unrelated lines must not be stitched into one dangerous match')
+  assert(denyCount('head -3 .issue-adapter.env') === 1, 'a genuine env read on one line must stay blocked')
 }
 
 // 0.2.136 — 백엔드 첫 적용 리포트 ①(사용자 결정: "없다고 해서 잡음은 내면 안 된다"):
