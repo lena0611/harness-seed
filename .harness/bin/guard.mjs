@@ -671,7 +671,8 @@ function checkManagedFileDrift() {
     // 마커 관리 파일(CLAUDE.md/AGENTS.md 등)은 소비자 영역이 있어 본체와 달라도 정상이다.
     // 업데이터도 이들은 보존이 아니라 머지로 처리하므로 동결 대상이 아니다.
     if (isMarkerManagedPath(rel)) continue
-    if (sha256File(abs) !== recorded) {
+    // 과도기 폴백: CRLF 바이트 sha가 기록된 manifest(결함 A 설치본)도 일치로 인정.
+    if (sha256File(abs) !== recorded && sha256FileRaw(abs) !== recorded) {
       drifted.push(rel)
     }
   }
@@ -684,7 +685,18 @@ function isMarkerManagedPath(rel) {
   return posix === 'CLAUDE.md' || posix === 'AGENTS.md' || posix === '.github/copilot-instructions.md'
 }
 
+// eol 정규화 sha(0.2.136, 멀티사이트 제보) — init.mjs의 동명 규칙과 동기화:
+// managed 파일의 내용 동일성은 줄바꿈(체크아웃마다 바뀔 수 있음)과 무관해야 한다.
 function sha256File(absPath) {
+  let buffer = fs.readFileSync(absPath)
+  if (!buffer.includes(0)) {
+    const text = buffer.toString('utf8')
+    if (text.includes('\r\n')) buffer = Buffer.from(text.replaceAll('\r\n', '\n'), 'utf8')
+  }
+  return crypto.createHash('sha256').update(buffer).digest('hex')
+}
+
+function sha256FileRaw(absPath) {
   return crypto.createHash('sha256').update(fs.readFileSync(absPath)).digest('hex')
 }
 

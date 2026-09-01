@@ -840,7 +840,7 @@ function isLocallyModifiedManagedFile(target, relPath, manifest) {
   if (!expected) return false;
   const abs = join(target, rel);
   if (!existsSync(abs) || !statSync(abs).isFile()) return false;
-  return sha256(abs) !== expected;
+  return !matchesRecordedSha(abs, expected);
 }
 
 function collectLegacyManagedRootScripts(target, manifest) {
@@ -903,8 +903,56 @@ function detectBridgeCandidates(target, skippedFiles) {
   return candidates
 }
 
+// managed 무결성 판정의 eol 정규화(0.2.136, 멀티사이트 제보): managed 파일은 git 체크아웃을
+// 거치며 머신마다 줄바꿈이 바뀔 수 있다(autocrlf, .gitattributes). 바이트 정확 sha는 그 차이를
+// "소비자 수정"으로 오판해 파일을 업데이트에서 영구 제외시켰다(실사고: harness.cmd 동결,
+// autocrlf=true 설치자 경유 97건 일괄 드리프트). 내용 동일성은 줄바꿈과 무관해야 하므로,
+// 텍스트(NUL 없음) 파일은 CRLF→LF 정규화 바이트로 기록·비교한다. 기존 manifest 기록은
+// 전부 LF 배포본 기준이라 정규화 값과 동일 — 마이그레이션 불필요.
+function normalizeEolForHash(buffer) {
+  if (buffer.includes(0)) return buffer; // 바이너리는 건드리지 않는다
+  let text = buffer.toString('utf8');
+  if (!text.includes('\r\n')) return buffer;
+  return Buffer.from(text.replaceAll('\r\n', '\n'), 'utf8');
+}
+
 function sha256(absPath) {
+  return createHash('sha256').update(normalizeEolForHash(readFileSync(absPath))).digest('hex');
+}
+
+function sha256RawBytes(absPath) {
   return createHash('sha256').update(readFileSync(absPath)).digest('hex');
+}
+
+// 과도기 폴백: 결함 A(설치자 autocrlf 경유)로 CRLF 바이트의 sha가 기록된 manifest도
+// 원문 일치로 인정한다. 다음 업데이트가 manifest를 정규화 sha로 다시 쓰며 자연 수렴한다.
+function matchesRecordedSha(absPath, recordedSha) {
+  if (!recordedSha) return false;
+  return sha256(absPath) === recordedSha || sha256RawBytes(absPath) === recordedSha;
+}
+
+// 설치 쓰기 정규화(0.2.136, 멀티사이트 결함 A): 설치기가 npx 캐시/clone의 체크아웃 바이트를
+// 그대로 복사하면 설치자의 git eol 설정이 결과물에 새어 들어가 "개발자마다 다른 바이트"가 깔린다.
+// 텍스트는 LF로 통일하되, cmd.exe 배치(.cmd/.bat)는 label/goto가 LF에서 깨질 수 있어 CRLF로 쓴다
+// (sha는 위 정규화 덕에 줄바꿈과 무관). 바이너리는 그대로 복사한다.
+function writeInstalledFile(src, dest, rel) {
+  const buffer = readFileSync(src);
+  if (buffer.includes(0)) {
+    copyFileSync(src, dest);
+    return;
+  }
+  let text = buffer.toString('utf8').replaceAll('\r\n', '\n');
+  if (/\.(cmd|bat)$/i.test(rel)) {
+    text = text.replaceAll('\n', '\r\n');
+  }
+  writeFileSync(dest, text);
+  // copyFileSync는 원본 모드를 보존하지만 writeFileSync는 아니다 — 무확장자 훅
+  // (.githooks/pre-commit 등)은 chmod 보정 목록에 없어 여기서 모드를 이어줘야 한다.
+  try {
+    chmodSync(dest, statSync(src).mode & 0o777);
+  } catch {
+    // 권한 보정 실패는 치명적이지 않다(ensureExecutable과 같은 태도).
+  }
 }
 
 function sha256Text(content) {
@@ -1003,14 +1051,14 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
       }
 
       // 소비자에 마커 없음 → 옛 버전. 마이그레이션 판정.
-      const unmodified = Boolean(recorded.sha256 && sha256(dest) === recorded.sha256);
+      const unmodified = matchesRecordedSha(dest, recorded.sha256);
       if (unmodified) {
         // 소비자가 파일을 전혀 안 건드림 → 마커 버전(본체)으로 통째 교체(자동 마이그레이션).
         if (opts.dryRun) {
           console.log(`[dry-run] migrate(marker) ${rel}`);
         } else {
           mkdirSync(dirname(dest), { recursive: true });
-          copyFileSync(src, dest);
+          writeInstalledFile(src, dest, rel);
         }
         stats.updated++;
         copiedFiles.push(rel);
@@ -1065,7 +1113,7 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
       console.log(`[dry-run] ${action} ${rel}${suffix}`);
     } else if (shouldCopy) {
       mkdirSync(dirname(dest), { recursive: true });
-      copyFileSync(src, dest);
+      writeInstalledFile(src, dest, rel);
     }
 
     if (preservedByGuard) {
@@ -1145,7 +1193,7 @@ function removeSeedOnlyDocs(target, manifest, opts) {
     }
 
     const recordedSha = manifest?.managedFiles?.[toPosix(rel)]?.sha256;
-    const unmodified = recordedSha && sha256(abs) === recordedSha;
+    const unmodified = matchesRecordedSha(abs, recordedSha);
 
     if (!recordedSha) {
       // 출처를 확인할 수 없는(외부에서 만든) 파일은 건드리지 않는다.
@@ -1186,7 +1234,7 @@ function removeSeedOnlyDocs(target, manifest, opts) {
         continue;
       }
 
-      if (sha256(abs) !== recordedSha) {
+      if (!matchesRecordedSha(abs, recordedSha)) {
         result.preservedModified.push(rel);
         continue;
       }
@@ -1211,7 +1259,7 @@ function removeSeedOnlyDocs(target, manifest, opts) {
       continue;
     }
 
-    if (sha256(abs) !== recordedSha) {
+    if (!matchesRecordedSha(abs, recordedSha)) {
       result.retiredPreserved.push(rel);
       continue;
     }
@@ -1400,7 +1448,7 @@ function isUnchangedManagedProjectState(target, rel, manifest) {
     return false;
   }
 
-  return sha256(abs) === manifest.managedFiles[rel].sha256;
+  return matchesRecordedSha(abs, manifest.managedFiles[rel].sha256);
 }
 
 function writeConsumerProjectStateFiles(target, opts, manifest, sourcePkg) {

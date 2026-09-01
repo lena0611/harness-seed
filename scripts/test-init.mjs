@@ -2880,6 +2880,55 @@ function firstAlphabeticalUnstagedChangeKeepsItsName() {
   assert(out.includes('- .gitignore'), 'the first alphabetical changed file must keep its full name (leading dot intact)')
 }
 
+// 0.2.136 — 멀티사이트 제보 결함 B: managed 무결성 검사가 줄바꿈 차이를 "소비자 수정"으로
+// 오판해 파일을 업데이트에서 영구 제외시켰다(실사고: harness.cmd 동결). 내용 동일성은
+// eol과 무관해야 한다 — 정규화 sha 비교 + 결함 A 잔재(CRLF sha 기록 manifest) 폴백까지 잠근다.
+function crlfCheckoutDoesNotFreezeManagedFiles() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const crlfify = (rel) => {
+    const abs = path.join(target, rel)
+    fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace(/\r?\n/g, '\r\n'))
+  }
+  crlfify('.harness/bin/harness.cmd')
+  crlfify('.harness/project/terminology.md')
+
+  const guardOut = runGuard(target)
+  assert(!guardOut.includes('설치 기록과 다릅니다'), 'eol-only differences must not be reported as managed drift')
+
+  const updateOut = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!updateOut.includes('갱신하지 못한'), 'eol-only differences must not exclude files from updates')
+  const md = read(target, '.harness/project/terminology.md')
+  assert(!md.includes('\r'), 'refreshed text files must come back normalized to LF')
+
+  // 결함 A 잔재 폴백: 설치자 autocrlf 경유로 CRLF 바이트 sha가 기록된 manifest도 원문 일치로 본다.
+  const target2 = makeTarget()
+  runInit(target2, '--no-scan', '--no-handoff', '--no-check')
+  const rel = '.harness/project/terminology.md'
+  const abs2 = path.join(target2, rel)
+  fs.writeFileSync(abs2, fs.readFileSync(abs2, 'utf8').replace(/\r?\n/g, '\r\n'))
+  const manifest = JSON.parse(read(target2, '.harness/install-manifest.json'))
+  manifest.managedFiles[rel] = { sha256: sha256Text(fs.readFileSync(abs2, 'utf8')) }
+  writeJson(target2, '.harness/install-manifest.json', manifest)
+  const out2 = runInit(target2, '--no-scan', '--no-handoff', '--no-check')
+  assert(!out2.includes('갱신하지 못한'), 'a CRLF-recorded manifest (defect-A installer) must still match its file')
+}
+
+// 0.2.136 — 멀티사이트 제보 결함 A: 설치기가 clone/npx 캐시의 체크아웃 바이트를 그대로 복사해
+// 설치자의 git eol 설정이 결과물에 새었다. 설치 쓰기를 결정적으로: 텍스트는 LF,
+// cmd.exe 배치(.cmd/.bat)는 CRLF(label/goto가 LF에서 깨질 수 있음), 실행 모드는 원본 보존.
+function installerWritesDeterministicEol() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const cmd = fs.readFileSync(path.join(target, '.harness/bin/harness.cmd'), 'utf8')
+  assert(cmd.includes('\r\n'), 'the cmd.exe launcher must be written with CRLF (Windows label/goto)')
+  assert(!/[^\r]\n/.test('x' + cmd.replaceAll('\r\n', '')), 'the cmd launcher must not mix bare LF lines')
+  const sh = fs.readFileSync(path.join(target, '.harness/bin/harness'), 'utf8')
+  assert(!sh.includes('\r'), 'the sh launcher must be written with LF only')
+  const hookMode = fs.statSync(path.join(target, '.githooks/pre-commit')).mode & 0o111
+  assert(hookMode !== 0, 'extensionless hooks must keep their executable bit through the deterministic writer')
+}
+
 function seedModeTargetKeepsSeedOnlyDocs() {
   const target = makeTarget()
   // seed-mode 마커가 있으면 본체 타깃으로 간주 → seed-only 문서를 그대로 설치한다.
@@ -6612,6 +6661,8 @@ const tests = [
   updateRefreshesStaleHarnessModeNotes,
   bootstrapModeAlwaysRelaxesSyncCandidates,
   firstAlphabeticalUnstagedChangeKeepsItsName,
+  crlfCheckoutDoesNotFreezeManagedFiles,
+  installerWritesDeterministicEol,
   seedModeTargetKeepsSeedOnlyDocs,
   updateRemovesRetiredManagedCommandDoc,
   freshInstallHasNoRegistryOrphans,
