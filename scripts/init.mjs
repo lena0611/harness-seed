@@ -1726,6 +1726,24 @@ function writeInstallManifest(sourceRoot, target, files, copiedFiles, opts, prev
   if (opts.dryRun) return null
 
   const manifest = buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, previousManifest)
+  // 보고 대기 표식(0.2.137, 결정 98 후속): 설치/업데이트가 끝나면 "결과 리포트가 아직 없다"는
+  // 상태를 로컬 표식으로 남긴다. report:install이 지우고, 매 check가 남아 있으면 한 줄 상기한다 —
+  // 절차 문서를 건너뛰는 에이전트가 있어도(실측) 다음 커밋이 알려준다. generated/라 git 미추적,
+  // 업데이트를 실행한 그 PC에서만 뜬다. 보고를 생략하려면 파일을 지우면 된다(자발성 유지).
+  if (!opts.dryRun) {
+    try {
+      const pendingPath = join(target, '.harness/generated/pending-report.json')
+      mkdirSync(dirname(pendingPath), { recursive: true })
+      writeFileSync(pendingPath, JSON.stringify({
+        kind: previousManifest ? 'update' : 'install',
+        from: previousManifest?.version ?? null,
+        to: manifest.version,
+        at: manifest.installedAt,
+      }, null, 2))
+    } catch {
+      // 표식 실패는 설치를 막지 않는다.
+    }
+  }
   const manifestAbs = join(target, MANIFEST_PATH)
   mkdirSync(dirname(manifestAbs), { recursive: true })
   writeFileSync(manifestAbs, `${JSON.stringify(manifest, null, 2)}\n`)

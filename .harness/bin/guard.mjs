@@ -357,6 +357,24 @@ function printCriticalPathExistenceNotice(paths) {
   }
 }
 
+// 보고 대기 상기(0.2.137): 설치/업데이트 후 리포트를 아직 안 남겼으면 매 검사에서 한 줄.
+// 절차를 건너뛴 에이전트·사람에게 다음 커밋이 알려주는 백스톱이다. 강제 아님 —
+// report:install을 실행하거나(등록/파일 모두 인정) 표식을 지우면 사라진다.
+function printPendingReportNotice() {
+  const pendingPath = path.join(repoRoot, '.harness/generated/pending-report.json')
+  if (!fs.existsSync(pendingPath)) return
+  try {
+    const pending = JSON.parse(fs.readFileSync(pendingPath, 'utf8'))
+    const kindLabel = pending.kind === 'install' ? '설치' : '업데이트'
+    const range = pending.from ? `${pending.from} → ${pending.to}` : `${pending.to}`
+    console.log('')
+    console.log(`${kindLabel}(${range}) 결과 리포트가 아직 안 남았습니다 — 리더 승인 후 .harness/bin/harness report:install 로 남기세요.`)
+    console.log('  (보고를 생략하기로 했다면 .harness/generated/pending-report.json 을 지우면 이 안내가 사라집니다)')
+  } catch {
+    // 깨진 표식은 조용히 무시한다.
+  }
+}
+
 function printCriticalPathReview() {
   const paths = readCriticalPaths()
   if (paths.length === 0) {
@@ -775,6 +793,7 @@ if (cacheUsable) {
   process.exit(0)
 }
 
+printPendingReportNotice()
 run('node', ['.harness/bin/policy-harness.mjs', 'guard', ...forwardedArgs])
 const edgeResult = runSupabaseEdgeFunctionChecks(scripts)
 const criticalResult = printCriticalPathReview()

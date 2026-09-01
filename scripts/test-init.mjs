@@ -3047,6 +3047,32 @@ function reportInstallFailsOpenToFileWithoutToken() {
   assert(usage.includes('사용법'), 'missing required args must print usage and fail')
 }
 
+// 0.2.137 — 보고 대기 백스톱(결정 98 후속, "리포팅할까요?를 건너뛰는 에이전트" 실측):
+// 설치/업데이트가 표식을 남기고, check가 상기하고, report:install(파일 fail-open 포함)이 지운다.
+function pendingReportMarkerRemindsUntilReported() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const pendingRel = '.harness/generated/pending-report.json'
+  assert(exists(target, pendingRel), 'install must leave a pending-report marker')
+  const pending = JSON.parse(read(target, pendingRel))
+  assert(pending.kind === 'install' && pending.from === null, 'a fresh install marker must record kind install with no prior version')
+
+  const out = runGuard(target)
+  assert(out.includes('결과 리포트가 아직 안 남았습니다'), 'check must remind while the marker exists')
+  assert(out.includes('pending-report.json'), 'the reminder must state how to opt out')
+
+  // 업데이트는 from/to를 기록한다.
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const updated = JSON.parse(read(target, pendingRel))
+  assert(updated.kind === 'update' && typeof updated.from === 'string', 'an update marker must record the prior version')
+
+  // report:install(무토큰 → 파일 fail-open)도 보고 완료로 인정되어 표식과 안내가 사라진다.
+  run(nodeBin, [path.join(target, '.harness/bin/report-install.mjs'), '--kind', 'update', '--from', updated.from, '--to', updated.to], { cwd: target })
+  assert(!exists(target, pendingRel), 'reporting (even file fallback) must clear the marker')
+  const out2 = runGuard(target)
+  assert(!out2.includes('결과 리포트가 아직 안 남았습니다'), 'the reminder must stop once reported')
+}
+
 function seedModeTargetKeepsSeedOnlyDocs() {
   const target = makeTarget()
   // seed-mode 마커가 있으면 본체 타깃으로 간주 → seed-only 문서를 그대로 설치한다.
@@ -6787,6 +6813,7 @@ const tests = [
   driftSkipsProjectOwnedListedEntries,
   freshCriticalPathTemplateStartsEmpty,
   reportInstallFailsOpenToFileWithoutToken,
+  pendingReportMarkerRemindsUntilReported,
   seedModeTargetKeepsSeedOnlyDocs,
   updateRemovesRetiredManagedCommandDoc,
   freshInstallHasNoRegistryOrphans,

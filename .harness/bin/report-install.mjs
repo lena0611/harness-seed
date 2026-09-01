@@ -27,6 +27,13 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '..', '..')
 const args = process.argv.slice(2)
+const pendingPath = path.join(repoRoot, '.harness/generated/pending-report.json')
+
+function clearPendingMarker() {
+  try {
+    fs.rmSync(pendingPath, { force: true })
+  } catch {}
+}
 
 function argValue(name) {
   const index = args.indexOf(name)
@@ -138,6 +145,7 @@ if (!token) {
   console.log('  토큰: 하네스 본체 개발자에게 DM으로 요청 → ~/.config/ai-standard/report.env 에')
   console.log('  HARNESS_BODY_ISSUE_TOKEN=<값> — 한 번 두면 모든 프로젝트에서 동작')
   console.log('  (프로젝트별로 다르게 쓰려면 프로젝트 루트 .issue-adapter.env가 우선합니다)')
+  clearPendingMarker() // 파일로 남긴 것도 보고 완료다 — 상기 안내를 멈춘다.
   process.exit(0)
 }
 
@@ -192,6 +200,7 @@ try {
     })
     console.log(`이력 표에 행 추가: #${historyIssue.iid}`)
   }
+  clearPendingMarker()
 } catch (error) {
   console.error(`등록 실패: ${error.message}`)
   console.error('네트워크·권한 문제면 --dry-run으로 내용을 확인해 수동 등록하거나, 본체 팀에 파일로 전달하세요.')
