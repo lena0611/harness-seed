@@ -444,6 +444,13 @@ function main() {
   }
 
   printConsumerCommandGuide()
+
+  // 결과 리포트 안내(결정 98): 에이전트 절차를 밟지 않고 이 스크립트만 직접 돌린 경우에도
+  // 마지막 줄에서 보고 경로를 보게 한다 — 강제가 아니라 안내(유실 창 축소).
+  console.log('')
+  console.log('업데이트 결과를 본체에 알리려면(개선 의견이 있으면 함께 실립니다):')
+  console.log('  .harness/bin/harness report:install -- --kind update --from <이전버전> --to <새버전>')
+  console.log('  (등록 토큰이 없으면 파일로만 남고 전달 안내가 나옵니다 — 리더 승인 후 실행)')
 }
 
 main()
