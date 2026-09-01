@@ -2959,6 +2959,88 @@ function commitTemplateIsProjectOwnedAndCustomizable() {
   assert(after.projectOwnedFiles.includes(rel), 'the migrated template must be listed as project-owned')
 }
 
+// 0.2.136 — 백엔드 첫 적용 리포트 ⑧: 위험 패턴 검사가 문서 본문(heredoc)의 "언급"까지
+// 차단했다. cat/tee로 가는 heredoc 본문은 데이터로 제외하고, 실행 위치의 위험 명령은
+// 계속 차단됨을 매트릭스로 잠근다. (구현 당일 이 픽스를 만드는 명령 자체가 구훅에 차단된 실증)
+function dangerousHookAllowsWriterHeredocMentions() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const hook = path.join(target, '.claude/hooks/block-dangerous.sh')
+  const denyCount = (command) => {
+    const out = run('bash', [hook], { input: JSON.stringify({ tool_input: { command } }) })
+    return (out.match(/"permissionDecision": "deny"/g) ?? []).length
+  }
+  assert(denyCount('git commit --no-verify -m x') === 1, 'a real no-verify commit must stay blocked')
+  assert(denyCount('sudo rm -x /tmp/y') === 1, 'a real sudo command must stay blocked')
+  assert(denyCount('cd /tmp; sudo ls') === 1, 'sudo after a separator must stay blocked')
+  assert(denyCount("bash <<'EOF'\nrm -rf /\nEOF") === 1, 'heredoc fed to a shell is execution and must stay blocked')
+  const docWrite = "cat > doc.md <<'EOF'\n--no-verify 우회는 금지합니다\nsudo apt install nginx 예시\nEOF"
+  assert(denyCount(docWrite) === 0, 'mentioning dangerous flags inside a cat-heredoc document must be allowed')
+  assert(denyCount('echo "문서: git push --force 금지" >> rules.md') === 0, 'prose mention of a git flag mid-line must be allowed')
+}
+
+// 0.2.136 — 백엔드 첫 적용 리포트 ①(사용자 결정: "없다고 해서 잡음은 내면 안 된다"):
+// 스택 미적용은 정상 상태 — 한 줄 사실 표기만 하고 "적용하세요"를 조르지 않는다.
+function stackAbsenceIsQuietNormalState() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const out = runGuard(target)
+  assert(out.includes('스택 기준: 미적용 (정상 상태'), 'stack absence must be stated as a normal single line')
+  assert(!out.includes('적용하세요') && !out.includes('Stack not applied'), 'stack absence must not nag or alarm')
+}
+
+// 0.2.136 — 백엔드 첫 적용 리포트 ③(guard 측): manifest의 projectOwnedFiles에 있는 파일은
+// managed에 이중 등록돼 있어도(구설치 잠복 창) 드리프트로 잡지 않는다.
+function driftSkipsProjectOwnedListedEntries() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const rel = '.harness/project/spec-map.md'
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  manifest.managedFiles[rel] = { sha256: sha256Text(read(target, rel)) } // 구설치 이중 등록 재현
+  writeJson(target, '.harness/install-manifest.json', manifest)
+  fs.appendFileSync(path.join(target, rel), '\n| 기획.md | src/** | 담당 |\n') // 채우는 순간
+  const out = runGuard(target)
+  assert(!out.includes(rel), 'project-owned files must never be reported as managed drift even when dual-registered')
+
+  // 진짜 managed 변조는 여전히 잡혀야 필터가 과하지 않음이 증명된다.
+  fs.appendFileSync(path.join(target, '.harness/bin/doc-link-check.mjs'), '\n// 소비자 변조\n')
+  const out2 = runGuard(target)
+  assert(out2.includes('.harness/bin/doc-link-check.mjs'), 'genuine managed drift must still be reported')
+}
+
+// 0.2.136 — 백엔드 첫 적용 리포트 ②: 설치 템플릿의 critical-paths 표는 비어 있는 상태로
+// 시작한다(예시는 하네스가 읽지 않는 블록으로). 설치 첫날 유령 경고 0건.
+function freshCriticalPathTemplateStartsEmpty() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const out = runGuard(target)
+  assert(!out.includes('실존 대상이 없습니다'), 'a fresh install must not start with ghost critical-path warnings')
+  assert(!out.includes('Critical path review'), 'the example block must not be parsed as live declarations')
+}
+
+// 0.2.136 — 설치·업데이트 리포트(결정 98): 토큰이 없으면 등록 대신 파일로 남기는
+// fail-open과 dry-run 페이로드를 잠근다. 실제 API 등록은 토큰이 있는 환경에서만 도니
+// 회귀는 오프라인 경로를 검증한다.
+function reportInstallFailsOpenToFileWithoutToken() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const dry = run(nodeBin, [path.join(target, '.harness/bin/report-install.mjs'), '--kind', 'update', '--from', 'v0.2.135', '--to', 'v0.2.136', '--dry-run'], { cwd: target })
+  assert(dry.includes('[업데이트] harness-test-target v0.2.135→v0.2.136'), 'dry-run must print the composed issue title')
+  assert(dry.includes('| harness-test-target | 업데이트 | v0.2.135 → v0.2.136 |'), 'dry-run must print the history row')
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/report-install.mjs'), '--kind', 'install', '--to', 'v0.2.136'], { cwd: target })
+  assert(out.includes('파일로 남겼습니다'), 'without a token the reporter must fall back to a local file')
+  const generated = fs.readdirSync(path.join(target, '.harness/generated')).filter((name) => name.startsWith('install-report-'))
+  assert(generated.length === 1, 'the fallback report file must be created under .harness/generated')
+  const body = read(target, `.harness/generated/${generated[0]}`)
+  assert(body.includes('[설치] harness-test-target -→v0.2.136') || body.includes('[설치] harness-test-target'), 'the report file must carry the title')
+  assert(body.includes('전달 사항 없음'), 'a notes-less report must state it is a clean completion report')
+
+  const usage = (() => { try { run(nodeBin, [path.join(target, '.harness/bin/report-install.mjs')], { cwd: target }); return '' } catch (error) { return `${error.stdout ?? ''}${error.stderr ?? ''}` } })()
+  assert(usage.includes('사용법'), 'missing required args must print usage and fail')
+}
+
 function seedModeTargetKeepsSeedOnlyDocs() {
   const target = makeTarget()
   // seed-mode 마커가 있으면 본체 타깃으로 간주 → seed-only 문서를 그대로 설치한다.
@@ -6694,6 +6776,11 @@ const tests = [
   crlfCheckoutDoesNotFreezeManagedFiles,
   installerWritesDeterministicEol,
   commitTemplateIsProjectOwnedAndCustomizable,
+  dangerousHookAllowsWriterHeredocMentions,
+  stackAbsenceIsQuietNormalState,
+  driftSkipsProjectOwnedListedEntries,
+  freshCriticalPathTemplateStartsEmpty,
+  reportInstallFailsOpenToFileWithoutToken,
   seedModeTargetKeepsSeedOnlyDocs,
   updateRemovesRetiredManagedCommandDoc,
   freshInstallHasNoRegistryOrphans,

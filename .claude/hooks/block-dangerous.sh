@@ -37,7 +37,30 @@ const raw = process.env.HARNESS_HOOK_INPUT || "{}";
 try {
   const data = JSON.parse(raw);
   const toolInput = data.tool_input || {};
-  process.stdout.write(String(toolInput.command || ""));
+  const cmd = String(toolInput.command || "");
+  // ⑧(0.2.136, 백엔드 첫 적용 리포트): heredoc 본문은 데이터일 수 있다. 받는 명령이
+  // 순수 쓰기(cat/tee)면 본문을 검사 대상에서 뺀다 — 위험 명령을 "언급"하는 문서 작성이
+  // 차단되지 않게. bash/sh/python 등 해석기로 가는 heredoc은 본문이 실행이므로 그대로 둔다.
+  const lines = cmd.split("\n");
+  const out = [];
+  let term = null;
+  for (const line of lines) {
+    if (term !== null) {
+      if (line.trim() === term) term = null;
+      continue;
+    }
+    out.push(line);
+    const m = line.match(/<<-?\s*(["\x27]?)([A-Za-z_][A-Za-z0-9_]*)\1/);
+    if (m) {
+      let head = line.replace(/^\s+/, "");
+      while (/^[A-Za-z_][A-Za-z0-9_]*=[^\s]*\s+/.test(head)) {
+        head = head.replace(/^[A-Za-z_][A-Za-z0-9_]*=[^\s]*\s+/, "");
+      }
+      const recv = head.split(/\s+/)[0];
+      if (recv === "cat" || recv === "tee") term = m[2];
+    }
+  }
+  process.stdout.write(out.join("\n"));
 } catch (_) {}
 ' 2>/dev/null || true
 )"
@@ -64,20 +87,11 @@ dangerous_patterns=(
   'rm[[:space:]]+-rf?[[:space:]]+\.'
   'rm[[:space:]]+-fr[[:space:]]+\.'
   'find[[:space:]].*-exec[[:space:]]+rm[[:space:]]+(-rf?|-fr|--recursive[[:space:]]+--force|--force[[:space:]]+--recursive)'
-  'bash[[:space:]][^|><;]*\.sh([[:space:]]|$)'
-  'sh[[:space:]][^|><;]*\.sh([[:space:]]|$)'
   'mkfs(\.|[[:space:]])'
   'dd[[:space:]]+if=.*of=/dev/'
   ':\(\)[[:space:]]*\{'
-  'sudo[[:space:]]'
-  'chmod[[:space:]]+-R[[:space:]]+777'
   'curl[[:space:]].*\|[[:space:]]*(sh|bash|zsh)'
   'wget[[:space:]].*\|[[:space:]]*(sh|bash|zsh)'
-  'git[[:space:]]+push[[:space:]].*--force([[:space:]]|$)'
-  'git[[:space:]]+push[[:space:]]+(.*[[:space:]])?-f([[:space:]]|$)'
-  'git[[:space:]]+reset[[:space:]]+--hard'
-  'git[[:space:]]+clean[[:space:]]+-fd'
-  '--no-verify'
   '>[[:space:]]*/dev/sd[a-z]'
   '(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+[^|><]*\.env([[:space:]]|$|\.)'
   '(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+<[[:space:]]*[^|><]*\.env([[:space:]]|$|\.)'
@@ -92,14 +106,40 @@ dangerous_patterns=(
   '>[[:space:]]*(\.env|.*\.pem|.*id_rsa|.*id_ed25519|.*\.aws/credentials)'
 )
 
+# 줄 어디에 있어도 위험한 부분문자열(파괴·유출 계열)은 전체 텍스트로 검사한다.
 for pattern in "${dangerous_patterns[@]}"; do
   if [[ "$cmd" =~ $pattern ]]; then
     if [ "$profile" = "permissive" ]; then
       warn "$pattern"
     fi
-    deny "하네스가 차단함: 명령이 위험 패턴 '${pattern}'와 일치합니다. 필요하면 사용자에게 목적과 영향 범위를 명시적으로 확인하세요."
+    hit="$(printf '%s\n' "$cmd" | grep -E -m1 -- "$pattern" | cut -c1-160 || true)"
+    deny "하네스가 차단함: 명령이 위험 패턴 '${pattern}'와 일치합니다. 걸린 줄: ${hit} (cat/tee heredoc 본문은 검사 제외 — 이 매칭은 실행부입니다). 필요하면 사용자에게 목적과 영향 범위를 확인하세요."
   fi
 done
+
+# 명령 위치에서만 위험한 것들(⑧, 0.2.136): 문서 본문·산문에서 이름만 언급되는 경우가 잦아
+# 줄머리(또는 ; & | ( 뒤)에서 시작할 때만 잡는다. --no-verify는 git 명령줄에 묶는다.
+command_position_patterns=(
+  'sudo[[:space:]]'
+  'chmod[[:space:]]+-R[[:space:]]+777'
+  'git[[:space:]]+reset[[:space:]]+--hard'
+  'git[[:space:]]+clean[[:space:]]+-fd'
+  'git[[:space:]]+push[[:space:]].*--force([[:space:]]|$)'
+  'git[[:space:]]+push[[:space:]]+(.*[[:space:]])?-f([[:space:]]|$)'
+  'git[[:space:]][^;|&]*--no-verify'
+  'bash[[:space:]][^|><;]*\.sh([[:space:]]|$)'
+  'sh[[:space:]][^|><;]*\.sh([[:space:]]|$)'
+)
+while IFS= read -r line; do
+  for pattern in "${command_position_patterns[@]}"; do
+    if [[ "$line" =~ ^[[:space:]]*($pattern) ]] || [[ "$line" =~ [\;\&\|\(][[:space:]]*($pattern) ]]; then
+      if [ "$profile" = "permissive" ]; then
+        warn "$pattern"
+      fi
+      deny "하네스가 차단함: 명령 위치에서 위험 패턴 '${pattern}'와 일치합니다. 걸린 줄: $(printf '%s' "$line" | cut -c1-160). 필요하면 사용자에게 목적과 영향 범위를 확인하세요."
+    fi
+  done
+done <<< "$cmd"
 
 if [ "$profile" = "strict" ]; then
   strict_patterns=(

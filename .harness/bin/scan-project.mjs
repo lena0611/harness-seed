@@ -1035,10 +1035,10 @@ ${formatList(ciFiles)}
 ### Quality Files
 ${formatList(qualityFiles)}
 
-### ESLint Node Scripts Advice
+${pkg ? `### ESLint Node Scripts Advice
 ${formatList(eslintNodeScriptsAdvice, '- ESLint Node scripts 충돌 후보 없음')}
 
-### Style Sources
+` : ''}### Style Sources
 ${formatList(styleGuideFiles)}
 
 ### Documentation

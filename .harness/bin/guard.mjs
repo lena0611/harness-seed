@@ -660,9 +660,15 @@ function checkManagedFileDrift() {
     return { drifted: [], checked: 0 }
   }
 
+  // 프로젝트 소유 파일은 드리프트 대상이 아니다(0.2.136, 백엔드 첫 적용 리포트 ③):
+  // 구설치본 manifest에는 프로젝트 소유 파일이 managed에도 이중 등록된 잠복 창이 있었다
+  // (spec-map 등 16종 실측). manifest 자신의 projectOwnedFiles 목록으로 걸러 즉시 침묵시킨다.
+  const projectOwned = new Set((manifest?.projectOwnedFiles ?? []).map((rel) => rel.split(path.sep).join('/')))
+
   const drifted = []
   let checked = 0
   for (const [rel, record] of Object.entries(managedFiles)) {
+    if (projectOwned.has(rel.split(path.sep).join('/'))) continue
     const recorded = record?.sha256
     if (typeof recorded !== 'string' || recorded.length === 0) continue
     const abs = path.join(repoRoot, rel)
@@ -722,30 +728,11 @@ function printManagedDriftNotice(drift) {
   // 스택 적용은 공통 설치가 manifest를 기록한 뒤에 profile.json(activeStack)과
   // stack-preset-rules.md를 쓰므로, 스택을 쓰는 프로젝트에서 이 두 파일의 드리프트는 당연하다.
   // 여기서 --resync-managed를 안내하면 방금 적용한 스택 설정이 지워진다 — 그 안내를 내지 않는다.
-  const stackWrittenFiles = new Set([
-    '.harness/policy/profile.json',
-    '.harness/project/stack-preset-rules.md',
-  ])
-  const driftedPosix = drift.drifted.map((rel) => rel.split(path.sep).join('/'))
-  const stackApplied = readJson(profilePath, { activeStack: 'none' }).activeStack
-  const hasStack = Boolean(stackApplied) && stackApplied !== 'none'
-  const onlyStackFiles = driftedPosix.every((rel) => stackWrittenFiles.has(rel))
-
-  if (hasStack && onlyStackFiles) {
-    console.log(`  ⓘ 이 프로젝트는 스택(${stackApplied})을 적용했고, 위 파일은 스택 적용이 쓰는 파일입니다.`)
-    console.log('     공통 하네스 설치 → 스택 적용 순서로 두 단계를 거치므로 설치 기록과 달라지는 것이 정상입니다.')
-    console.log('     이 경우 --resync-managed를 실행하지 마세요 — activeStack과 스택 룰이 함께 지워집니다.')
-    console.log('     다음 스택 하네스 업데이트가 이 파일들을 함께 갱신합니다.')
-    return
-  }
-
+  // 스택 기록 파일 특례(구 stackWrittenFiles)는 프로젝트 소유 필터(0.2.136)가 흡수했다 —
+  // profile.json·stack-preset-rules.md는 projectOwnedFiles라 애초에 드리프트 목록에 안 든다.
   console.log('  1) lint·formatter 설정에서 .harness/**를 제외하세요(eslint globalIgnores, .oxlintrc.json ignorePatterns, .prettierignore).')
   console.log('  2) 그다음 원본으로 되돌리세요: .harness/bin/harness update --resync-managed')
   console.log('     (managed 파일만 되돌립니다. 프로젝트 소유 파일은 건드리지 않습니다.)')
-  if (hasStack) {
-    console.log('     ⚠ 스택 적용 프로젝트입니다 — profile.json·stack-preset-rules.md가 위 목록에 있으면 그 두 개는')
-    console.log('       스택 적용의 정상 결과일 수 있습니다. resync는 activeStack과 스택 룰을 지웁니다.')
-  }
 }
 
 // P1(2026-06-09): 비-Node 프로젝트(package.json 없음)에서도 `node .harness/bin/guard.mjs`가
@@ -823,8 +810,9 @@ if (!stackState.applied) {
     process.exit(1)
   }
 
-  console.log('Stack not applied: activeStack=none. 스택 기준은 적용되지 않았습니다.')
-  console.log('스택 기준을 적용하려면: .harness/bin/harness standards:list 후 해당 스택 하네스 init을 실행하세요.')
+  // 스택 미적용은 정상 상태다(0.2.136, 백엔드 첫 적용 리포트 ①): 맞는 스택 기준이 아직
+  // 없는 프로젝트(백엔드 등)에 매 검사마다 "적용하세요"를 조르면 잡음이다 — 한 줄 사실 표기만.
+  console.log('스택 기준: 미적용 (정상 상태 — 맞는 스택 기준이 생기면 standards:list로 적용)')
   // 전체 관문 검사 통과(정책/문서/test-init)를 캐시에 기록해 같은 tree 재검사를 스킵한다.
   if (!seedRegressionSkipped) writeCheckCache(cacheKey)
   printConsumerSummary({ edgeResult, criticalResult })
