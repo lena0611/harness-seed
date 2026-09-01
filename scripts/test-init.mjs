@@ -2929,6 +2929,36 @@ function installerWritesDeterministicEol() {
   assert(hookMode !== 0, 'extensionless hooks must keep their executable bit through the deterministic writer')
 }
 
+// 0.2.136 — 커밋 템플릿 재분류(멀티사이트 백엔드 문답): 커밋 형식은 팀 관례라 프로젝트
+// 소유가 맞다. managed로 두면 커스텀한 팀이 드리프트 경고를 영구히 받았다.
+function commitTemplateIsProjectOwnedAndCustomizable() {
+  const rel = '.github/commit-template.txt'
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(exists(target, rel), 'the commit template seed must still be installed')
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  assert(!manifest.managedFiles[rel], 'the commit template must not be a managed file')
+  assert(manifest.projectOwnedFiles.includes(rel), 'the commit template must be listed as project-owned')
+
+  // 커스텀해도 경고 없음 + 업데이트가 보존.
+  fs.writeFileSync(path.join(target, rel), '# 우리 팀 커밋 형식\n[모듈] 요약\n')
+  const guardOut = runGuard(target)
+  assert(!guardOut.includes(rel), 'a customized commit template must not appear in drift warnings')
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(read(target, rel) === '# 우리 팀 커밋 형식\n[모듈] 요약\n', 'updates must preserve the customized template verbatim')
+
+  // 구설치 마이그레이션: managed로 기록돼 있던 항목이 업데이트 한 번에 프로젝트 소유로 이탈.
+  const target2 = makeTarget()
+  runInit(target2, '--no-scan', '--no-handoff', '--no-check')
+  const manifest2 = JSON.parse(read(target2, '.harness/install-manifest.json'))
+  manifest2.managedFiles[rel] = { sha256: sha256Text(read(target2, rel)) }
+  writeJson(target2, '.harness/install-manifest.json', manifest2)
+  runInit(target2, '--no-scan', '--no-handoff', '--no-check')
+  const after = JSON.parse(read(target2, '.harness/install-manifest.json'))
+  assert(!after.managedFiles[rel], 'a legacy managed entry must leave managedFiles after one update')
+  assert(after.projectOwnedFiles.includes(rel), 'the migrated template must be listed as project-owned')
+}
+
 function seedModeTargetKeepsSeedOnlyDocs() {
   const target = makeTarget()
   // seed-mode 마커가 있으면 본체 타깃으로 간주 → seed-only 문서를 그대로 설치한다.
@@ -6663,6 +6693,7 @@ const tests = [
   firstAlphabeticalUnstagedChangeKeepsItsName,
   crlfCheckoutDoesNotFreezeManagedFiles,
   installerWritesDeterministicEol,
+  commitTemplateIsProjectOwnedAndCustomizable,
   seedModeTargetKeepsSeedOnlyDocs,
   updateRemovesRetiredManagedCommandDoc,
   freshInstallHasNoRegistryOrphans,

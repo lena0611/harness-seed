@@ -81,6 +81,11 @@ const LEGACY_MANAGED_ROOT_SCRIPTS = [
 const PROJECT_OWNED_PATHS = new Set([
   '.harness/policy/profile.json',
   '.harness/policy/waivers.json',
+  // 커밋 템플릿(0.2.136 재분류, 멀티사이트 백엔드 문답): 커밋 형식은 팀 관례라 하네스가 주는 건
+  // 빈손 방지용 초기 견본이다. managed로 두면 커스텀한 팀이 매 검사마다 드리프트 경고를 영구히
+  // 받는다(harness.cmd 동결과 같은 클래스). 기존 설치본은 다음 업데이트의 manifest 승계 제외로
+  // 자동 재분류된다(이력 아카이브 0.2.95와 같은 메커니즘) — 파일 바이트는 건드리지 않는다.
+  '.github/commit-template.txt',
   // 프로젝트 문서 등록 지점(0.2.131, score-print 수용). managed registry는 본체 골격만 담고,
   // 프로젝트가 만든 문서는 이 파일에 등록한다 — 업데이트가 덮지 않으므로 매 업데이트마다
   // resync→재등록 한 바퀴가 필요 없어진다.
@@ -1647,6 +1652,13 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, prev
   }
 
   for (const rel of copiedFiles) {
+    // 프로젝트 소유 파일은 managed 기록을 만들지 않는다(0.2.136). 종전에는 최초 설치 때
+    // 복사된 프로젝트 소유 파일(커밋 템플릿, domain-rules 등)이 여기서 managed로 기록되어,
+    // 첫 업데이트 전까지 편집 시 드리프트 경고가 뜨는 잠복 창이 있었다(승계 제외는 다음
+    // 업데이트에야 도달). 소유 판정은 기록 시점부터 일관되게.
+    if (isProjectOwned(rel)) {
+      continue
+    }
     const abs = join(target, rel)
     if (!existsSync(abs) || !statSync(abs).isFile()) {
       continue
