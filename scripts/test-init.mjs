@@ -2346,8 +2346,10 @@ function consumerGitignoreCoversAllGeneratedSessionArtifacts() {
     '.harness/session/handoff.md',
     '.harness/session/template-gap-report.md',
     '.harness/session/task-context.md',
+    // 결정 98: 토큰 파일은 반드시 무시 목록에 — 견본 문서의 ".gitignore 등록됨" 약속을 코드가 지킨다.
+    '.issue-adapter.env',
   ]) {
-    assert(gitignore.includes(rel), `consumer .gitignore must cover the regenerable artifact ${rel}`)
+    assert(gitignore.includes(rel), `consumer .gitignore must cover ${rel}`)
   }
 }
 
