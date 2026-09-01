@@ -2857,6 +2857,29 @@ function bootstrapModeAlwaysRelaxesSyncCandidates() {
   assert(!active.includes('bootstrap 완화 적용 중'), 'the full-relaxation notice must not appear outside bootstrap')
 }
 
+// 0.2.136 — clubadm 공유 제보(2026-09-01)로 발견: runGit의 전체 trim이 porcelain 첫 줄의
+// 선행 공백(' M ' 상태 문자)을 먹어, 알파벳순 첫 변경 파일의 이름이 한 글자 깨졌다
+// ('.gitignore' → 'gitignore'). critical path 매칭·캐시 키·edge 감지가 그 파일만 조용히
+// 놓친다. 제보 팀은 "의도된 동작"으로 오판하고 결함 보고를 접었었다 — 재현으로 뒤집음.
+function firstAlphabeticalUnstagedChangeKeepsItsName() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  fs.writeFileSync(path.join(target, '.harness/project/critical-paths.md'), [
+    '| path | 왜 중요한가 | 권장 검증 |',
+    '| --- | --- | --- |',
+    '| `.gitignore` | 무시 규칙 | 확인 |',
+    '',
+  ].join('\n'))
+  run('git', ['add', '-A'], { cwd: target })
+  run('git', ['commit', '-qm', 'baseline'], { cwd: target })
+  // .gitignore는 알파벳순 첫 변경 파일 + 미스테이징 수정(' M' — 선행 공백 상태 문자)의 대표 사례.
+  fs.appendFileSync(path.join(target, '.gitignore'), 'node_modules/\n')
+
+  const out = runGuard(target)
+  assert(out.includes('Critical path review'), 'a dotfile-first unstaged change must still reach critical path review')
+  assert(out.includes('- .gitignore'), 'the first alphabetical changed file must keep its full name (leading dot intact)')
+}
+
 function seedModeTargetKeepsSeedOnlyDocs() {
   const target = makeTarget()
   // seed-mode 마커가 있으면 본체 타깃으로 간주 → seed-only 문서를 그대로 설치한다.
@@ -6588,6 +6611,7 @@ const tests = [
   hooksInstallWarnsWhenStoredChainIsReplaced,
   updateRefreshesStaleHarnessModeNotes,
   bootstrapModeAlwaysRelaxesSyncCandidates,
+  firstAlphabeticalUnstagedChangeKeepsItsName,
   seedModeTargetKeepsSeedOnlyDocs,
   updateRemovesRetiredManagedCommandDoc,
   freshInstallHasNoRegistryOrphans,

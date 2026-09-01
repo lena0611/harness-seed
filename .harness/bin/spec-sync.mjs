@@ -557,14 +557,16 @@ export function screenIndexAtCommit(dir, commit, files, extensions) {
 }
 
 function runGit(argsToRun, cwd, options = {}) {
-  return execFileSync('git', argsToRun, {
+  const output = execFileSync('git', argsToRun, {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     // 큰 기획 저장소의 ls-tree가 기본 1MiB 상한에 걸려 "빈 트리"로 오인되지 않게 넉넉히 잡는다.
     maxBuffer: options.maxBuffer ?? 64 * 1024 * 1024,
     ...(options.timeoutMs ? { timeout: options.timeoutMs } : {}),
-  }).trim()
+  })
+  // porcelain은 줄 머리 공백이 상태 문자라 전체 trim이 첫 줄 파싱을 깨뜨린다(0.2.136).
+  return options.raw ? output : output.trim()
 }
 
 // git show 결과에 우리 해시 함수를 그대로 적용한다. git blob object id(sha1/sha256 + 헤더)와
@@ -2296,7 +2298,7 @@ function collectOutgoingFiles() {
   }
   try {
     // --untracked-files=all: 새 디렉터리를 'src/'로 접지 않고 안의 파일까지 나열해야 매핑이 걸린다.
-    const dirty = runGit(['status', '--porcelain', '--untracked-files=all'], repoRoot)
+    const dirty = runGit(['status', '--porcelain', '--untracked-files=all'], repoRoot, { raw: true })
     for (const line of dirty.split(/\r?\n/)) {
       if (!line.trim()) continue
       const rel = line.slice(3).trim().split(' -> ').pop()

@@ -319,7 +319,9 @@ function getChangedFilesFromHead() {
     return output ? output.split('\n').filter(Boolean).map(decodeSpecGitPath) : []
   } catch {
     try {
-      const output = runGit(['status', '--short'])
+      // trim 금지: 전체 trim이 첫 줄의 상태 문자 선행 공백을 먹어 slice(3)가 어긋난다
+      // (guard의 runGitRaw와 같은 원인 — 0.2.136, clubadm 공유 제보).
+      const output = execFileSync('git', ['status', '--short'], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
       return output
         .split('\n')
         .filter(Boolean)

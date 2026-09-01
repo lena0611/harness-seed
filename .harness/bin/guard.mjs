@@ -49,9 +49,25 @@ function runGit(argsToRun) {
   }
 }
 
+// porcelain처럼 줄 머리 공백이 의미인 출력용(0.2.136, clubadm 공유 제보로 발견).
+// 전체 trim이 첫 줄의 선행 공백(' M ' 상태 문자)을 먹으면 slice(3) 파싱이 어긋나
+// 알파벳순 첫 변경 파일의 이름이 한 글자 깨진다 — '.gitignore'가 'gitignore'가 되어
+// critical path 매칭·캐시 키·edge 감지에서 조용히 빠졌다.
+function runGitRaw(argsToRun) {
+  try {
+    return execFileSync('git', argsToRun, {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+  } catch {
+    return ''
+  }
+}
+
 function getChangedFiles() {
   const changed = []
-  const output = runGit(['status', '--porcelain=v1'])
+  const output = runGitRaw(['status', '--porcelain=v1'])
   if (output) {
     changed.push(...output
       .split(/\r?\n/)
