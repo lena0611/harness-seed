@@ -158,12 +158,14 @@ async function gitlab(method, apiPath, body) {
 }
 
 const HISTORY_TITLE = '하네스 설치·업데이트 이력'
+// 5칸 고정(리포트 링크 포함). 처음엔 4칸 헤더를 문자열 치환으로 5칸으로 늘렸는데,
+// 구분선 치환이 어긋나 GitLab이 표로 렌더링하지 못했다(첫 실측 #2에서 발견·수동 보정).
 const HISTORY_HEADER = [
   '이 이슈는 소비자 프로젝트의 설치·업데이트 이력 표입니다. 각 행은 report:install이 추가합니다.',
   '(본체 운영용 배포 현황입니다 — 개발 행위 추적이 아닙니다.)',
   '',
-  '| 일자 | 프로젝트 | 종류 | 버전 |',
-  '| --- | --- | --- | --- |',
+  '| 일자 | 프로젝트 | 종류 | 버전 | 리포트 |',
+  '| --- | --- | --- | --- | --- |',
 ].join('\n')
 
 try {
@@ -179,7 +181,7 @@ try {
   if (found.length === 0) {
     const historyIssue = await gitlab('POST', `/projects/${encodedProject}/issues`, {
       title: HISTORY_TITLE,
-      description: `${HISTORY_HEADER.replace('| 버전 |', '| 버전 | 리포트 |').replace('| --- | --- | --- |\n', '| --- | --- | --- | --- |\n')}\n${rowWithLink}`,
+      description: `${HISTORY_HEADER}\n${rowWithLink}`,
       labels: '설치이력표',
     })
     console.log(`이력 표 이슈 생성: #${historyIssue.iid}`)
