@@ -134,8 +134,9 @@ if (!token) {
   fs.writeFileSync(outPath, `# ${title}\n\n${description}\n\n${historyRow}\n`)
   console.log('HARNESS_BODY_ISSUE_TOKEN이 없어 이슈 등록 대신 파일로 남겼습니다:')
   console.log(`  ${path.relative(repoRoot, outPath)}`)
-  console.log('본체 팀에 이 파일을 전달하거나, 토큰을 넣고 다시 실행하세요(토큰 값은 채팅·로그에 붙여넣지 않습니다):')
-  console.log('  ~/.config/ai-standard/report.env 에 HARNESS_BODY_ISSUE_TOKEN=<값> — 한 번 두면 모든 프로젝트에서 동작')
+  console.log('하네스 본체 개발자에게 이 파일을 전달하거나, 토큰을 받아 넣고 다시 실행하세요(값은 채팅·로그에 붙여넣지 않습니다):')
+  console.log('  토큰: 하네스 본체 개발자에게 DM으로 요청 → ~/.config/ai-standard/report.env 에')
+  console.log('  HARNESS_BODY_ISSUE_TOKEN=<값> — 한 번 두면 모든 프로젝트에서 동작')
   console.log('  (프로젝트별로 다르게 쓰려면 프로젝트 루트 .issue-adapter.env가 우선합니다)')
   process.exit(0)
 }
