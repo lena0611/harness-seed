@@ -1734,9 +1734,25 @@ function writeInstallManifest(sourceRoot, target, files, copiedFiles, opts, prev
     try {
       const pendingPath = join(target, '.harness/generated/pending-report.json')
       mkdirSync(dirname(pendingPath), { recursive: true })
+      // 같은 목표 버전으로 재기록될 때는 from을 보존한다(0.2.138, 멀티사이트 리포트 #6):
+      // 스택 init이 내부에서 base init을 한 번 더 돌리면 두 번째 기록의 previousManifest가
+      // 이미 새 버전이라 from이 to와 같아졌다(실측: 0.2.133→0.2.137 업데이트가 0.2.137→0.2.137로).
+      let from = previousManifest?.version ?? null
+      let kind = previousManifest ? 'update' : 'install'
+      try {
+        const existing = JSON.parse(readFileSync(pendingPath, 'utf8'))
+        if (existing.to === manifest.version) {
+          // 같은 사이클의 재기록(스택 init의 base 재실행 등): 사이클 성격(kind)과
+          // 진짜 출발 버전(from)은 첫 기록이 안다 — 재실행 시점의 previousManifest는
+          // 이미 새 버전이라 from이 to와 같아진다(멀티사이트 #6 실측).
+          kind = existing.kind ?? kind
+          if (existing.from) from = existing.from
+        }
+      } catch {}
+      if (from === manifest.version) from = null // 자기 자신으로의 "업데이트"는 무의미
       writeFileSync(pendingPath, JSON.stringify({
-        kind: previousManifest ? 'update' : 'install',
-        from: previousManifest?.version ?? null,
+        kind,
+        from,
         to: manifest.version,
         at: manifest.installedAt,
       }, null, 2))

@@ -40,16 +40,26 @@ function argValue(name) {
   return index !== -1 ? args[index + 1] : null
 }
 
-const kind = argValue('--kind')
-const fromVersion = argValue('--from') ?? '-'
-const toVersion = argValue('--to')
+// 무인자 실행이 정상 경로다(0.2.138, 멀티사이트 제안): 에이전트는 표식(pending-report.json)만
+// 보고 실행하면 되고, 인자는 표식이 없거나 덮어쓸 때만 쓴다.
+const pendingDefaults = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(repoRoot, '.harness/generated/pending-report.json'), 'utf8'))
+  } catch {
+    return {}
+  }
+})()
+const kind = argValue('--kind') ?? pendingDefaults.kind ?? null
+const fromVersion = argValue('--from') ?? pendingDefaults.from ?? '-'
+const toVersion = argValue('--to') ?? pendingDefaults.to ?? null
 const notesFile = argValue('--notes-file')
 const dryRun = args.includes('--dry-run')
 
 const rebuildOnly = args.includes('--rebuild-history')
 
 if (!rebuildOnly && (!['install', 'update'].includes(kind ?? '') || !toVersion)) {
-  console.error('사용법: report:install -- --kind install|update --to <버전> [--from <버전>] [--notes-file <md>] [--dry-run]')
+  console.error('사용법: report:install                     # 표식(pending-report.json)의 값으로 실행')
+  console.error('       report:install -- --kind install|update --to <버전> [--from <버전>] [--notes-file <md>] [--dry-run]')
   console.error('       report:install -- --rebuild-history   # 리포트 생성 없이 이력 표만 재생성(치유)')
   process.exit(1)
 }
@@ -95,7 +105,9 @@ function readAdapterEnv() {
   return values
 }
 
-const today = gitOutput(['log', '-1', '--format=%cd', '--date=format:%Y-%m-%d']) || new Date().toISOString().slice(0, 10)
+// 날짜는 실제 오늘(0.2.138): 마지막 커밋 날짜를 우선했더니 리포트 제목이 하루 전으로
+// 찍혔다(멀티사이트 #6 실측 — 커밋 없이 업데이트만 한 날).
+const today = new Date().toISOString().slice(0, 10)
 const project = projectName()
 const kindLabel = kind === 'install' ? '설치' : '업데이트'
 const manifest = (() => {

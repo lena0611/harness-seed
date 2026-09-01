@@ -3063,13 +3063,28 @@ function pendingReportMarkerRemindsUntilReported() {
   // 요약 칸 승격(clubadm 에이전트의 grep 필터 실측 대응): 필터로 봐도 걸리는 자리에 올린다.
   assert(out.includes('수동 조치: 설치·업데이트 리포트 대기'), 'the pending report must surface in the check summary manual-actions line')
 
-  // 업데이트는 from/to를 기록한다.
+  // 업데이트는 from/to를 기록한다. 구버전(0.2.137 이전) 소비자는 표식 파일 자체가
+  // 없으므로, 시뮬레이션도 표식을 지운 상태에서 시작해야 현실과 같다.
+  fs.rmSync(path.join(target, pendingRel), { force: true })
+  const manifestRel = '.harness/install-manifest.json'
+  const before = JSON.parse(read(target, manifestRel))
+  before.version = '0.2.0' // 구버전 설치본 시뮬레이션
+  writeJson(target, manifestRel, before)
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
   const updated = JSON.parse(read(target, pendingRel))
-  assert(updated.kind === 'update' && typeof updated.from === 'string', 'an update marker must record the prior version')
+  assert(updated.kind === 'update' && updated.from === '0.2.0', 'an update marker must record the prior version')
+
+  // 같은 목표 버전으로 init이 한 번 더 돌아도(스택 init의 base 재실행 실측) from은 보존된다.
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const rewritten = JSON.parse(read(target, pendingRel))
+  assert(rewritten.from === '0.2.0', 'a same-target rewrite must preserve the original from (multisite #6)')
+
+  // 무인자 report:install은 표식 값을 그대로 쓴다.
+  const noArg = run(nodeBin, [path.join(target, '.harness/bin/report-install.mjs'), '--dry-run'], { cwd: target })
+  assert(noArg.includes('0.2.0→'), 'argless report:install must adopt the marker from/to')
 
   // report:install(무토큰 → 파일 fail-open)도 보고 완료로 인정되어 표식과 안내가 사라진다.
-  run(nodeBin, [path.join(target, '.harness/bin/report-install.mjs'), '--kind', 'update', '--from', updated.from, '--to', updated.to], { cwd: target })
+  run(nodeBin, [path.join(target, '.harness/bin/report-install.mjs')], { cwd: target })
   assert(!exists(target, pendingRel), 'reporting (even file fallback) must clear the marker')
   const out2 = runGuard(target)
   assert(!out2.includes('결과 리포트가 아직 안 남았습니다'), 'the reminder must stop once reported')
