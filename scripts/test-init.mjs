@@ -3060,6 +3060,8 @@ function pendingReportMarkerRemindsUntilReported() {
   const out = runGuard(target)
   assert(out.includes('결과 리포트가 아직 안 남았습니다'), 'check must remind while the marker exists')
   assert(out.includes('pending-report.json'), 'the reminder must state how to opt out')
+  // 요약 칸 승격(clubadm 에이전트의 grep 필터 실측 대응): 필터로 봐도 걸리는 자리에 올린다.
+  assert(out.includes('수동 조치: 설치·업데이트 리포트 대기'), 'the pending report must surface in the check summary manual-actions line')
 
   // 업데이트는 from/to를 기록한다.
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -3071,6 +3073,7 @@ function pendingReportMarkerRemindsUntilReported() {
   assert(!exists(target, pendingRel), 'reporting (even file fallback) must clear the marker')
   const out2 = runGuard(target)
   assert(!out2.includes('결과 리포트가 아직 안 남았습니다'), 'the reminder must stop once reported')
+  assert(!out2.includes('리포트 대기'), 'the summary line must clear once reported')
 }
 
 function seedModeTargetKeepsSeedOnlyDocs() {

@@ -490,7 +490,13 @@ function printConsumerSummary({ edgeResult, criticalResult, cacheHit = false, fa
   if (templateGap.selected && templateGap.gaps > 0) warnings.push(`템플릿 계약 갭 ${templateGap.gaps}건`)
   if (managedDrift.drifted.length > 0) warnings.push(`하네스 파일 ${managedDrift.drifted.length}건이 업데이트에서 제외됨`)
   console.log(`주의: ${warnings.length === 0 ? '없음' : warnings.join(', ')}`)
-  console.log(`수동 조치: ${openManualActions === 0 ? '없음' : `${openManualActions}건 (.harness/session/manual-actions.md 확인)`}`)
+  // 보고 대기(0.2.137)는 요약 칸에도 올린다 — 소비자 에이전트가 출력을 grep으로 걸러 봐도
+  // (실측: clubadm 에이전트가 keyword 필터로 tail 안내를 놓침) 요약 줄은 읽는 지점이라서다.
+  const pendingReport = fs.existsSync(path.join(repoRoot, '.harness/generated/pending-report.json'))
+  const manualParts = []
+  if (openManualActions > 0) manualParts.push(`${openManualActions}건 (.harness/session/manual-actions.md 확인)`)
+  if (pendingReport) manualParts.push('설치·업데이트 리포트 대기 (harness report:install)')
+  console.log(`수동 조치: ${manualParts.length === 0 ? '없음' : manualParts.join(', ')}`)
   console.log(`추천 조치: ${recommendedActions.length === 0 ? '없음' : recommendedActions.join(', ')}`)
   console.log(`관문 검사: ${cacheHit ? '캐시 재사용' : '실행'}`)
   // 죽은 verify 선언 감지(score-print 요청, 2026-08-28): 과거에 검증을 하네스에 맡겼던

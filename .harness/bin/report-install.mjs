@@ -46,8 +46,11 @@ const toVersion = argValue('--to')
 const notesFile = argValue('--notes-file')
 const dryRun = args.includes('--dry-run')
 
-if (!['install', 'update'].includes(kind ?? '') || !toVersion) {
+const rebuildOnly = args.includes('--rebuild-history')
+
+if (!rebuildOnly && (!['install', 'update'].includes(kind ?? '') || !toVersion)) {
   console.error('사용법: report:install -- --kind install|update --to <버전> [--from <버전>] [--notes-file <md>] [--dry-run]')
+  console.error('       report:install -- --rebuild-history   # 리포트 생성 없이 이력 표만 재생성(치유)')
   process.exit(1)
 }
 
@@ -165,6 +168,31 @@ async function gitlab(method, apiPath, body) {
   return response.json()
 }
 
+// 리포트 이슈 제목을 표 행으로 파싱한다. 제목 형식은 이 스크립트가 만들므로 고정이다:
+//   [설치|업데이트] <프로젝트> <from>→<to> (<YYYY-MM-DD>)
+function titleToRow(issue) {
+  const match = issue.title.match(/^\[(설치|업데이트)\] (.+) (\S+)→(\S+) \((\d{4}-\d{2}-\d{2})\)$/)
+  if (!match) return null
+  return `| ${match[5]} | ${match[2]} | ${match[1]} | ${match[3]} → ${match[4]} | #${issue.iid} |`
+}
+
+function tableRowCount(table) {
+  return table.split('\n').filter((line) => /^\| \d{4}-/.test(line)).length
+}
+
+async function rebuildHistoryTable() {
+  const rows = []
+  for (let page = 1; page <= 10; page += 1) {
+    const issues = await gitlab('GET', `/projects/${encodedProject}/issues?labels=${encodeURIComponent('설치리포트')}&state=all&per_page=100&page=${page}&order_by=created_at&sort=asc`)
+    for (const issue of issues) {
+      const row = titleToRow(issue)
+      if (row) rows.push(row)
+    }
+    if (issues.length < 100) break
+  }
+  return `${HISTORY_HEADER}\n${rows.join('\n')}`
+}
+
 const HISTORY_TITLE = '하네스 설치·업데이트 이력'
 // 5칸 고정(리포트 링크 포함). 처음엔 4칸 헤더를 문자열 치환으로 5칸으로 늘렸는데,
 // 구분선 치환이 어긋나 GitLab이 표로 렌더링하지 못했다(첫 실측 #2에서 발견·수동 보정).
@@ -176,6 +204,24 @@ const HISTORY_HEADER = [
   '| --- | --- | --- | --- | --- |',
 ].join('\n')
 
+if (rebuildOnly) {
+  if (!token) {
+    console.error('--rebuild-history는 등록 토큰이 필요합니다(HARNESS_BODY_ISSUE_TOKEN).')
+    process.exit(1)
+  }
+  const table = await rebuildHistoryTable()
+  const found = await gitlab('GET', `/projects/${encodedProject}/issues?labels=${encodeURIComponent('설치이력표')}&state=all&per_page=1`)
+  if (found.length === 0) {
+    const historyIssue = await gitlab('POST', `/projects/${encodedProject}/issues`, { title: HISTORY_TITLE, description: table, labels: '설치이력표' })
+    console.log(`이력 표 이슈 생성: #${historyIssue.iid} (리포트 ${tableRowCount(table)}건)`)
+  } else {
+    await gitlab('PUT', `/projects/${encodedProject}/issues/${found[0].iid}`, { description: table })
+    console.log(`이력 표 재생성: #${found[0].iid} (리포트 ${tableRowCount(table)}건 반영)`)
+  }
+  process.exit(0)
+}
+
+
 try {
   const issue = await gitlab('POST', `/projects/${encodedProject}/issues`, {
     title,
@@ -184,21 +230,23 @@ try {
   })
   console.log(`리포트 이슈 등록: #${issue.iid} ${issue.web_url ?? ''}`)
 
+  // 이력 표는 리포트 이슈들(진실 원장)로부터 매번 전체 재생성한다(0.2.137).
+  // 종전의 "기존 description에 내 행 append"는 두 구멍이 있었다 — ① 도구를 안 거친
+  // 수기 등록 이슈는 행이 영영 안 생긴다(첫날 실측: clubadm #4, API 직접 호출) ② 동시
+  // 등록 시 읽고-고쳐-쓰기 경쟁으로 행이 덮일 수 있다. 재생성이면 표는 파생 뷰가 되어
+  // 어떤 경로로 이슈가 생겼든 다음 실행이 전체를 다시 그리며 스스로 복구된다.
+  const table = await rebuildHistoryTable()
   const found = await gitlab('GET', `/projects/${encodedProject}/issues?labels=${encodeURIComponent('설치이력표')}&state=all&per_page=1`)
-  const rowWithLink = `${historyRow} #${issue.iid} |`
   if (found.length === 0) {
     const historyIssue = await gitlab('POST', `/projects/${encodedProject}/issues`, {
       title: HISTORY_TITLE,
-      description: `${HISTORY_HEADER}\n${rowWithLink}`,
+      description: table,
       labels: '설치이력표',
     })
     console.log(`이력 표 이슈 생성: #${historyIssue.iid}`)
   } else {
-    const historyIssue = found[0]
-    await gitlab('PUT', `/projects/${encodedProject}/issues/${historyIssue.iid}`, {
-      description: `${historyIssue.description ?? HISTORY_HEADER}\n${rowWithLink}`,
-    })
-    console.log(`이력 표에 행 추가: #${historyIssue.iid}`)
+    await gitlab('PUT', `/projects/${encodedProject}/issues/${found[0].iid}`, { description: table })
+    console.log(`이력 표 재생성: #${found[0].iid} (리포트 ${tableRowCount(table)}건 반영)`)
   }
   clearPendingMarker()
 } catch (error) {
