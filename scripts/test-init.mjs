@@ -3091,6 +3091,15 @@ function pendingReportMarkerRemindsUntilReported() {
   assert(!out2.includes('리포트 대기'), 'the summary line must clear once reported')
 }
 
+// 0.2.139 — scorecard #8: 매 실행 동일한 명령 안내 블록이 업데이트 출력의 절반을 차지해
+// 에이전트가 grep 필터를 걸게 만들었다. 업데이트 출력은 "달라진 것 + 해야 할 일"만 남긴다.
+function updateOutputSkipsStaticCommandGuide() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const out = run(nodeBin, [path.join(target, '.harness/bin/update-harness.mjs'), '--base-only', '--dry-run'], { cwd: target })
+  assert(!out.includes('업데이트 후 유용한 소비자 명령'), 'the static command guide must not repeat on every update')
+}
+
 function seedModeTargetKeepsSeedOnlyDocs() {
   const target = makeTarget()
   // seed-mode 마커가 있으면 본체 타깃으로 간주 → seed-only 문서를 그대로 설치한다.
@@ -6832,6 +6841,7 @@ const tests = [
   freshCriticalPathTemplateStartsEmpty,
   reportInstallFailsOpenToFileWithoutToken,
   pendingReportMarkerRemindsUntilReported,
+  updateOutputSkipsStaticCommandGuide,
   seedModeTargetKeepsSeedOnlyDocs,
   updateRemovesRetiredManagedCommandDoc,
   freshInstallHasNoRegistryOrphans,

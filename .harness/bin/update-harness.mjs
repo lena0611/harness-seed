@@ -358,25 +358,11 @@ function run(command, args) {
 }
 
 function printConsumerCommandGuide() {
-  console.log(`
-업데이트 후 유용한 소비자 명령:
-  - 현재 상태 가이드 열기
-       .harness/bin/harness guide --open
-  - 프로젝트 구조와 로컬룰 후보 다시 스캔
-       .harness/bin/harness scan
-  - 업데이트 인수인계 요약 다시 생성
-       .harness/bin/harness handoff
-  - 큰 작업 전 읽을 문서와 스킬 좁히기
-       .harness/bin/harness context "<작업 설명>"
-  - 운영 업무 시작(Claude Code)
-       /운영업무
-  - 최종화 승인 후 검증
-       .harness/bin/harness check
-  - 다음 업데이트 후보 확인
-       .harness/bin/harness outdated
-  - 승인한 git commit/push 전 자동 검증 연결
-       .harness/bin/harness hooks:install
-`)
+  // 출력 다이어트(0.2.139, scorecard #8): 매 실행 동일한 명령 안내 10여 줄이 업데이트
+  // 출력의 절반을 차지해 에이전트가 grep 필터를 걸게 만들었다(신호 대 잡음). 업데이트
+  // 때는 "이번에 해야 할 일"만 남기고, 전체 명령 목록은 런처(무인자)가 항상 보여준다.
+  console.log('')
+  console.log('명령 전체 목록: .harness/bin/harness (인자 없이 실행)')
 }
 
 function main() {
