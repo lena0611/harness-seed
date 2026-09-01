@@ -2787,6 +2787,9 @@ ${renderNodeStep(TARGET)}
   5) 팀 기준으로 남길 판단이 생기면 기록
        .harness/session/decision-log.md
        또는 판단이 필요하면 .harness/session/developer-input-queue.md
+  5-1) 설치 결과를 본체에 알리기 (리더 승인 후 — 개선 의견이 있으면 함께 실립니다)
+       .harness/bin/harness report:install -- --kind install --to <설치 버전>
+       (토큰이 없으면 파일로만 남고 전달 안내가 나옵니다)
   6) 필요하면 scaffold 템플릿 후보 조회 후 적용
        .harness/bin/harness templates:list
        .harness/bin/harness template:apply --preset-git <repo-url> --ref <tag-or-branch>
