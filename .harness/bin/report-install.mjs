@@ -180,27 +180,52 @@ async function gitlab(method, apiPath, body) {
   return response.json()
 }
 
-// 리포트 이슈 제목을 표 행으로 파싱한다. 제목 형식은 이 스크립트가 만들므로 고정이다:
+// 리포트 이슈 제목을 파싱한다. 제목 형식은 이 스크립트가 만들므로 고정이다:
 //   [설치|업데이트] <프로젝트> <from>→<to> (<YYYY-MM-DD>)
-function titleToRow(issue) {
+function parseReportTitle(issue) {
   const match = issue.title.match(/^\[(설치|업데이트)\] (.+) (\S+)→(\S+) \((\d{4}-\d{2}-\d{2})\)$/)
   if (!match) return null
-  return `| ${match[5]} | ${match[2]} | ${match[1]} | ${match[3]} → ${match[4]} | #${issue.iid} |`
+  return { kind: match[1], project: match[2], from: match[3], to: match[4], date: match[5], iid: issue.iid }
 }
 
 function tableRowCount(table) {
-  return table.split('\n').filter((line) => /^\| \d{4}-/.test(line)).length
+  // 헤더·구분선 다음의 데이터 행 수 = 소비자 프로젝트 수
+  return Math.max(0, table.split('\n').filter((line) => line.startsWith('| ')).length - 2)
 }
 
+// 현황판 재생성(2026-09-02 사용자 지시): 행 = 소비자 프로젝트 하나(이벤트 로그가 아니라 최신 상태).
+// 새 행은 새 소비자가 나타났을 때만 추가되고, 업데이트는 그 프로젝트 행을 갱신한다.
 async function rebuildHistoryTable() {
-  const rows = []
+  const entries = []
   for (let page = 1; page <= 10; page += 1) {
     const issues = await gitlab('GET', `/projects/${encodedProject}/issues?labels=${encodeURIComponent('설치리포트')}&state=all&per_page=100&page=${page}&order_by=created_at&sort=asc`)
     for (const issue of issues) {
-      const row = titleToRow(issue)
-      if (row) rows.push(row)
+      const parsed = parseReportTitle(issue)
+      if (parsed) entries.push(parsed)
     }
     if (issues.length < 100) break
+  }
+
+  const projects = new Map() // 삽입 순서 = 처음 나타난 순서
+  for (const entry of entries) {
+    if (!projects.has(entry.project)) {
+      projects.set(entry.project, { install: null, earliest: entry, latestUpdate: null })
+    }
+    const state = projects.get(entry.project)
+    if (entry.kind === '설치' && !state.install) state.install = entry
+    if (entry.kind === '업데이트') state.latestUpdate = entry // asc 순회라 마지막 것이 최신
+  }
+
+  const rows = []
+  for (const [project, state] of projects) {
+    // 설치 기록이 없는 기존 소비자(리포트 기능 이전 설치)는 첫 기록의 from으로 하한만 표시.
+    const installCell = state.install
+      ? `${state.install.date} / ${state.install.to}`
+      : (state.earliest.from && state.earliest.from !== '-' ? `- / ${state.earliest.from} 이전` : '-')
+    const updateCell = state.latestUpdate
+      ? `${state.latestUpdate.date} / ${state.latestUpdate.from} → ${state.latestUpdate.to} (#${state.latestUpdate.iid})`
+      : '-'
+    rows.push(`| ${project} | ${installCell} | ${updateCell} |`)
   }
   return `${HISTORY_HEADER}\n${rows.join('\n')}`
 }
@@ -209,11 +234,11 @@ const HISTORY_TITLE = '하네스 설치·업데이트 이력'
 // 5칸 고정(리포트 링크 포함). 처음엔 4칸 헤더를 문자열 치환으로 5칸으로 늘렸는데,
 // 구분선 치환이 어긋나 GitLab이 표로 렌더링하지 못했다(첫 실측 #2에서 발견·수동 보정).
 const HISTORY_HEADER = [
-  '이 이슈는 소비자 프로젝트의 설치·업데이트 이력 표입니다. 각 행은 report:install이 추가합니다.',
-  '(본체 운영용 배포 현황입니다 — 개발 행위 추적이 아닙니다.)',
+  '이 이슈는 소비자 프로젝트의 배포 현황판입니다. 행 = 프로젝트 하나(최신 상태), 새 행은 새 소비자가 나타났을 때만 늘어납니다.',
+  '리포트 이슈(라벨 설치리포트)들로부터 report:install이 매번 재생성합니다. (본체 운영용 — 개발 행위 추적이 아닙니다.)',
   '',
-  '| 일자 | 프로젝트 | 종류 | 버전 | 리포트 |',
-  '| --- | --- | --- | --- | --- |',
+  '| 프로젝트 | 설치일 / 버전 | 업데이트일 / 버전 |',
+  '| --- | --- | --- |',
 ].join('\n')
 
 if (rebuildOnly) {
