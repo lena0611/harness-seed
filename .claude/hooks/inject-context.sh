@@ -13,22 +13,9 @@ fi
 printf 'Harness context: read CLAUDE.md first; check .harness/policy/ai-standard-guiding-policy.md before work; source of truth is .harness/; activeStack=%s; before user finalization, report checks as candidates. If user asks final check, run .harness/bin/harness check. If user asks commit/push and hooks are installed, trust pre-commit/pre-push checks and do not run duplicate manual harness:check first.\n' "$active_stack"
 printf 'Harness reporting: when reporting actual work progress, summarize as [harness] request/context/impact/action/decision/verify. Do not force this format for simple Q&A, casual, or meta-only turns.\n'
 
-# 연결 프로젝트(0.2.139): 매 프롬프트에 한 줄 — 그쪽 파일 작업 전 기준 문서 읽기·런처 경로·커밋 위치 상기.
-if [ -f "$profile" ]; then
-  node -e '
-const fs = require("fs"), path = require("path");
-const root = process.argv[1];
-let linked = [];
-try { linked = JSON.parse(fs.readFileSync(path.join(root, ".harness/policy/profile.json"), "utf8")).linkedProjects || []; } catch {}
-for (const it of Array.isArray(linked) ? linked : []) {
-  if (!it || typeof it.path !== "string") continue;
-  const abs = path.resolve(root, it.path);
-  if (!fs.existsSync(abs)) continue;
-  const label = it.label || it.path;
-  const focus = typeof it.focus === "string" && it.focus ? it.focus : "";
-  console.log(`Linked project ${label}: ${abs}${focus ? ` (focus ${focus})` : ""} — before touching files there, read its CLAUDE.md${focus ? ` and ${focus}/CLAUDE.md` : ""}; run its harness via ${abs}/.harness/bin/harness; commit inside that repo (its own git hooks check).`);
-}
-' "$root" 2>/dev/null || true
+# 연결 프로젝트(0.2.139): 매 프롬프트에 한 줄 — 해석 규칙은 .harness/bin/linked-projects.mjs.
+if [ -f "$root/.harness/bin/linked-projects.mjs" ]; then
+  node "$root/.harness/bin/linked-projects.mjs" prompt "$root" 2>/dev/null || true
 fi
 
 # 훅 미설치 감지(결정 94): 훅 설정은 clone으로 공유되지 않으므로 새로 받은 clone은 관문이 꺼져 있다.

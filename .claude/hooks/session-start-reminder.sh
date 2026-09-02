@@ -68,45 +68,8 @@ if [ -f "$QUEUE" ]; then
   ' "$QUEUE" || true
 fi
 
-# 연결 프로젝트(0.2.139): 프론트/백엔드처럼 저장소가 둘인데 한 대화창에서 둘 다 다루는 개발자용.
-# Claude Code는 추가 디렉터리(--add-dir)의 파일·스킬·명령은 열지만 그쪽 세션 훅·설정은 돌리지 않고,
-# 중첩 CLAUDE.md(서비스 룰)는 파일을 읽어도 로드하지 않는다(2026-09-02 실측). 그래서 profile.linkedProjects에
-# 선언된 저장소의 기준 문서 위치·런처 경로·커밋 규칙을 여기서 대신 주입한다. 읽기만 하며 그쪽을 고치지 않는다.
-PROFILE="$ROOT/.harness/policy/profile.json"
-if [ -f "$PROFILE" ]; then
-  node -e '
-const fs = require("fs"), path = require("path");
-const root = process.argv[1];
-let linked = [];
-try { linked = JSON.parse(fs.readFileSync(path.join(root, ".harness/policy/profile.json"), "utf8")).linkedProjects || []; } catch {}
-if (!Array.isArray(linked) || linked.length === 0) process.exit(0);
-console.log("");
-console.log("[harness] 연결 프로젝트 (이 세션에서 함께 다루는 다른 저장소)");
-for (const item of linked) {
-  if (!item || typeof item.path !== "string") continue;
-  const abs = path.resolve(root, item.path);
-  const label = item.label || item.path;
-  const focus = typeof item.focus === "string" && item.focus ? item.focus.replace(/\/+$/, "") : null;
-  if (!fs.existsSync(abs)) {
-    console.log(`- ${label}: ${item.path} — 경로가 없습니다(clone 위치 확인). 이 저장소 작업은 이 세션에서 할 수 없습니다.`);
-    continue;
-  }
-  const hasHarness = fs.existsSync(path.join(abs, ".harness/bin/harness"));
-  console.log(`- ${label}: ${abs}${focus ? ` (관심 영역 ${focus})` : ""}${hasHarness ? "" : " — 하네스 미설치(기준 문서 없음, 파일 작업만)"}`);
-  const docs = [path.join(abs, "CLAUDE.md")];
-  if (focus) docs.push(path.join(abs, focus, "CLAUDE.md"));
-  const existing = docs.filter((d) => fs.existsSync(d));
-  if (existing.length) console.log(`  그쪽 파일을 읽거나 고치기 전에 반드시 먼저 읽기: ${existing.join(", ")}`);
-  if (hasHarness) {
-    console.log(`  그쪽 하네스 명령은 ${path.join(abs, ".harness/bin/harness")} <명령> 으로 실행합니다(이 저장소 런처가 아님). 커밋·푸시는 그 저장소 안에서 — 그쪽 git 훅이 검사합니다.`);
-    console.log(`  ⚠ 그쪽 훅(쓰기 시점 차단·검사)은 이 세션에서 자동 실행되지 않습니다 — 그쪽 파일을 고쳤으면 그 저장소에서 커밋해 훅 검사를 받고, 필요하면 위 런처로 check를 돌리세요.`);
-    const rem = path.join(abs, ".harness/session/next-session-reminder.md");
-    if (fs.existsSync(rem)) {
-      const heads = fs.readFileSync(rem, "utf8").split(/\r?\n/).filter((l) => /^## /.test(l)).slice(0, 3);
-      if (heads.length) console.log(`  그쪽 리마인더 최근 항목: ${heads.map((h) => h.replace(/^## /, "")).join(" / ")} (전문: ${rem})`);
-    }
-  }
-}
-console.log("  같은 이름의 슬래시 명령(/하네스업데이트 등)은 이 저장소 것만 뜹니다 — 연결 저장소 작업은 위 런처 경로로.");
-' "$ROOT" 2>/dev/null || true
+# 연결 프로젝트(0.2.139, 해석기 0.2.140): 팀 공유 profile.linkedProjects의 저장소를 이 PC 경로로 풀어
+# 기준 문서 위치·런처·커밋 규칙·게이트 미실행 경고를 주입한다. 해석 규칙은 .harness/bin/linked-projects.mjs.
+if [ -f "$ROOT/.harness/bin/linked-projects.mjs" ]; then
+  node "$ROOT/.harness/bin/linked-projects.mjs" session "$ROOT" 2>/dev/null || true
 fi

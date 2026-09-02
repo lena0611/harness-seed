@@ -26,9 +26,11 @@
 ## 0.2.140 - 미배포
 
 ### 공지
+- [개선] 연결 프로젝트 선언에 내 PC 경로를 적지 않아도 됩니다 — 팀 파일에는 저장소 주소(repo)만 적고, 각자 PC에서의 위치는 이미 열어 둔 접근 폴더 목록에서 하네스가 찾습니다. 어디로 풀렸는지는 `harness linked`로 봅니다.
 - [개선] 하네스를 처음 설치하면 끝에 "설치 결과 리포트를 남길까요?"를 물어봅니다 — 전에는 업데이트 때만 묻고 설치 때는 조용히 넘어가서, 첫 설치 팀의 리포트가 파일로만 남고 전달되지 않았습니다.
 
 ### 상세
+- **연결 프로젝트 해석기 — 팀 파일에서 PC 경로 제거 (2026-09-02 지적)** — 0.2.139의 `linkedProjects[].path`는 형상관리 대상 파일에 사람마다 다른 clone 경로를 박는 설계였다(상대경로여도 배치가 다르면 깨짐). 선언은 `{ label, repo, focus }`(저장소 정체)만, PC별 위치는 개발자가 어차피 열어 두는 `.claude/settings.local.json`의 `permissions.additionalDirectories`(공유 settings.json도 봄)에서 git remote URL이 일치하는 폴더를 찾아 해석(ssh/https 표기 정규화). `path`는 선택 힌트로 남겨 0.2.139 선언 호환. 해석·렌더링을 `.harness/bin/linked-projects.mjs` 한 곳으로 모으고(세션 블록·프롬프트 한 줄·JSON·상태 표) 훅 3개는 호출만, 런처 `harness linked`(sh·cmd) 신설. 미해석 항목은 "additionalDirectories에 추가하세요"로 안내. 함께 정정한 서술: "세션 밖 파일은 못 만진다"→"만질 때마다 권한 확인, additionalDirectories가 면제"; 연결 저장소의 git 훅은 커밋 시 자동이고 안 되는 건 세션 훅(본체 훅은 동일해 주 폴더 것이 대신, 빠지는 건 scope: project 게이트)임을 정본·안내문에 명시; `sources[].inject`는 'always' 하나뿐이며 생략=등록만(실존 검증)임을 profile notes에 명시. 회귀 sessionStartHookInjectsLinkedProjectPointers 재작성(repo 해석·미해결 안내·상태 표).
 - **설치 완료 출력 맨 끝에 리포트 질문 의무 (백엔드 common 첫 설치 실측, 2026-09-02)** — "결과 리포트를 남길까요?" 질문 의무는 `/하네스업데이트` 스킬 마무리 절에만 있어 설치 경로(플러그인 `harness-install` 스킬 + `init` 출력)에는 닿지 않았다. 신규 프로젝트는 토큰도 없어(fail-open 파일) 에이전트가 "파일로 썼다"에서 멈추고 전달까지 가지 않았다(#13·#14는 사람이 토큰을 받아 뒤늦게 등록). 조치: `init` 출력의 마지막 블록 `::: 설치 결과 리포트 :::` — 질문 의무(AskUserQuestion), 무인자 `report:install`, 토큰 없음 경로(파일 전달 또는 공용 토큰 DM 요청 → `~/.config/ai-standard/report.env` 개발자당 1회), 생략 시 표식 삭제. 절차 본문은 하네스업데이트.md 마무리 절 한 곳(결정 88), 여기서는 가리킨다. embedded(스택 init 내부) 실행은 스택이 최종 안내를 맡으므로 침묵. 플러그인 `smartscore-harness` 0.1.2에도 같은 절 추가(설치 직후 그 문서를 읽으라는 포인터). 회귀 installOutputEndsWithReportPrompt.
 - **설치 완료 출력의 낡은 훅 안내 교정** — "새로 clone한 팀원은 각자 1회 hooks:install" 문구가 0.2.131 보강(세션 시작 자동 복원) 이후에도 3곳에 남아 있었다(플러그인 스킬에서 오늘 고친 것과 같은 화석). "세션을 열면 자동으로 켜고 알려준다"로 교정, 회귀 단언 갱신.
 

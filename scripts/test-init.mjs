@@ -2844,25 +2844,34 @@ function sessionStartHookInjectsLinkedProjectPointers() {
   runInit(back, '--no-scan', '--no-handoff', '--no-check')
   fs.mkdirSync(path.join(back, 'svc/multisite'), { recursive: true })
   fs.writeFileSync(path.join(back, 'svc/multisite/CLAUDE.md'), '# 서비스 룰\n')
+  // 0.2.140: 팀 파일에는 저장소 정체(repo)만, PC 경로는 개발자의 접근 폴더 목록에서 git remote로 찾는다.
+  run('git', ['remote', 'add', 'origin', 'https://git.example.com/team/backend.git'], { cwd: back })
+  writeJson(front, '.claude/settings.local.json', { permissions: { additionalDirectories: [path.relative(front, back)] } })
   const profileRel = '.harness/policy/profile.json'
   const profile = JSON.parse(read(front, profileRel))
   profile.linkedProjects = [
-    { path: path.relative(front, back), label: '백엔드', focus: 'svc/multisite' },
-    { path: '../does-not-exist-xyz', label: '유령' },
+    { label: '백엔드', repo: 'git@git.example.com:team/backend.git', focus: 'svc/multisite' }, // ssh 표기 ↔ https remote 일치
+    { label: '유령', path: '../does-not-exist-xyz' },
+    { label: '미해결', repo: 'https://git.example.com/none/nowhere.git' },
   ]
   writeJson(front, profileRel, profile)
   const env = { ...process.env, CLAUDE_PROJECT_DIR: front }
 
   const start = run('/bin/sh', [path.join(front, '.claude/hooks/session-start-reminder.sh')], { cwd: front, env })
   assert(start.includes('연결 프로젝트') && start.includes('백엔드'), 'session start must announce linked projects')
-  assert(start.includes(path.join(back, 'CLAUDE.md')) && start.includes(path.join(back, 'svc/multisite/CLAUDE.md')), 'it must point at the linked root and focus CLAUDE.md')
+  assert(start.includes(path.join(back, 'CLAUDE.md')) && start.includes(path.join(back, 'svc/multisite/CLAUDE.md')), 'repo-declared project must resolve through additionalDirectories to the real root and focus CLAUDE.md')
   assert(start.includes(path.join(back, '.harness/bin/harness')), 'it must name the linked launcher path')
   assert(start.includes('자동 실행되지 않습니다'), 'it must warn that the linked repo hooks do not run in this session (#15)')
-  assert(start.includes('유령') && start.includes('경로가 없습니다'), 'a missing linked path must be reported, not ignored')
+  assert(start.includes('유령') && start.includes('못 찾았습니다'), 'a hint path that does not exist must be reported')
+  assert(start.includes('미해결') && start.includes('additionalDirectories'), 'an unresolvable repo must tell the developer to add the folder to additionalDirectories')
 
   const prompt = run('/bin/bash', [path.join(front, '.claude/hooks/inject-context.sh')], { cwd: front, env })
   assert(prompt.includes('Linked project 백엔드') && prompt.includes(path.join(back, '.harness/bin/harness')), 'each prompt must carry the linked-project rule line')
-  assert(!prompt.includes('유령'), 'the prompt line skips missing paths (session start already reported them)')
+  assert(!prompt.includes('유령') && !prompt.includes('미해결'), 'the prompt line skips unresolved entries (session start already reported them)')
+
+  // 상태 표(harness linked): 해석 방식까지 보인다.
+  const status = run(harnessBin(front), ['linked'], { cwd: front, env })
+  assert(status.includes('백엔드') && status.includes(back) && status.includes('git remote 일치'), 'harness linked must show where and how each project resolved')
 
   // 선언이 없으면 아무 말도 없다.
   const plain = makeTarget()

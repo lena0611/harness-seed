@@ -32,6 +32,7 @@ if "%CMD%"=="changelog"       set "SCRIPT=changelog-delta.mjs"
 if "%CMD%"=="uninstall"       set "SCRIPT=uninstall-harness.mjs"
 if "%CMD%"=="prune:aliases"   set "SCRIPT=prune-aliases.mjs"
 if "%CMD%"=="report:install"  set "SCRIPT=report-install.mjs"
+if "%CMD%"=="linked"  set "SCRIPT=linked-projects.mjs"
 if "%CMD%"=="hooks:install"   set "SCRIPT=install-hooks.mjs"
 if "%CMD%"=="standards:list"  set "SCRIPT=list-stack-standards.mjs"
 if "%CMD%"=="templates:list"  set "SCRIPT=list-templates.mjs"
@@ -96,6 +97,7 @@ echo   changelog                  last update changelog   (harness:changelog)
 echo   uninstall                  uninstall plan/apply    (harness:uninstall)
 echo   prune:aliases              prune retired npm aliases (preview; --write to apply)
 echo   report:install             post install/update report to the body issue board
+echo   linked                     where linked projects (other repos) resolve on this PC
 echo   hooks:install              git hooks + template    (hooks:install)
 echo   standards:list             stack harness catalog   (standards:list)
 echo   templates:list             scaffold templates      (templates:list)
