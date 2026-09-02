@@ -126,7 +126,7 @@ trace는 프롬프트 진행 중 짧은 상태 로그, `harness:handoff` 산출�
 - 선언: `.harness/policy/profile.json`의 `linkedProjects`(프로젝트 소유). 예: `{ "path": "../common", "label": "백엔드", "focus": "ss/multisite" }`
 - 동작: 세션 시작 훅이 그 저장소의 기준 문서 위치(루트 CLAUDE.md, focus 폴더의 CLAUDE.md), 하네스 런처 경로, "커밋·푸시는 그 저장소 안에서" 규칙, 리마인더 최근 항목을 주입하고, 프롬프트 컨텍스트가 매 턴 한 줄로 상기합니다.
 - 왜 필요한가(2026-09-02 실측): Claude Code는 추가 디렉터리(`--add-dir`)의 파일·스킬·명령은 열지만 그 저장소의 세션 훅·설정은 돌리지 않고, 중첩 CLAUDE.md(서비스 룰)는 파일을 읽어도 로드하지 않습니다. 루트 CLAUDE.md도 환경변수(`CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`)를 켜야 실립니다. 같은 이름의 슬래시 명령은 하나로 합쳐져 이 저장소 것만 동작합니다.
-- 개발자 몫: 파일 접근 권한은 세션에서 `--add-dir <경로>`(또는 `/add-dir`), 상시로는 `.claude/settings.local.json`의 `permissions.additionalDirectories`. 이것은 개인 PC 설정이라 하네스가 대신 쓰지 않습니다.
+- 개발자 몫: 파일 접근 권한은 `.claude/settings.local.json`의 `permissions.additionalDirectories`(상시, 데스크톱 앱도 동작 — 실측)로 두는 것을 권장합니다. 터미널 세션이면 `--add-dir <경로>`나 `/add-dir`도 되지만, 데스크톱 앱 입력창의 `/add-dir`은 동작하지 않습니다(2026-09-02 실측). 이것은 개인 PC 설정이라 하네스가 대신 쓰지 않습니다.
 - 경계: 하네스는 연결 저장소를 읽기만 하고 수정하지 않습니다. 검사(check)·기획 연동·설치 리포트는 각 저장소가 각자 수행합니다.
 
 ## 확장 방향
