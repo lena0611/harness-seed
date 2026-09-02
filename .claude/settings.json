@@ -47,10 +47,10 @@
       "Read(**/id_ed25519)",
       "Read(**/.aws/credentials)",
       "Read(**/.ssh/**)",
-      "Write(/etc/**)",
-      "Write(/usr/**)",
-      "Write(~/.ssh/**)",
-      "Write(**/.env)"
+      "Edit(/etc/**)",
+      "Edit(/usr/**)",
+      "Edit(~/.ssh/**)",
+      "Edit(**/.env)"
     ]
   },
   "hooks": {

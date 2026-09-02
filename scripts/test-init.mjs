@@ -2822,6 +2822,42 @@ function reportInstallHelpWritesNothing() {
   assert(exists(target, marker), '--help must not consume the pending marker')
 }
 
+// 0.2.139 — 연결 프로젝트: 프론트 세션에서 백엔드 저장소를 함께 다루는 개발자. Claude Code는 추가
+// 디렉터리의 중첩 CLAUDE.md를 로드하지 않고 그쪽 세션 훅도 돌리지 않는다(2026-09-02 실측) —
+// 하네스가 세션 시작·프롬프트 컨텍스트에 그쪽 기준 문서 위치와 규칙을 대신 주입한다.
+function sessionStartHookInjectsLinkedProjectPointers() {
+  const front = makeTarget()
+  const back = makeTarget()
+  runInit(front, '--no-scan', '--no-handoff', '--no-check')
+  runInit(back, '--no-scan', '--no-handoff', '--no-check')
+  fs.mkdirSync(path.join(back, 'svc/multisite'), { recursive: true })
+  fs.writeFileSync(path.join(back, 'svc/multisite/CLAUDE.md'), '# 서비스 룰\n')
+  const profileRel = '.harness/policy/profile.json'
+  const profile = JSON.parse(read(front, profileRel))
+  profile.linkedProjects = [
+    { path: path.relative(front, back), label: '백엔드', focus: 'svc/multisite' },
+    { path: '../does-not-exist-xyz', label: '유령' },
+  ]
+  writeJson(front, profileRel, profile)
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: front }
+
+  const start = run('/bin/sh', [path.join(front, '.claude/hooks/session-start-reminder.sh')], { cwd: front, env })
+  assert(start.includes('연결 프로젝트') && start.includes('백엔드'), 'session start must announce linked projects')
+  assert(start.includes(path.join(back, 'CLAUDE.md')) && start.includes(path.join(back, 'svc/multisite/CLAUDE.md')), 'it must point at the linked root and focus CLAUDE.md')
+  assert(start.includes(path.join(back, '.harness/bin/harness')), 'it must name the linked launcher path')
+  assert(start.includes('유령') && start.includes('경로가 없습니다'), 'a missing linked path must be reported, not ignored')
+
+  const prompt = run('/bin/bash', [path.join(front, '.claude/hooks/inject-context.sh')], { cwd: front, env })
+  assert(prompt.includes('Linked project 백엔드') && prompt.includes(path.join(back, '.harness/bin/harness')), 'each prompt must carry the linked-project rule line')
+  assert(!prompt.includes('유령'), 'the prompt line skips missing paths (session start already reported them)')
+
+  // 선언이 없으면 아무 말도 없다.
+  const plain = makeTarget()
+  runInit(plain, '--no-scan', '--no-handoff', '--no-check')
+  const quiet = run('/bin/sh', [path.join(plain, '.claude/hooks/session-start-reminder.sh')], { cwd: plain, env: { ...process.env, CLAUDE_PROJECT_DIR: plain } })
+  assert(!quiet.includes('연결 프로젝트'), 'no linkedProjects → no linked block')
+}
+
 function hooksInstallWarnsWhenStoredChainIsReplaced() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -6871,6 +6907,7 @@ const tests = [
   criticalPathCellWithMultipleBacktickPathsMatchesEach,
   orphanNoticePointsToLocalRegistryExit,
   hooksInstallWarnsWhenStoredChainIsReplaced,
+  sessionStartHookInjectsLinkedProjectPointers,
   hooksInstallWarnsAboutGitHooksThatStopRunning,
   reportInstallHelpWritesNothing,
   updateRefreshesStaleHarnessModeNotes,
