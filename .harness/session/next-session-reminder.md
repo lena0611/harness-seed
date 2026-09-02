@@ -4,6 +4,7 @@
 
 ## 0.2.140 후보 — 설치 경로 리포트 질문 의무 (2026-09-02 저녁)
 - init 완료 출력 **맨 끝**에 `::: 설치 결과 리포트 :::`(AskUserQuestion 질문 의무·무인자 report:install·토큰 없음 경로·생략 시 표식 삭제, 정본은 하네스업데이트.md 마무리 절). embedded 침묵. "새 clone은 각자 1회 hooks:install" 화석 3곳 교정. 회귀 installOutputEndsWithReportPrompt, 227/227. 커밋 206fb04 — **미push·미릴리스**(사용자 지시 대기).
+- **연결 프로젝트 해석기 v2(d5f4f89, 0.2.140 후보)** — 사용자 지적 6건 반영: 팀 파일에 PC 경로 금지 → `{label, repo, focus}` 선언 + `settings.local.json` additionalDirectories에서 git remote 일치로 해석(`.harness/bin/linked-projects.mjs`, `harness linked`), path는 힌트. 서술 정정: "세션 밖 못 만진다"→"권한 확인·additionalDirectories 면제", settings.local.json은 터미널·데스크톱 모두, 업데이트·check는 한 세션에서 말로("양쪽 하네스 업데이트해") — 에이전트가 런처 경로로, git 훅은 커밋 시 자동·세션 훅만 미실행, sources.inject는 'always' 하나(생략=등록만). 안내문 v3 전달. 픽스처 실측 OK.
 - 플러그인 smartscore-harness **0.1.2** 발행(설치 후 리포트 절, 태그 smartscore-harness-v0.1.2). 이 PC에서 `claude plugin marketplace update smartscore` → `claude plugin update smartscore-harness@smartscore` 로 0.1.1→0.1.2 실측 OK(재시작 필요 문구). autoUpdate 토글이 세션 시작에 조용히 올리는지는 다음 세션에서 `claude plugin list` 버전으로 확인.
 - CI: 수정 push(67405af)의 Policy Guard **success 확인** — 0.2.136 이후 첫 초록. 이후 push마다 `gh run list --branch main --limit 1`로 확인.
 
