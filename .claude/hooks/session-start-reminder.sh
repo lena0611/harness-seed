@@ -1,4 +1,5 @@
 #!/bin/sh
+# scope: harness — 모든 프로젝트에 동일한 본체 훅. 다중 저장소 세션에서는 주 폴더 것으로 충분합니다.
 set -eu
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
@@ -98,6 +99,7 @@ for (const item of linked) {
   if (existing.length) console.log(`  그쪽 파일을 읽거나 고치기 전에 반드시 먼저 읽기: ${existing.join(", ")}`);
   if (hasHarness) {
     console.log(`  그쪽 하네스 명령은 ${path.join(abs, ".harness/bin/harness")} <명령> 으로 실행합니다(이 저장소 런처가 아님). 커밋·푸시는 그 저장소 안에서 — 그쪽 git 훅이 검사합니다.`);
+    console.log(`  ⚠ 그쪽 훅(쓰기 시점 차단·검사)은 이 세션에서 자동 실행되지 않습니다 — 그쪽 파일을 고쳤으면 그 저장소에서 커밋해 훅 검사를 받고, 필요하면 위 런처로 check를 돌리세요.`);
     const rem = path.join(abs, ".harness/session/next-session-reminder.md");
     if (fs.existsSync(rem)) {
       const heads = fs.readFileSync(rem, "utf8").split(/\r?\n/).filter((l) => /^## /.test(l)).slice(0, 3);

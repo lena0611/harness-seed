@@ -214,11 +214,14 @@ function cleanInstallCreatesExpectedFiles() {
   assert(claudeInstructions.includes('최종화 규칙(정본'), 'CLAUDE.md must carry the single canonical finalization rule')
   assert(claudeInstructions.includes('완료 승인 전에는'), 'CLAUDE.md finalization rule must forbid heavy actions before approval')
   assert(claudeInstructions.includes('hook 검증에 맡겨 중복 실행을 피하고'), 'CLAUDE.md should avoid duplicate manual check before hooked commit')
+  // #15(2026-09-02 실측): 상위 폴더·하위 서비스 폴더로 열면 훅이 0개인데 CLAUDE.md는 도달한다 — 그 채널로 알려야 한다.
+  assert(claudeInstructions.includes('세션 주 폴더 확인'), 'CLAUDE.md must tell the agent hooks are off when the primary folder is not the repo root')
 
   const agentInstructions = read(target, 'AGENTS.md')
   assert(agentInstructions.includes('비-Claude 에이전트 필수 동작'), 'AGENTS.md should include non-Claude required behavior')
   assert(agentInstructions.includes('하네스 작업 프로토콜을 자동으로 적용'), 'AGENTS.md should require automatic protocol application')
   assert(agentInstructions.includes('hook이 설치되어 있으면 선행 `harness:check`를 중복 실행하지 않고'), 'AGENTS.md should avoid duplicate manual check before hooked commit')
+  assert(agentInstructions.includes('주 작업 폴더가 이 저장소 루트가 아니면'), 'AGENTS.md must carry the primary-folder warning for non-Claude agents')
 
   const sessionStartAlert = read(target, '.harness/session/session-start-alert.md')
   assert(sessionStartAlert.includes('사용자가 하네스를 언급하지 않는 것은 하네스를 비활성화한다는 뜻이 아닙니다'), 'session start alert should keep harness active without explicit mention')
@@ -2845,6 +2848,7 @@ function sessionStartHookInjectsLinkedProjectPointers() {
   assert(start.includes('연결 프로젝트') && start.includes('백엔드'), 'session start must announce linked projects')
   assert(start.includes(path.join(back, 'CLAUDE.md')) && start.includes(path.join(back, 'svc/multisite/CLAUDE.md')), 'it must point at the linked root and focus CLAUDE.md')
   assert(start.includes(path.join(back, '.harness/bin/harness')), 'it must name the linked launcher path')
+  assert(start.includes('자동 실행되지 않습니다'), 'it must warn that the linked repo hooks do not run in this session (#15)')
   assert(start.includes('유령') && start.includes('경로가 없습니다'), 'a missing linked path must be reported, not ignored')
 
   const prompt = run('/bin/bash', [path.join(front, '.claude/hooks/inject-context.sh')], { cwd: front, env })
@@ -2856,6 +2860,20 @@ function sessionStartHookInjectsLinkedProjectPointers() {
   runInit(plain, '--no-scan', '--no-handoff', '--no-check')
   const quiet = run('/bin/sh', [path.join(plain, '.claude/hooks/session-start-reminder.sh')], { cwd: plain, env: { ...process.env, CLAUDE_PROJECT_DIR: plain } })
   assert(!quiet.includes('연결 프로젝트'), 'no linkedProjects → no linked block')
+}
+
+// #15 4절(2026-09-02): 다중 저장소 세션에서 상대편 훅을 얹어야 하는지 8개를 diff해 판정했다는 제보 —
+// 훅 파일 2번째 줄에 scope를 적어 diff 없이 알 수 있게 한다.
+function bodyHooksDeclareScope() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const dir = path.join(target, '.claude/hooks')
+  const hooks = fs.readdirSync(dir).filter((f) => f.endsWith('.sh'))
+  assert(hooks.length >= 8, `expected the body hook set, got ${hooks.length}`)
+  for (const file of hooks) {
+    const second = fs.readFileSync(path.join(dir, file), 'utf8').split('\n')[1] ?? ''
+    assert(/^# scope: (harness|project)\b/.test(second), `${file} must declare its scope on line 2 (got: ${second})`)
+  }
 }
 
 function hooksInstallWarnsWhenStoredChainIsReplaced() {
@@ -6908,6 +6926,7 @@ const tests = [
   orphanNoticePointsToLocalRegistryExit,
   hooksInstallWarnsWhenStoredChainIsReplaced,
   sessionStartHookInjectsLinkedProjectPointers,
+  bodyHooksDeclareScope,
   hooksInstallWarnsAboutGitHooksThatStopRunning,
   reportInstallHelpWritesNothing,
   updateRefreshesStaleHarnessModeNotes,

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# scope: harness — 모든 프로젝트에 동일한 본체 훅. 다중 저장소 세션에서는 주 폴더 것으로 충분합니다.
 set -euo pipefail
 
 input="$(cat 2>/dev/null || true)"
