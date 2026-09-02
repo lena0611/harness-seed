@@ -8,7 +8,9 @@
 - 사용자 지시: **질문엔 단답 판정 먼저, 풀이는 뒤** (개인 메모리에도 기록). 소비자 개발자들이 "클로드가 장황해 흐름을 놓친다"고 함 — 정책 문서에 응답 스타일 절(단답 먼저·결론 먼저·트레이스는 요약) 추가 제안, **지시 대기**. 0.2.139 후보에 얹을 수 있음.
 - **플러그인 이관**: 개인 테스트 플러그인(practice, 데스크톱 업로드) → GitLab `ai-standard/agents/claude-plugins` 마켓플레이스(`smartscore`)로. 로컬 `~/project/claude-plugins`, smartscore-harness 0.1.1(낡은 hooks:install 안내 교체), 태그 발행. 로드맵 R0~R6(전수 검토 2026-08-25 보고서, docs reviews/) 중 다음은 규범 컨텍스트 장착 — 필요 4가지(배포 채널✓·컨텍스트 경로 설계·정본/캐시 파이프·R0 면제셋) 정리해 답함. 사용자 로컬 재설치(marketplace add/install)는 사용자 몫.
 - **백엔드 common 첫 설치(2026-09-02, 0.2.138)** → #13(정상 완료, 중복·closed)+#14(개선요청 2건). #14 처리 커밋됨(0.2.139 후보): ① `.git/hooks` 실훅(commit-msg)이 core.hooksPath 전환으로 조용히 죽음 → 설치 시 이름 열거 경고(stderr)+이관 예시+범위 주의, **init이 성공 단계 stderr를 이제 노출**(전엔 삼킴) ② `report:install --help`가 리포트 파일 생성 → 사용법만 출력·0 종료. 릴리스 시 #14·#8 close. 현황판 #2는 0.2.138 소비자의 재생성으로 옛 5칸 형식으로 되돌아감(139 배포 후 rebuild로 복귀 — 예상된 일).
-- 0.2.139 후보 6커밋 로컬 대기(양원격 미push): 출력 다이어트·현황판 개편·보드 close 규칙·기록. 릴리스 시 #8 close.
+- **연결 프로젝트(linkedProjects) 신설(0.2.139 후보, c999288)** — "프론트·백엔드를 한 대화창에서" 제보(멀티사이트↔common ss/multisite). 실측(`claude -p --add-dir`, 표식 추적): 추가 디렉터리의 중첩 CLAUDE.md는 파일을 읽어도 로드 안 됨, 루트 CLAUDE.md는 env `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`일 때만, 그쪽 세션 훅 미실행, 동명 슬래시 명령은 하나로 합쳐짐 → 세션 시작·프롬프트 훅이 상대 저장소 기준 문서·런처·커밋 규칙 주입. E2E: 실제 `-p` 세션이 블록을 받고 "두 CLAUDE.md 먼저 읽겠다"고 답함. 덤: settings.json deny `Write(...)`→`Edit(...)`(Claude Code 경고 실측). 실습 픽스처 `~/practice/linked-session-test/{frontend,backend}`. 안내문 `프론트백엔드-한세션-안내.md`(scratchpad) 사용자 전달.
+- 열린 후속: 플러그인 `harness-install` 스킬에 "설치 후 리포트" 절(그릴미 질문·토큰 없으면 파일→전달) + init 완료 출력 강화 — 사용자 지시 대기. 데스크톱 앱에서 `/add-dir` 동작 여부 미실측.
+- 0.2.139 후보 7커밋 로컬 대기(양원격 미push): 출력 다이어트·현황판 개편·보드 close 규칙·기록. 릴리스 시 #8 close.
 
 ## v0.2.138 배포 완료 + 백스톱 실전 검증 + 출력 다이어트 (2026-09-01 밤)
 - v0.2.138: GitHub 즉시, GitLab 502 장애 → 자동 재시도 3회차 성공(양원격 8b3fcc5), 스택 v0.2.42·템플릿 v0.2.43·CLI 0.2.34, 자기 보고 #9. 이력 표 8건.
