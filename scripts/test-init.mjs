@@ -2780,6 +2780,48 @@ function orphanNoticePointsToLocalRegistryExit() {
 
 // 0.2.135 — clubadm D: 이전 훅 보관함은 한 칸이라 새 값이 오면 옛 체인이 실행에서 빠진다.
 // 파일은 그대로지만 기능이 사라지므로, 교체 순간의 경고 1줄을 잠근다.
+// #14 (smartscore-backend/common, 2026-09-02): core.hooksPath 전환은 .git/hooks/ 안의 다른 이름 훅
+// (commit-msg 등)을 조용히 죽인다 — 파일은 남고 실행만 사라져 어디에도 나타나지 않는다.
+// 설치 순간 이름을 불러 경고해야 한다. 하네스가 이어 주는 세 훅과 .sample은 대상이 아니다.
+function hooksInstallWarnsAboutGitHooksThatStopRunning() {
+  // 리포터가 밟은 경로 그대로: 실동작 훅이 있는 저장소에 init(훅 자동 활성화). init은 성공 단계의
+  // stdout을 "완료" 한 단어로 접으므로, 경고가 stderr로 나와 요약에 실리는지까지 여기서 본다.
+  const target = makeTarget()
+  for (const name of ['commit-msg', 'pre-commit']) {
+    fs.writeFileSync(path.join(target, `.git/hooks/${name}`), '#!/bin/sh\nexit 0\n')
+    fs.chmodSync(path.join(target, `.git/hooks/${name}`), 0o755)
+  }
+  const out = runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
+  const warning = out.split('\n').find((line) => line.includes('더 이상 실행되지 않습니다')) ?? ''
+  assert(warning.includes('commit-msg'), `init must surface the orphaned commit-msg warning (got: ${warning || out.slice(-400)})`)
+  assert(!warning.includes('pre-commit'), 'hooks the harness chains must not be listed as stopping')
+  assert(!warning.includes('.sample'), 'sample files are not hooks and must not be listed')
+  assert(out.includes('.githooks/commit-msg'), 'the warning must show how to move the hook')
+  assert(out.includes('팀 규칙'), 'the warning must mention the local→tracked scope change')
+
+  // 이미 .githooks로 전환된 저장소에서 재실행: 새로 잃는 것이 없으니 경고를 반복하지 않는다.
+  const script = path.join(target, '.harness/bin/install-hooks.mjs')
+  const out2 = run('sh', ['-c', `"${nodeBin}" "${script}" 2>&1`], { cwd: target })
+  assert(!out2.includes('더 이상 실행되지 않습니다'), 'a re-run on an already-switched repo must stay quiet')
+}
+
+// #14: `report:install --help`가 인자로 인식되지 않아 그대로 실행돼 리포트 파일이 생겼다.
+// 도움말은 아무것도 쓰지 않고 0으로 끝나야 하며, 표식(pending-report.json)도 그대로 남아야 한다.
+function reportInstallHelpWritesNothing() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const marker = '.harness/generated/pending-report.json'
+  assert(exists(target, marker), 'precondition: a fresh install leaves a pending marker')
+  const reports = () => fs.readdirSync(path.join(target, '.harness/generated')).filter((f) => f.startsWith('install-report-'))
+  const before = reports().length
+  for (const flag of ['--help', '-h']) {
+    const out = run(nodeBin, [path.join(target, '.harness/bin/report-install.mjs'), flag], { cwd: target })
+    assert(out.includes('사용법'), `${flag} must print usage`)
+  }
+  assert(reports().length === before, '--help must not create a report file')
+  assert(exists(target, marker), '--help must not consume the pending marker')
+}
+
 function hooksInstallWarnsWhenStoredChainIsReplaced() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -6829,6 +6871,8 @@ const tests = [
   criticalPathCellWithMultipleBacktickPathsMatchesEach,
   orphanNoticePointsToLocalRegistryExit,
   hooksInstallWarnsWhenStoredChainIsReplaced,
+  hooksInstallWarnsAboutGitHooksThatStopRunning,
+  reportInstallHelpWritesNothing,
   updateRefreshesStaleHarnessModeNotes,
   bootstrapModeAlwaysRelaxesSyncCandidates,
   firstAlphabeticalUnstagedChangeKeepsItsName,

@@ -59,6 +59,32 @@ const legacyHookFiles = [
   '.git/hooks/pre-push',
   '.git/hooks/post-merge',
 ].filter(exists)
+// #14(백엔드 common, 2026-09-02): core.hooksPath를 .githooks로 돌리면 .git/hooks/ 안의 훅은
+// 파일이 남아 있어도 git이 더 이상 부르지 않는다. 하네스가 배포하는 세 훅(pre-commit/pre-push/
+// post-merge)은 체인으로 이어 주지만, 그 밖의 이름(commit-msg 등)은 이어 줄 상대가 없어 조용히
+// 죽는다 — 실패가 아니라 "부재"로 나타나 아무 데도 안 보이므로, 설치 순간에 이름을 불러 말한다.
+const HARNESS_SHIPPED_HOOKS = new Set(['pre-commit', 'pre-push', 'post-merge'])
+function listGitHooksThatStopRunning() {
+  if (previousHooksPath) return [] // 이미 다른 hooksPath를 쓰던 저장소면 .git/hooks는 원래 비활성 — 새로 잃는 게 없다
+  const dir = path.join(repoRoot, '.git/hooks')
+  let names = []
+  try {
+    names = fs.readdirSync(dir)
+  } catch {
+    return []
+  }
+  return names
+    .filter((name) => !name.endsWith('.sample') && !HARNESS_SHIPPED_HOOKS.has(name))
+    .filter((name) => {
+      try {
+        return fs.statSync(path.join(dir, name)).isFile()
+      } catch {
+        return false
+      }
+    })
+    .sort()
+}
+const gitHooksThatStopRunning = listGitHooksThatStopRunning()
 const shouldStoreCustomHooksPath = previousHooksPath && previousHooksPath !== '.githooks'
 const shouldStoreDefaultGitHooks = !previousHooksPath && !storedPreviousHooksPath && legacyHookFiles.length > 0
 
@@ -131,6 +157,15 @@ if (!previousHooksPath && legacyHookFiles.length > 0) {
   }
   console.log("  - 기존 hook 경로를 harness.previousHooksPath='.git/hooks'로 저장했습니다.")
   console.log('  - .githooks/pre-commit 또는 .githooks/pre-push가 기존 hook을 먼저 실행한 뒤 하네스 검사를 실행합니다.')
+}
+
+if (gitHooksThatStopRunning.length > 0) {
+  // 경고는 stderr로 — init이 성공 단계의 stdout은 요약 한 단어로 접지만 stderr 경고는 그대로 보여준다.
+  console.warn('')
+  console.warn(`⚠ 기존 .git/hooks 훅 ${gitHooksThatStopRunning.length}개가 더 이상 실행되지 않습니다: ${gitHooksThatStopRunning.join(', ')}`)
+  console.warn('  - Git은 이제 .githooks만 봅니다. 하네스는 pre-commit/pre-push/post-merge만 기존 훅을 이어 주고, 그 밖의 이름은 파일만 남고 호출되지 않습니다.')
+  console.warn('  - 계속 쓰려면 같은 이름으로 .githooks/ 에 옮기세요. 예: cp .git/hooks/commit-msg .githooks/commit-msg')
+  console.warn('  - 주의: .git/hooks는 내 PC 전용이고 .githooks는 저장소에 추적됩니다 — 옮기면 개인 규칙이 팀 규칙이 됩니다.')
 }
 
 if (chainedHooksPath && !shouldStoreCustomHooksPath && !shouldStoreDefaultGitHooks) {

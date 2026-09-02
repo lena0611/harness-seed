@@ -2323,6 +2323,13 @@ function runPostInstallStep(target, title, commandArgs, opts) {
 
   if (result.status === 0) {
     console.log('완료');
+    // #14(백엔드 common): 성공한 단계의 경고가 여기서 통째로 삼켜져 "기존 훅이 꺼진다" 같은
+    // 안내가 설치자에게 닿지 않았다. 성공은 요약 한 단어로 두되, 자식이 stderr로 낸 경고는
+    // 그대로 보여준다(node 런타임 잡음만 제외).
+    const warnings = `${result.stderr ?? ''}`
+      .split('\n')
+      .filter((line) => line.trim() && !/^\(node:\d+\)/.test(line));
+    for (const line of warnings) console.log(`    ${line}`);
     return true;
   }
 

@@ -17,6 +17,7 @@
 //   .harness/bin/harness report:install -- --kind update --from v0.2.133 --to v0.2.136 \
 //     --notes-file 요청서.md   # 개선요청·특이사항 본문(선택)
 //   --dry-run: 등록 없이 제목·본문·이력 행을 출력만 한다.
+//   --help / -h: 사용법만 출력하고 종료한다(파일·이슈 생성 없음).
 
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -27,6 +28,20 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '..', '..')
 const args = process.argv.slice(2)
+
+function printUsage(log) {
+  log('사용법: report:install                     # 표식(pending-report.json)의 값으로 실행')
+  log('       report:install -- --kind install|update --to <버전> [--from <버전>] [--notes-file <md>] [--dry-run]')
+  log('       report:install -- --rebuild-history   # 리포트 생성 없이 이력 표만 재생성(치유)')
+  log('       report:install -- --help              # 이 도움말 (아무것도 만들지 않음)')
+}
+
+// #14(백엔드 common, 2026-09-02): --help가 인자로 인식되지 않아 그대로 실행돼 리포트 파일이 생겼다.
+// 도움말은 무엇도 만들지 않고 0으로 끝나야 한다 — 토큰이 있었다면 이슈가 등록될 뻔했다.
+if (args.includes('--help') || args.includes('-h')) {
+  printUsage(console.log)
+  process.exit(0)
+}
 const pendingPath = path.join(repoRoot, '.harness/generated/pending-report.json')
 
 function clearPendingMarker() {
@@ -58,9 +73,7 @@ const dryRun = args.includes('--dry-run')
 const rebuildOnly = args.includes('--rebuild-history')
 
 if (!rebuildOnly && (!['install', 'update'].includes(kind ?? '') || !toVersion)) {
-  console.error('사용법: report:install                     # 표식(pending-report.json)의 값으로 실행')
-  console.error('       report:install -- --kind install|update --to <버전> [--from <버전>] [--notes-file <md>] [--dry-run]')
-  console.error('       report:install -- --rebuild-history   # 리포트 생성 없이 이력 표만 재생성(치유)')
+  printUsage(console.error)
   process.exit(1)
 }
 
