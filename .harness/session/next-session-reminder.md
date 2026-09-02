@@ -5,7 +5,7 @@
 ## 0.2.140 후보 — 설치 경로 리포트 질문 의무 (2026-09-02 저녁)
 - init 완료 출력 **맨 끝**에 `::: 설치 결과 리포트 :::`(AskUserQuestion 질문 의무·무인자 report:install·토큰 없음 경로·생략 시 표식 삭제, 정본은 하네스업데이트.md 마무리 절). embedded 침묵. "새 clone은 각자 1회 hooks:install" 화석 3곳 교정. 회귀 installOutputEndsWithReportPrompt, 227/227. 커밋 206fb04 — **미push·미릴리스**(사용자 지시 대기).
 - 플러그인 smartscore-harness **0.1.2** 발행(설치 후 리포트 절, 태그 smartscore-harness-v0.1.2). 이 PC에서 `claude plugin marketplace update smartscore` → `claude plugin update smartscore-harness@smartscore` 로 0.1.1→0.1.2 실측 OK(재시작 필요 문구). autoUpdate 토글이 세션 시작에 조용히 올리는지는 다음 세션에서 `claude plugin list` 버전으로 확인.
-- CI: 0.2.139 태그 커밋(2f4b13b) 런은 옛 결함으로 실패 예상, 수정 push(67405af) 런 결과를 확인할 것(백그라운드 감시 중이었음).
+- CI: 수정 push(67405af)의 Policy Guard **success 확인** — 0.2.136 이후 첫 초록. 이후 push마다 `gh run list --branch main --limit 1`로 확인.
 
 ## v0.2.139 배포 완료 (2026-09-02 오후) — 연결 프로젝트·주 폴더 안전망·#14·#15
 - 태그 v0.2.139 = 2f4b13b, 양원격 동일. 스택 v0.2.43·템플릿 v0.2.44·CLI 0.2.35(태그 v0.2.35 — **CLI 원격 태그가 v0.2.29에서 끊겨 있었음**: 0.2.30~34는 package 버전만 올리고 태그를 안 밀었던 듯, 소급 안 함). 자기 보고 #16(즉시 close). 보드: #8·#14·#15 처리 코멘트+close → 열린 것 #2만. 현황판 새 형식 복귀 + common 설치일 실기록(2026-09-02 / 0.2.138).
