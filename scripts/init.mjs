@@ -1542,7 +1542,7 @@ function renderHookStep(target = TARGET, index = 7, hooksResult = 'skipped') {
   if (hooksResult === 'ok') {
     return `  ${index}) git hook 활성화 — 이번 설치에서 자동으로 완료됨 (이 clone 기준)
        사용자가 승인한 git commit/push 전에 .harness/bin/harness check가 자동 실행됩니다.
-       훅 설정은 clone으로 공유되지 않으므로, 새로 clone한 팀원은 각자 1회 .harness/bin/harness hooks:install이 필요합니다.
+       훅 설정은 clone으로 공유되지 않지만, 새로 clone한 팀원이 세션을 열면 하네스가 자동으로 켜고 한 줄 알려줍니다(0.2.131+) — 손으로 hooks:install을 칠 필요가 없습니다.
        npm 프로젝트는 package.json의 prepare(또는 husky 공존 시 postprepare)에 걸어 자동화할 수 있습니다 — .harness/project/hook-coexistence.md 참고.`;
   }
 
@@ -1554,6 +1554,23 @@ function renderHookStep(target = TARGET, index = 7, hooksResult = 'skipped') {
 
   return `  ${index}) git hook 활성화
        현재 git 저장소가 아니므로 건너뜁니다. 필요하면 git init 후 .harness/bin/harness hooks:install을 실행하세요.`;
+}
+
+// 설치 결과 리포트 — 출력의 맨 마지막(0.2.140, 백엔드 common 첫 설치 실측). 설치 경로에는 /하네스업데이트
+// 스킬의 "결과 리포트를 남길까요?" 질문 의무가 닿지 않아(그 문서는 업데이트 때만 읽힘) 에이전트가
+// 토큰 없음 → 파일로 남김에서 멈추고 전달까지 가지 않았다. 마지막 줄에서 질문 의무와 전달 경로를
+// 직접 말한다. 절차 본문은 한 곳(하네스업데이트.md 마무리 절)에 두고 여기서는 가리킨다(결정 88).
+function printInstallReportPrompt() {
+  console.log(`
+::: 설치 결과 리포트 (에이전트: 조용히 끝내지 마세요) :::
+  설치가 끝났으니 사용자에게 반드시 물어봅니다 — "설치 결과 리포트를 남길까요?" (등록 / 파일로만 / 생략)
+  Claude 계열은 질문 UI(AskUserQuestion)로 묻고, 답을 받기 전에 턴을 끝내지 않습니다.
+  - 등록:  .harness/bin/harness report:install        (표식 값으로 실행 — 인자 불필요, 리더 승인 후)
+  - 토큰이 없으면 파일(.harness/generated/install-report-*.md)로만 남습니다. 그 파일을 리더가 본체 팀에 전달하거나,
+    공용 토큰을 하네스 본체 개발자에게 DM으로 요청해 ~/.config/ai-standard/report.env 에
+    HARNESS_BODY_ISSUE_TOKEN=<값> 한 줄(개발자당 1회)을 두면 이후 모든 프로젝트에서 바로 등록됩니다.
+  - 생략을 택했으면 표식 .harness/generated/pending-report.json 을 지웁니다(안 지우면 다음 커밋 검사가 계속 상기).
+  절차 전문(전달 사항 양식·승인): .claude/commands/하네스업데이트.md 의 "마무리 — 결과 리포트 등록" 절`);
 }
 
 function printConsumerCommandGuide(target = TARGET) {
@@ -2361,7 +2378,7 @@ function runPostInstallDiagnostics(target, opts, { freshInstall = false } = {}) 
   if (freshInstall && !opts.noHooks && isGitRepository(target)) {
     result.hooks = runPostInstallStep(
       target,
-      'git hook 활성화 (이 clone 기준 — 새로 clone한 팀원은 각자 1회 필요)',
+      'git hook 활성화 (이 clone 기준 — 새 clone은 세션 시작 때 자동 복원)',
       [process.execPath, '.harness/bin/install-hooks.mjs'],
       opts,
     ) ? 'ok' : 'failed';
@@ -2571,7 +2588,7 @@ function main() {
         console.log(`  - legacy root scripts: ${migration.removed}개 제거`);
       }
       if (diagnostics.hooks === 'ok') {
-        console.log('  - git hook을 활성화했습니다 (이 clone 기준). 새로 clone한 팀원은 각자 1회 .harness/bin/harness hooks:install이 필요합니다.');
+        console.log('  - git hook을 활성화했습니다 (이 clone 기준). 새로 clone한 팀원은 세션을 열면 하네스가 자동으로 켜고 알려줍니다 — 손으로 hooks:install 할 필요가 없습니다.');
       } else if (diagnostics.hooks === 'failed') {
         console.log('  - git hook 자동 활성화에 실패했습니다. .harness/bin/harness hooks:install로 직접 실행해 원인을 확인하세요.');
       }
@@ -2831,9 +2848,7 @@ ${renderNodeStep(TARGET)}
   5) 팀 기준으로 남길 판단이 생기면 기록
        .harness/session/decision-log.md
        또는 판단이 필요하면 .harness/session/developer-input-queue.md
-  5-1) 설치 결과를 본체에 알리기 (리더 승인 후 — 개선 의견이 있으면 함께 실립니다)
-       .harness/bin/harness report:install -- --kind install --to <설치 버전>
-       (토큰이 없으면 파일로만 남고 전달 안내가 나옵니다)
+  5-1) 설치 결과 리포트 — 이 출력 맨 끝의 "::: 설치 결과 리포트 :::"를 보고 사용자에게 꼭 물어봅니다
   6) 필요하면 scaffold 템플릿 후보 조회 후 적용
        .harness/bin/harness templates:list
        .harness/bin/harness template:apply --preset-git <repo-url> --ref <tag-or-branch>
@@ -2851,6 +2866,7 @@ ${renderHookStep(TARGET, 7, diagnostics.hooks)}
   - .harness/project/bootstrap.md
 `);
     printConsumerCommandGuide(TARGET);
+    printInstallReportPrompt();
   } finally {
     cleanupSource(sourceRoot, sourceIsTemp);
   }

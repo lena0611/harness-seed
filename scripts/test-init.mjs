@@ -531,7 +531,7 @@ function freshInstallAutoActivatesGitHooks() {
   const template = run('git', ['config', 'commit.template'], { cwd: target }).trim()
   assert(template === '.github/commit-template.txt', 'fresh install must set commit template')
   assert(out.includes('자동으로 완료됨'), 'next-steps guidance must reflect auto activation')
-  assert(out.includes('각자 1회'), 'guidance must warn that hooks do not travel with clones')
+  assert(out.includes('자동으로 켜고'), 'guidance must say new clones get hooks restored automatically at session start (0.2.131+), not ask for a manual hooks:install')
 
   // 사용자가 의도적으로 훅을 끈 뒤 업데이트(manifest 존재) — 재배선하지 않아야 한다.
   run('git', ['config', '--unset', 'core.hooksPath'], { cwd: target })
@@ -2883,6 +2883,22 @@ function bodyHooksDeclareScope() {
     const second = fs.readFileSync(path.join(dir, file), 'utf8').split('\n')[1] ?? ''
     assert(/^# scope: (harness|project)\b/.test(second), `${file} must declare its scope on line 2 (got: ${second})`)
   }
+}
+
+// 0.2.140 — 백엔드 common 첫 설치 실측: 설치 경로에는 "리포트를 남길까요?" 질문 의무가 닿지 않아
+// (그 문서는 업데이트 스킬에만) 에이전트가 토큰 없음→파일에서 멈추고 전달까지 못 갔다.
+// 설치 완료 출력의 맨 마지막이 질문 의무·전달 경로를 직접 말해야 한다.
+function installOutputEndsWithReportPrompt() {
+  const target = makeTarget()
+  const out = runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(out.includes('설치 결과 리포트를 남길까요'), 'install output must tell the agent to ask about the report')
+  assert(out.includes('AskUserQuestion'), 'install output must name the question UI so Claude-family agents do not skip it')
+  assert(out.includes('HARNESS_BODY_ISSUE_TOKEN'), 'install output must explain the no-token path (file → hand over, or request the shared token once)')
+  assert(out.lastIndexOf('설치 결과 리포트') > out.indexOf('소비자 명령 빠른 안내'), 'the report prompt must be the last block, after the command guide')
+  // 스택 init 내부 실행(embedded)은 스택이 최종 안내를 맡으므로 이 블록을 찍지 않는다.
+  const embedded = makeTarget()
+  const outEmbedded = run(nodeBin, [path.join(repoRoot, 'scripts/init.mjs'), 'init', '--no-hooks', '--embedded', '--no-scan', '--no-handoff', '--no-check'], { cwd: embedded })
+  assert(!outEmbedded.includes('설치 결과 리포트를 남길까요'), 'embedded base init must leave the final guidance to the stack harness')
 }
 
 function hooksInstallWarnsWhenStoredChainIsReplaced() {
@@ -6936,6 +6952,7 @@ const tests = [
   hooksInstallWarnsWhenStoredChainIsReplaced,
   sessionStartHookInjectsLinkedProjectPointers,
   bodyHooksDeclareScope,
+  installOutputEndsWithReportPrompt,
   hooksInstallWarnsAboutGitHooksThatStopRunning,
   reportInstallHelpWritesNothing,
   updateRefreshesStaleHarnessModeNotes,
