@@ -4,6 +4,7 @@
 
 ## v0.2.140 배포 완료 (2026-09-02 저녁)
 - 태그 v0.2.140 = 7cca16f, 양원격 동일. 스택 v0.2.44·템플릿 v0.2.45·CLI 0.2.36(태그 v0.2.36). 공지 2줄(연결 프로젝트 repo 선언·설치 끝 리포트 질문) 승인 후 발사. 자기 보고 등록·즉시 close. CI Policy Guard 결과는 push 후 확인(백그라운드 감시).
+- **멀티사이트 0.2.137→0.2.140 정상 완료 보고 #18(즉시 close)** — 140 첫 소비자. 이제 프론트 profile.linkedProjects 선언 + 각자 additionalDirectories만 하면 연결 프로젝트 실사용 가능. 안내문 v3 전달 여부는 사용자 몫.
 - 백엔드(common)는 140 불필요 — 연결 기능은 주 폴더(프론트) 하네스가 담당. 백엔드에 값진 건 139의 "세션 주 폴더 확인" 안전망. 멀티사이트 프론트가 140을 받고 profile.linkedProjects에 { label, repo, focus } 선언 + 각자 settings.local.json additionalDirectories 가 첫 실사용 시나리오.
 - 관찰 포인트: 플러그인 autoUpdate가 세션 시작에 조용히 올리는지(다음 플러그인 버전에서), 연결 프로젝트 첫 실사용 팀 회신, 백엔드 139 업데이트 시 주 폴더 안전망 체감.
 
