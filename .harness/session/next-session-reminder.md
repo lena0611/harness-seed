@@ -14,7 +14,7 @@
 - 태그 v0.2.141 = 696c683, 양원격 동일. 스택 v0.2.45·템플릿 v0.2.46·CLI 0.2.37. 자기 보고 #20(close). 공지 2줄(linked add·마커 안내) 승인 후 발사. CI는 백그라운드 감시.
 - 담긴 것 4: linked add + /연결프로젝트 스킬 / CLAUDE.md 마커 안내 정정(규칙 본문은 룰 문서) / profile.sources kind 판정 폐지 / hook-coexistence 자체 훅 폴더 절.
 - **미해결(별건 칩 task_3067e86b)**: 로컬·형제경유 init이 seed의 gitignore된 개인 settings.local.json(vue3·template 경로)을 신규 타깃에 복사. 실제 배포(clone) 영향은 조사가 판정. 다음 릴리스에 수정 합류 가능.
-- 관찰: 멀티사이트 팀의 연결 프로젝트 첫 실사용(이제 "백엔드 연결해줘"로 가능), 안내문 v4 전달됨.
+- **멀티사이트 0.2.140→0.2.141 정상 완료 #21(당일, 즉시 close)** — 141 첫 소비자. 이제 `/연결프로젝트` 스킬 사용 가능 상태. 관찰: 연결 프로젝트 첫 실사용 회신(안내문 v4 전달됨).
 
 ## 0.2.141 후보 — hook-coexistence "자체 훅 폴더" 절 (2026-09-03)
 - 백엔드(PHP) 팀이 Claude 훅(PHP 호환·PHPStan)을 git pre-commit으로 옮길 때 에이전트가 유추로 빠지는 함정 셋(① `.githooks/*` 직접 편집·`.git/hooks/*` = 틀린 위치 → 자기 폴더 ② `core.hooksPath` 먼저·`install-hooks.mjs` 다음(composer 스크립트로 자동) ③ 툴킷 PHP 견본 없음)을 정본에 명문화(d41d325). 회귀 hookCoexistenceDocCoversOwnHookDirPattern, 228/228. **미push·미릴리스** — 다음 릴리스에 자연 포함.
