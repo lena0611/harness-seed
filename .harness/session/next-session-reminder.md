@@ -10,6 +10,12 @@
 - "세션 시작에 설치 버전 vs 최신 비교 → 뒤처지면 알림+업데이트 질문" 아이디어는 **하네스 본체가 아니라 플러그인(smartscore-harness 0.2.0)** 에 만든다: 업데이트 안 한 팀에 닿아야 하는데 저장소 훅은 설치 버전에 동결(닭과 달걀), 정보 층은 플러그인 몫(전수 검토 층 분리), R1 파일럿. 설계·실측 체크리스트: `~/project/claude-plugins/docs/roadmap.md`. **본체 0.2.141엔 넣지 않음.** 플러그인 개발 착수 때 이 항목부터.
 - 본체 쪽 후속 1건만: 릴리스 루틴(body-release-checklist)에 "플러그인 데이터(최신 버전·공지) 갱신 + 플러그인 버전 범프·태그" 단계 편입 — 알림 훅이 생기면 필수.
 
+## v0.2.141 배포 완료 (2026-09-03)
+- 태그 v0.2.141 = 696c683, 양원격 동일. 스택 v0.2.45·템플릿 v0.2.46·CLI 0.2.37. 자기 보고 #20(close). 공지 2줄(linked add·마커 안내) 승인 후 발사. CI는 백그라운드 감시.
+- 담긴 것 4: linked add + /연결프로젝트 스킬 / CLAUDE.md 마커 안내 정정(규칙 본문은 룰 문서) / profile.sources kind 판정 폐지 / hook-coexistence 자체 훅 폴더 절.
+- **미해결(별건 칩 task_3067e86b)**: 로컬·형제경유 init이 seed의 gitignore된 개인 settings.local.json(vue3·template 경로)을 신규 타깃에 복사. 실제 배포(clone) 영향은 조사가 판정. 다음 릴리스에 수정 합류 가능.
+- 관찰: 멀티사이트 팀의 연결 프로젝트 첫 실사용(이제 "백엔드 연결해줘"로 가능), 안내문 v4 전달됨.
+
 ## 0.2.141 후보 — hook-coexistence "자체 훅 폴더" 절 (2026-09-03)
 - 백엔드(PHP) 팀이 Claude 훅(PHP 호환·PHPStan)을 git pre-commit으로 옮길 때 에이전트가 유추로 빠지는 함정 셋(① `.githooks/*` 직접 편집·`.git/hooks/*` = 틀린 위치 → 자기 폴더 ② `core.hooksPath` 먼저·`install-hooks.mjs` 다음(composer 스크립트로 자동) ③ 툴킷 PHP 견본 없음)을 정본에 명문화(d41d325). 회귀 hookCoexistenceDocCoversOwnHookDirPattern, 228/228. **미push·미릴리스** — 다음 릴리스에 자연 포함.
 - **CLAUDE.md 마커 안내문 정정(d88bca9)** — 멀티사이트 실측(설치 전 .claude/CLAUDE.md 관례가 마커 아래로 이관됨, 리더의 08-21 "프로젝트 문서는 .harness 밖" 결정 존중): "아키텍처 경계…자유롭게" 초대 제거, "포인터만, 규칙 본문은 룰 문서(.harness/project/* 또는 팀의 .claude/rules/*.md, paths 가능)"를 **마커 안 머리 주석에도** 넣어 업데이트로 기존 팀 전파. 부작용 방지 문구 2개. 회귀 단언 4건, 229/229. 0.2.141 후보 총 3건(자체 훅 폴더 절·sources kind·마커 안내), 공지 1줄(마커 안내). 멀티사이트엔 머리 주석 한 줄 추가 외 변화 없음 — 정리는 리더 몫, 낡은 전제 둘(uninstall 보존·registry.local.json) 알려줄 것.
