@@ -2,6 +2,10 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
+## 방향 확정 — 업데이트 알림은 플러그인 훅으로 (2026-09-03)
+- "세션 시작에 설치 버전 vs 최신 비교 → 뒤처지면 알림+업데이트 질문" 아이디어는 **하네스 본체가 아니라 플러그인(smartscore-harness 0.2.0)** 에 만든다: 업데이트 안 한 팀에 닿아야 하는데 저장소 훅은 설치 버전에 동결(닭과 달걀), 정보 층은 플러그인 몫(전수 검토 층 분리), R1 파일럿. 설계·실측 체크리스트: `~/project/claude-plugins/docs/roadmap.md`. **본체 0.2.141엔 넣지 않음.** 플러그인 개발 착수 때 이 항목부터.
+- 본체 쪽 후속 1건만: 릴리스 루틴(body-release-checklist)에 "플러그인 데이터(최신 버전·공지) 갱신 + 플러그인 버전 범프·태그" 단계 편입 — 알림 훅이 생기면 필수.
+
 ## 0.2.141 후보 — hook-coexistence "자체 훅 폴더" 절 (2026-09-03)
 - 백엔드(PHP) 팀이 Claude 훅(PHP 호환·PHPStan)을 git pre-commit으로 옮길 때 에이전트가 유추로 빠지는 함정 셋(① `.githooks/*` 직접 편집·`.git/hooks/*` = 틀린 위치 → 자기 폴더 ② `core.hooksPath` 먼저·`install-hooks.mjs` 다음(composer 스크립트로 자동) ③ 툴킷 PHP 견본 없음)을 정본에 명문화(d41d325). 회귀 hookCoexistenceDocCoversOwnHookDirPattern, 228/228. **미push·미릴리스** — 다음 릴리스에 자연 포함.
 - **profile.sources kind 판정 폐지(785aac8)** — 숨은 단어 목록 정규식 제거, 등록=규칙 문서, owner·kind는 메모. 스캔 인벤토리·등록 안내·README·bootstrap·notes 동기. 회귀 scanTreatsEveryDeclaredSourceAsRuleDoc, 229/229. 0.2.141 후보 총 2건(자체 훅 폴더 절 + 이것), 공지는 없음(에이전트·리더 대면 문서·스캔 문구).
