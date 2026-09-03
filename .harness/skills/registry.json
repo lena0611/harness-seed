@@ -1169,6 +1169,45 @@
         "훅 공존 배선(prepare+postprepare, 해당 시)"
       ],
       "records": []
+    },
+    {
+      "id": "harness.linked-project",
+      "title": "연결 프로젝트 선언",
+      "purpose": "한 세션(대화창)에서 다른 저장소도 함께 다루도록 기준 프로젝트에 연결 선언과 개인 접근 폴더를 대신 쓴다.",
+      "audience": [
+        "consumer"
+      ],
+      "taskTypes": [
+        "maintenance",
+        "feature",
+        "unknown"
+      ],
+      "priority": "normal",
+      "triggers": [
+        "연결 프로젝트",
+        "저장소 연결",
+        "백엔드 연결",
+        "한 창에서",
+        "linkedProjects",
+        "additionalDirectories",
+        "linked"
+      ],
+      "read": [
+        ".claude/commands/연결프로젝트.md",
+        ".harness/policy/context-protocol.md"
+      ],
+      "commands": [
+        ".harness/bin/harness linked",
+        ".harness/bin/harness linked add --repo <폴더|git 주소> --focus <폴더> --label <이름>"
+      ],
+      "outputs": [
+        "profile.json linkedProjects 항목(팀 공유)",
+        ".claude/settings.local.json additionalDirectories(개인)",
+        "해석 상태 표"
+      ],
+      "records": [
+        ".harness/session/decision-log.md"
+      ]
     }
   ]
 }

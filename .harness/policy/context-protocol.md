@@ -123,7 +123,7 @@ trace는 프롬프트 진행 중 짧은 상태 로그, `harness:handoff` 산출�
 
 프론트와 백엔드처럼 저장소가 둘인데 한 개발자가 한 대화창에서 둘 다 다루는 경우를 위한 장치입니다(0.2.139, 해석 규칙 0.2.140).
 
-- **선언(팀 공유, 커밋됨)**: `.harness/policy/profile.json`의 `linkedProjects`. 예: `{ "label": "백엔드", "repo": "https://git.smartscore.kr/…/common.git", "focus": "ss/multisite" }`. 저장소의 정체(git 주소)와 관심 폴더만 적고 **PC 경로는 적지 않습니다** — 사람마다 clone 위치가 달라서요. `path`는 선택 힌트(있고 실존하면 우선).
+- **선언(팀 공유, 커밋됨)**: `.harness/policy/profile.json`의 `linkedProjects`. 예: `{ "label": "백엔드", "repo": "https://git.smartscore.kr/…/common.git", "focus": "ss/multisite" }`. 저장소의 정체(git 주소)와 관심 폴더만 적고 **PC 경로는 적지 않습니다** — 사람마다 clone 위치가 달라서요. `path`는 선택 힌트(있고 실존하면 우선). 손으로 쓰지 않아도 됩니다 — 에이전트에게 "백엔드 저장소 연결해줘"(스킬 `/연결프로젝트`)라고 하면 `harness linked add --repo <폴더|주소> --focus … --label …`가 선언과 개인 접근 폴더를 함께 씁니다(0.2.141).
 - **해석(PC별)**: 개발자가 어차피 열어 두는 파일 접근 권한 목록 `.claude/settings.local.json`의 `permissions.additionalDirectories`(공유 `settings.json`도 봄)에서 git remote가 `repo`와 일치하는 폴더를 찾습니다. 못 찾으면 세션 시작 블록이 "그 목록에 추가하세요"라고 안내합니다. 상태 확인: `.harness/bin/harness linked`. 해석기: `.harness/bin/linked-projects.mjs`.
 - **동작**: 세션 시작 훅이 그 저장소의 기준 문서 위치(루트 CLAUDE.md, focus 폴더의 CLAUDE.md), 하네스 런처 경로, "커밋·푸시는 그 저장소 안에서", "그쪽 훅은 이 세션에서 안 돈다", 리마인더 최근 항목을 주입하고, 프롬프트 컨텍스트가 매 턴 한 줄로 상기합니다.
 - **파일 접근의 정확한 의미**: Claude Code는 세션 폴더 밖 파일을 Read/Edit/Write 도구로 만질 때마다 권한을 묻습니다(불가능이 아니라 확인). `additionalDirectories`(또는 `--add-dir`)는 그 확인을 면제합니다. Bash는 이 경로 제한과 별개입니다.

@@ -97,7 +97,7 @@ echo   changelog                  last update changelog   (harness:changelog)
 echo   uninstall                  uninstall plan/apply    (harness:uninstall)
 echo   prune:aliases              prune retired npm aliases (preview; --write to apply)
 echo   report:install             post install/update report to the body issue board
-echo   linked                     where linked projects (other repos) resolve on this PC
+echo   linked                     linked projects status; linked add --repo ^<url^|dir^> [--focus ..] [--label ..] writes the declaration
 echo   hooks:install              git hooks + template    (hooks:install)
 echo   standards:list             stack harness catalog   (standards:list)
 echo   templates:list             scaffold templates      (templates:list)

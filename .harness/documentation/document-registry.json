@@ -26,6 +26,7 @@
         ".claude/commands/기획확인.md",
         ".claude/commands/하네스업데이트.md",
         ".claude/commands/하네스용어.md",
+        ".claude/commands/연결프로젝트.md",
         ".claude/commands/운영업무.md",
         ".claude/commands/업무요약.md",
         ".claude/agents/code-reviewer.md",

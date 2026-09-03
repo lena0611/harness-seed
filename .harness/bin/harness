@@ -60,7 +60,7 @@ Commands:
   uninstall                  설치 제거 계획/실행        (harness:uninstall)
   prune:aliases              은퇴한 npm 별칭 정리       (미리보기 기본, --write로 실행)
   report:install             설치·업데이트 결과를 본체 이슈보드에 등록 (토큰 없으면 파일로)
-  linked                     연결 프로젝트(다른 저장소)가 이 PC에서 어디로 풀렸는지 상태 표
+  linked                     연결 프로젝트(다른 저장소) 상태 표. linked add --repo <주소|폴더> [--focus …] [--label …] 로 선언·개인 접근 폴더를 대신 씀
   hooks:install              git hook/커밋 템플릿 연결  (hooks:install)
   standards:list             스택 하네스 후보 조회      (standards:list)
   templates:list             scaffold 템플릿 후보 조회  (templates:list)
@@ -96,7 +96,7 @@ case "$cmd" in
   uninstall)       exec node .harness/bin/uninstall-harness.mjs "$@" ;;
   prune:aliases)   exec node .harness/bin/prune-aliases.mjs "$@" ;;
   report:install)  exec node .harness/bin/report-install.mjs "$@" ;;
-  linked)          exec node .harness/bin/linked-projects.mjs status ;;
+  linked)          exec node .harness/bin/linked-projects.mjs "$@" ;;
   hooks:install)   exec node .harness/bin/install-hooks.mjs "$@" ;;
   standards:list)  exec node .harness/bin/list-stack-standards.mjs "$@" ;;
   templates:list)  exec node .harness/bin/list-templates.mjs "$@" ;;

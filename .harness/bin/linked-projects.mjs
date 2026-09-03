@@ -13,6 +13,8 @@
 //   node linked-projects.mjs prompt  [root]   매 프롬프트 한 줄(영문, 해석된 항목만)
 //   node linked-projects.mjs json    [root]   해석 결과 JSON
 //   node linked-projects.mjs status  [root]   사람용 상태 표 (런처: harness linked)
+//   node linked-projects.mjs add --repo <git 주소|폴더> [--focus <폴더>] [--label <이름>] [--dir <폴더>] [--no-dir]
+//                                             선언 + 개인 접근 폴더를 대신 쓴다 (런처: harness linked add …, 스킬: /연결프로젝트)
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -20,8 +22,18 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const mode = process.argv[2] || 'status'
-const root = path.resolve(process.argv[3] || process.env.CLAUDE_PROJECT_DIR || process.env.CODEX_PROJECT_DIR || path.resolve(__dirname, '..', '..'))
+// 인자: [모드] [root] --key value … (플래그는 어디에 와도 됨). 모드 생략 = status.
+const flags = {}
+const positional = []
+for (let i = 2; i < process.argv.length; i += 1) {
+  const arg = process.argv[i]
+  if (arg.startsWith('--')) {
+    const next = process.argv[i + 1]
+    if (next !== undefined && !next.startsWith('--')) { flags[arg.slice(2)] = next; i += 1 } else flags[arg.slice(2)] = true
+  } else positional.push(arg)
+}
+const mode = positional[0] || 'status'
+const root = path.resolve(positional[1] || process.env.CLAUDE_PROJECT_DIR || process.env.CODEX_PROJECT_DIR || path.resolve(__dirname, '..', '..'))
 
 function readJson(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return null }
@@ -106,6 +118,81 @@ function unresolvedHint(item) {
   const key = item.repo ? `repo ${item.repo}` : (item.hint ? `힌트 경로 ${item.hint}` : '식별 정보 없음(repo 또는 path 필요)')
   return `이 PC에서 위치를 못 찾았습니다(${key}). ${root}/.claude/settings.local.json 의 permissions.additionalDirectories 에 그 저장소 폴더를 추가하세요 — 파일 접근 권한도 거기서 열립니다.`
 }
+
+// add 모드(0.2.141): 사람이 JSON을 만지지 않게 한다. 폴더 경로를 주면 그 폴더의 git remote에서 저장소
+// 정체를 뽑아 profile.linkedProjects(팀 공유)에 쓰고, 그 폴더를 .claude/settings.local.json(개인)의
+// permissions.additionalDirectories에 넣는다. 멱등: 같은 저장소(정규화 일치)는 갱신, 폴더는 중복 없음.
+function fail(message) {
+  console.error(`[linked add] ${message}`)
+  console.error('사용법: harness linked add --repo <git 주소 | 폴더 경로> [--focus <관심 폴더>] [--label <표시 이름>] [--dir <폴더>] [--no-dir]')
+  process.exit(1)
+}
+
+function writeJsonFile(file, value) {
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`)
+}
+
+function addLinkedProject() {
+  const repoArg = typeof flags.repo === 'string' ? flags.repo.trim() : ''
+  if (!repoArg) fail('--repo <git 주소 또는 폴더 경로> 가 필요합니다.')
+
+  let repoUrl = null
+  let dir = null
+  const asDir = path.resolve(root, expandHome(repoArg))
+  if (fs.existsSync(asDir) && fs.statSync(asDir).isDirectory()) {
+    dir = asDir
+    repoUrl = remoteUrls(dir)[0] ?? null
+    if (!repoUrl) fail(`${repoArg} 에 git remote가 없어 저장소 정체를 알 수 없습니다 — --repo 에 git 주소를 직접 주고 --dir ${repoArg} 를 함께 주세요.`)
+  } else {
+    repoUrl = repoArg
+    if (typeof flags.dir === 'string') dir = path.resolve(root, expandHome(flags.dir))
+    else {
+      const wanted = normalizeRepo(repoUrl)
+      dir = candidateDirs().find((d) => fs.existsSync(d) && remoteUrls(d).some((u) => normalizeRepo(u) === wanted)) ?? null
+    }
+  }
+  if (path.resolve(dir ?? '') === root) fail('자기 자신을 연결할 수는 없습니다.')
+
+  const label = typeof flags.label === 'string' && flags.label.trim() ? flags.label.trim() : path.basename(normalizeRepo(repoUrl) ?? repoUrl)
+  const focus = typeof flags.focus === 'string' && flags.focus.trim() ? flags.focus.trim().replace(/\/+$/, '') : null
+
+  const profilePath = path.join(root, '.harness/policy/profile.json')
+  const profile = readJson(profilePath)
+  if (!profile) fail(`${profilePath} 를 읽을 수 없습니다 — 하네스가 설치된 저장소 루트에서 실행하세요.`)
+  const list = Array.isArray(profile.linkedProjects) ? profile.linkedProjects : []
+  const entry = { label, repo: repoUrl, ...(focus ? { focus } : {}) }
+  const wanted = normalizeRepo(repoUrl)
+  const idx = list.findIndex((it) => it && normalizeRepo(it.repo) === wanted)
+  if (idx >= 0) list[idx] = { ...list[idx], ...entry }
+  else list.push(entry)
+  profile.linkedProjects = list
+  writeJsonFile(profilePath, profile)
+  console.log(`${idx >= 0 ? '갱신' : '추가'}: .harness/policy/profile.json linkedProjects ← ${JSON.stringify(entry)}  (팀 공유 — 커밋하세요)`)
+
+  if (dir && !flags['no-dir']) {
+    const localPath = path.join(root, '.claude/settings.local.json')
+    const settings = readJson(localPath) ?? {}
+    settings.permissions = settings.permissions && typeof settings.permissions === 'object' ? settings.permissions : {}
+    const dirs = Array.isArray(settings.permissions.additionalDirectories) ? settings.permissions.additionalDirectories : []
+    const already = dirs.some((d) => typeof d === 'string' && path.resolve(root, expandHome(d)) === dir)
+    if (!already) {
+      const rel = path.relative(root, dir)
+      dirs.push(rel && !rel.startsWith('..' + path.sep + '..') && !path.isAbsolute(rel) ? rel : dir)
+      settings.permissions.additionalDirectories = dirs
+      writeJsonFile(localPath, settings)
+      console.log(`추가: .claude/settings.local.json permissions.additionalDirectories ← ${dirs[dirs.length - 1]}  (개인 설정 — 커밋하지 마세요)`)
+    } else {
+      console.log('유지: .claude/settings.local.json 에 그 폴더가 이미 열려 있습니다.')
+    }
+  } else if (!dir) {
+    console.log(`⚠ 이 PC에서 ${repoUrl} 의 폴더를 찾지 못했습니다 — clone 위치를 --dir 로 주거나, .claude/settings.local.json 의 permissions.additionalDirectories 에 추가하세요. 선언은 저장됐으니 폴더만 열리면 다음 세션부터 연결됩니다.`)
+  }
+  console.log('새 세션을 열면 시작 안내에 연결 블록이 붙습니다. 연결된 저장소의 세션 훅은 이 창에서 돌지 않으므로 그 팀 규칙은 문서(domain-rules·focus CLAUDE.md)에, 물리 검사는 그 저장소의 pre-commit에 두세요(.harness/policy/context-protocol.md "연결 프로젝트").')
+  console.log('')
+}
+
+if (mode === 'add') addLinkedProject()
 
 const items = resolveLinkedProjects(root)
 

@@ -2928,6 +2928,48 @@ function hookCoexistenceDocCoversOwnHookDirPattern() {
   assert(doc.includes('.git/hooks/*') && doc.includes('.githooks/*'), 'it must name the two wrong places (untracked .git/hooks, managed .githooks)')
 }
 
+// 0.2.141: 연결 선언을 사람이 JSON으로 쓰지 않게 — `harness linked add`가 폴더의 git remote로 정체를 뽑아
+// profile(팀)과 settings.local.json(개인)을 함께 쓰고, 같은 저장소 재실행은 갱신만 한다. 스킬 /연결프로젝트가 이 명령을 부른다.
+function linkedAddWritesProfileAndLocalSettings() {
+  const front = makeTarget()
+  const back = makeTarget()
+  runInit(front, '--no-scan', '--no-handoff', '--no-check')
+  runInit(back, '--no-scan', '--no-handoff', '--no-check')
+  fs.mkdirSync(path.join(back, 'svc/multisite'), { recursive: true })
+  fs.writeFileSync(path.join(back, 'svc/multisite/CLAUDE.md'), '# 서비스 룰\n')
+  run('git', ['remote', 'add', 'origin', 'https://git.example.com/team/backend.git'], { cwd: back })
+  const rel = path.relative(front, back)
+  // 이 테스트는 linked add의 중복 방지만 본다. 로컬 소스 init이 남길 수 있는 settings.local.json을
+  // 지워 add 전 상태를 '깨끗'으로 통제한다(개인 settings.local.json 유출은 별건 — spawn_task).
+  fs.rmSync(path.join(front, '.claude/settings.local.json'), { force: true })
+
+  const out = run(harnessBin(front), ['linked', 'add', '--repo', rel, '--focus', 'svc/multisite', '--label', '백엔드'], { cwd: front })
+  const profile = JSON.parse(read(front, '.harness/policy/profile.json'))
+  assert(profile.linkedProjects.length === 1, 'one declaration must be written')
+  assert(profile.linkedProjects[0].repo === 'https://git.example.com/team/backend.git', 'the repo identity must come from the folder git remote, not the path')
+  assert(profile.linkedProjects[0].label === '백엔드' && profile.linkedProjects[0].focus === 'svc/multisite', 'label/focus must be recorded')
+  assert(!('path' in profile.linkedProjects[0]), 'no per-PC path may land in the team file')
+  const local = JSON.parse(read(front, '.claude/settings.local.json'))
+  assert(local.permissions.additionalDirectories.some((d) => path.resolve(front, d) === back), 'the folder must be opened in the personal settings')
+  assert(out.includes('커밋하세요') && out.includes('커밋하지 마세요'), 'the output must say which file to commit and which not')
+  assert(out.includes(back) && out.includes('git remote 일치'), 'the trailing status must show the link resolved')
+
+  // 같은 저장소를 ssh 표기로 다시 — 갱신만, 폴더도 중복 없음
+  run(harnessBin(front), ['linked', 'add', '--repo', 'git@git.example.com:team/backend.git', '--label', '백엔드API', '--dir', rel], { cwd: front })
+  const profile2 = JSON.parse(read(front, '.harness/policy/profile.json'))
+  assert(profile2.linkedProjects.length === 1 && profile2.linkedProjects[0].label === '백엔드API', 're-adding the same repo (other notation) must update, not duplicate')
+  const local2 = JSON.parse(read(front, '.claude/settings.local.json'))
+  assert(local2.permissions.additionalDirectories.length === 1, 'the folder must not be duplicated')
+
+  // 인자 없는 harness linked 는 상태 표
+  const status = run(harnessBin(front), ['linked'], { cwd: front })
+  assert(status.includes('백엔드API') && status.includes(back), 'bare linked must still print the status table')
+
+  // 스킬 문서가 설치되고 명령을 가리킨다
+  assert(exists(front, '.claude/commands/연결프로젝트.md'), 'the /연결프로젝트 command doc must be installed')
+  assert(read(front, '.claude/commands/연결프로젝트.md').includes('harness linked add'), 'the skill must call the deterministic command instead of hand-writing JSON')
+}
+
 function hooksInstallWarnsWhenStoredChainIsReplaced() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -7002,6 +7044,7 @@ const tests = [
   sessionStartHookInjectsLinkedProjectPointers,
   bodyHooksDeclareScope,
   hookCoexistenceDocCoversOwnHookDirPattern,
+  linkedAddWritesProfileAndLocalSettings,
   installOutputEndsWithReportPrompt,
   hooksInstallWarnsAboutGitHooksThatStopRunning,
   reportInstallHelpWritesNothing,
