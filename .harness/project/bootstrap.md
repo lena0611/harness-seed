@@ -99,12 +99,11 @@ npm install
 ### 6. 비표준 위치 룰 등록 (선택)
 프로젝트가 기존 기준/룰 문서를 `.harness/project/*` 밖(예: 별도 가이드 폴더, 루트 표준 문서)에 두고 있고 그대로 유지하려면, 그 위치를 `.harness/policy/profile.json`의 `sources[]`에 등록해 하네스가 발견·주입하게 합니다. 본체는 이 배열을 읽기만 하고 자동으로 채우지 않으므로, 등록 여부는 사용자에게 확인한 뒤 에이전트가 기록합니다.
 
-각 항목은 `{ path, kind, owner, inject }` 형태입니다.
+각 항목은 `{ path[, owner, kind, inject] }` 형태입니다 — `path`만 필수.
 
-- `path`: 룰 문서의 저장소 상대 경로
-- `kind`: 문서 성격(예: `methodology`, `rule`, `standard`, `convention`). 룰 성격이면 scan의 "로컬 방법론 없음" 질문을 대체합니다.
-- `owner`: 책임 주체(예: 팀, 개인)
-- `inject`: `always`면 `build-context`가 Always Read에 병합합니다. 그 외 값이면 선언만 하고 자동 주입하지 않습니다.
+- `path`: 룰 문서의 저장소 상대 경로. 등록되고 실존하면 그 자체로 규칙 문서로 인정합니다(scan의 "로컬 방법론 없음" 질문 대체).
+- `owner`·`kind`: 사람이 읽는 메모(책임 주체, 문서 성격). 동작을 바꾸지 않습니다(0.2.141 — 예전의 kind 단어 목록 판정은 폐지).
+- `inject`: `always`면 `build-context`가 Always Read에 병합합니다 — 모든 세션이 항상 읽으므로 팀 전체 기준에만 쓰고, 서비스·폴더 단위 규칙은 생략합니다(등록만).
 
 등록 후 `.harness/bin/harness scan`은 선언된 `path`가 실제 존재하는지 검증하고, 없으면 Open Questions로 표면화합니다. 상세는 저장소 루트 `README.md`의 "비표준 위치 룰 등록" 절과 `.harness/policy/profile.json`의 notes를 참고합니다.
 

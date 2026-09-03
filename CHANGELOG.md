@@ -29,6 +29,7 @@
 - (없음 — 에이전트·리더가 읽는 배선 안내 보강)
 
 ### 상세
+- **profile.sources: kind 단어 목록 판정 폐지 — 등록된 항목은 전부 규칙 문서 (2026-09-03 지적)** — `kind` 값에 문서화되지 않은 단어(rule/standard/guide/convention/policy/methodology/doc)가 들어가야 "규칙류"로 인정하던 숨은 정규식을 제거했다. `sources[]`의 정의가 "기준·룰 문서 신고"라 등록 사실 자체가 규칙류 판정이며, `owner`·`kind`는 사람이 읽는 메모로 격하(동작 분기 없음). 스캔 인벤토리는 `path (exists|MISSING, inject: always|없음(등록만), 메모 — owner, kind)`로, 등록 안내 예시는 `{ path, owner }`로 단순화하고 "inject always는 팀 전체 기준에만"을 명시. README·bootstrap.md·profile notes 동기. 기존 소비자 영향은 완화만(이상한 kind 때문에 뜨던 "로컬 개발방법론 없음" 질문 소멸). 회귀 scanTreatsEveryDeclaredSourceAsRuleDoc.
 - **hook-coexistence.md에 "husky가 없는 프로젝트의 자체 훅 폴더" 절 (2026-09-03)** — 백엔드(PHP) 팀이 저장 시점 Claude 훅(PHP 7.2∩8.4 파스·PHPStan)을 어느 창에서도 도는 git pre-commit으로 옮기려 할 때, 에이전트가 유추로 빠지는 함정 셋을 정본이 직접 안내한다: ① 어디에 두나(`.githooks/*` 직접 편집 = 관리 파일 동결, `.git/hooks/*` = 팀에 안 퍼짐 → 자기 폴더 `scripts/git-hooks/`) ② 순서(`core.hooksPath`를 자기 폴더로 먼저, 그 다음 `install-hooks.mjs` — husky `prepare` 패턴의 composer 판) ③ 툴킷에 PHP 견본 없음(MR 역제안). 훅 스크립트 규약(스테이징 내용 검사·exit 1·실행 파일 없으면 실패·`# scope: project`)과 "왜 세션 훅이 아니라 git 훅인가"도 함께. 회귀 hookCoexistenceDocCoversOwnHookDirPattern.
 
 ## 0.2.140 - 2026-09-02

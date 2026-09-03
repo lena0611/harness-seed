@@ -490,12 +490,11 @@ Harness check summary
 
 프로젝트가 기준/룰 문서를 `.harness/project/*` 밖(별도 가이드 폴더, 루트 표준 문서 등)에 두고 그대로 유지하려면, 그 위치를 `.harness/policy/profile.json`의 프로젝트 소유 `sources[]` 배열에 선언합니다. 본체는 이 배열을 **읽기만** 하고 자동으로 채우지 않습니다(자동 변경 금지). `profile.json`은 PROJECT_OWNED라 업데이트 시 보존되고, 신규 설치에는 빈 배열로 배포됩니다. `stack:reset`은 `activeStack`, `available`, `stackManifest`만 스택 소유 필드로 되돌리며, 프로젝트가 직접 설정한 `harnessMode`와 `sources[]`는 유지합니다.
 
-각 항목은 `{ path, kind, owner, inject }` 형태입니다.
+각 항목은 `{ path[, owner, kind, inject] }` 형태입니다 — `path`만 필수.
 
-- `path`: 룰 문서의 저장소 상대 경로
-- `kind`: 문서 성격(예: `methodology`, `rule`, `standard`, `convention`). 룰 성격이면 `harness:scan`의 "로컬 방법론 없음" 질문을 대체합니다.
-- `owner`: 책임 주체(팀, 개인 등)
-- `inject`: `always`면 `harness:context`가 Always Read에 병합하고 `(project source: profile.json sources[])`로 표시합니다. 그 외 값이면 선언만 하고 자동 주입하지 않습니다.
+- `path`: 룰 문서의 저장소 상대 경로. 등록되고 실존하면 그 자체로 규칙 문서로 인정합니다(`harness:scan`의 "로컬 방법론 없음" 질문 대체).
+- `owner`·`kind`: 사람이 읽는 메모(책임 주체, 문서 성격). 동작을 바꾸지 않습니다(0.2.141 — 예전의 kind 단어 목록 판정은 폐지).
+- `inject`: `always`면 `harness:context`가 Always Read에 병합하고 `(project source: profile.json sources[])`로 표시합니다. 모든 세션이 항상 읽으므로 팀 전체 기준에만 쓰고, 서비스·폴더 단위 규칙은 생략합니다(등록만).
 
 `.harness/bin/harness scan`은 선언된 `path`가 실제 존재하는지만 검증하고(false positive 없음), 없으면 Open Questions로 표면화합니다. 또한 `.cursor/rules/`, `.github/copilot-instructions.md`, `CLAUDE.md`, `AGENTS.md`, `docs/**/agent-rules.md`처럼 기존 AI 작업 룰로 보이는 문서는 `Existing AI Rule Document Candidates`에 후보로 기록합니다. 이 후보는 자동 삭제, 자동 병합, 자동 `sources[]` 등록을 하지 않습니다. 팀 공유 기준으로 확정된 문서만 사용자가 `sources[]`에 등록하고, 개인/임시 프롬프트는 도구 전용 파일로 분리 보존합니다. 후보에는 `git tracked`, `.gitignore 적용됨`, `.gitignore 미적용` 상태가 함께 표시됩니다. 개인/임시 기준인데 `.gitignore 미적용`이면 ignore 패턴을 추가하고, 이미 `git tracked`이면 `git rm --cached <path>` 후 ignore 처리해야 커밋에서 빠집니다. 등록 절차는 `.harness/project/bootstrap.md`의 "비표준 위치 룰 등록" 단계를 따릅니다.
 
@@ -504,9 +503,7 @@ Harness check summary
 ```json
 {
   "path": "docs/dev-guide.md",
-  "kind": "methodology",
-  "owner": "team",
-  "inject": "always"
+  "owner": "team"
 }
 ```
 

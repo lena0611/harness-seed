@@ -417,15 +417,15 @@ function detectLocalMethodologyFiles() {
 
 // profile.json의 프로젝트 소유 sources[]에 선언된 비표준 위치 룰 문서를 분류한다.
 // 본체는 이 배열을 읽기만 한다(자동 탐지·자동 작성 없음). path가 실제 존재하는지만 검증한다.
-const RULE_LIKE_KIND = /(methodology|rule|standard|guide|convention|policy|doc)/i
-
+// 0.2.141: sources[]의 정의가 "기준·룰 문서 신고"이므로 등록되고 실존하는 항목은 전부 규칙 문서다.
+// 예전에는 kind 값에 숨은 단어 목록(rule/standard/guide…)이 들어가야 규칙류로 인정했는데, 문서화되지
+// 않은 라벨이 동작을 가르는 가짜 손잡이였다(결정 95 계열). kind·owner는 사람이 읽는 메모로만 남긴다.
 function detectDeclaredSources(profile) {
   const sources = Array.isArray(profile.sources) ? profile.sources : []
   const declared = sources.filter((source) => source && typeof source.path === 'string')
   const missing = declared.filter((source) => !exists(source.path))
   const present = declared.filter((source) => exists(source.path))
-  const ruleLike = present.filter((source) => RULE_LIKE_KIND.test(String(source.kind ?? '')))
-  return { declared, missing, present, ruleLike }
+  return { declared, missing, present, ruleLike: present }
 }
 
 const AI_RULE_KNOWN_PATHS = new Set([
@@ -576,17 +576,15 @@ function renderExistingAiRuleRegistrationGuide(existingAiRuleDocs) {
 \`\`\`json
 {
   "path": "${examplePath}",
-  "kind": "methodology",
-  "owner": "team",
-  "inject": "always"
+  "owner": "team"
 }
 \`\`\`
 
 등록 효과:
-- \`harness:scan\`이 비표준 위치의 팀 기준으로 인식합니다.
-- \`inject: "always"\`이면 \`.harness/bin/harness context "<작업 설명>"\`의 Always Read에 포함됩니다.
-- 하네스 업데이트와 스택 재적용 후에도 연결 정보가 보존됩니다.
-- \`kind\`가 \`methodology\`, \`rule\`, \`standard\`, \`convention\`이면 "로컬 개발방법론 없음" 같은 오탐 질문을 줄입니다.`
+- \`harness:scan\`이 비표준 위치의 팀 기준으로 인식합니다 — 등록된 항목은 kind 값과 무관하게 규칙 문서로 인정합니다(0.2.141). \`owner\`·\`kind\`는 사람이 읽는 메모일 뿐 동작을 바꾸지 않습니다.
+- 선언된 경로가 사라지면 scan이 Open Questions로 알립니다.
+- \`inject: "always"\`를 더하면 \`.harness/bin/harness context "<작업 설명>"\`의 Always Read에 포함됩니다 — 모든 세션이 항상 읽으므로 팀 전체 기준에만 쓰고, 서비스·폴더 단위 규칙은 생략합니다.
+- 하네스 업데이트와 스택 재적용 후에도 연결 정보가 보존됩니다.`
 }
 
 function renderProjectRuleAuthoringGuide() {
@@ -1049,7 +1047,10 @@ ${formatList(localMethodologyFiles)}
 
 ### Declared Project Sources (profile.json sources[])
 ${formatList(
-  declaredSources.declared.map((source) => `${source.path} (kind: ${source.kind ?? '미지정'}, inject: ${source.inject ?? '미지정'}, ${exists(source.path) ? 'exists' : 'MISSING'})`),
+  declaredSources.declared.map((source) => {
+    const memo = [source.owner ? `owner: ${source.owner}` : null, source.kind ? `kind: ${source.kind}` : null].filter(Boolean).join(', ')
+    return `${source.path} (${exists(source.path) ? 'exists' : 'MISSING'}, inject: ${source.inject === 'always' ? 'always' : '없음(등록만)'}${memo ? `, 메모 — ${memo}` : ''})`
+  }),
   '- profile.json sources[]에 선언된 비표준 위치 룰 없음',
 )}
 

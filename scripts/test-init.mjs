@@ -3360,6 +3360,28 @@ function buildContextMergesProfileAlwaysSources() {
 
 // P0-1(0.2.71): harness:scan은 선언된 sources[] 경로가 실제 존재하는지만 검증한다(zero false positive).
 // 없는 경로는 Open Questions로 표면화하고, 선언 소스를 인벤토리에 나열한다.
+// 0.2.141: sources[]에 등록된 문서는 kind 값과 무관하게 규칙 문서다. 예전엔 kind에 숨은 단어 목록이
+// 들어가야 인정해 `api-contract` 같은 라벨은 등록했는데도 "로컬 개발방법론 없음"이 떴다(문서화 안 된 가짜 손잡이).
+function scanTreatsEveryDeclaredSourceAsRuleDoc() {
+  const target = makeTarget()
+  runInit(target)
+  fs.mkdirSync(path.join(target, 'svc/multisite'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'svc/multisite/CLAUDE.md'), '# 서비스 룰\n')
+  const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
+  profile.sources = [{ path: 'svc/multisite/CLAUDE.md', kind: 'api-contract', owner: 'multisite' }]
+  writeJson(target, '.harness/policy/profile.json', profile)
+  // 로컬 방법론 문서를 지워 "규칙 문서가 하나도 없는" 상태를 만든다 — 등록 항목이 그 자리를 채워야 한다.
+  for (const rel of ['.harness/project/local-methodology.md']) {
+    try { fs.rmSync(path.join(target, rel)) } catch {}
+  }
+  run(harnessBin(target), ['scan'], { cwd: target })
+  const report = read(target, '.harness/session/project-scan-report.md')
+  assert(!report.includes('로컬 개발방법론 문서가 없습니다'), 'a declared source must count as a rule doc regardless of its kind label')
+  assert(report.includes('svc/multisite/CLAUDE.md (exists') && report.includes('메모 — owner: multisite, kind: api-contract'), 'inventory shows the declared source with owner/kind as a memo')
+  assert(!report.includes('"kind": "methodology"'), 'the registration guide must not present kind as a required switch')
+  assert(report.includes('kind 값과 무관하게'), 'the registration guide must say kind does not change behavior')
+}
+
 function scanValidatesDeclaredProjectSources() {
   const target = makeTarget()
   runInit(target)
@@ -7000,6 +7022,7 @@ const tests = [
   guardCacheMissAfterTreeChange,
   buildContextMergesProfileAlwaysSources,
   scanValidatesDeclaredProjectSources,
+  scanTreatsEveryDeclaredSourceAsRuleDoc,
   installReportsExistingAiRuleDocuments,
   scanReportsHeadingOnlyAiRuleDocuments,
   scanReportsIgnoredAiRuleCandidates,
