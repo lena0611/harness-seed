@@ -2,6 +2,11 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
+## 0.2.141 후보 — hook-coexistence "자체 훅 폴더" 절 (2026-09-03)
+- 백엔드(PHP) 팀이 Claude 훅(PHP 호환·PHPStan)을 git pre-commit으로 옮길 때 에이전트가 유추로 빠지는 함정 셋(① `.githooks/*` 직접 편집·`.git/hooks/*` = 틀린 위치 → 자기 폴더 ② `core.hooksPath` 먼저·`install-hooks.mjs` 다음(composer 스크립트로 자동) ③ 툴킷 PHP 견본 없음)을 정본에 명문화(d41d325). 회귀 hookCoexistenceDocCoversOwnHookDirPattern, 228/228. **미push·미릴리스** — 다음 릴리스에 자연 포함.
+- 함정: 문서 링크 검사가 백틱 안 `scripts/…` 예시 경로를 실존 코드 경로로 판정 → 예시는 백틱 없이 쓴다(이번 실측).
+- 개발자 전달용 문서 `백엔드-PHP게이트-pre-commit-전환.md`(scratchpad) — 개념(검문소 두 종류)+함정 셋 중심으로 재작성, 스크립트는 부록. 사용자 전달 여부는 사용자 몫.
+
 ## 연결 프로젝트 — 게이트는 문서+커밋 검사로 (2026-09-03)
 - 사용자 통찰: 백엔드 전용 게이트(PHP 호환)를 Claude 훅이 아니라 **룰 문서(domain-rules·focus CLAUDE.md) + git pre-commit 검사**로 두면 어느 창에서도 도달 — `harness linked --hooks` 제안은 **폐기**. #15에 추가 회신(코멘트 159693) + 정본(context-protocol) 한 줄. 회신문 파일 사용자 전달.
 - 세션 간 인수인계: 데스크톱 앱 세션 메시지(다른 세션에 "From <제목>" 사용자 턴으로 도착, 세션 안에 남음·저장소 밖) 존재 확인. 정본 기록은 `handoff.md` — 연결 블록이 그쪽 handoff.md를 "먼저 읽기"에 포함하는 개선은 0.2.141 후보(미착수).
