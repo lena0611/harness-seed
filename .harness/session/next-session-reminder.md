@@ -4,7 +4,7 @@
 
 ## 확인 — 슬래시 커맨드는 스킬로 통합됨 (2026-09-03, 공식 문서)
 - `.claude/commands/*.md`와 `.claude/skills/<name>/SKILL.md`는 같은 것(둘 다 `/name`, 같은 frontmatter). commands는 폐기 아님·계속 동작, 새로 만들 땐 skills 권장. **같은 이름이면 skills가 이김**(소비자가 `.claude/skills/하네스업데이트/`를 만들면 우리 명령이 가려짐 — 알아둘 것). commands가 못 쓰는 필드: `name`, `paths`. 플러그인은 `skills/` 권장(우리 플러그인은 이미 skills/).
-- 판단: 본체 `.claude/commands/` 11개는 당장 옮기지 않는다(managed 경로 변경 = 은퇴 처리·회귀 비용, 이득 없음). 이관은 플러그인 R1(명령을 플러그인 skills/로) 때 한 번에. **`paths` 실측 완료(2026-09-03)**: 스킬의 `paths`는 파일을 읽어도 본문 자동 로드 안 됨(모델 호출 문일 뿐) → 규칙 배달 수단 아님. 같은 저장소 세션에선 중첩 CLAUDE.md·`.claude/rules`+`paths` 둘 다 결정적으로 로드. 다른 저장소 주 폴더 + additionalDirectories에선 셋 다 ✗(스킬 목록에도 안 뜸 — additionalDirectories는 파일 접근만, `--add-dir`와 다름) → 연결 블록이 유일 채널(설계 확정). 상세: claude-plugins/docs/plugin-platform-notes.md.
+- 판단: 본체 `.claude/commands/` 11개는 당장 옮기지 않는다(managed 경로 변경 = 은퇴 처리·회귀 비용, 이득 없음). 이관은 플러그인 R1(명령을 플러그인 skills/로) 때 한 번에. **`paths` 실측 완료(2026-09-03)**: 스킬의 `paths`는 파일을 읽어도 본문 자동 로드 안 됨(모델 호출 문일 뿐) → 규칙 배달 수단 아님. 같은 저장소 세션에선 중첩 CLAUDE.md·.claude/rules 파일의 paths 둘 다 결정적으로 로드. 다른 저장소 주 폴더 + additionalDirectories에선 셋 다 ✗(스킬 목록에도 안 뜸 — additionalDirectories는 파일 접근만, `--add-dir`와 다름) → 연결 블록이 유일 채널(설계 확정). 상세: claude-plugins/docs/plugin-platform-notes.md.
 
 ## 방향 확정 — 업데이트 알림은 플러그인 훅으로 (2026-09-03)
 - "세션 시작에 설치 버전 vs 최신 비교 → 뒤처지면 알림+업데이트 질문" 아이디어는 **하네스 본체가 아니라 플러그인(smartscore-harness 0.2.0)** 에 만든다: 업데이트 안 한 팀에 닿아야 하는데 저장소 훅은 설치 버전에 동결(닭과 달걀), 정보 층은 플러그인 몫(전수 검토 층 분리), R1 파일럿. 설계·실측 체크리스트: `~/project/claude-plugins/docs/roadmap.md`. **본체 0.2.141엔 넣지 않음.** 플러그인 개발 착수 때 이 항목부터.
@@ -12,6 +12,7 @@
 
 ## 0.2.141 후보 — hook-coexistence "자체 훅 폴더" 절 (2026-09-03)
 - 백엔드(PHP) 팀이 Claude 훅(PHP 호환·PHPStan)을 git pre-commit으로 옮길 때 에이전트가 유추로 빠지는 함정 셋(① `.githooks/*` 직접 편집·`.git/hooks/*` = 틀린 위치 → 자기 폴더 ② `core.hooksPath` 먼저·`install-hooks.mjs` 다음(composer 스크립트로 자동) ③ 툴킷 PHP 견본 없음)을 정본에 명문화(d41d325). 회귀 hookCoexistenceDocCoversOwnHookDirPattern, 228/228. **미push·미릴리스** — 다음 릴리스에 자연 포함.
+- **CLAUDE.md 마커 안내문 정정(d88bca9)** — 멀티사이트 실측(설치 전 .claude/CLAUDE.md 관례가 마커 아래로 이관됨, 리더의 08-21 "프로젝트 문서는 .harness 밖" 결정 존중): "아키텍처 경계…자유롭게" 초대 제거, "포인터만, 규칙 본문은 룰 문서(.harness/project/* 또는 팀의 .claude/rules/*.md, paths 가능)"를 **마커 안 머리 주석에도** 넣어 업데이트로 기존 팀 전파. 부작용 방지 문구 2개. 회귀 단언 4건, 229/229. 0.2.141 후보 총 3건(자체 훅 폴더 절·sources kind·마커 안내), 공지 1줄(마커 안내). 멀티사이트엔 머리 주석 한 줄 추가 외 변화 없음 — 정리는 리더 몫, 낡은 전제 둘(uninstall 보존·registry.local.json) 알려줄 것.
 - **profile.sources kind 판정 폐지(785aac8)** — 숨은 단어 목록 정규식 제거, 등록=규칙 문서, owner·kind는 메모. 스캔 인벤토리·등록 안내·README·bootstrap·notes 동기. 회귀 scanTreatsEveryDeclaredSourceAsRuleDoc, 229/229. 0.2.141 후보 총 2건(자체 훅 폴더 절 + 이것), 공지는 없음(에이전트·리더 대면 문서·스캔 문구).
 - 함정: 문서 링크 검사가 백틱 안 `scripts/…` 예시 경로를 실존 코드 경로로 판정 → 예시는 백틱 없이 쓴다(이번 실측).
 - 개발자 전달용 문서 `백엔드-PHP게이트-pre-commit-전환.md`(scratchpad) — 개념(검문소 두 종류)+함정 셋 중심으로 재작성, 스크립트는 부록. 사용자 전달 여부는 사용자 몫.
