@@ -4,6 +4,7 @@
   블록 안(harness-managed:start ~ harness-managed:end)은 직접 수정하지 마세요. 다음 업데이트 때 본체 정본으로 다시 채워집니다.
   프로젝트 고유 지침은 이 블록 "아래"(harness-managed:end 다음)에 작성하면 업데이트와 무관하게 영구 보존됩니다.
   관리 블록 기준과 프로젝트 영역 지침이 충돌하면 .harness/project/standards-layers.md의 "충돌 해석 순서"를 따릅니다.
+  블록 아래 프로젝트 영역에는 포인터·읽기 순서만 둡니다. 규칙 본문은 룰 문서(.harness/project/* 또는 팀이 정한 .claude/rules/*.md)에 — CLAUDE.md의 같은 안내를 따릅니다.
 -->
 # AGENTS
 
@@ -40,7 +41,7 @@ Codex나 Copilot 계열 에이전트는 Claude Code의 `SessionStart` hook과 sl
 <!-- harness-managed:end -->
 
 <!--
-  이 줄 아래는 프로젝트 소유 영역입니다. 프로젝트 고유의 비-Claude 에이전트 지침을 자유롭게 작성하세요.
+  이 줄 아래는 프로젝트 소유 영역입니다. 여기에는 비-Claude 에이전트용 포인터·읽기 순서만 둡니다. 규칙 본문은 룰 문서(.harness/project/* 또는 팀이 정한 .claude/rules/*.md)에 씁니다.
   harness:update는 위 harness-managed 블록만 갱신하고 이 영역은 보존합니다.
 -->
 

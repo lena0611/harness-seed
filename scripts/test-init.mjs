@@ -225,6 +225,13 @@ function cleanInstallCreatesExpectedFiles() {
   assert(claudeInstructions.includes('hook 검증에 맡겨 중복 실행을 피하고'), 'CLAUDE.md should avoid duplicate manual check before hooked commit')
   // #15(2026-09-02 실측): 상위 폴더·하위 서비스 폴더로 열면 훅이 0개인데 CLAUDE.md는 도달한다 — 그 채널로 알려야 한다.
   assert(claudeInstructions.includes('세션 주 폴더 확인'), 'CLAUDE.md must tell the agent hooks are off when the primary folder is not the repo root')
+  // 0.2.141(멀티사이트 실측): 마커 아래 안내가 "아키텍처 경계…자유롭게"라 규칙 본문이 CLAUDE.md에 쌓였다.
+  // 안내는 마커 안(업데이트로 기존 팀에도 전파)과 아래(신규 설치) 양쪽에 "포인터만, 규칙 본문은 룰 문서"로.
+  const managedEnd = claudeInstructions.lastIndexOf('<!-- harness-managed:end -->') // 머리 주석 4행에도 같은 단어가 있어 indexOf는 너무 이르다
+  assert(managedEnd > 0, 'consumer CLAUDE.md must carry the managed block markers')
+  assert(claudeInstructions.slice(0, managedEnd).includes('규칙 본문(아키텍처 경계·도메인·워크플로우·커밋 규칙)은 룰 문서에'), 'the rule-body guidance must live inside the managed block so updates reach existing consumers')
+  assert(claudeInstructions.slice(0, managedEnd).includes('에이전트가 먼저 나서지 않습니다'), 'the guidance must stop agents from volunteering a CLAUDE.md cleanup')
+  assert(!claudeInstructions.includes('진입 지침(아키텍처 경계, 읽기 순서 예외, 워크플로우 보충 등)을 자유롭게'), 'the old invitation to write architecture boundaries in CLAUDE.md must be gone')
 
   const agentInstructions = read(target, 'AGENTS.md')
   assert(agentInstructions.includes('비-Claude 에이전트 필수 동작'), 'AGENTS.md should include non-Claude required behavior')

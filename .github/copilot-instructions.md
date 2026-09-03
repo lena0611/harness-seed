@@ -4,6 +4,7 @@
   블록 안(harness-managed:start ~ harness-managed:end)은 직접 수정하지 마세요. 다음 업데이트 때 본체 정본으로 다시 채워집니다.
   프로젝트 고유 지침은 이 블록 "아래"(harness-managed:end 다음)에 작성하면 업데이트와 무관하게 영구 보존됩니다.
   관리 블록 기준과 프로젝트 영역 지침이 충돌하면 .harness/project/standards-layers.md의 "충돌 해석 순서"를 따릅니다.
+  블록 아래 프로젝트 영역에는 포인터·읽기 순서만 둡니다. 규칙 본문은 룰 문서(.harness/project/* 또는 팀이 정한 .claude/rules/*.md)에 씁니다.
 -->
 # Copilot Instructions
 

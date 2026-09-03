@@ -4,6 +4,7 @@
   블록 안(harness-managed:start ~ harness-managed:end)은 직접 수정하지 마세요. 다음 업데이트 때 본체 정본으로 다시 채워집니다.
   프로젝트 고유 지침은 이 블록 "아래"(harness-managed:end 다음)에 작성하면 업데이트와 무관하게 영구 보존됩니다.
   관리 블록 기준과 프로젝트 영역 지침이 충돌하면 .harness/project/standards-layers.md의 "충돌 해석 순서"를 따릅니다.
+  블록 아래 프로젝트 영역에는 "어디를 읽어라"만 둡니다 — 문서 포인터·읽기 순서 예외·짧은 진입 핵심. 규칙 본문(아키텍처 경계·도메인·워크플로우·커밋 규칙)은 룰 문서에 씁니다: .harness/project/*(domain-rules·architecture-rules·workflow-rules·commit-push-rules) 또는 팀이 정한 .claude/rules/*.md(paths로 경로 한정 가능). 규칙이 CLAUDE.md에 있으면 매 세션 통째로 실리고 하네스 도구(context·impact·scan)는 그 규칙을 보지 못합니다. 이미 있는 본문을 옮기는 시점은 팀이 정합니다 — 에이전트가 먼저 나서지 않습니다. 아래 안내문이 옛 문구("아키텍처 경계 … 자유롭게")로 남아 있으면 이 줄이 기준입니다.
 -->
 # CLAUDE
 
@@ -69,7 +70,9 @@
 <!-- harness-managed:end -->
 
 <!--
-  이 줄 아래는 프로젝트 소유 영역입니다. 프로젝트 고유의 에이전트 진입 지침(아키텍처 경계, 읽기 순서 예외, 워크플로우 보충 등)을 자유롭게 작성하세요.
+  이 줄 아래는 프로젝트 소유 영역입니다. 여기에는 "어디를 읽어라"만 둡니다 — 프로젝트 문서 포인터, 읽기 순서 예외, 5줄 안의 진입 핵심.
+  규칙 본문(아키텍처 경계·도메인 규칙·워크플로우·커밋 규칙)은 여기 쓰지 말고 룰 문서에: .harness/project/*(domain-rules·architecture-rules·workflow-rules·commit-push-rules) 또는 팀 관례상 .claude/rules/*.md(paths로 경로 한정 가능).
+  여기 쓰면 매 세션 통째로 실리고, 하네스 도구(context·impact·scan)는 그 규칙을 보지 못합니다.
   harness:update는 위 harness-managed 블록만 갱신하고 이 영역은 보존합니다.
 -->
 
