@@ -4,7 +4,7 @@
 
 ## 확인 — 슬래시 커맨드는 스킬로 통합됨 (2026-09-03, 공식 문서)
 - `.claude/commands/*.md`와 `.claude/skills/<name>/SKILL.md`는 같은 것(둘 다 `/name`, 같은 frontmatter). commands는 폐기 아님·계속 동작, 새로 만들 땐 skills 권장. **같은 이름이면 skills가 이김**(소비자가 `.claude/skills/하네스업데이트/`를 만들면 우리 명령이 가려짐 — 알아둘 것). commands가 못 쓰는 필드: `name`, `paths`. 플러그인은 `skills/` 권장(우리 플러그인은 이미 skills/).
-- 판단: 본체 `.claude/commands/` 11개는 당장 옮기지 않는다(managed 경로 변경 = 은퇴 처리·회귀 비용, 이득 없음). 이관은 플러그인 R1(명령을 플러그인 skills/로) 때 한 번에. **후속 확인 거리**: skills의 `paths` frontmatter(경로 기준 자동 적용)가 서비스 룰(ss/multisite)·연결 프로젝트에 쓸 수 있는지 — 문서 확인 후 로드맵 반영.
+- 판단: 본체 `.claude/commands/` 11개는 당장 옮기지 않는다(managed 경로 변경 = 은퇴 처리·회귀 비용, 이득 없음). 이관은 플러그인 R1(명령을 플러그인 skills/로) 때 한 번에. **`paths` 실측 완료(2026-09-03)**: 스킬의 `paths`는 파일을 읽어도 본문 자동 로드 안 됨(모델 호출 문일 뿐) → 규칙 배달 수단 아님. 같은 저장소 세션에선 중첩 CLAUDE.md·`.claude/rules`+`paths` 둘 다 결정적으로 로드. 다른 저장소 주 폴더 + additionalDirectories에선 셋 다 ✗(스킬 목록에도 안 뜸 — additionalDirectories는 파일 접근만, `--add-dir`와 다름) → 연결 블록이 유일 채널(설계 확정). 상세: claude-plugins/docs/plugin-platform-notes.md.
 
 ## 방향 확정 — 업데이트 알림은 플러그인 훅으로 (2026-09-03)
 - "세션 시작에 설치 버전 vs 최신 비교 → 뒤처지면 알림+업데이트 질문" 아이디어는 **하네스 본체가 아니라 플러그인(smartscore-harness 0.2.0)** 에 만든다: 업데이트 안 한 팀에 닿아야 하는데 저장소 훅은 설치 버전에 동결(닭과 달걀), 정보 층은 플러그인 몫(전수 검토 층 분리), R1 파일럿. 설계·실측 체크리스트: `~/project/claude-plugins/docs/roadmap.md`. **본체 0.2.141엔 넣지 않음.** 플러그인 개발 착수 때 이 항목부터.
