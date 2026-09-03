@@ -65,6 +65,26 @@ husky 훅은 잘 돌지만, **옛 `.git/hooks` 훅들은 실행 경로에서 조
 sh "$(git rev-parse --show-toplevel)/.git/hooks/pre-commit"
 ```
 
+## husky가 없는 프로젝트(PHP 등)의 자체 훅 폴더 (0.2.141)
+
+Node가 아닌 프로젝트(PHP 모놀리스 등)가 자기 커밋 검사(예: PHP 7.2∩8.4 파스 검사, PHPStan)를 팀 전체에 걸고 싶을 때의 패턴입니다. 원리는 husky와 같습니다 — **프로젝트 훅 폴더를 "이전 훅"으로 두고 하네스가 체인**합니다.
+
+- **어디에 두나**: 저장소에 커밋되는 자기 폴더 — 예를 들어 scripts/git-hooks/pre-commit 같은 파일(실행 권한). 이름은 프로젝트가 정합니다. 두 가지는 피합니다 — `.githooks/*`에 직접 쓰기(하네스 관리 파일이라 업데이트 때 보존·동결 문제), `.git/hooks/*`에 쓰기(내 PC 전용, 팀에 안 퍼짐).
+- **순서(핵심)**: `core.hooksPath`를 자기 폴더로 **먼저** 두고, 그 다음 `node .harness/bin/install-hooks.mjs`. 하네스가 그 경로를 `harness.previousHooksPath`에 보관하고 `core.hooksPath`를 `.githooks`로 바꿔, 커밋 때 자기 훅 → 하네스 검사 순으로 돕니다. 거꾸로 하면 하네스 훅이 밀려나거나 순환합니다.
+- **팀원마다 자동으로**: Node의 `prepare` 자리는 composer 스크립트가 맡습니다.
+  ```json
+  "scripts": {
+    "post-install-cmd": ["@git-hooks"],
+    "post-update-cmd":  ["@git-hooks"],
+    "git-hooks": ["git config core.hooksPath scripts/git-hooks", "node .harness/bin/install-hooks.mjs"]
+  }
+  ```
+  composer를 쓰지 않으면 각자 한 번 `git config core.hooksPath scripts/git-hooks && node .harness/bin/install-hooks.mjs`.
+- **확인**: `git config core.hooksPath` → `.githooks`, `git config harness.previousHooksPath` → 자기 훅 폴더(예: scripts/git-hooks).
+- **훅 스크립트가 지킬 것**: 입력은 `git diff --cached --name-only`(이번 커밋의 파일), 검사 대상은 `git show ":$f"`(스테이징된 내용), 실패는 `exit 1`. 필요한 실행 파일이 없을 때 조용히 통과시키지 말고 실패시킵니다 — 검사가 빠지는 것이 이 게이트가 막으려는 사고입니다. 2번째 줄에 `# scope: project`를 적어 두면 다중 저장소 세션 안내가 정확히 가리킵니다.
+- **왜 Claude 세션 훅이 아니라 git 훅인가**: 세션 훅은 그 저장소를 주 폴더로 연 창에서만 돕니다. 연결 프로젝트(다른 저장소 창에서 이 저장소를 고치는 경우)나 사람·Codex 커밋에는 닿지 않습니다. git 훅은 커밋이 그 저장소에서 일어나는 한 항상 돕니다. 규칙 본문은 `domain-rules.md`에(에이전트가 읽음), 물리 차단은 git 훅에.
+- 회사 quality-gates 툴킷에 PHP 스택 견본은 아직 없습니다(2026-09-03). 위 패턴으로 만든 훅이 자리 잡으면 `stacks/php/` MR로 역제안하세요.
+
 ## 하지 않는 것
 
 - `install-hooks.mjs`가 `"prepare": "husky"`를 감지해 경고하는 코드 개입은 하지 않습니다(코드는 최후 수단, 2026-08-13 합의). `postprepare` 대안에서는 `prepare`가 husky 단독인 것이 정상이므로, 값만 보고 경고하면 오탐이 됩니다. 같은 질문이 실전에서 반복되면 재고합니다.

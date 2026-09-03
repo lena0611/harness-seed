@@ -2910,6 +2910,17 @@ function installOutputEndsWithReportPrompt() {
   assert(!outEmbedded.includes('설치 결과 리포트를 남길까요'), 'embedded base init must leave the final guidance to the stack harness')
 }
 
+// 0.2.141 — 비-Node(PHP) 팀이 자기 커밋 검사를 팀 전체에 걸 때 빠지는 함정 셋(어디에 두나·순서·PHP 견본 없음)을
+// 하네스 정본(hook-coexistence.md)이 직접 안내해야 에이전트가 유추 없이 맞게 배선한다.
+function hookCoexistenceDocCoversOwnHookDirPattern() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const doc = read(target, '.harness/project/hook-coexistence.md')
+  assert(doc.includes('자체 훅 폴더'), 'coexistence doc must carry the non-Node own-hook-dir pattern')
+  assert(doc.includes('git config core.hooksPath scripts/git-hooks'), 'it must show the hooksPath-first ordering with the harness install after it')
+  assert(doc.includes('.git/hooks/*') && doc.includes('.githooks/*'), 'it must name the two wrong places (untracked .git/hooks, managed .githooks)')
+}
+
 function hooksInstallWarnsWhenStoredChainIsReplaced() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -6961,6 +6972,7 @@ const tests = [
   hooksInstallWarnsWhenStoredChainIsReplaced,
   sessionStartHookInjectsLinkedProjectPointers,
   bodyHooksDeclareScope,
+  hookCoexistenceDocCoversOwnHookDirPattern,
   installOutputEndsWithReportPrompt,
   hooksInstallWarnsAboutGitHooksThatStopRunning,
   reportInstallHelpWritesNothing,
