@@ -4,6 +4,7 @@
 
 ## 0.2.141 후보 — hook-coexistence "자체 훅 폴더" 절 (2026-09-03)
 - 백엔드(PHP) 팀이 Claude 훅(PHP 호환·PHPStan)을 git pre-commit으로 옮길 때 에이전트가 유추로 빠지는 함정 셋(① `.githooks/*` 직접 편집·`.git/hooks/*` = 틀린 위치 → 자기 폴더 ② `core.hooksPath` 먼저·`install-hooks.mjs` 다음(composer 스크립트로 자동) ③ 툴킷 PHP 견본 없음)을 정본에 명문화(d41d325). 회귀 hookCoexistenceDocCoversOwnHookDirPattern, 228/228. **미push·미릴리스** — 다음 릴리스에 자연 포함.
+- **profile.sources kind 판정 폐지(785aac8)** — 숨은 단어 목록 정규식 제거, 등록=규칙 문서, owner·kind는 메모. 스캔 인벤토리·등록 안내·README·bootstrap·notes 동기. 회귀 scanTreatsEveryDeclaredSourceAsRuleDoc, 229/229. 0.2.141 후보 총 2건(자체 훅 폴더 절 + 이것), 공지는 없음(에이전트·리더 대면 문서·스캔 문구).
 - 함정: 문서 링크 검사가 백틱 안 `scripts/…` 예시 경로를 실존 코드 경로로 판정 → 예시는 백틱 없이 쓴다(이번 실측).
 - 개발자 전달용 문서 `백엔드-PHP게이트-pre-commit-전환.md`(scratchpad) — 개념(검문소 두 종류)+함정 셋 중심으로 재작성, 스크립트는 부록. 사용자 전달 여부는 사용자 몫.
 
