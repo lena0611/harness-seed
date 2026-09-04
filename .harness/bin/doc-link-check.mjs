@@ -496,7 +496,7 @@ export function findSpecLinkInconsistencies() {
   )))
 
   for (const collision of state.collisions) {
-    issues.push(`경로 충돌: '${collision.rel}' 이 여러 소스(${collision.sourceIds.join(', ')})에 있습니다 — 활성 소스 전역에서 문서 상대경로는 유일해야 합니다. include/exclude로 겹침을 없애세요.`)
+    issues.push(`같은 경로가 여러 기획 저장소에 있습니다: '${collision.rel}' (${collision.sourceIds.join(', ')}) — 매핑 표와 정산에서는 소스 이름을 붙여 지정하세요: ${collision.sourceIds[0]}:${collision.rel}`)
   }
 
   const lockFiles = new Set(
@@ -530,14 +530,6 @@ export function findSpecLinkInconsistencies() {
   }
 
   return issues
-}
-
-function readSpecEnforcement() {
-  try {
-    return JSON.parse(fs.readFileSync(profilePath, 'utf8'))?.specEnforcement ?? 'advisory'
-  } catch {
-    return 'advisory'
-  }
 }
 
 function main() {
@@ -603,11 +595,6 @@ function main() {
     console.log('')
   }
 
-  // \uc815\ud569 \ubb38\uc81c\ub294 push \uac8c\uc774\ud2b8/advisory\uc758 \ud310\uc815 \uc815\ud655\ub3c4\ub97c \uc9c1\uc811 \uae68\ub728\ub9ac\ubbc0\ub85c,
-  // \uac8c\uc774\ud2b8\ub97c \uc635\ud2b8\uc778(specEnforcement=gate)\ud55c \ud504\ub85c\uc81d\ud2b8\uc5d0\uc11c\ub294 strict\uac00 \uc544\ub2c8\uc5b4\ub3c4 \ucc28\ub2e8\ud55c\ub2e4.
-  if (specIssues.length > 0 && readSpecEnforcement() === 'gate') {
-    process.exitCode = 1
-  }
 
   if (strictMode) {
     process.exitCode = 1

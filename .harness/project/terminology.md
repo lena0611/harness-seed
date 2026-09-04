@@ -54,7 +54,7 @@
 | 정산(settle) | "바뀐 기획 봤고 반영했다"는 확인 도장 — 찍어야 기준이 전진 | `.harness/bin/harness spec:settle` |
 | drift (어긋남) | 기획서와 코드가 서로 다른 말을 하는 상태 | `harness:spec:status` |
 | spec-map (매핑) | "이 기획서는 이 코드로 구현했다"의 연결표 — 도면↔시공 대응표 | `.harness/project/spec-map.md` |
-| advisory / gate | 기획 어긋남을 참고로만 알릴지, push를 막을지의 집행 등급 | profile의 `specEnforcement` |
+| 소스 이름 붙이기 | 기획 저장소가 여럿일 때 같은 이름의 문서를 구분하는 표기 — 동명이인에게 성을 붙이는 것 | `<소스id>:<경로>` (매핑 표·`spec:settle --doc`) |
 | 이슈 어댑터 | push 완료 보고에 열린 이슈 요약 한 줄을 붙이는 스위치 — 파일이 있으면 켜짐 | 프로젝트가 견본을 복사해 만든 issue-adapter 파일 (견본: `issue-adapter.example.md`) |
 
 ## 쉬운 풀이 — 계층·계약

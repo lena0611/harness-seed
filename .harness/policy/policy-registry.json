@@ -708,8 +708,7 @@
       "ownedAreas": [
         ".harness/project/spec-authority-workflow.md",
         ".harness/bin/spec-sync.mjs",
-        ".harness/bin/spec-push-gate.mjs",
-        ".harness/bin/doc-link-check.mjs",
+            ".harness/bin/doc-link-check.mjs",
         ".harness/bin/build-context.mjs",
         ".harness/bin/policy-harness.mjs",
         ".harness/bin/uninstall-harness.mjs",

@@ -590,13 +590,21 @@ function analyzeSpecLink(changedFiles) {
   // 이번 변경이 어느 기획 소스의 영역을 건드렸는가(0.2.142). 한 저장소가 서비스 여럿을 담으면
   // 남의 서비스 기획 알림이 매 커밋에 딸려 나온다 — 실측에서 레거시 팀 커밋마다 멀티사이트
   // 미매핑 22건이 열거됐다. 알림은 저장소가 아니라 **변경한 영역**을 따라간다.
+  const lockSourceIds = Object.keys(lock.sources ?? {})
   const sourceOfSpec = new Map()
   for (const [sourceId, recorded] of Object.entries(lock.sources ?? {})) {
     for (const rel of Object.keys(recorded?.files ?? {})) {
       if (!sourceOfSpec.has(rel)) sourceOfSpec.set(rel, sourceId)
     }
   }
-  const touchedSources = [...new Set(touchedMappings.map((entry) => sourceOfSpec.get(entry.spec)).filter(Boolean))]
+  // 매핑 표의 기획 문서 칸은 `<소스id>:<경로>`로 소스를 지정할 수 있다(0.2.142).
+  const specSourceOf = (ref) => {
+    const text = String(ref ?? '').trim()
+    const at = text.indexOf(':')
+    if (at > 0 && lockSourceIds.includes(text.slice(0, at))) return text.slice(0, at)
+    return sourceOfSpec.get(text) ?? null
+  }
+  const touchedSources = [...new Set(touchedMappings.map((entry) => specSourceOf(entry.spec)).filter(Boolean))]
 
   return {
     configured: true,
@@ -688,7 +696,6 @@ function printSpecLinkNotice(specLink) {
       console.log(`  - 외 ${uncovered.length - 5}건`)
     }
     console.log('  기획 문서가 필요 없는 코드면 판정으로 기록합니다: | (사양 없음) | <경로 또는 디렉터리/**> | 사유 |')
-    console.log('  specEnforcement가 gate면 이 항목은 push에서 차단됩니다.')
   }
 }
 
@@ -1283,7 +1290,7 @@ function runImpact() {
     }
   } else {
     // fail-closed: 설정 오류는 조용히 완화하지도, strict로 추측하지도 않고 검사를 실패시킨다.
-    // specEnforcement 오값이 push를 막는 것과 같은 기준이다 — 더 넓은 harnessMode만 통과시킬 이유가 없다.
+    // 설정 오값을 조용히 완화하지 않는다 — 켰다고 믿는데 꺼져 있는 상태가 가장 나쁘다.
     console.log(`Harness mode: 판정 불가 (설정 오류)`)
     console.log('')
     if (harnessModeState.kind === 'malformed') {

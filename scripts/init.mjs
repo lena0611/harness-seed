@@ -148,6 +148,7 @@ const SEED_ONLY_DOC_PATHS = new Set([
 const RETIRED_MANAGED_PATHS = new Set([
   '.claude/commands/검증설정.md', // 0.2.131 verify 제거와 함께 삭제된 명령 문서
   '.claude/commands/harness-absorb.md', // 0.2.25에서 harness-scan.md로 개명되기 전 이름
+  '.harness/bin/spec-push-gate.mjs', // 0.2.142 push 차단 모드 제거와 함께 삭제된 게이트
 ]);
 
 // 세션 이력 아카이브(0.2.95): decision-log 2계층 관례(0.2.92)로 본체 자신의 아카이브

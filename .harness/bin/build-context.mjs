@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 // 기획 본문 읽기는 spec-sync의 안전 경로만 쓴다. 여기서 path.join + readFileSync로 직접 읽으면
 // 루트·중간·leaf 심볼릭 링크를 그대로 따라가, 쓰기는 막고 읽기는 뚫리는 비대칭이 생긴다(재리뷰 P1-2).
-import { buildScreenIndex, normalizeScreenLinks, parseSpecMapText, readSpecCacheDoc, specCacheDirPath, specContextBudgetMs } from './spec-sync.mjs'
+import { buildScreenIndex, normalizeScreenLinks, parseSpecMapText, readSpecCacheDoc, specCacheDirPath, specContextBudgetMs, specRefMatches } from './spec-sync.mjs'
 
 function sha256Text(content) {
   return crypto.createHash('sha256').update(content).digest('hex')
@@ -268,7 +268,9 @@ function selectSpecCandidates(tokens, limitCount, unreliableSources = []) {
       // 매핑 표에는 대표 문서만 적히므로, 링크된 화면의 연결 구현은 대표 문서에서 가져온다.
       const unit = screenIndex?.unitFor(rel) ?? null
       const mappingKey = unit ? unit.primary : rel
-      const linked = specMap.filter((entry) => entry.spec === mappingKey).flatMap((entry) => entry.codePaths)
+      // 매핑 표의 기획 문서 칸은 `<소스id>:<경로>`로 소스를 지정할 수 있다(0.2.142).
+      const mapSourceIds = Object.keys(lock.sources ?? {})
+      const linked = specMap.filter((entry) => specRefMatches(entry.spec, sourceId, mappingKey, mapSourceIds)).flatMap((entry) => entry.codePaths)
       candidates.push({
         source: sourceId,
         file: rel,

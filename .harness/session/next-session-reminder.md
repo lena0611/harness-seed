@@ -21,6 +21,14 @@
 - 개발자 질문 6개 답 초안(사용자 확인 전): Q1 표식 걷어 올라가기 — 긍정 검토(구역=경로 접두+주인+룰+기획 소스+강도, 루트 목록 드리프트 지적 타당·scan 실존 검증은 있음) / Q2 PHP 스택 계획 없음 → 3단계 보류 동의 / Q3 폴더 disable보다 "범위"(gate 경로 한정이면 끄기 불필요, 길라잡이 원칙) / Q4 hooksPath 자동 복원의 합의 = master 설치 자체; 브랜치에만 있을 땐 그 브랜치 사용자만 영향(옵트아웃 표식 있음) / Q5 소스 루트 못 찾으면 권고 대신 질문 — 동의 / Q6 모놀리스 설치 안내에 CODEOWNERS 한 줄 — 후보. 0단계 7개 중 1·2·4·6은 이번 실측으로 동작 확인.
 - 다음 릴리스(0.2.142) 전 반영 여부는 사용자 판단. 실측 산출물 로그: 세션 scratchpad(central-init/check/commit/push, A~K 커밋·push 로그).
 
+## 다이어트 1차 — 게이트 제거 + 소스 이름 붙이기 완료 (2026-09-04)
+- **결정 101(게이트 제거)·102(소스 이름 붙이기) 반영 완료.** 회귀 223종 전량 통과, practice 통합 저장소에서 갱신→커밋→push까지 실측 확인(게이트 스크립트는 은퇴 경로로 소비자에서 함께 삭제됨, 남은 specEnforcement 값은 무시).
+- 다이어트 조사 결과(3갈래 병렬 조사, 2026-09-04)는 이 세션에서만 존재하므로 요지를 남긴다:
+  - **실사용 전수(설치 24곳)**: 업무 프로젝트는 multisite·scorecard-print·clubadm 셋. gate 0, syncEnforcement 0, 기획 연동 1(multisite), sources[] 1(clubadm), linkedProjects 0, document-registry.local.json 3/3(잘 쓰임), critical-paths 2/3, domain·architecture·workflow 3종 모두 채움 2/3. charter 질문 4개는 거의 모든 설치에서 답 없이 열려 있음.
+  - **미사용 표면**: 파일 밖에서 안 쓰는 export 40개(그중 5개만 소비자 계약으로 잠김), 죽은 함수 1개(제거됨), 무동작 설정 키(`version`·`available`·`notes`), 중복 플래그 `--confirm-overwrite-project-state`, 스킬 registry의 존재하지 않는 명령 1건(`npm run docs:check:strict`)과 리터럴 `YYYY` 경로 2건, 실행 회귀가 없는 서브커맨드 6개(handoff·guide·standards:list·templates:list·stack:status·template:gap).
+  - **남은 다이어트 후보(사용자 판단 대기)**: export 표면 축소, 무동작 키 정리(소비자 파일을 건드리므로 신중), 스킬 registry 결함 3건(이건 줄이기가 아니라 고치기), charter 질문에 "넘어가기" 경로.
+- **큰 것 중 남은 둘**: B(지방 룰의 경로 범위 — sources[] inject가 저장소 전역)와 H(게이트 범위)는 게이트 제거로 H가 소멸했고 B만 남는다. 폴더 표식(.service.json) 방향은 저쪽 개발자의 6주 관찰 뒤 판단. 기준: **기존 장치를 대체하면 도입, 얹기만 하면 안 함.**
+
 ## 0.2.142 후보 — 통합 저장소(백엔드 common)의 다중 기획 구독 검토 (2026-09-04)
 - **판정: 구조는 된다.** "하네스 한 벌 + 서비스별 소스"가 설계·코드·회귀에 있음(소스 단위 `--move-baseline --source`, 경로 충돌 거부, 관리 영역 깊이 2 규칙으로 `ss/<서비스>` 격리). 같은 기획 저장소를 프론트·백이 각자 소비하는 것이 정석.
 - **이번 커밋으로 반영(후보)**: `/기획문서연동` 어댑터 세 번째 갈래(이미 연동 + 새 주소 → 소스 추가 절차, `--source` 필수) + 소스 id 명명 규칙(서비스 이름, 견본 `planning` → `<서비스명>`, 기존 id 유지 — 결정 100). 회귀 specLinkAdapterRoutesSecondSourceToAddProcedure. CHANGELOG 0.2.142 미배포 절에 공지 1줄 초안(발사 전 승인 필요).

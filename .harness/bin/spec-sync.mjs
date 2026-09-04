@@ -450,7 +450,29 @@ export function findDeclarationLockIssues(sources, lockNorm) {
   return issues
 }
 
-// 같은 상대경로가 두 소스 이상에 있으면 매핑(spec-map)이 어느 문서를 가리키는지 모호해진다.
+// 문서 지정에 소스 이름을 붙일 수 있다: `multisite:features/영업현황.md` (0.2.142).
+//
+// 기획 저장소가 둘 이상이면 같은 상대경로가 겹칠 수 있다 — 기획팀들이 features/·policies/ 같은
+// 폴더 관례를 각자 쓰기 때문이다. 경로만으로는 어느 문서인지 알 수 없어 예전에는 정산이 거부되고
+// 겹침을 없애는 방법이 include/exclude 조정뿐이었다(백엔드 통합 저장소 검토, 2026-09-04).
+// 접두는 **선언된 소스 id일 때만** 소스 지정으로 읽는다 — 콜론이 든 파일 이름을 깨뜨리지 않는다.
+export function parseSpecRef(value, sourceIds = []) {
+  const text = String(value ?? '').trim()
+  const at = text.indexOf(':')
+  if (at > 0) {
+    const head = text.slice(0, at)
+    if (sourceIds.includes(head)) return { source: head, file: text.slice(at + 1).trim() }
+  }
+  return { source: null, file: text }
+}
+
+// 소스 지정이 없는 참조는 어느 소스의 문서와도 맞는다(단일 소스 프로젝트의 기존 표기 그대로).
+export function specRefMatches(ref, sourceId, rel, sourceIds = []) {
+  const parsed = parseSpecRef(ref, sourceIds)
+  return parsed.file === rel && (parsed.source === null || parsed.source === sourceId)
+}
+
+// 같은 상대경로가 두 소스 이상에 있으면 소스 이름 없이는 어느 문서인지 알 수 없다.
 export function findPathCollisions(lockNorm) {
   const byRel = new Map()
   for (const [id, recorded] of Object.entries(lockNorm?.sources ?? {})) {
@@ -1101,18 +1123,6 @@ export function mappedDocsForFiles(files, entries) {
   return hits
 }
 
-// 매핑 표에는 대표 문서 한 줄만 적는다(`features/로그인.md`). 개발자가 MD와 HTML을 각각
-// 매핑하게 만들지 않는다 — 같은 단위의 짝은 하네스가 자동으로 포함한다(기획자 합의 계약).
-export function expandMappedSpecs(specs, screenIndex) {
-  const out = []
-  for (const spec of specs) {
-    for (const file of (screenIndex?.unitFor(spec)?.files ?? [spec])) {
-      if (!out.includes(file)) out.push(file)
-    }
-  }
-  return out
-}
-
 // "판정 완료" 표기: 사람이 검토한 결과 짝이 필요 없다고 결론 낸 상태를 1급으로 기록한다.
 // - 기획 문서 칸이 (사양 없음)  → 그 코드 경로는 기획 문서 대상이 아님(유틸/인프라 등)
 // - 구현 경로 칸이 (코드 없음)  → 그 기획 문서는 구현 대상이 아님(운영 안내 등)
@@ -1202,73 +1212,11 @@ export function readSpecMapExemptions() {
   }
 }
 
-// 매핑 커버리지: "이미 매핑된 영역에 새로 생긴 파일인데 매핑도 판정도 없는 것"을 찾는다.
-//
-// 전체 코드에서 미매핑을 세면 스캐폴드·유틸·설정까지 걸려 신호가 잡음에 묻힌다(score-print 교훈).
-// 그래서 판정 범위를 **이미 매핑이 있는 디렉터리(와 그 하위)**로 좁힌다. 그 영역은 개발팀이
-// "여기 있는 것은 기획 문서와 짝을 이룬다"고 이미 선언한 곳이므로, 새 파일에 매핑이 없으면
-// 십중팔구 기록 누락이다. 판정 행((사양 없음))이 있으면 그것도 '검토됨'으로 본다.
-// 매핑된 코드 경로에서 "관리 영역"을 뽑는다.
-// - 매핑 자신의 기준 디렉터리(파일이면 그 디렉터리, 글롭이면 * 앞 접두)
-// - 그 부모 디렉터리 — 기능별 폴더의 형제(src/views/login 옆의 src/views/payment)를 잡기 위함
-// 두 경우 모두 깊이 2 이상만 채택한다. 'src' 같은 최상위를 영역으로 잡으면 유틸·설정까지 걸려
-// 신호가 잡음에 묻힌다(score-print P4 교훈).
-export function collectManagedAreas(entries) {
-  const areas = new Set()
-  const depth = (value) => value.split('/').filter(Boolean).length
-  for (const entry of entries) {
-    for (const mapPath of entry.codePaths) {
-      const starIndex = mapPath.indexOf('*')
-      const rawBase = starIndex === -1 ? mapPath : mapPath.slice(0, starIndex)
-      const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : path.posix.dirname(rawBase)
-      if (!base || base === '.' || base === '/') continue
-      if (depth(base) >= 2) areas.add(base)
-      const parent = path.posix.dirname(base)
-      if (parent && parent !== '.' && parent !== '/' && depth(parent) >= 2) areas.add(parent)
-    }
-  }
-  return areas
-}
-
-// 검사 대상은 "이번에 추가되거나 수정된 파일" 전부다(0.2.102 리뷰 P1-4).
-// 신규 파일만 보면, 매핑이 없는 기존 파일을 계속 고치는 동안 아무 안내도 없이 사각지대가 유지된다
-// (기존 파일 수정은 매핑 advisory가 처리한다고 봤지만, 그 파일이 미매핑이면 advisory도 안 걸린다).
-export function analyzeMappingCoverage(addedFiles, entries, exemptions) {
-  if (addedFiles.length === 0 || entries.length === 0) return []
-
-  const managedDirs = collectManagedAreas(entries)
-  if (managedDirs.size === 0) return []
-
-  const inManagedArea = (filePath) => !isNonImplementationPath(filePath)
-    && [...managedDirs].some((dir) => filePath === dir || filePath.startsWith(`${dir}/`))
-  const isExempt = (filePath) => exemptions.codePaths.some((mapPath) => codePathMatches(filePath, mapPath))
-  const isMapped = (filePath) => entries.some((entry) => entry.codePaths.some((mapPath) => codePathMatches(filePath, mapPath)))
-
-  return addedFiles
-    .filter((filePath) => inManagedArea(filePath))
-    .filter((filePath) => !isMapped(filePath))
-    .filter((filePath) => !isExempt(filePath))
-    .sort()
-}
-
-// gate 전용 강한 커버리지(0.2.105): 이번 push의 **구현 파일 전부**가 매핑 또는 판정을 가져야 한다.
-//
-// 위의 관리영역 축소판은 advisory용 잡음 방지다(score-print P4 — 전체를 세면 유틸·설정이 신호를
-// 묻는다). 그런데 그 축소가 gate에서는 우회가 됐다: 매핑이 0건이거나 **기존 매핑 영역 밖**에
-// 새 코드를 만들면 검사 자체가 없었다(5차 리뷰 P1-1 — "시작을 알려주는 것"까지만 있고
-// "시작 매핑을 반드시 남기게 하는 것"이 없었다). gate는 팀이 준비됐다고 선언한 모드이므로
-// 전수 판정을 요구하고, `(사양 없음)` 디렉터리 판정이 잡음 밸브가 된다(한 번 판정하면 끝).
-const NON_IMPLEMENTATION_PREFIXES = ['.harness/', '.githooks/', '.github/', '.claude/', '.codex/', '.vscode/', '.idea/', 'node_modules/', 'dist/', 'build/', 'coverage/']
-
-// "이건 구현 파일이 아니다"의 정본(0.2.142). 예전에는 gate만 이 판정을 갖고 있어서, 커밋
-// advisory가 문서(.md)·설정까지 "매핑이 없다"고 지목했다 — 같은 파일을 커밋에서는 지적하고
-// push에서는 통과시키는 어긋남이었다(백엔드 통합 저장소 실측, 2026-09-04: 서비스 폴더에
-// CLAUDE.md 포인터와 룰 문서를 두자 커밋마다 매핑 누락으로 열거됨).
-export function isNonImplementationPath(filePath) {
-  return NON_IMPLEMENTATION_PREFIXES.some((prefix) => filePath.startsWith(prefix))
-    || filePath.toLowerCase().endsWith('.md')
-    || !filePath.includes('/') // 루트 단일 파일(package.json, vite.config.* 등)은 구현 파일이 아니다
-}
+// 매핑 커버리지 판정("이 파일이 매핑을 가져야 하는가")은 이제 커밋 안내 한 곳에만 있다 —
+// policy-harness.analyzeMappingCoverageLocal. 0.2.142에서 push 차단 모드를 제거하며
+// 전수 판정(analyzeMappingCoverageStrict)과 그 짝(analyzeMappingCoverage·collectManagedAreas·
+// isNonImplementationPath)을 함께 걷어냈다: 차단 모드를 켠 프로젝트가 0이었고, 같은 규칙이
+// 두 곳에 살아 있으면 오늘의 매핑 표 파서 결함처럼 한쪽만 조용히 틀어진다.
 
 // 기획 컨텍스트의 네트워크 예산. 소스마다 clone/fetch가 순차로 일어나므로 고정값은 소스가
 // 늘수록 모자란다 — 통합 저장소(기획 저장소 둘)에서 본문 준비만으로 8초를 다 써 최신 확인이
@@ -1276,18 +1224,6 @@ export function isNonImplementationPath(filePath) {
 export function specContextBudgetMs(sourceCount) {
   const sources = Number.isFinite(sourceCount) && sourceCount > 0 ? Math.floor(sourceCount) : 1
   return Math.min(20000, 8000 + (sources - 1) * 4000)
-}
-
-export function analyzeMappingCoverageStrict(changedFiles, entries, exemptions) {
-  const isMeta = isNonImplementationPath
-  const isExempt = (filePath) => exemptions.codePaths.some((mapPath) => codePathMatches(filePath, mapPath))
-  const isMapped = (filePath) => entries.some((entry) => entry.codePaths.some((mapPath) => codePathMatches(filePath, mapPath)))
-
-  return changedFiles
-    .filter((filePath) => !isMeta(filePath))
-    .filter((filePath) => !isMapped(filePath))
-    .filter((filePath) => !isExempt(filePath))
-    .sort()
 }
 
 // git이 비ASCII 경로를 "..." octal로 감싸 출력하는 것(core.quotePath 기본값)을 실제 경로로 되돌린다.
@@ -1353,17 +1289,20 @@ export function screenIndexesFromCache(state) {
 // 도는 구조라 매핑이 0건이면 아무 말도 하지 않는다 — 정확히 시작 지점이 사각지대였다(0.2.104).
 // 링크된 화면은 대표 문서로 매핑되므로 별도 매핑 대상이 아니다.
 export function findUnmappedSpecs(lockNorm, entries, exemptions, screenIndexBySource = {}) {
-  const mapped = new Set((entries ?? []).map((entry) => entry.spec))
-  const exempt = new Set(exemptions?.specs ?? [])
+  const sourceIds = Object.keys(lockNorm?.sources ?? {})
+  const mappedRefs = (entries ?? []).map((entry) => entry.spec)
+  const exemptRefs = exemptions?.specs ?? []
+  const covered = (sourceId, rel) => mappedRefs.some((ref) => specRefMatches(ref, sourceId, rel, sourceIds))
+    || exemptRefs.some((ref) => specRefMatches(ref, sourceId, rel, sourceIds))
   const out = []
 
   for (const [sourceId, recorded] of Object.entries(lockNorm?.sources ?? {})) {
     const index = screenIndexBySource[sourceId] ?? null
     for (const rel of Object.keys(recorded.files ?? {})) {
-      if (mapped.has(rel) || exempt.has(rel)) continue
+      if (covered(sourceId, rel)) continue
       const unit = index?.unitFor(rel)
       if (unit && unit.primary !== rel) continue // 링크된 화면 — 대표 문서가 매핑 단위다
-      if (unit && (mapped.has(unit.primary) || exempt.has(unit.primary))) continue
+      if (unit && covered(sourceId, unit.primary)) continue
       out.push({ source: sourceId, file: rel })
     }
   }
@@ -2423,10 +2362,13 @@ function runSettle({ docs = [] } = {}) {
     }
   }
 
-  let scopeDocs = docs
-  if (scopeDocs.length === 0) {
+  // 범위는 {소스, 경로} 짝으로 다룬다 — 소스 이름이 붙은 지정(`alpha:features/a.md`)은
+  // 그 소스에만 적용되고, 이름이 없으면 예전처럼 모든 소스에서 찾는다.
+  const declaredSourceIds = state.sources.map((source) => source.id)
+  let scopeRefs = docs.map((doc) => parseSpecRef(doc, declaredSourceIds))
+  if (scopeRefs.length === 0) {
     const outgoing = collectOutgoingFiles()
-    scopeDocs = mappedDocsForFiles(outgoing, state.entries).map((entry) => entry.spec)
+    scopeRefs = mappedDocsForFiles(outgoing, state.entries).map((entry) => parseSpecRef(entry.spec, declaredSourceIds))
   }
 
   // 기획 문서가 링크한 화면은 그 문서의 일부다. 대표 문서 하나만 지정해도 링크된 화면을 함께
@@ -2455,17 +2397,19 @@ function runSettle({ docs = [] } = {}) {
   }
 
   {
-    const expanded = new Set()
-    for (const rel of scopeDocs) {
-      expanded.add(rel)
+    const expanded = new Map()
+    const add = (ref) => expanded.set(`${ref.source ?? ''}\u0000${ref.file}`, ref)
+    for (const ref of scopeRefs) {
+      add(ref)
       for (const source of state.sources) {
-        const unit = screenIndexForSource(source)?.unitFor(rel)
+        if (ref.source && ref.source !== source.id) continue
+        const unit = screenIndexForSource(source)?.unitFor(ref.file)
         if (!unit) continue
-        for (const file of unit.files) expanded.add(file)
+        for (const file of unit.files) add({ source: ref.source, file })
         break
       }
     }
-    scopeDocs = [...expanded]
+    scopeRefs = [...expanded.values()]
   }
 
   // v1 승격은 정산이 아니라 형식 이전이다(내용 불변, 이미 git 객체로 검증됨).
@@ -2478,7 +2422,7 @@ function runSettle({ docs = [] } = {}) {
     console.log('기준 형식을 v2로 승격했습니다 (내용 변화 없음 — 문서별 기준 commit 기록).')
   }
 
-  if (scopeDocs.length === 0) {
+  if (scopeRefs.length === 0) {
     // 정산할 것이 없으므로 실패할 검증도 없다 — 여기서 승격을 확정해도 계약을 어기지 않는다.
     applyPendingPromotion()
     console.log('정산 범위가 비어 있습니다: push 대기 변경에 매핑된 기획 문서가 없습니다.')
@@ -2572,8 +2516,11 @@ function runSettle({ docs = [] } = {}) {
     }
     const latestSourceRoot = specLatestDirPath(source.id)
 
-    for (const rel of scopeDocs) {
-      if (collisionRels.has(rel)) {
+    for (const ref of scopeRefs) {
+      if (ref.source && ref.source !== source.id) continue
+      const rel = ref.file
+      // 소스 이름을 붙이지 않은 지정만 모호하다 — 붙였으면 어느 소스인지 이미 정해졌다.
+      if (!ref.source && collisionRels.has(rel)) {
         if (!refusedCollision.includes(rel)) refusedCollision.push(rel)
         continue
       }
@@ -2716,11 +2663,13 @@ function runSettle({ docs = [] } = {}) {
   }
 
   if (refusedCollision.length > 0) {
-    console.error('여러 소스에 같은 경로가 있어 정산을 거부합니다 (어느 소스의 기준을 옮길지 모호합니다):')
+    console.error('같은 경로가 여러 기획 저장소에 있어 어느 문서인지 알 수 없습니다:')
     for (const rel of refusedCollision) {
-      console.error(`  - ${rel} (${state.collisions.find((item) => item.rel === rel)?.sourceIds.join(', ')})`)
+      const ids = state.collisions.find((item) => item.rel === rel)?.sourceIds ?? []
+      console.error(`  - ${rel} (${ids.join(', ')})`)
+      if (ids.length > 0) console.error(`    지정: .harness/bin/harness spec:settle --doc ${ids[0]}:${rel}`)
     }
-    console.error('소스 선언의 include/exclude로 경로가 겹치지 않게 조정하세요. 활성 소스 전역에서 문서 상대경로는 유일해야 합니다.')
+    console.error('소스 이름을 앞에 붙여 지정하세요. 매핑 표(.harness/project/spec-map.md)의 기획 문서 칸에도 같은 표기를 씁니다.')
     process.exitCode = 1
     return
   }
@@ -2983,7 +2932,7 @@ function runStatus() {
 
   if (state.collisions.length > 0) {
     console.log('')
-    console.log('경로 충돌: 같은 문서 경로가 여러 소스에 있습니다 (매핑이 모호해집니다):')
+    console.log('같은 문서 경로가 여러 기획 저장소에 있습니다 — 매핑·정산에서는 소스 이름을 붙여 지정하세요 (예: <소스id>:<경로>):')
     for (const item of state.collisions) {
       console.log(`  - ${item.rel} (${item.sourceIds.join(', ')})`)
     }

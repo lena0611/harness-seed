@@ -48,10 +48,9 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 
 ## pre-push
 - 사용자가 push를 승인하고 실제 `git push`가 실행될 때 동작합니다.
-- push ref 목록(stdin)을 한 번 버퍼링해 기존 hook과 기획 게이트 양쪽에 같은 내용을 전달합니다.
+- push ref 목록(stdin)을 한 번 버퍼링해 기존 hook에 같은 내용을 전달합니다.
 - 기존 pre-push hook이 있으면 먼저 실행합니다.
 - 반복 검증 부담을 줄이기 위해 `.harness/bin/harness check --fast`를 실행합니다.
-- 기획 문서 연동을 쓰는 프로젝트(작업 트리 또는 push tip에 `spec-lock.json`)에서는 `spec-push-gate.mjs`를 실행합니다. 미연동 프로젝트에서는 node를 기동하지 않습니다.
 
 ## post-merge
 - `git pull`(merge) 직후 기획 문서 **기준 본문**을 팀 기준(`spec-lock.json`)에 맞춥니다. 기준 자체는 옮기지 않습니다.
