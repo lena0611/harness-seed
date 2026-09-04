@@ -2,6 +2,24 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
+## 연방 구조 실전검증 결과 — common(PHP 통합 저장소) 중앙정부 + ss/multisite 지방 (2026-09-04)
+- 실측 장소(practice, 원격은 practice 안 bare로 대체 — 회사 원격에 push 없음): `~/practice/common-central`(master=중앙 설치 커밋, pr-multisite-province=지방 브랜치, origin=`~/practice/common-central-remote.git`), `~/practice/common-central-clone2`(팀원 clone), `~/practice/kiosk-planning`(가짜 두 번째 기획 저장소). 기획 소스 id는 서비스 이름(multisite·kiosk)으로 시작 — 결정 100 첫 적용.
+- 개발자 문서 2건(멀티사이트 백엔드 개발자, 2026-09-03, 사용자 Downloads의 harness_multiservice_gap.md / harness_multiservice_proposal.md): "저장소=서비스=스택 하나" 가정이 스택 층·프로젝트 문서 층에 남았다(기획 층은 이미 여럿), 해법은 루트 목록이 아니라 **폴더 표식(.service.json) 걷어 올라가기 + 배차원 훅**, 0단계 7개(하네스 변경 없음) → 6주 관찰 → 아프면 표식. 하네스 팀에 질문 6개(표식 방향·PHP 스택·폴더 disable·hooksPath 자동 복원·스캐너 권고 중단·CODEOWNERS 안내). **우리 "구역" 구상과 같은 원시** — 설계 논의는 사용자 몫.
+- **잘 돌아간 것(실측)**: ① 중앙 설치 4초·check 2초·commit 훅 2초·push 훅 3초(13,469 파일·최상위 53 폴더) ② 프로젝트 자체 `.claude/commands` 2개 보존·공존, .gitignore 하네스 블록 추가 ③ master 설치 → 지방 브랜치가 .githooks 상속(브랜치별 훅 부재 문제 소멸), 팀원 clone 세션 시작에 훅 자동 복원 ④ `* text=auto`로 harness.cmd가 LF 정규화돼도 drift 없음 ⑤ 지방 룰 문서 sources[] 등록 → scan 인벤토리, inject always → Always Read ⑥ 기획 소스 2개(실제 multisite 40건 + kiosk) 최초 fetch 12초, lock 칸 분리, `--move-baseline --source kiosk` 한쪽만, 경로 충돌은 exclude로 해소 ⑦ `ss/multisite/**` 매핑 시 레거시(ss/mng) 커밋에 매핑·새파일 안내 없음(관리 영역 격리 OK), 공용 lib critical path 안내 동작 ⑧ gate 전수 판정이 레거시·html 12건 차단 → 판정 2행+매핑 확장으로 통과, 팀원 clone check 통과·첫 context가 두 소스 본문 수화.
+- **부족한 것 → 0.2.142 후보**:
+  - **A (결함·조용한 실패, 최우선)** 매핑 표 파서가 **비고에 "기획 문서"가 든 행을 헤더로 오인해 버린다** — 판정 행도 매핑 행도. 실측: `(사양 없음) | ss/lib/** | …기획 문서 대상 아님` 행이 무시돼 gate가 ss/lib 파일을 차단, 문구를 바꾸니 통과. 매핑 행이 버려지면 감시가 조용히 꺼진다. 4곳 동일 규칙: spec-sync parseSpecMapText·parseSpecMapExemptions, policy-harness specMapRows, build-context readSpecMapEntries — "첫 칸이 기획 문서인 줄만 헤더"로. 회귀 필수(템플릿 안내문 자체가 "기획 문서가 필요 없는 코드면…"이라 실사용에서 재발 확실).
+  - **B (연방 격차)** sources[] `inject: always`는 저장소 전역 — 레거시 작업(내부관리 계정 화면) 컨텍스트에도 멀티사이트 룰이 Always Read로 들어감. inject 없으면 "멀티사이트" 작업에도 안 뽑힘(local registry 등록해도). → sources[]에 경로 범위(appliesTo/paths) = 개발자 제안의 "경로로 범위" 패턴. 표식 방식이면 자연 해소.
+  - **C (잡음)** 미정산·미매핑 기획 안내가 레거시 커밋에도 매번(22건), 목록은 소스 표기 없이 평면(kiosk 문서가 섞여도 구분 불가). → 변경 파일이 그 소스 매핑 영역에 걸릴 때만 + 소스 접두.
+  - **D (잡음)** advisory 커버리지가 `.md`·CLAUDE.md 포인터도 "새 파일 매핑 없음"으로 지목 — gate의 isMeta(.md 제외)와 불일치. 같은 제외 적용.
+  - **E (예산)** 팀원 clone 첫 context: 두 소스 수화 9초 → 8초 예산 소진 → 최신 확인 ETIMEDOUT 경고. 수화와 최신 확인 예산 분리 또는 소스 수 비례.
+  - **F (오판)** init이 프로젝트 자체 `.claude/commands`만 있어도 "이전에 설치된 하네스 흔적" 문구 — hasHarnessLikeFiles가 `.claude` 존재로 판정(scripts/init.mjs 884). 하네스 고유 파일로 좁히기.
+  - **G (오탐)** scan이 우리가 권한 중첩 CLAUDE.md 포인터(ss/multisite/CLAUDE.md)를 "미등록 룰 후보"로 지목 — document-registry.local.json 등록 후에도. 포인터형(짧고 링크만) 또는 local 등록분은 제외.
+  - **H (구조·설계 결정)** gate는 저장소 전역: 실측은 판정 2행으로 통과했지만 실제 저장소는 폴더 53개·레거시 16 폴더라 `(사양 없음)` 행이 그만큼 필요. 경로 범위 gate 또는 폴더 표식 — 개발자 제안과 함께 판단.
+  - **I (경미)** kiosk exclude 뒤 spec-latest 잔존 스냅샷이 "미정산 1건"으로 한 번 뜸 — `--cache-only` 재실행으로 정리됨. move-baseline이 selector 밖 스냅샷을 함께 정리하면 소멸.
+  - **J (재확인)** PHP 저장소에서 scan "확인 필요를 소스 루트로", Quality Files 없음, charter 질문 4개 매 세션 출력, context-registry appliesTo PHP 경로 0건 — 개발자 gap §3-3·3-5·3-6 그대로 재현.
+- 개발자 질문 6개 답 초안(사용자 확인 전): Q1 표식 걷어 올라가기 — 긍정 검토(구역=경로 접두+주인+룰+기획 소스+강도, 루트 목록 드리프트 지적 타당·scan 실존 검증은 있음) / Q2 PHP 스택 계획 없음 → 3단계 보류 동의 / Q3 폴더 disable보다 "범위"(gate 경로 한정이면 끄기 불필요, 길라잡이 원칙) / Q4 hooksPath 자동 복원의 합의 = master 설치 자체; 브랜치에만 있을 땐 그 브랜치 사용자만 영향(옵트아웃 표식 있음) / Q5 소스 루트 못 찾으면 권고 대신 질문 — 동의 / Q6 모놀리스 설치 안내에 CODEOWNERS 한 줄 — 후보. 0단계 7개 중 1·2·4·6은 이번 실측으로 동작 확인.
+- 다음 릴리스(0.2.142) 전 반영 여부는 사용자 판단. 실측 산출물 로그: 세션 scratchpad(central-init/check/commit/push, A~K 커밋·push 로그).
+
 ## 0.2.142 후보 — 통합 저장소(백엔드 common)의 다중 기획 구독 검토 (2026-09-04)
 - **판정: 구조는 된다.** "하네스 한 벌 + 서비스별 소스"가 설계·코드·회귀에 있음(소스 단위 `--move-baseline --source`, 경로 충돌 거부, 관리 영역 깊이 2 규칙으로 `ss/<서비스>` 격리). 같은 기획 저장소를 프론트·백이 각자 소비하는 것이 정석.
 - **이번 커밋으로 반영(후보)**: `/기획문서연동` 어댑터 세 번째 갈래(이미 연동 + 새 주소 → 소스 추가 절차, `--source` 필수) + 소스 id 명명 규칙(서비스 이름, 견본 `planning` → `<서비스명>`, 기존 id 유지 — 결정 100). 회귀 specLinkAdapterRoutesSecondSourceToAddProcedure. CHANGELOG 0.2.142 미배포 절에 공지 1줄 초안(발사 전 승인 필요).
