@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { findDeclarationLockIssues, parseSpecRef, readSpecState } from './spec-sync.mjs'
+import { findDeclarationLockIssues, parseSpecRef, readSpecMapExemptions, readSpecState } from './spec-sync.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -499,10 +499,13 @@ function findSpecLinkInconsistencies() {
   // 같은 경로가 여러 소스에 있는 것 자체는 정합 오류가 아니다(0.2.142 결정 102) —
   // 소스 이름을 붙여 지정하면 정상 구성이다. 오류는 **이름 없이 그 경로를 매핑했을 때**뿐이다.
   const lockSourceIds = Object.keys(state.lock.sources ?? {})
-  const collisionRels = new Set(state.collisions.map((item) => item.rel))
+  // 판정 행((코드 없음))도 같은 검사를 받는다(재리뷰 P1). 매핑만 보면, 이름 없는 판정 하나로
+  // 같은 경로를 가진 **다른 서비스의 문서까지** 조용히 "구현 대상 아님"으로 숨길 수 있다.
+  const exemptSpecs = readSpecMapExemptions().specs
+  const declaredRefs = [...state.entries.map((entry) => entry.spec), ...exemptSpecs]
   for (const collision of state.collisions) {
-    const unqualified = state.entries.some((entry) => {
-      const parsed = parseSpecRef(entry.spec, lockSourceIds)
+    const unqualified = declaredRefs.some((ref) => {
+      const parsed = parseSpecRef(ref, lockSourceIds)
       return parsed.source === null && parsed.file === collision.rel
     })
     if (!unqualified) continue
@@ -546,11 +549,16 @@ function findSpecLinkInconsistencies() {
     if (lockFiles.size > 0 && !lockHasRef(entry.spec)) {
       issues.push(`spec-map: '${entry.spec}' — 기준(spec-lock)에 없는 기획 문서입니다. 경로 오타이거나 폐기된 문서면 행을 정리하세요.`)
     }
-    if (collisionRels.has(entry.spec)) {
-      // 위에서 이미 안내했다 — 여기서 중복으로 쌓지 않는다.
-    }
     if (entry.codePaths.length > 0 && !entry.codePaths.some(specCodePathExists)) {
       issues.push(`spec-map: '${entry.spec}' → ${entry.codePaths.join(', ')} — 구현 경로가 저장소에 없습니다. 파일 이동/이름 변경을 반영하세요.`)
+    }
+  }
+
+  // 판정 행((코드 없음))이 가리키는 문서도 기준에 실재해야 한다(재리뷰 P1) — 오타나 폐기된
+  // 경로를 판정해 두면 그 문서는 아무 검사도 받지 않는데 사람은 "판정했다"고 믿는다.
+  for (const ref of exemptSpecs) {
+    if (lockFiles.size > 0 && !lockHasRef(ref)) {
+      issues.push(`spec-map: '${ref}' — (코드 없음) 판정이 가리키는 기획 문서가 기준(spec-lock)에 없습니다. 경로 오타이거나 폐기된 문서면 행을 정리하세요.`)
     }
   }
 

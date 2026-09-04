@@ -2439,6 +2439,7 @@ function runSettle({ docs = [] } = {}) {
     return
   }
 
+  const settleRefName = (item) => (state.sources.length > 1 ? `[${item.sourceId}] ${item.rel}` : item.rel)
   const settled = []
   const removed = []
   const unchanged = []
@@ -2534,6 +2535,7 @@ function runSettle({ docs = [] } = {}) {
         continue
       }
 
+      const qualified = Boolean(ref.source)
       const snapshot = reviewed?.files?.[rel]
       const inLock = rel in recorded.files
 
@@ -2546,9 +2548,11 @@ function runSettle({ docs = [] } = {}) {
       if (!snapshot) {
         // 검토 스냅샷이 없으면 정산할 수 없다. 삭제 정산도 "삭제되었음을 확인한 스냅샷"이 있어야 한다.
         if (inLock && recorded.files[rel]) {
-          if (!notReviewed.includes(rel)) notReviewed.push(rel)
-        } else if (!missing.includes(rel)) {
-          missing.push(rel)
+          if (!notReviewed.some((item) => item.sourceId === source.id && item.rel === rel)) {
+            notReviewed.push({ sourceId: source.id, rel })
+          }
+        } else if (!missing.some((item) => item.sourceId === source.id && item.rel === rel)) {
+          missing.push({ sourceId: source.id, rel, qualified })
         }
         continue
       }
@@ -2556,11 +2560,11 @@ function runSettle({ docs = [] } = {}) {
       // ② 스냅샷 commit이 실재하는가. 형식부터 확인해야 임의 문자열이 git 인자로 흘러가지 않는다.
       const commit = String(snapshot.commit ?? '')
       if (!/^[0-9a-f]{7,64}$/.test(commit)) {
-        provenanceFailures.push({ rel, reason: '스냅샷에 기록된 commit 형식이 올바르지 않습니다' })
+        provenanceFailures.push({ sourceId: source.id, rel, reason: '스냅샷에 기록된 commit 형식이 올바르지 않습니다' })
         continue
       }
       if (!cacheDir || !commitAvailable(cacheDir, commit)) {
-        provenanceFailures.push({ rel, reason: `스냅샷 commit ${commit.slice(0, 10)}이 로컬 기획 이력에 없습니다` })
+        provenanceFailures.push({ sourceId: source.id, rel, reason: `스냅샷 commit ${commit.slice(0, 10)}이 로컬 기획 이력에 없습니다` })
         continue
       }
 
@@ -2575,15 +2579,15 @@ function runSettle({ docs = [] } = {}) {
         : (recorded.commit ?? null)
       const direction = commitDirection(cacheDir, lockedCommit, commit)
       if (direction === 'behind') {
-        provenanceFailures.push({ rel, reason: `commit ${commit.slice(0, 10)}은 현재 기준(${String(lockedCommit).slice(0, 10)})보다 과거입니다 — 정산으로 기준을 되돌릴 수 없습니다` })
+        provenanceFailures.push({ sourceId: source.id, rel, reason: `commit ${commit.slice(0, 10)}은 현재 기준(${String(lockedCommit).slice(0, 10)})보다 과거입니다 — 정산으로 기준을 되돌릴 수 없습니다` })
         continue
       }
       if (direction === 'diverged') {
-        provenanceFailures.push({ rel, reason: `commit ${commit.slice(0, 10)}과 현재 기준(${String(lockedCommit).slice(0, 10)})이 같은 이력에 없습니다 — 기준 재생성(--move-baseline)이 필요합니다` })
+        provenanceFailures.push({ sourceId: source.id, rel, reason: `commit ${commit.slice(0, 10)}과 현재 기준(${String(lockedCommit).slice(0, 10)})이 같은 이력에 없습니다 — 기준 재생성(--move-baseline)이 필요합니다` })
         continue
       }
       if (direction === 'unknown-base' || direction === 'unknown') {
-        provenanceFailures.push({ rel, reason: `현재 기준(${String(lockedCommit).slice(0, 10)}) 대비 전진인지 확인할 수 없습니다(로컬 기획 이력이 부족) — .harness/bin/harness spec:fetch --cache-only 로 이력을 채운 뒤 다시 정산하세요` })
+        provenanceFailures.push({ sourceId: source.id, rel, reason: `현재 기준(${String(lockedCommit).slice(0, 10)}) 대비 전진인지 확인할 수 없습니다(로컬 기획 이력이 부족) — .harness/bin/harness spec:fetch --cache-only 로 이력을 채운 뒤 다시 정산하세요` })
         continue
       }
 
@@ -2594,11 +2598,11 @@ function runSettle({ docs = [] } = {}) {
         try {
           tree = filesAtCommit(cacheDir, commit, selector, `${source.id}@${commit}`)
         } catch (error) {
-          provenanceFailures.push({ rel, reason: `그 시점 문서 목록을 읽지 못했습니다: ${String(error.message ?? error).split('\n')[0]}` })
+          provenanceFailures.push({ sourceId: source.id, rel, reason: `그 시점 문서 목록을 읽지 못했습니다: ${String(error.message ?? error).split('\n')[0]}` })
           continue
         }
         if (tree.has(rel)) {
-          provenanceFailures.push({ rel, reason: `삭제로 기록됐지만 commit ${commit.slice(0, 10)}에는 문서가 살아 있습니다` })
+          provenanceFailures.push({ sourceId: source.id, rel, reason: `삭제로 기록됐지만 commit ${commit.slice(0, 10)}에는 문서가 살아 있습니다` })
           continue
         }
         if (inLock) plan.push({ sourceId: source.id, rel, kind: 'remove' })
@@ -2608,11 +2612,11 @@ function runSettle({ docs = [] } = {}) {
       // ③ 본문 sha가 그 commit의 git 객체와 같은가(= 기획 이력에 실재하는 내용인가).
       const fromGit = gitShowText(cacheDir, commit, rel)
       if (fromGit === null) {
-        provenanceFailures.push({ rel, reason: `commit ${commit.slice(0, 10)}에 이 문서가 없습니다` })
+        provenanceFailures.push({ sourceId: source.id, rel, reason: `commit ${commit.slice(0, 10)}에 이 문서가 없습니다` })
         continue
       }
       if (sha256Text(fromGit) !== snapshot.sha) {
-        provenanceFailures.push({ rel, reason: '기록된 해시가 기획 이력의 내용과 다릅니다' })
+        provenanceFailures.push({ sourceId: source.id, rel, reason: '기록된 해시가 기획 이력의 내용과 다릅니다' })
         continue
       }
 
@@ -2624,7 +2628,7 @@ function runSettle({ docs = [] } = {}) {
         onDisk = null
       }
       if (onDisk === null || sha256Text(onDisk) !== snapshot.sha) {
-        provenanceFailures.push({ rel, reason: '읽어본 본문이 기록과 다릅니다(임의 수정)' })
+        provenanceFailures.push({ sourceId: source.id, rel, reason: '읽어본 본문이 기록과 다릅니다(임의 수정)' })
         continue
       }
 
@@ -2652,8 +2656,8 @@ function runSettle({ docs = [] } = {}) {
 
   if (notReviewed.length > 0) {
     console.error('아직 읽지 않은 문서는 정산할 수 없습니다 (정산 = "이 내용을 확인했다"는 선언입니다):')
-    for (const rel of notReviewed) {
-      console.error(`  - ${rel}`)
+    for (const item of notReviewed) {
+      console.error(`  - ${settleRefName(item)}`)
     }
     console.error('먼저 .harness/bin/harness spec:fetch --cache-only 로 최신을 확인하고, 꺼내진 본문을 읽은 뒤 다시 정산하세요.')
     process.exitCode = 1
@@ -2663,7 +2667,7 @@ function runSettle({ docs = [] } = {}) {
   if (provenanceFailures.length > 0) {
     console.error('기획 이력으로 확인되지 않는 내용이라 정산을 중단합니다 (lock은 그대로 두었습니다):')
     for (const failure of provenanceFailures) {
-      console.error(`  - ${failure.rel}: ${failure.reason}`)
+      console.error(`  - ${settleRefName(failure)}: ${failure.reason}`)
     }
     console.error('기준(lock)에는 기획 저장소에 실제로 있는 내용만 들어갑니다.')
     console.error('.harness/bin/harness spec:fetch --cache-only 로 최신을 다시 확인한 뒤 정산하세요.')
@@ -2693,8 +2697,12 @@ function runSettle({ docs = [] } = {}) {
     for (const item of plan) {
       const source = state.sources.find((candidate) => candidate.id === item.sourceId)
       const unit = source ? screenIndexForSource(source)?.unitFor(item.rel) : null
-      if (!unit || seenUnits.has(unit.id)) continue
-      seenUnits.add(unit.id)
+      // 두 소스가 같은 문서·화면 경로를 가지면 unit.id가 겹친다 — 소스까지 키에 넣지 않으면
+      // 두 번째 소스의 화면 원자성 검사가 통째로 생략된다(재리뷰 P2).
+      if (!unit) continue
+      const unitKey = `${item.sourceId}\u0000${unit.id}`
+      if (seenUnits.has(unitKey)) continue
+      seenUnits.add(unitKey)
 
       const members = unit.files.map((file) => plannedByRel.get(`${item.sourceId}\u0000${file}`))
       const settledMembers = members.filter((member) => member?.kind === 'settle')
@@ -2733,7 +2741,12 @@ function runSettle({ docs = [] } = {}) {
 
   // 같은 경로가 다른 소스에서 정산·일치로 처리됐다면 "없음"이 아니다.
   const plannedRels = new Set(plan.map((item) => item.rel))
-  const realMissing = missing.filter((rel) => !plannedRels.has(rel) && !unchanged.some((u) => u.rel === rel))
+  const plannedPairs = new Set(plan.map((item) => `${item.sourceId}\u0000${item.rel}`))
+  // 이름 없는 요청(`--doc x`)은 예전처럼 "어느 소스에든 있으면 된다". 이름을 붙인 요청
+  // (`--doc beta:x`)의 누락은 같은 경로를 가진 다른 소스의 성공으로 가려지면 안 된다(재리뷰 P1).
+  const realMissing = missing.filter((item) => (item.qualified
+    ? !plannedPairs.has(`${item.sourceId}\u0000${item.rel}`) && !unchanged.some((u) => u.sourceId === item.sourceId && u.rel === item.rel)
+    : !plannedRels.has(item.rel) && !unchanged.some((u) => u.rel === item.rel)))
 
   // ── 여기부터 적용 단계. 위 검증을 전부 통과했을 때만 도달한다. ──
   applyPendingPromotion()
@@ -2743,10 +2756,23 @@ function runSettle({ docs = [] } = {}) {
     for (const { rel } of unchanged.slice(0, 10)) {
       console.log(`  - [일치] ${rel}`)
     }
-    for (const rel of realMissing) {
-      console.log(`  - [없음] ${rel} — 기준에도 캐시에도 없는 문서입니다. 경로를 확인하세요.`)
+    for (const item of realMissing) {
+      console.log(`  - [없음] ${settleRefName(item)} — 기준에도 캐시에도 없는 문서입니다. 경로를 확인하세요.`)
     }
     if (realMissing.length > 0) process.exitCode = 1
+    return
+  }
+
+  // "한 건이라도 거부되면 lock은 단 1바이트도 바뀌지 않는다"는 이 함수의 계약이다(재리뷰 P1).
+  // 예전에는 없는 문서가 섞여 있어도 나머지를 먼저 적용하고 마지막에 exitCode만 1로 올려,
+  // 명령이 실패를 반환하면서 lock은 이미 바뀌어 있었다.
+  if (realMissing.length > 0) {
+    console.error('지정한 문서 중 기준에도 캐시에도 없는 것이 있어 정산하지 않았습니다 (lock은 그대로입니다):')
+    for (const item of realMissing) {
+      console.error(`  - ${settleRefName(item)}`)
+    }
+    console.error('경로를 확인하거나 .harness/bin/harness spec:fetch --cache-only 로 최신을 먼저 받으세요.')
+    process.exitCode = 1
     return
   }
 
@@ -2782,13 +2808,10 @@ function runSettle({ docs = [] } = {}) {
   for (const item of removed) {
     console.log(`  - [삭제 정산] ${settleName(item)} — 기획에서 사라진 문서입니다. spec-map.md의 해당 행을 정리하세요.`)
   }
-  for (const rel of realMissing) {
-    console.log(`  - [없음] ${rel} — 기준에도 캐시에도 없는 문서입니다. 경로를 확인하세요.`)
-  }
+
   console.log('')
   console.log('정산은 "이 기획 변경을 살펴봤다"는 선언입니다. 영향 없음이 자명하지 않으면 근거를 decision-log에 남기고(자명하면 커밋 메시지로 충분),')
   console.log(`${toPosix(path.relative(repoRoot, lockPath))} 변경을 커밋에 포함해 다시 push 하세요.`)
-  if (realMissing.length > 0) process.exitCode = 1
 }
 
 // 혼성 채널(기획자+개발자)용 알림 본문 — CI 백스톱이 웹훅으로 보내는 메시지의 정본.

@@ -4889,6 +4889,89 @@ function specSettleRefusesPathCollisionsAcrossSources() {
   assert(refuse.includes('어느 문서인지 알 수 없습니다'), 'settle should explain the ambiguity instead of settling both sources')
 }
 
+// 0.2.142 재리뷰 2차 P1: `(코드 없음)` 판정 행이 소스 검사를 통째로 우회했다. 판정은 일반
+// 매핑과 다른 목록으로 파싱되는데 충돌·기준 존재 검사는 매핑만 봤다. 그래서 이름 없는 판정
+// 하나로 같은 경로를 가진 **다른 서비스의 문서까지** "구현 대상 아님"으로 숨길 수 있었다.
+function specExemptionRowsGetTheSameSourceChecksAsMappings() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const alpha = makePlanningRepoWithFiles({ 'features/공통.md': '# 공통 A\n\nA의 사양.\n' })
+  const beta = makePlanningRepoWithFiles({ 'features/공통.md': '# 공통 B\n\nB의 사양.\n' })
+  writeJson(target, '.harness/spec-sources.json', {
+    version: 1,
+    sources: [
+      { id: 'alpha', repo: alpha, ref: 'master', include: ['**/*.md'], exclude: [] },
+      { id: 'beta', repo: beta, ref: 'master', include: ['**/*.md'], exclude: [] },
+    ],
+  })
+  specSyncCli(target, ['fetch'])
+  const mapPath = path.join(target, '.harness/project/spec-map.md')
+  const mapWith = (rows) => fs.writeFileSync(mapPath, ['| 기획 문서 | 구현 경로 | 비고 |', '| --- | --- | --- |', ...rows, ''].join('\n'))
+
+  // (1) 이름 없는 판정은 모호하다 — 안내로 끝내지 않고 strict에서 실패한다.
+  mapWith(['| `features/공통.md` | (코드 없음) | 운영 문서 |'])
+  const ambiguous = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(ambiguous.includes('어느 문서인지 알 수 없습니다'), 'an unqualified (코드 없음) row on a colliding path must be flagged')
+  expectFailure(
+    () => run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs'), '--strict'], { cwd: target }),
+    'strict must fail while an exemption row is ambiguous',
+  )
+
+  // (2) 한쪽만 판정하면 다른 쪽은 그대로 미매핑으로 남아야 한다 — 판정이 남의 문서를 숨기지 않는다.
+  mapWith(['| `alpha:features/공통.md` | (코드 없음) | 운영 문서 |'])
+  run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs'), '--strict'], { cwd: target })
+  const status = specSyncCli(target, ['status'])
+  assert(status.includes('매핑되지 않은 기획: 1건'), "a source-qualified exemption must not hide the other source's document")
+  assert(status.includes('[beta] features/공통.md'), 'the still-unmapped document must be named by its source')
+
+  // (3) 있지도 않은 문서를 판정해 두면 그 문서는 아무 검사도 받지 않는다 — 정합 오류로 잡는다.
+  mapWith(['| `alpha:features/없는문서.md` | (코드 없음) | 오타 |'])
+  const bogus = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(bogus.includes('(코드 없음) 판정이 가리키는 기획 문서가 기준(spec-lock)에 없습니다'), 'an exemption pointing at a non-existent doc must be surfaced')
+}
+
+// 0.2.142 재리뷰 2차 P1: 여러 --doc 중 하나가 없을 때 나머지가 먼저 적용돼, 명령은 실패를
+// 반환하면서 lock은 이미 바뀌어 있었다("한 건이라도 거부되면 lock은 1바이트도 바뀌지 않는다"는
+// 이 함수의 계약 위반). 게다가 누락 판정이 상대경로만 비교해, 같은 경로를 가진 다른 소스의
+// 성공이 누락을 가릴 수 있었다.
+function specSettleRefusesAllWhenOneRequestedDocIsMissing() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const alpha = makePlanningRepoWithFiles({
+    'features/공통.md': '# 공통 A\n\nA의 사양.\n',
+    'features/알파만.md': '# 알파만\n\nalpha에만 있는 문서.\n',
+  })
+  const beta = makePlanningRepoWithFiles({ 'features/공통.md': '# 공통 B\n\nB의 사양.\n' })
+  writeJson(target, '.harness/spec-sources.json', {
+    version: 1,
+    sources: [
+      { id: 'alpha', repo: alpha, ref: 'master', include: ['**/*.md'], exclude: [] },
+      { id: 'beta', repo: beta, ref: 'master', include: ['**/*.md'], exclude: [] },
+    ],
+  })
+  specSyncCli(target, ['fetch'])
+  fs.appendFileSync(path.join(alpha, 'features/알파만.md'), '\n- A 개정.\n')
+  gitCommitAll(alpha, 'A 개정')
+  specSyncCli(target, ['fetch', '--cache-only'])
+
+  const lockBefore = read(target, '.harness/spec-lock.json')
+
+  // beta에는 그 문서가 없다 — alpha의 성공이 beta의 누락을 가리면 안 되고, 전체가 거부돼야 한다.
+  const refused = expectFailure(
+    () => specSyncCli(target, ['settle', '--doc', 'alpha:features/알파만.md', '--doc', 'beta:features/알파만.md']),
+    'a missing source-qualified request must refuse the whole settle',
+  )
+  assert(refused.includes('lock은 그대로입니다'), 'the refusal must say the baseline was left untouched')
+  assert(refused.includes('[beta] features/알파만.md'), 'the missing request must be named with its source')
+  assert(read(target, '.harness/spec-lock.json') === lockBefore, 'a refused settle must not change the lock by a single byte')
+
+  // 이름을 빼고 요청하면 예전 계약대로 "어느 소스에든 있으면 된다".
+  specSyncCli(target, ['settle', '--doc', 'features/알파만.md'])
+  const after = JSON.parse(read(target, '.harness/spec-lock.json'))
+  assert(after.sources.alpha.files['features/알파만.md'], 'an unqualified request must still settle where the document exists')
+  assert(!after.sources.beta.files['features/알파만.md'], 'the source without that document must stay untouched')
+}
+
 // 0.2.142 재리뷰(코덱스) P1 2건: 소스 이름을 붙인 지정(결정 102)이 실제로는 두 곳에서 깨졌다.
 // ① 문서 정합 검사가 lock 문서를 상대경로만으로 모아, `alpha:features/공통.md` 같은 정상 매핑을
 //    반드시 "기준에 없는 문서"로 오판하고 strict 검사에서 실패했다.
@@ -4953,7 +5036,8 @@ function specQualifiedRefsSurviveStrictCheckAndScopedSettle() {
   specSyncCli(target, ['fetch', '--cache-only'])
 
   const before = JSON.parse(read(target, '.harness/spec-lock.json'))
-  specSyncCli(target, ['settle', '--doc', 'alpha:features/공통.md'])
+  const settleOut = specSyncCli(target, ['settle', '--doc', 'alpha:features/공통.md'])
+  assert(settleOut.includes('[정산]'), 'the qualified settle must actually settle')
   const after = JSON.parse(read(target, '.harness/spec-lock.json'))
 
   assert(after.sources.alpha.files['features/공통.md'].sha !== before.sources.alpha.files['features/공통.md'].sha, 'the settled source must advance')
@@ -6808,6 +6892,8 @@ const tests = [
   specSettleRefusesPathCollisionsAcrossSources,
   specRefsQualifiedBySourceSettleTheRightBaseline,
   specQualifiedRefsSurviveStrictCheckAndScopedSettle,
+  specExemptionRowsGetTheSameSourceChecksAsMappings,
+  specSettleRefusesAllWhenOneRequestedDocIsMissing,
   specMappingCoverageIsEnforcedForNewFilesInMappedAreas,
   specMappingCoverageRespectsExemptionsAndScope,
   specMapRowsSurviveNotesThatMentionTheHeaderWords,
