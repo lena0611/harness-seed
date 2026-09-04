@@ -44,7 +44,7 @@ function expandHome(p) {
 }
 
 // git@host:group/repo.git · https://host/group/repo.git · ssh://git@host/group/repo → host/group/repo
-export function normalizeRepo(url) {
+function normalizeRepo(url) {
   if (typeof url !== 'string') return null
   let s = url.trim()
   if (!s) return null
@@ -81,7 +81,7 @@ function candidateDirs() {
   return dirs
 }
 
-export function resolveLinkedProjects(projectRoot = root) {
+function resolveLinkedProjects(projectRoot = root) {
   const profile = readJson(path.join(projectRoot, '.harness/policy/profile.json'))
   const declared = Array.isArray(profile?.linkedProjects) ? profile.linkedProjects : []
   const candidates = candidateDirs()

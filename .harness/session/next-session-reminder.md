@@ -27,7 +27,9 @@
   - **실사용 전수(설치 24곳)**: 업무 프로젝트는 multisite·scorecard-print·clubadm 셋. gate 0, syncEnforcement 0, 기획 연동 1(multisite), sources[] 1(clubadm), linkedProjects 0, document-registry.local.json 3/3(잘 쓰임), critical-paths 2/3, domain·architecture·workflow 3종 모두 채움 2/3. charter 질문 4개는 거의 모든 설치에서 답 없이 열려 있음.
   - **미사용 표면**: 파일 밖에서 안 쓰는 export 40개(그중 5개만 소비자 계약으로 잠김), 죽은 함수 1개(제거됨), 무동작 설정 키(`version`·`available`·`notes`), 중복 플래그 `--confirm-overwrite-project-state`, 스킬 registry의 존재하지 않는 명령 1건(`npm run docs:check:strict`)과 리터럴 `YYYY` 경로 2건, 실행 회귀가 없는 서브커맨드 6개(handoff·guide·standards:list·templates:list·stack:status·template:gap).
   - **스킬 registry 결함 3건은 고침(2026-09-04)** — npm 별칭 안내를 실제 스크립트 호출로, 리터럴 YYYY 경로 2건을 `<연도>/` 자리표시자로. 회귀 skillRegistryPointsAtRealFilesAndCommands가 설치본 기준으로 read·records 실존과 명령 스크립트 실존을 검증하고 npm 별칭 의존을 금지한다(본체 전용 스킬은 시드 기준, 옵트인 산출물 4종은 예외). 옛 목록으로 되돌리면 실패함을 확인.
-  - **남은 다이어트 후보(사용자 판단 대기)**: export 표면 축소(파일 밖에서 안 쓰는 40개), 무동작 키 정리(`version`·`available`·`notes` — 소비자 파일을 건드리므로 신중), 중복 플래그 `--confirm-overwrite-project-state`, charter 질문에 "넘어가기" 경로, 실행 회귀 없는 서브커맨드 6개(줄이기가 아니라 회귀 공백).
+  - **다이어트 2차 완료(2026-09-04)**: export 47개 비공개화(spec-sync 60→22, 잠긴 5개·테스트 검증 3개 제외), `profile.version` 배포 중단, `profile.notes` 1974자→629자(계약 정본은 config-contract.md), 헌장 질문 4건을 설치+2주 유예로(매 세션 4줄 → 집계 한 줄), `--confirm-overwrite-project-state` 도움말 추가(제거 아님 — update가 전달하는 실동작 별칭), 서브커맨드 6종 실행 회귀 신설. 226종 전량 통과.
+  - **남기기로 한 것**: `profile.available`(apply-stack이 쓰고 복원하는 기록 — 무동작 키가 아님), 테스트가 검증하는 export 3개(`isIgnorableCodePath`·`gitShowText`·`parseSpecMapExemptions`), 소비자 CI 계약 5개.
+  - **다음 다이어트 후보(미착수)**: `.harness/project` 문서 23종 중 리더용 참고 문서(bootstrap·portability-guide·project-harness-guide·scope-contract·new-project-checklist 등)의 통합 여부 — 소비자가 설치로 받는 md가 114개다. 단, 업무 프로젝트 3곳 중 2곳이 domain·architecture·workflow를 실제로 채웠으므로 룰 문서 3종은 값을 한다(줄일 대상 아님).
 - **큰 것 중 남은 둘**: B(지방 룰의 경로 범위 — sources[] inject가 저장소 전역)와 H(게이트 범위)는 게이트 제거로 H가 소멸했고 B만 남는다. 폴더 표식(.service.json) 방향은 저쪽 개발자의 6주 관찰 뒤 판단. 기준: **기존 장치를 대체하면 도입, 얹기만 하면 안 함.**
 
 ## 0.2.142 후보 — 통합 저장소(백엔드 common)의 다중 기획 구독 검토 (2026-09-04)

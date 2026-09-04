@@ -282,7 +282,7 @@ const OPTIONAL_DOC_PATHS = new Set([
 const specLinkInUse = fs.existsSync(path.join(harnessRoot, 'spec-lock.json'))
   || fs.existsSync(path.join(harnessRoot, 'spec-sources.json'))
 
-export function isOptionalProjectOwnedDoc(rel) {
+function isOptionalProjectOwnedDoc(rel) {
   const normalized = toPosix(rel)
   if (specLinkInUse && normalized === '.harness/project/spec-map.md') return false
   return OPTIONAL_DOC_PATHS.has(normalized)
@@ -455,7 +455,7 @@ function findStackIsolationViolations() {
 // 자기모순이 없는지 본다. npm ci가 lock↔package.json 정합을 검사하는 것의 대응물이다.
 // 검증·파싱은 spec-sync의 공용 API를 그대로 써서 fetch/settle/push 게이트와 판정이 갈리지 않는다.
 // 미연동 프로젝트는 대상이 아니다. 잘못된 선언은 걸러내지 않고 전체를 invalid로 만든다.
-export function findSpecLinkInconsistencies() {
+function findSpecLinkInconsistencies() {
   if (harnessRootRel !== '.harness') return []
   // 선언이 사라졌는데 기준만 남은 상태도 정합 검사 대상이다 — 둘 중 하나만 있어도 검사한다.
   const hasSources = fs.existsSync(path.join(harnessRoot, 'spec-sources.json'))

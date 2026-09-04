@@ -520,6 +520,7 @@ Options:
   --force                프로젝트 소유 파일까지 덮어씁니다.
   --confirm-overwrite-project-files
                          --force로 프로젝트 소유/출처 미확인 파일을 덮어쓰는 위험을 인지했음을 명시합니다.
+                         (--confirm-overwrite-project-state 는 같은 뜻의 별칭입니다 — update가 이 이름으로 전달합니다)
   --resync-managed       설치 기록과 달라진 하네스 파일(managed)만 본체 원본으로 되돌립니다.
                          프로젝트 소유 파일은 건드리지 않습니다. lint/formatter가 .harness/를 고쳐
                          업데이트에서 제외된 파일을 복구할 때 씁니다.
@@ -1342,7 +1343,12 @@ function consumerProjectStateTemplate(rel, context) {
 - 설치 직후 분석은 \`.harness/session/project-scan-report.md\`와 \`.harness/session/handoff.md\`를 확인합니다.
 `;
 
-    case '.harness/session/developer-input-queue.md':
+    case '.harness/session/developer-input-queue.md': {
+      // 헌장 질문 4건은 설치가 심는 것이지 팀이 올린 것이 아니다. `open`으로 두면 답할 때까지
+      // 매 세션 4줄이 찍히는데, 실사용 조사(설치 24곳)에서 답이 달린 곳이 사실상 없었다 —
+      // 신호가 아니라 배경 소음이 된다. 설치 시점 + 2주의 재검토일을 붙여 유예 집계 한 줄로
+      // 시작하고, 기한이 지나면 다시 뜬다(영구 은닉 아님 — 큐의 기존 계약 그대로).
+      const charterReviewDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
       return `# 개발자 입력 큐
 
 개발자 정보 부족 때문에 확정하지 못한 질문을 관리합니다.
@@ -1356,10 +1362,10 @@ function consumerProjectStateTemplate(rel, context) {
 ## 현재 오픈 항목
 | id | status | 질문 | 왜 필요한가 | 개발자 선택 | 재검토일 |
 | --- | --- | --- | --- | --- | --- |
-| charter-status | open | 이 프로젝트는 신규 구축, 유지보수, 마이그레이션, 운영 개선 중 어디에 가까운가? | 프로젝트 헌장 질문을 상황에 맞게 줄이기 위해 필요 | 미정 | |
-| charter-scope | open | 이 저장소가 현재 책임지는 범위와 책임지지 않는 범위는 무엇인가? | 프로젝트 하네스가 과도한 규칙을 만들지 않기 위해 필요 | 미정 | |
-| charter-success | open | 현재 가장 중요한 성공 기준은 무엇인가? | 완료 판단과 범위 통제를 위해 필요 | 미정 | |
-| charter-risk | open | 변경하면 특히 위험한 영역이나 반복 회귀 지점은 무엇인가? | 유지보수와 에이전트 작업의 검증 기준을 정하기 위해 필요 | 미정 | |
+| charter-status | deferred | 이 프로젝트는 신규 구축, 유지보수, 마이그레이션, 운영 개선 중 어디에 가까운가? | 프로젝트 헌장 질문을 상황에 맞게 줄이기 위해 필요 | 미정 | ${charterReviewDate} |
+| charter-scope | deferred | 이 저장소가 현재 책임지는 범위와 책임지지 않는 범위는 무엇인가? | 프로젝트 하네스가 과도한 규칙을 만들지 않기 위해 필요 | 미정 | ${charterReviewDate} |
+| charter-success | deferred | 현재 가장 중요한 성공 기준은 무엇인가? | 완료 판단과 범위 통제를 위해 필요 | 미정 | ${charterReviewDate} |
+| charter-risk | deferred | 변경하면 특히 위험한 영역이나 반복 회귀 지점은 무엇인가? | 유지보수와 에이전트 작업의 검증 기준을 정하기 위해 필요 | 미정 | ${charterReviewDate} |
 
 ## 운영 원칙
 - 답변을 받으면 관련 문서(\`project-charter.md\`, \`active-context.md\`, \`decision-log.md\`)를 함께 갱신합니다.
@@ -1368,7 +1374,9 @@ function consumerProjectStateTemplate(rel, context) {
 - \`answered\` 또는 \`obsolete\` 항목은 관련 문서 반영을 확인한 뒤 큐에서 제거하거나 날짜별 아카이브로 옮깁니다.
 - 상시 로드되는 큐에는 \`open\`과 \`deferred\` 항목만 유지합니다.
 - 에이전트는 구현 중 추측이 필요한 반복 규칙을 만나면 사용자에게 인터뷰하거나 이 큐에 \`open\` 항목을 추가합니다.
+- 설치가 심어 둔 \`charter-*\` 4건은 재검토일까지 유예 상태입니다. 헌장을 채울 준비가 되면 \`open\`으로 올리거나 바로 답하고, 이 프로젝트에 필요 없으면 \`obsolete\`로 지웁니다.
 `;
+    }
 
     case '.harness/session/manual-actions.md':
       return `# Manual Actions

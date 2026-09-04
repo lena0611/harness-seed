@@ -119,7 +119,7 @@ function trimBlank(lines) {
 }
 
 // CHANGELOG.md를 `## X.Y.Z - date` 헤더 기준으로 섹션 배열로 만든다(파일 순서 = 최신 우선).
-export function parseChangelog(text) {
+function parseChangelog(text) {
   const sections = []
   let current = null
   for (const line of String(text ?? '').split(/\r?\n/)) {
@@ -137,7 +137,7 @@ export function parseChangelog(text) {
 }
 
 // from < version <= to 인 섹션만 (없으면 전체) 최신 우선으로 반환.
-export function changelogDelta(text, fromVersion, toVersion) {
+function changelogDelta(text, fromVersion, toVersion) {
   const sections = parseChangelog(text)
   const from = fromVersion ? parseSemver(fromVersion) : null
   const to = toVersion ? parseSemver(toVersion) : null
@@ -150,7 +150,7 @@ export function changelogDelta(text, fromVersion, toVersion) {
   })
 }
 
-export function formatEntries(entries, { from, to } = {}) {
+function formatEntries(entries, { from, to } = {}) {
   const lines = []
   const header = from && to ? ` (${from} → ${to})` : ''
   lines.push(`공통 하네스 변경 내역${header}:`)

@@ -51,7 +51,7 @@ const sourceFilter = args.flatMap((value, index) => (value === '--source' && arg
 // 둘을 하나의 fallback으로 뭉개면 spec-sources.json이 깨진 프로젝트가 "연동 안 함"으로 보이고,
 // spec-lock.json이 깨진 프로젝트가 "기준 없음"으로 축소되어 에이전트가 기획 없이 작업한다
 // — 손상이 조용한 무력화로 바뀌는 fail-open이다(0.2.103 재리뷰 P1-3).
-export function readJsonStrict(absPath) {
+function readJsonStrict(absPath) {
   let text
   try {
     text = fs.readFileSync(absPath, 'utf8')
@@ -101,13 +101,13 @@ function toPosix(value) {
 }
 
 // 소스 id는 캐시 디렉터리 이름이 되므로 경로 탈출을 막는다.
-export function isSafeSourceId(id) {
+function isSafeSourceId(id) {
   return typeof id === 'string' && /^[A-Za-z0-9._-]+$/.test(id) && id !== '.' && id !== '..'
 }
 
 // 선언 파싱 + 검증. 잘못된 항목을 조용히 걸러내지 않는다 — 하나라도 틀리면 전체가 invalid이고,
 // 모든 소비자(fetch/settle/status/정합 검사/push 게이트)가 같은 판정을 공유한다.
-export function validateSourcesConfig(config) {
+function validateSourcesConfig(config) {
   if (config === null || config === undefined) {
     return { declared: false, sources: [], errors: [] }
   }
@@ -171,7 +171,7 @@ export function normalizeScreenLinks(source) {
   return [...new Set(raw)].sort()
 }
 
-export function screenLinksEqual(a, b) {
+function screenLinksEqual(a, b) {
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 }
 
@@ -187,7 +187,7 @@ function screenLinksFor(recorded, source) {
 // 정책만 다루는 문서에는 링크가 없다. 경로로 판정하면 `features/README.md` 같은 안내 문서까지
 // 화면으로 잡히고, 기획팀은 하네스 때문에 폴더 관례를 배워야 한다.
 // 외부 URL·절대 경로·앵커는 대상이 아니다(저장소 안의 파일만 검증할 수 있다).
-export function extractScreenLinks(mdRel, content, extensions) {
+function extractScreenLinks(mdRel, content, extensions) {
   if (!extensions || extensions.length === 0 || typeof content !== 'string') return []
   const targets = new Set()
   const baseDir = path.posix.dirname(mdRel)
@@ -257,7 +257,7 @@ export function buildScreenIndex(relPaths, readContent, extensions) {
 
 // 무결성: 문서가 링크한 화면이 실제로 있어야 하고, 어떤 문서도 참조하지 않는 화면 파일은 없어야 한다.
 // 순수 함수라 fetch·최신 확인·정산·상태·push 게이트·기획 저장소 CI가 같은 판정을 공유한다.
-export function findScreenLinkIssues(relPaths, index, screenCandidates = null) {
+function findScreenLinkIssues(relPaths, index, screenCandidates = null) {
   const present = new Set(relPaths)
   const issues = []
   for (const [doc, links] of index.linksByDoc) {
@@ -275,7 +275,7 @@ export function findScreenLinkIssues(relPaths, index, screenCandidates = null) {
   return issues.sort((a, b) => `${a.screen}`.localeCompare(`${b.screen}`))
 }
 
-export function formatScreenLinkIssues(issues) {
+function formatScreenLinkIssues(issues) {
   return issues.map((issue) => (
     issue.kind === 'missing-screen'
       ? `${issue.doc} 이(가) 링크한 화면 ${issue.screen} 이(가) 저장소에 없습니다.`
@@ -283,13 +283,13 @@ export function formatScreenLinkIssues(issues) {
   ))
 }
 
-export function normalizeSelector(source) {
+function normalizeSelector(source) {
   const include = Array.isArray(source?.include) && source.include.length > 0 ? [...source.include] : ['**/*.md']
   const exclude = Array.isArray(source?.exclude) ? [...source.exclude] : []
   return { include: [...new Set(include)].sort(), exclude: exclude.sort() }
 }
 
-export function selectorsEqual(a, b) {
+function selectorsEqual(a, b) {
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 }
 
@@ -308,7 +308,7 @@ function isPlainObject(value) {
 // (0.2.103 3차 리뷰 P1-1). 그래서 **항목 하나라도 어긋나면 lock 전체를 invalid**로 본다.
 //
 // 부재(null)는 손상이 아니다 — 아직 연동하지 않은 프로젝트다.
-export function validateLockSchema(rawLock) {
+function validateLockSchema(rawLock) {
   const errors = []
   if (rawLock === null || rawLock === undefined) return errors
   if (!isPlainObject(rawLock)) return ['spec-lock.json이 객체가 아닙니다.']
@@ -456,7 +456,7 @@ export function findDeclarationLockIssues(sources, lockNorm) {
 // 폴더 관례를 각자 쓰기 때문이다. 경로만으로는 어느 문서인지 알 수 없어 예전에는 정산이 거부되고
 // 겹침을 없애는 방법이 include/exclude 조정뿐이었다(백엔드 통합 저장소 검토, 2026-09-04).
 // 접두는 **선언된 소스 id일 때만** 소스 지정으로 읽는다 — 콜론이 든 파일 이름을 깨뜨리지 않는다.
-export function parseSpecRef(value, sourceIds = []) {
+function parseSpecRef(value, sourceIds = []) {
   const text = String(value ?? '').trim()
   const at = text.indexOf(':')
   if (at > 0) {
@@ -473,7 +473,7 @@ export function specRefMatches(ref, sourceId, rel, sourceIds = []) {
 }
 
 // 같은 상대경로가 두 소스 이상에 있으면 소스 이름 없이는 어느 문서인지 알 수 없다.
-export function findPathCollisions(lockNorm) {
+function findPathCollisions(lockNorm) {
   const byRel = new Map()
   for (const [id, recorded] of Object.entries(lockNorm?.sources ?? {})) {
     for (const rel of Object.keys(recorded.files ?? {})) {
@@ -544,7 +544,7 @@ function listNamesAtCommit(dir, commit, options = {}) {
 // 저장소 안의 화면 파일 후보 전체(exclude 적용). 어떤 문서도 링크하지 않은 화면을 찾으려면
 // **선택된 집합이 아니라 저장소 전체**를 봐야 한다 — include가 `**/*.md`뿐이면 링크되지 않은
 // 화면은 선택 자체가 안 되어 "링크 깜빡함"이 영영 드러나지 않는다(4차 리뷰 P2-1).
-export function screenCandidatesAtCommit(dir, commit, selector, extensions, options = {}) {
+function screenCandidatesAtCommit(dir, commit, selector, extensions, options = {}) {
   if (!extensions || extensions.length === 0) return []
   return listNamesAtCommit(dir, commit, options)
     .filter((rel) => extensions.some((ext) => rel.toLowerCase().endsWith(ext.toLowerCase())))
@@ -552,7 +552,7 @@ export function screenCandidatesAtCommit(dir, commit, selector, extensions, opti
     .sort()
 }
 
-export function selectSpecFilesAtCommit(dir, commit, selector, options = {}) {
+function selectSpecFilesAtCommit(dir, commit, selector, options = {}) {
   const names = listNamesAtCommit(dir, commit, options)
   return applySelector(names, selector, {
     readContent: (rel) => gitShowText(dir, commit, rel),
@@ -560,7 +560,7 @@ export function selectSpecFilesAtCommit(dir, commit, selector, options = {}) {
   })
 }
 
-export function selectSpecFilesBySelector(sourceDir, selector, extensions = []) {
+function selectSpecFilesBySelector(sourceDir, selector, extensions = []) {
   return applySelector(walkFiles(sourceDir), selector, {
     readContent: (rel) => {
       try {
@@ -574,7 +574,7 @@ export function selectSpecFilesBySelector(sourceDir, selector, extensions = []) 
 }
 
 // 어떤 commit의 문서 집합에 대한 화면 링크 색인(판정·정산 단위 공유).
-export function screenIndexAtCommit(dir, commit, files, extensions) {
+function screenIndexAtCommit(dir, commit, files, extensions) {
   return buildScreenIndex(files, (rel) => gitShowText(dir, commit, rel), extensions)
 }
 
@@ -637,7 +637,7 @@ function isShallowRepo(dir) {
 // 캐시가 전체 이력을 갖기 때문에(ensureCacheRepo) 조상 관계로 확정할 수 있다.
 // 증명할 수 없으면('unknown') **허용하지 않는다** — 얕은 캐시에서 관대하게 넘기면 이 검사 자체가
 // 무의미해진다(실측: 옛 `--depth 1` 캐시에서는 후퇴가 그대로 통과했다).
-export function commitDirection(dir, current, target) {
+function commitDirection(dir, current, target) {
   if (!current || current === target) return 'same'
   if (!commitAvailable(dir, target)) return 'unknown-target'
   if (!commitAvailable(dir, current)) return 'unknown-base'
@@ -733,7 +733,7 @@ function assertInsideCacheRoot(dir) {
 //
 // 방어 순서: ① 경로 문자열 자체 거부 ② resolve 경계 확인 ③ 루트~부모의 각 구성요소 lstat로
 // 심볼릭 링크 거부. 존재하지 않는 대상은 realpath를 쓸 수 없으므로 구성요소를 하나씩 본다.
-export function assertSafeRelPath(rel) {
+function assertSafeRelPath(rel) {
   const value = String(rel ?? '')
   if (!value) throw new Error('빈 경로는 허용하지 않습니다.')
   if (value.includes('\0')) throw new Error(`경로에 NUL이 있습니다: ${JSON.stringify(value)}`)
@@ -749,7 +749,7 @@ export function assertSafeRelPath(rel) {
 
 // root 아래의 안전한 절대 경로를 만든다. 보호 루트 자신과 모든 중간 디렉터리가 실제 디렉터리여야 한다.
 // allowLeafSymlink: 쓰기 경로 전용 — 마지막 요소가 링크면 따라가지 않고 그 자리를 교체한다.
-export function safeJoinUnderRoot(root, rel, { allowLeafSymlink = false } = {}) {
+function safeJoinUnderRoot(root, rel, { allowLeafSymlink = false } = {}) {
   const segments = assertSafeRelPath(rel)
   const resolvedRoot = path.resolve(root)
   realDirectory(resolvedRoot, '보호 루트', { create: false })
@@ -780,7 +780,7 @@ export function safeJoinUnderRoot(root, rel, { allowLeafSymlink = false } = {}) 
 }
 
 // 링크를 따라가지 않고 일반 파일만 읽는다.
-export function readRegularFile(abs) {
+function readRegularFile(abs) {
   const stat = fs.lstatSync(abs)
   if (stat.isSymbolicLink()) throw new Error(`심볼릭 링크는 읽지 않습니다: ${abs}`)
   if (!stat.isFile()) throw new Error(`일반 파일이 아닙니다: ${abs}`)
@@ -789,14 +789,14 @@ export function readRegularFile(abs) {
 
 // 읽기도 쓰기와 같은 API를 쓴다. root부터 leaf까지 한 번에 검사해야 "쓰기는 막고 읽기는 뚫리는"
 // 비대칭이 생기지 않는다(재리뷰 P1-2 — build-context가 path.join+readFileSync로 링크를 따라가던 문제).
-export function readSafeFile(root, rel) {
+function readSafeFile(root, rel) {
   return readRegularFile(safeJoinUnderRoot(root, rel))
 }
 
 // 임시 파일에 쓴 뒤 rename으로 교체한다.
 // - rename은 대상이 링크여도 링크를 따라가지 않고 그 자리를 교체한다(검사~쓰기 사이 교체 방어).
 // - 부분 기록 상태가 남지 않는다.
-export function writeRegularFile(root, rel, content) {
+function writeRegularFile(root, rel, content) {
   const abs = safeJoinUnderRoot(root, rel, { allowLeafSymlink: true })
   const dir = path.dirname(abs)
   fs.mkdirSync(dir, { recursive: true })
@@ -904,7 +904,7 @@ function ensureCommitAvailable(dir, source, commit, options = {}) {
 // 종전에는 여기서 checkout까지 해서, `--cache-only`(최신 보기)와 자동 수화(기준 복원)가
 // 같은 작업 트리를 반대 방향으로 덮어썼다. 나중에 실행된 쪽이 이겨 settle이 "변경 없음"으로
 // 끝나는 치명적 결함이 있었다(실증). 이제 spec-cache 작업 트리는 기준 전용이다.
-export function fetchLatestCommit(source, options = {}) {
+function fetchLatestCommit(source, options = {}) {
   const dir = ensureCacheRepo(source, options)
   const ref = source.ref || 'HEAD'
   ensureFullHistory(dir, source, options)
@@ -914,7 +914,7 @@ export function fetchLatestCommit(source, options = {}) {
 
 // 사람이 읽을 최신 본문을 spec-latest에 꺼낸다. 어느 commit의 어떤 내용을 읽었는지 manifest에 남겨,
 // settle이 "실행 시점의 원격 최신"이 아니라 "실제로 검토한 스냅샷"만 정산하도록 만든다(리뷰 P1-1).
-export function materializeLatest(source, commit, relPaths, dir, { deletedPaths = [], lockedFiles = null } = {}) {
+function materializeLatest(source, commit, relPaths, dir, { deletedPaths = [], lockedFiles = null } = {}) {
   const entries = {}
   const staged = []
 
@@ -1066,7 +1066,7 @@ function latestDirFor(sourceId, options) {
   return storageDirFor('spec-latest', sourceId, options)
 }
 
-export function specLatestDirPath(sourceId) {
+function specLatestDirPath(sourceId) {
   try {
     return latestDirFor(sourceId)
   } catch {
@@ -1077,7 +1077,7 @@ export function specLatestDirPath(sourceId) {
 // manifest는 "무엇을 읽었는가"의 유일한 기록이자 settle의 근거다. 손상을 빈 객체로 바꾸면
 // 미정산 기록이 조용히 사라지고 정산 대상이 없는 것처럼 보인다 — 명시적 오류로 올린다(재리뷰 P1-3).
 // allowReset: 이번 실행이 모든 소스를 다시 기록하는 경로(--cache-only)에서만 손상 파일을 새로 만든다.
-export function readLatestManifest({ allowReset = false } = {}) {
+function readLatestManifest({ allowReset = false } = {}) {
   const sources = {}
   let reset = false
   for (const sourceId of listLatestSourceIds()) {
@@ -1104,7 +1104,7 @@ function codeGlobToRegExp(glob) {
   return new RegExp(`^${escaped.replaceAll('::DOUBLE_STAR::', '.*')}$`)
 }
 
-export function codePathMatches(filePath, mapPath) {
+function codePathMatches(filePath, mapPath) {
   if (filePath === mapPath) return true
   if (codeGlobToRegExp(mapPath).test(filePath)) return true
   const prefix = mapPath.replace(/\/?\*\*$/, '')
@@ -1112,7 +1112,7 @@ export function codePathMatches(filePath, mapPath) {
 }
 
 // 변경 파일 목록에 매핑으로 걸리는 기획 문서들을 돌려준다(중복 제거).
-export function mappedDocsForFiles(files, entries) {
+function mappedDocsForFiles(files, entries) {
   const hits = []
   for (const entry of entries) {
     const hit = files.some((filePath) => entry.codePaths.some((mapPath) => codePathMatches(filePath, mapPath)))
@@ -1129,7 +1129,7 @@ export function mappedDocsForFiles(files, entries) {
 // 미판정("아직 아무도 안 봤다")과 구분하기 위한 장치다. 괄호는 반각/전각 모두 허용한다.
 const EXEMPT_TOKEN = /^[(（]\s*(사양\s*없음|코드\s*없음|해당\s*없음|없음)\s*[)）]$/
 
-export function isExemptCell(value) {
+function isExemptCell(value) {
   return EXEMPT_TOKEN.test(String(value ?? '').trim())
 }
 
@@ -1312,7 +1312,7 @@ export function findUnmappedSpecs(lockNorm, entries, exemptions, screenIndexBySo
 // 기준에 기록된 문서가 링크한 화면이 기준에 함께 있고, 같은 시점인가.
 // 매핑된 문서는 push 게이트가 보지만, 매핑되지 않은 문서는 아무도 보지 않았다(0.2.103 백로그).
 // 어긋난 채로 두면 컨텍스트가 문서와 화면을 다른 시점으로 제시하게 된다.
-export function findLockScreenIssues(lockNorm, screenIndexBySource = {}) {
+function findLockScreenIssues(lockNorm, screenIndexBySource = {}) {
   const issues = []
   for (const [sourceId, recorded] of Object.entries(lockNorm?.sources ?? {})) {
     const index = screenIndexBySource[sourceId]
@@ -1337,7 +1337,7 @@ export function findLockScreenIssues(lockNorm, screenIndexBySource = {}) {
   return issues
 }
 
-export function formatLockScreenIssues(issues) {
+function formatLockScreenIssues(issues) {
   return issues.map((issue) => (
     issue.kind === 'missing'
       ? `${issue.doc} 이(가) 링크한 화면 ${issue.screen} 이(가) 기준에 없습니다 — 함께 정산되지 않았습니다.`
@@ -1374,7 +1374,7 @@ export function pendingSettlements(lockNorm) {
 // 스냅샷을 읽은 뒤 기준이 다른 경로로 움직였으면(동료의 lock을 pull, --move-baseline 등)
 // 그 스냅샷은 낡은 것이다. 적용하면 기준이 **뒤로 돌아가** 팀 공유 기록이 손상된다(0.2.103 실증).
 // baseSha(스냅샷을 만들 때의 기준 값)와 현재 기준을 비교하는 compare-and-swap이다.
-export function isStaleSnapshot(snapshot, locked) {
+function isStaleSnapshot(snapshot, locked) {
   if (!snapshot) return true
   const currentSha = locked?.sha ?? null
   const baseSha = snapshot.baseSha ?? null
@@ -1980,7 +1980,7 @@ function runRehydrateAtLock(state) {
 // 동료가 문서 A만 정산(settle)해 lock을 커밋하면 소스 HEAD는 그대로인데 문서 A의 기준만 앞선다.
 // HEAD만 보면 그 pull에서 수화가 스킵되고 옛 본문을 계속 읽게 된다(0.2.102 리뷰 지적, 실증).
 // 그래서 lock에 적힌 모든 문서의 내용 해시를 직접 대조한다.
-export function specCacheMatchesLock(dir, recorded, source) {
+function specCacheMatchesLock(dir, recorded, source) {
   if (!fs.existsSync(path.join(dir, '.git'))) {
     return { matches: false, reason: 'cache-missing' }
   }
@@ -2022,7 +2022,7 @@ function reportHydrationAfterLockChange(result) {
   return result
 }
 
-export function hydrateSpecCacheIfStale({ timeoutMs = 15000, onlyWhenMissing = false } = {}) {
+function hydrateSpecCacheIfStale({ timeoutMs = 15000, onlyWhenMissing = false } = {}) {
   const result = { attempted: false, hydrated: [], failures: [], skipped: [] }
 
   let state
@@ -2113,11 +2113,11 @@ function hydrateSourceAtLock(source, recorded, { timeoutMs }) {
 // 미해결 실패를 다시 표면화한다. generated 산출물이라 git 추적 대상이 아니다.
 const hydrationStatusPath = path.join(harnessRoot, 'generated', 'spec-hydration-status.json')
 
-export function readHydrationStatus() {
+function readHydrationStatus() {
   return readJsonSoft(hydrationStatusPath, null)
 }
 
-export function writeHydrationStatus(status) {
+function writeHydrationStatus(status) {
   try {
     writeJson(hydrationStatusPath, status)
   } catch {
@@ -2158,7 +2158,7 @@ function freshnessFingerprint(state) {
   return sha256Text(parts.join('\n'))
 }
 
-export function checkSpecFreshness({ timeoutMs = 6000, ttlMinutes = 10 } = {}) {
+function checkSpecFreshness({ timeoutMs = 6000, ttlMinutes = 10 } = {}) {
   const result = { checked: false, reason: null, changed: [], added: [], removed: [] }
 
   let state
@@ -2792,7 +2792,7 @@ function runSettle({ docs = [] } = {}) {
 // 따르는데, 따로 세면 한 건이 두 줄로 부풀고 화면 줄이 "담당 없음"처럼 보인다(첫 실전 알림에서 실증).
 // 알림(broadcast)과 status의 감지 건수가 이 접기를 공유해야 같은 변경이 채널에서는 1건,
 // 터미널에서는 2건으로 갈라지지 않는다(결정 79: 알림 표시 단위 = 확인 단위).
-export function foldToScreenUnits(items, screenIndexes) {
+function foldToScreenUnits(items, screenIndexes) {
   const units = new Map()
   for (const item of items) {
     const unit = screenIndexes[item.source]?.unitFor(item.file)

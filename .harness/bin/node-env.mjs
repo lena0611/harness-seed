@@ -10,7 +10,7 @@ import path from 'node:path'
 export const MIN_NODE = { major: 20, minor: 19, label: '20.19.0' }
 
 // 'v12', '12.18', 'v22.14.0' 같은 버전 표기를 파싱한다. 별칭(lts/* 등)은 null.
-export function parseNodeSpec(raw) {
+function parseNodeSpec(raw) {
   const value = String(raw ?? '').trim()
   const match = value.match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/)
   if (!match) return null
@@ -42,7 +42,7 @@ function compareParsed(a, b) {
 }
 
 // nvm 설치본 목록을 오름차순으로 반환한다: [{ name: 'v22.14.0', parsed, binDir }]
-export function listInstalledNodeVersions(env = process.env) {
+function listInstalledNodeVersions(env = process.env) {
   const versionsDir = path.join(nvmDir(env), 'versions', 'node')
   let entries = []
   try {

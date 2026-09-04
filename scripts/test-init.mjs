@@ -5012,6 +5012,49 @@ function specMapRowsSurviveNotesThatMentionTheHeaderWords() {
 
 }
 
+// 0.2.142 다이어트: 런처 서브커맨드 27개 중 6개는 "파일이 있는가"만 확인하고 **한 번도 실행해
+// 보지 않았다**. 배포하는 명령이 소비자 환경에서 실제로 도는지 아무도 몰랐다는 뜻이다.
+// 스택 미적용·기획 미연동 프로젝트에서도 깨끗이 끝나야 하는 명령들이라 한 번에 훑는다.
+function launcherSubcommandsWithoutRegressionsRunClean() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  for (const command of ['handoff', 'guide', 'standards:list', 'templates:list', 'stack:status', 'template:gap']) {
+    run(harnessBin(target), [command], { cwd: target })
+  }
+
+  assert(exists(target, '.harness/session/handoff.md'), 'handoff must write the summary it promises')
+  assert(exists(target, '.harness/documentation/guide/index.html'), 'guide must leave a dashboard to open')
+}
+
+// 0.2.142 다이어트: 헌장 질문 4건은 설치가 심는 것이지 팀이 올린 것이 아니다. `open`으로 두면
+// 답할 때까지 매 세션 4줄이 찍히는데, 설치 24곳 전수 조사에서 답이 달린 곳이 사실상 없었다 —
+// 신호가 아니라 배경 소음이다. 유예 집계 한 줄로 시작하고 기한이 지나면 다시 뜬다(은닉 아님).
+// 같은 커밋의 profile 정리도 함께 잠근다: 아무도 읽지 않는 키는 배포하지 않고, notes는 계약
+// 문서를 가리키기만 한다(두 곳에 같은 내용을 두면 한쪽이 낡는다 — 실제로 그렇게 됐다).
+function installedQueueSnoozesCharterQuestionsAndProfileStaysThin() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const rows = read(target, '.harness/session/developer-input-queue.md').split('\n').filter((line) => line.startsWith('| charter-'))
+  assert(rows.length === 4, 'the four charter questions must still ship')
+  for (const row of rows) {
+    assert(row.includes('| deferred |'), 'a shipped charter question must start deferred, not open')
+    assert(/\| \d{4}-\d{2}-\d{2} \|/.test(row), 'each shipped charter question must carry a real review date')
+  }
+
+  const out = run('/bin/sh', [path.join(target, '.claude/hooks/session-start-reminder.sh')], {
+    env: { ...process.env, CLAUDE_PROJECT_DIR: target },
+  })
+  assert(!out.includes('charter-status'), 'a fresh install must not print the four charter rows every session')
+  assert(out.includes('유예 4건'), 'the snoozed questions must still leave the one-line summary')
+
+  const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
+  assert(!('version' in profile), 'a key nothing reads must not ship as a dial that does nothing')
+  assert(profile.notes.includes('config-contract.md'), 'profile notes must point at the contract')
+  assert(profile.notes.length < 900, 'profile notes must stay a pointer, not a second copy of the contract')
+}
+
 // 0.2.142: 스킬 목록(registry.json)이 가리키는 경로·명령을 아무도 검증하지 않아 결함 3건이
 // 살아 있었다 — 소비자에 존재한 적 없는 npm 별칭(`npm run docs:check:strict`, 0.2.131에서 별칭
 // 주입이 0이 됨)과 리터럴 `YYYY` 경로 2건. 에이전트는 이 목록을 보고 읽을 파일과 실행할 명령을
@@ -6679,6 +6722,8 @@ const tests = [
   specMappingCoverageRespectsExemptionsAndScope,
   specMapRowsSurviveNotesThatMentionTheHeaderWords,
   skillRegistryPointsAtRealFilesAndCommands,
+  launcherSubcommandsWithoutRegressionsRunClean,
+  installedQueueSnoozesCharterQuestionsAndProfileStaysThin,
   specNoticeScopesUnrelatedServicesToOneFoldedLine,
   commitAdvisoryIgnoresDocsAndMetaFilesInMappedAreas,
   specContextBudgetGrowsWithSourceCount,
