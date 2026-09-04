@@ -18,12 +18,12 @@
 - `TBD`
 
 ## 완료 승인 게이트
-- 사용자의 일반 작업 지시는 기본적으로 `진행 중` 상태입니다.
-- 사용자가 `완료`, `최종 검증`, `커밋`, `푸시`, `PR 생성`처럼 명시적으로 최종화 의사를 밝히기 전까지는 완료 승인 전으로 봅니다.
-- 완료 승인 전에는 `npm run build`, `npm run test`, `npm run test:run`, `npm run e2e`, `.harness/bin/harness check`, 배포, commit, push, PR 생성을 실행하지 않습니다.
-- 무거운 검증이 필요해 보이면 실행하지 말고 `검증 후보`와 이유를 보고합니다.
-- 완료 승인 뒤에만 변경 성격에 맞는 테스트, build, `harness:check`, commit, push를 실행합니다. 단, `커밋/푸시` 요청은 설치된 git hook 검증과 중복되지 않게 [`commit-push-rules.md`](./commit-push-rules.md)의 검증 경로를 따릅니다.
+**규칙 본문은 `CLAUDE.md` 작업 원칙의 "최종화 규칙"이 정본입니다.** 여기에 복제하지 않습니다 — 두 벌이 되면 한쪽이 낡습니다(0.2.142 실측: 같은 규칙이 11곳에 각자 문장으로 있었습니다).
+
+여기에는 이 프로젝트가 더할 것만 적습니다.
+
 - commit/push 단계의 git hook 세부 기준은 [`commit-push-rules.md`](./commit-push-rules.md)에 둡니다.
+- 이 프로젝트에서 `완료`로 볼 조건이 따로 있으면 여기에 적습니다(없으면 정본 그대로).
 
 ## 테스트 전략 선택지
 테스트 루트나 `test` script가 없다면 아래 중 하나를 선택해 이 문서 또는 `decision-log.md`에 기록합니다.

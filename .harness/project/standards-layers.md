@@ -65,7 +65,7 @@
 
 ## 강제 장치
 
-- 수동 개발자는 `.harness/bin/harness hooks:install`로 로컬 git hook을 선택 설치할 수 있습니다.
+- git hook은 최초 설치가 자동으로 켜고, 새 clone은 세션 시작 훅이 자동으로 복원합니다. 손으로 켤 때만 `.harness/bin/harness hooks:install`을 씁니다.
 - 에이전트 작업은 hook 설치 여부와 무관하게 `CLAUDE.md`, 세션 boot, adapter hook을 통해 기준 확인과 완료 승인 게이트를 따라야 합니다.
 - 최종화(검증·커밋·푸시) 절차는 `CLAUDE.md` 작업 원칙의 "최종화 규칙(정본)"을 따릅니다.
 - 로컬 hook을 설치하면 `pre-commit`은 전체 `harness:check`, `pre-push`는 반복 검증을 줄이는 `harness:check -- --fast`를 실행합니다.

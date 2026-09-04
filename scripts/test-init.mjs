@@ -4878,12 +4878,99 @@ function specSettleRefusesPathCollisionsAcrossSources() {
   })
   specSyncCli(target, ['fetch'])
 
-  const docLink = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
-  assert(docLink.includes('같은 경로가 여러 기획 저장소에'), 'path collisions across sources must be surfaced')
-  assert(docLink.includes('alpha:features/공통.md'), 'the notice must show the qualified form that resolves it')
+  // 0.2.142 재리뷰: 경로가 겹친다는 사실 자체는 오류가 아니다 — 이름 없이 그 경로를 매핑했을 때만
+  // 모호성 오류다. 여기서는 매핑이 아직 없으므로 정합 검사는 조용하고, 상태가 그 사실을 알린다.
+  run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  const collisionStatus = specSyncCli(target, ['status'])
+  assert(collisionStatus.includes('여러 기획 저장소에 있습니다'), 'status must still surface that the same path exists in more than one source')
+  assert(collisionStatus.includes('소스 이름을 붙여'), 'status must show how to disambiguate')
 
   const refuse = expectFailure(() => specSyncCli(target, ['settle', '--doc', 'features/공통.md']), 'settle must refuse ambiguous collision docs')
   assert(refuse.includes('어느 문서인지 알 수 없습니다'), 'settle should explain the ambiguity instead of settling both sources')
+}
+
+// 0.2.142 재리뷰(코덱스) P1 2건: 소스 이름을 붙인 지정(결정 102)이 실제로는 두 곳에서 깨졌다.
+// ① 문서 정합 검사가 lock 문서를 상대경로만으로 모아, `alpha:features/공통.md` 같은 정상 매핑을
+//    반드시 "기준에 없는 문서"로 오판하고 strict 검사에서 실패했다.
+// ② 정산이 최신 확인 스냅샷을 상대경로만으로 지워, alpha를 정산하면 같은 경로를 가진 beta의
+//    미정산 변경까지 조용히 사라졌다(다시 fetch하기 전에는 정산할 수도 없다).
+// 이 회귀는 겹치는 경로를 **양쪽 다 바꾼** 상태에서 한쪽만 정산해 둘을 함께 확인한다.
+function specQualifiedRefsSurviveStrictCheckAndScopedSettle() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const alpha = makePlanningRepoWithFiles({ 'features/공통.md': '# 공통 A\n\nA의 사양.\n' })
+  const beta = makePlanningRepoWithFiles({ 'features/공통.md': '# 공통 B\n\nB의 사양.\n' })
+  writeJson(target, '.harness/spec-sources.json', {
+    version: 1,
+    sources: [
+      { id: 'alpha', repo: alpha, ref: 'master', include: ['**/*.md'], exclude: [] },
+      { id: 'beta', repo: beta, ref: 'master', include: ['**/*.md'], exclude: [] },
+    ],
+  })
+  specSyncCli(target, ['fetch'])
+
+  fs.mkdirSync(path.join(target, 'src/a'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/a/a.js'), 'export const a = 1\n')
+  fs.mkdirSync(path.join(target, 'src/b'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/b/b.js'), 'export const b = 1\n')
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `alpha:features/공통.md` | `src/a/**` | |',
+    '| `beta:features/공통.md` | `src/b/**` | |',
+    '',
+  ].join('\n'))
+
+  // ① 소스 이름을 붙인 매핑은 정합 검사에서 오류가 아니고, strict 검사도 통과해야 한다.
+  const docLink = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(!docLink.includes('기준(spec-lock)에 없는 기획 문서'), 'a source-qualified mapping must not be judged as missing from the baseline')
+  assert(!docLink.includes('어느 문서인지 알 수 없습니다'), 'a collision that every mapping qualifies must not be reported as ambiguous')
+  run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs'), '--strict'], { cwd: target })
+
+  // 이름을 빼면 그때는 모호성 오류다 — 충돌 자체가 아니라 이름 없는 지정이 문제라는 계약.
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/공통.md` | `src/a/**` | |',
+    '',
+  ].join('\n'))
+  const ambiguous = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
+  assert(ambiguous.includes('어느 문서인지 알 수 없습니다'), 'an unqualified mapping of a colliding path must still be flagged')
+  assert(ambiguous.includes('alpha:features/공통.md'), 'the notice must show the qualified form')
+
+  // ② 양쪽 문서를 모두 바꾼 뒤 alpha만 정산한다.
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `alpha:features/공통.md` | `src/a/**` | |',
+    '| `beta:features/공통.md` | `src/b/**` | |',
+    '',
+  ].join('\n'))
+  fs.appendFileSync(path.join(alpha, 'features/공통.md'), '\n- A 개정.\n')
+  gitCommitAll(alpha, 'A 개정')
+  fs.appendFileSync(path.join(beta, 'features/공통.md'), '\n- B 개정.\n')
+  gitCommitAll(beta, 'B 개정')
+  specSyncCli(target, ['fetch', '--cache-only'])
+
+  const before = JSON.parse(read(target, '.harness/spec-lock.json'))
+  specSyncCli(target, ['settle', '--doc', 'alpha:features/공통.md'])
+  const after = JSON.parse(read(target, '.harness/spec-lock.json'))
+
+  assert(after.sources.alpha.files['features/공통.md'].sha !== before.sources.alpha.files['features/공통.md'].sha, 'the settled source must advance')
+  assert(JSON.stringify(after.sources.beta) === JSON.stringify(before.sources.beta), 'the other source baseline must not move')
+
+  // beta의 최신 확인 기록과 본문이 남아 있어야 다시 fetch하지 않고 정산할 수 있다.
+  const manifest = JSON.parse(read(target, '.harness/generated/spec-latest/beta/.manifest.json'))
+  assert(manifest.files?.['features/공통.md'], "settling one source must not delete the other source's reviewed snapshot")
+  assert(exists(target, '.harness/generated/spec-latest/beta/features/공통.md'), "the other source's reviewed body must survive")
+
+  const status = specSyncCli(target, ['status'])
+  assert(status.includes('[beta] features/공통.md'), "the other source's change must still be listed as pending, named by source")
+  assert(status.includes('src/b/**'), 'a source-qualified mapping must be shown as the linked code, not "매핑 없음"')
+
+  specSyncCli(target, ['settle', '--doc', 'beta:features/공통.md'])
+  const settled = JSON.parse(read(target, '.harness/spec-lock.json'))
+  assert(settled.sources.beta.files['features/공통.md'].sha !== before.sources.beta.files['features/공통.md'].sha, 'the second source must still be settleable without another fetch')
 }
 
 // 0.2.142: 기획 저장소가 둘 이상이면 같은 상대경로가 겹친다(기획팀마다 features/·policies/ 관례).
@@ -6720,6 +6807,7 @@ const tests = [
   specStatusDoesNotClaimSyncWhenCacheMissing,
   specSettleRefusesPathCollisionsAcrossSources,
   specRefsQualifiedBySourceSettleTheRightBaseline,
+  specQualifiedRefsSurviveStrictCheckAndScopedSettle,
   specMappingCoverageIsEnforcedForNewFilesInMappedAreas,
   specMappingCoverageRespectsExemptionsAndScope,
   specMapRowsSurviveNotesThatMentionTheHeaderWords,

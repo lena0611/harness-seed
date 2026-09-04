@@ -48,12 +48,11 @@
 - `ai-standard/docs`에도 같은 이미지가 있으므로 원문 정책 쪽 자산도 함께 갱신합니다.
 
 ## 핵심 검증 명령
-- `npm run harness:scan`: 현재 프로젝트 스캔 리포트 생성
-- `npm run harness:handoff`: 설치/업데이트 직후 인수인계 요약 생성
-- `npm run harness:check`: 통합 검사. policy + docs + (스택 적용 시) lint+test+build. `최종 검증만` 요청에는 직접 실행하고, hook 설치 후 `커밋/푸시` 요청에는 pre-commit/pre-push hook이 실행합니다.
-- `npm run harness:check:strict`: CI/릴리스용 엄격 검사
-- `npm run harness:outdated`: 현재 적용된 스택 하네스 업데이트 후보 확인
-- `npm run harness:update`: 현재 적용된 스택 하네스 기준 업데이트
+- `.harness/bin/harness scan`: 현재 프로젝트 스캔 리포트 생성
+- `.harness/bin/harness handoff`: 설치/업데이트 직후 인수인계 요약 생성
+- `.harness/bin/harness check`: 통합 검사. 정책·문서·기준 동기화 등 **하네스 자신의 관문 검사만** 봅니다 — 프로젝트의 lint/test/build는 실행하지 않습니다(0.2.131, 소유는 프로젝트). `최종 검증만` 요청에는 직접 실행하고, hook 설치 후 `커밋/푸시` 요청에는 pre-commit/pre-push hook이 실행합니다.
+- `.harness/bin/harness outdated`: 업데이트 후보 확인
+- `.harness/bin/harness update`: 공통·스택 하네스 갱신
 - `npm run harness:impact`: 소비자 프로젝트에 노출되는 영향 범위 확인
 - `npm run policy:impact` / `policy:check` / `policy:guard`: 하네스 본체 저장소 전용 세부 기준 검사
 - `npm run docs:check` / `docs:check:strict`: 하네스 본체 저장소 전용 문서 검사

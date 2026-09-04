@@ -63,7 +63,7 @@ Claude Code는 `SessionStart` hook으로 `next-session-reminder.md`를 자동 �
 - 사용자가 `세션종료`라고 말하면 그 세션의 미결 사항과 다음 세션 상기 사항을 `next-session-reminder.md`에 정리합니다.
 - 정보 부족으로 막힌 항목은 `developer-input-queue.md`에 남겨 다음 세션에서 다시 묻습니다.
 - 정책 문서 또는 `src/` 변경 작업은 시작 전 `harness:impact`, 사용자 최종화 승인 후 `harness:check` 흐름으로 다룹니다.
-- 문서가 길어지면 내용을 계속 누적하지 말고 `documentation` 하네스 규칙에 따라 인덱스/세부 문서로 분리합니다.
+- 문서가 길어질 때의 분리 기준은 [documentation/split-thresholds.md](../documentation/split-thresholds.md)가 정본입니다.
 
 ## 기억 표면 정리
 

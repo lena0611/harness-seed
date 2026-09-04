@@ -13,8 +13,8 @@
 | `policy-source-sync-gap` | 기준 매핑의 한쪽만 변경되어 동기화 갭 발생 | 자동 검사 (`harness:impact`, CI에서 `harness:check:strict`로 차단) |
 | `stack-isolation` | 한 스택 폴더가 다른 스택 폴더를 참조하지 않음 | 자동 검사 (`harness:check`, 본체 개발 시 `docs:check`) |
 | `context-artifact-generation` | 프로젝트 맵, import 맵, Agent Decision Context 생성 | 자동 생성 (`harness:sync`, `harness:context`) |
-| `spec-link-integrity` | 기획 연동 선언↔기준(lock v2: 문서별 sha+commit, selector)↔매핑↔코드 정합. repo/ref/selector 드리프트, 유령 소스, 소스 간 경로 충돌, id 중복·안전성(무효 선언은 전체 invalid), 선언 없이 기준만 남은 상태 | 자동 검사 (`harness:check`) |
-| `spec-lock-schema` | lock이 JSON으로 읽히는 것과 기준으로 쓸 수 있는 것은 다르다. version·sources/files 형태, source 메타데이터, selector, 문서 경로 안전성, sha256·commit 형식을 검증하고 **항목 하나라도 어긋나면 전체 invalid**(관용하면 그 문서가 기준에서 사라져 drift 검사가 건너뛰어짐) | 자동 검사 (**fail-closed** — status/doc-link/settle/push tip 공유) |
+| `spec-link-integrity` | 기획 연동 선언↔기준(lock v2: 문서별 sha+commit, selector)↔매핑↔코드 정합. repo/ref/selector 드리프트, 유령 소스, id 중복·안전성(무효 선언은 전체 invalid), 선언 없이 기준만 남은 상태. **소스 간 경로 충돌 자체는 오류가 아니다**(0.2.142) — `<소스id>:<경로>`로 지정하면 정상이고, 이름 없이 그 경로를 매핑했을 때만 모호성 오류다 | 자동 검사 (`harness:check`) |
+| `spec-lock-schema` | lock이 JSON으로 읽히는 것과 기준으로 쓸 수 있는 것은 다르다. version·sources/files 형태, source 메타데이터, selector, 문서 경로 안전성, sha256·commit 형식을 검증하고 **항목 하나라도 어긋나면 전체 invalid**(관용하면 그 문서가 기준에서 사라져 drift 검사가 건너뛰어짐) | 자동 검사 (**fail-closed** — status/doc-link/settle 공유) |
 | `spec-screen-link` | 화면은 **문서가 링크로 선언**한다(경로 관례 아님). 링크한 화면이 없거나 아무도 참조하지 않는 화면 파일이 있으면 기준으로 받지 않고(최초 fetch·최신 확인·freshness·상태 모두 fail-closed), 화면만 바뀌어도 문서 단위 전체가 변경으로 판정되며, 정산은 둘을 같은 commit으로 함께 기록(부분 정산 거부). 링크된 화면은 include에 없어도 자동 편입, 매핑은 대표 문서 한 줄로 충분. 독립 명령 `screen-check`로 기획 저장소 CI에서도 동일 판정 | 자동 검사 (연동 전 구간) |
 | `spec-settlement-monotonicity` | 정산은 앞으로만 간다. 목표 commit이 현재 기준의 조상이면 거부, 같은 이력에 없으면 거부, 증명 불가면 거부(허용 아님). 캐시를 전체 이력으로 받아 판정을 보장하고, 옛 얕은 캐시는 최신 확인에서 치유 | 자동 검사 (`harness:spec:settle`) |
 | `spec-provenance` | 기준 기록의 출처 검증: settle은 **기획 저장소의 git 객체**와 대조 후 기록(소스 정체성·스냅샷 commit 실재·본문 sha·삭제 부재 확인, 전부 통과해야 lock 수정), v1 lock은 변경 명령에서 검증 후 v2 승격(읽기 경로는 무수정·무네트워크) | 자동 검사 (`harness:spec:settle`, `harness:spec:fetch -- --move-baseline`) |
@@ -26,7 +26,7 @@
 | `spec-latest-exact-set` | 읽어볼 최신 사본(`spec-latest/<source>/`)은 그 기록(`.manifest.json`)과 **정확히 같은 집합**. 기록을 디렉터리 안에 두어 **rename 한 번으로 본문과 기록이 함께 확정**되므로 중간에 죽어도 어긋난 상태가 남지 않는다. 정산 소비도 같은 방식으로 교체 | 자동 실행 (`harness:spec:fetch -- --cache-only`, `harness:spec:settle`) |
 | `spec-path-safety` | 기획 저장소가 주는 경로로 캐시 밖에 쓰거나 읽지 못하게 함(절대경로·`..`·NUL 거부, **보호 루트 자신부터** leaf까지 심볼릭 링크 차단, 읽기·쓰기·삭제가 같은 API를 사용, 쓰기는 임시 파일+rename) | 자동 검사 (모든 수화·최신 사본·읽기 경로) |
 | `spec-freshness-at-task-start` | 작업 컨텍스트 생성 시 짧은 예산의 비파괴 최신 확인. 기준 문서 / 기준 이후 변경 / 신규·미정산을 구분해 표시하고, 실패 시 "최신 확인 못함"을 명시 | 자동 실행 (TTL 재사용, 기준 이동 없음, 실패해도 진행) |
-| `hook-installation` | `core.hooksPath`는 clone으로 공유되지 않으므로 사람마다 설치해야 한다. 미설치를 검사가 감지해 설치 명령을 안내 | 자동 안내 (커밋 검증·`harness:check`) |
+| `hook-installation` | `core.hooksPath`는 clone으로 공유되지 않으므로 PC마다 꺼진 채 시작한다. **세션 시작 훅이 자동으로 켜고 한 줄 알린다**(0.2.131+, `harness.hooksAutoEnable=false` 옵트아웃은 존중). 그 밖의 경로에서는 검사가 미설치를 감지해 안내 | 자동 복원 + 안내 (세션 시작·커밋 검증·`harness:check`) |
 | `harness-mode-validity` | `profile.json`의 harnessMode가 허용 값인지, JSON이 읽히는지. 오타는 strict 차단이 조용히 꺼지는 원인이 된다 | 자동 검사 (**fail-closed** — 값 오류·JSON 오류 시 검사 실패) |
 
 커밋 검증(`policy-harness`)은 본문 자동 수화를 실행하지 않습니다. 캐시 부재를 안내만 하며(비차단), 본문 준비의 보장은 pull 훅과 작업 컨텍스트 단계에 있습니다 — 커밋 시점 수화는 작업이 끝난 뒤라 늦습니다.

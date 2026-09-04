@@ -31,7 +31,7 @@
 - `.harness/bin/apply-stack.mjs` — 외부 스택 기준과 scaffold 템플릿 적용 런타임
 - `.harness/bin/list-stack-standards.mjs` — 배포된 승인 스택 후보 조회, 관리자용 원격 조회
 - `.harness/bin/list-templates.mjs` — 배포된 승인 템플릿 후보 조회, 관리자용 원격 조회
-- `.harness/bin/guard.mjs` — 미적용 시 lint/test/build 자동 스킵
+- `.harness/bin/guard.mjs` — 하네스 관문 검사 실행(프로젝트 lint/test/build는 범위 밖, 0.2.131)
 - `.harness/bin/doc-link-check.mjs` — scaffold 경로 자동 제외 + 활성 스택 fallback
 
 ## 다음 세션이 바로 이어받을 작업
@@ -42,5 +42,5 @@
 
 ## 마지막 검증
 - 외부 프리셋 fixture로 `.harness/bin/harness stack:apply` → `.harness/bin/harness stack:reset` 통과
-- `.harness/bin/harness check` (lint/test/build 스킵) 통과
+- `.harness/bin/harness check` 통과
 - 스택 격리 검사, doc-link 무결성, 기준 동기화 후보 분석, 정책 위반 검사 모두 OK

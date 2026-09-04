@@ -152,7 +152,7 @@
 ## 검증과 유지보수
 
 - 프로젝트 하네스를 바꾼 뒤에는 `.harness/bin/harness check`를 실행합니다.
-- 문서가 길어지면 README에 계속 붙이지 말고 인덱스와 하위 문서로 분리합니다.
+- 문서가 길어질 때의 분리 기준은 `.harness/documentation/split-thresholds.md`가 정본입니다.
 - 룰 문서 상단에는 현재 따라야 할 요약과 적용 범위를 두고, 오래된 사례와 세부 근거는 하위 문서나 decision-log로 분리합니다.
 - 에이전트가 모든 프로젝트 룰을 매번 읽는다고 가정하지 말고 `.harness/bin/harness context "<작업 설명>"`으로 판단 기준과 충돌 우선순위를 좁히게 합니다.
 - 규칙을 바꾸면 관련 테스트, CI, README, 운영 문서도 함께 봅니다.

@@ -33,4 +33,4 @@
 - 최근 실패 기록은 `.harness/generated/agent-events.ndjson`에 최대 `HARNESS_AGENT_EVENT_CAP`개만 남기며, 다음 프롬프트에는 `HARNESS_AGENT_EVENT_TTL_MINUTES` 안의 마지막 1건만 주입합니다. 이 파일은 재생성/임시 산출물로 취급합니다.
 - 실패 기록은 같은 시도를 그대로 반복하지 않기 위한 최근 힌트입니다. 반복 규칙으로 굳히려면 `.harness/project/*` 또는 `developer-input-queue.md`로 별도 승격 판단을 거칩니다.
 - 에이전트 완료 hook은 `HARNESS_AGENT_CHECK_APPROVED=1`일 때만 `.harness/bin/harness check`를 실행하고 실패를 그대로 전달합니다. 일시적으로 해제해야 하면 `HARNESS_AGENT_CHECK_DISABLED=1`을 명시적으로 설정합니다.
-- 사용자가 `커밋` 또는 `커밋하고 푸시`를 승인했고 git hook이 설치되어 있으면 pre-commit/pre-push 검증을 신뢰합니다. 에이전트가 commit 직전에 별도 `.harness/bin/harness check`를 먼저 실행해 같은 검증을 중복하지 않습니다.
+- 최종화 갈래(`최종 검증만` / `커밋` / `커밋하고 푸시`)의 규칙은 `CLAUDE.md` 작업 원칙의 최종화 규칙이 정본입니다. 이 어댑터는 그 규칙을 따를 뿐 별도 규칙을 두지 않습니다.

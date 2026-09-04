@@ -22,12 +22,15 @@
 2. `.harness/session/session-start-alert.md`
 3. `.harness/session/active-context.md`
 
+> 이 파일의 세 읽기 목록(항상 읽는 최소 기준 · 세션 재개 시 추가 확인 · 작업별로 골라 읽는 기준)이 **읽기 목록의 정본**입니다. 다른 문서는 목록을 복제하지 말고 이 파일을 가리킵니다 — 목록이 두 벌이면 어느 쪽을 먼저 읽느냐로 답이 갈립니다(0.2.142 실측).
+
 ## 세션 재개 시 추가 확인
 - `.harness/session/project-memory.md`
 - `.harness/session/decision-log.md` (현행 유효 결정만 유지 — `decision-log-*` 아카이브는 특정 결정의 배경이 필요할 때만 읽습니다)
 - `.harness/session/developer-input-queue.md`
 
 ## 작업별로 골라 읽는 기준
+
 - `.harness/project/terminology.md`
 - `.harness/project/local-methodology.md`
 - `.harness/project/standards-layers.md`
@@ -65,7 +68,7 @@
 - 개발 기준 문서, 스택 문서, `src/`를 변경하면 관련 반대편 문서/코드도 함께 검토합니다.
 - 코드 변경 후에는 도메인, 아키텍처, 워크플로우 로컬룰로 승격할 반복 패턴이나 검증 기준이 생겼는지 반드시 점검합니다.
 - 실제 업무 진행을 개발자에게 보고할 때는 원시 내부 추론이 아니라 `[harness] request/context/impact/action/decision/verify` 형태의 visible trace로 요약합니다. 단순 질문 응답, 잡담, 메타 확인처럼 업무 진행 보고가 아닌 턴에는 이 형식을 강요하지 않습니다.
-- 최종화 규칙(정본, 이 한 곳에만 둡니다): 완료 승인 전에는 `build`/`test`/`harness:check`/commit/push/PR 생성을 실행하지 않고 검증 후보로만 보고합니다. 승인 후 — `최종 검증만` 요청은 `.harness/bin/harness check` 직접 실행, `커밋/푸시` 요청은 설치된 hook 검증에 맡겨 중복 실행을 피하고, hook이 없거나 우회되는 환경이면 직접 `harness:check` 후 진행합니다. 기준 계층 준수는 hook 설치 여부와 무관합니다.
+- 최종화 규칙(정본 — 규칙 본문은 이 한 곳에만 둡니다. 비-Claude 진입점(`AGENTS.md`·copilot)은 자기 독자를 위해 요약만 갖고, 그 밖의 문서는 이 절을 가리킵니다): 완료 승인 전에는 `build`/`test`/`harness:check`/commit/push/PR 생성을 실행하지 않고 검증 후보로만 보고합니다. 승인 후 — `최종 검증만` 요청은 `.harness/bin/harness check` 직접 실행, `커밋/푸시` 요청은 설치된 hook 검증에 맡겨 중복 실행을 피하고, hook이 없거나 우회되는 환경이면 직접 `harness:check` 후 진행합니다. 기준 계층 준수는 hook 설치 여부와 무관합니다.
 - 새 프로젝트 방향이 비어 있으면 구현보다 `.harness/project/bootstrap.md` 인터뷰를 먼저 진행합니다.
 <!-- harness-managed:end -->
 

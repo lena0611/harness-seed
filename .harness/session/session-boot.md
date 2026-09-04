@@ -1,40 +1,23 @@
 # 세션 부트 가이드
 
-새 세션은 아래 구분으로 컨텍스트를 복구합니다.
+새 세션은 아래 구분으로 컨텍스트를 복구합니다. 읽을 문서 **목록**은 `CLAUDE.md`가 정본이고, 이 문서는 **순서와 판단**을 다룹니다.
 
 ## 1. 빠른 사실 확인
 - 저장소 목적과 실행 명령은 `README.md`에서 확인합니다.
 - 코드 생성 규칙과 아키텍처 규칙은 `CLAUDE.md`, 프로젝트 하네스, 활성 스택 instructions에서 확인합니다. `AGENTS.md`는 같은 기준을 가리키는 보조 진입점입니다.
 
-## 2. 항상 읽는 최소 기준
-1. `../policy/ai-standard-guiding-policy.md`
-2. `session-start-alert.md`
-3. `active-context.md`
+## 2. 무엇을 읽는가 — 목록은 `CLAUDE.md` 한 곳
 
-## 3. 세션 재개 시 추가 확인
-- `project-memory.md`
-- `decision-log.md`
-- `developer-input-queue.md`
+읽을 문서 목록(항상 읽는 최소 기준 · 세션 재개 시 추가 확인 · 작업별로 골라 읽는 기준)은
+**`CLAUDE.md`가 정본입니다.** 여기에 두 번째 목록을 두지 않습니다 — 예전에는 이 문서와
+`CLAUDE.md`가 각자 목록을 갖고 있었고 겹치는 항목이 절반이 안 돼, 어느 쪽을 먼저 읽느냐로
+답이 갈렸습니다(0.2.142 실측: 16개 대 18개, 공통 8개).
 
-## 4. 작업별로 골라 읽는 기준
-- `../project/README.md`
-- `../project/project-charter.md`
-- `../project/local-methodology.md`
-- `../project/standards-layers.md`
-- `../project/stack-preset-rules.md`
-- `../project/template-contract.md`
-- `../project/bootstrap.md`
-- `../policy/README.md`
-- `../policy/sync-protocol.md`
-- `../policy/context-protocol.md`
-- `../policy/enforcement-ladder.md`
-- `../policy/automation-coverage.md`
-- `../documentation/README.md`
-- `../documentation/indexing-rules.md`
-- `../style/style-evolution.md`
-- `../stacks/README.md` (활성 스택 메타 확인용)
+이 문서가 소유하는 것은 **순서와 판단**입니다. 무엇을 읽을지는 `CLAUDE.md`에서,
+작업 설명이 있으면 `.harness/bin/harness context "<작업 설명>"`으로 그 작업에 필요한
+문서만 좁혀 받습니다.
 
-## 5. 작업 시작 전 체크
+## 3. 작업 시작 전 체크
 - `ai-standard-guiding-policy.md`의 위배 여부를 먼저 확인합니다.
 - 새 작업이 공통 기준, 스택 기준, 프로젝트 로컬룰 중 어느 계층의 영향을 받는지 먼저 판단합니다.
 - 큰 작업이나 낯선 영역이면 에이전트가 `harness:sync`와 `harness:context`로 작업별 판단 컨텍스트를 먼저 만듭니다.
@@ -46,7 +29,7 @@
 - 강제 강도와 예외 허용 범위가 애매하면 사용자에게 먼저 확인합니다.
 - 스타일 drift가 보이면 `style-evolution.md` 기준으로 문서 규칙 또는 lint 규칙 승격을 검토합니다.
 
-## 6. 빠른 점검 명령
+## 4. 빠른 점검 명령
 ```bash
 git --no-pager status --short
 .harness/bin/harness impact
@@ -54,19 +37,19 @@ git --no-pager status --short
 # HARNESS_AGENT_CHECK_APPROVED=1 .harness/bin/harness check
 ```
 
-## 7. 작업 재개 원칙
+## 5. 작업 재개 원칙
 - 현재 진행 상태는 `active-context.md`를 우선 신뢰합니다.
 - 장기 규칙은 `project-memory.md`와 `CLAUDE.md`를 우선 신뢰합니다.
 - 둘이 충돌하면 `active-context.md`에 충돌 사실을 기록하고 최신 코드 기준으로 다시 정리합니다.
 - 기준 문서나 업무 코드를 건드리는 작업이면 시작 전 `harness:impact`를 실행 대상으로 취급합니다.
-- 에이전트 작업에서는 로컬 git hook 설치 여부와 무관하게 기준 계층을 읽습니다. 사용자 완료 승인 전에는 `harness:check`, build/test, commit/push/PR을 실행하지 않고 검증 후보로 보고합니다.
-- 사용자가 `최종 검증만` 요청하면 `.harness/bin/harness check`를 직접 실행합니다. 사용자가 `커밋/푸시`를 요청했고 hook이 설치되어 있으면 hook 검증을 신뢰하고 commit 직전 수동 `harness:check`를 중복 실행하지 않습니다.
+- 최종화(완료 승인 전 금지·`최종 검증만`·`커밋/푸시`의 갈래)는 `CLAUDE.md` 작업 원칙의 **최종화 규칙이 정본**입니다. 여기에 본문을 복제하지 않습니다.
+- 기준 계층은 로컬 git hook 설치 여부와 무관하게 읽습니다.
 - hook이 설치되지 않았거나 `--no-verify` 등으로 우회되는 환경이면 commit/push 전에 에이전트가 직접 `.harness/bin/harness check`를 실행합니다.
 - 프로젝트 상태나 책임 범위가 `TBD`인 상태라면 새 작업 설계 전에 `project-charter.md` 재계획 여부를 먼저 판단합니다.
 - 사용자가 "새 프로젝트 시작" 또는 "기존 프로젝트 하네스 정리" 의사를 보이면 `../project/bootstrap.md`의 절차(프로젝트 상태 확인 + 스택 선택)를 먼저 수행합니다.
 - 개발자 입력이 필요한 항목은 묻지 않고 넘기지 말고, 최소한 `지금 답변 / 이번 세션 유보 / 나중에 다시 묻기` 중 하나로 상태를 남깁니다.
 - 답변이 반영된 큐 항목은 현재 파일에 계속 두지 말고 관련 문서 반영 확인 후 제거하거나 아카이브합니다.
-- 문서가 길어질 조짐이 있으면 한 문서에 계속 누적하지 말고 `documentation` 하네스 기준으로 분리합니다.
+- 문서가 길어질 조짐이 있으면 `../documentation/split-thresholds.md` 기준으로 분리합니다(정본).
 - 로컬룰이 많아지면 모든 룰을 항상 읽지 말고 에이전트 판단 컨텍스트와 상단 요약을 우선합니다.
 - 반복해서 놓치는 작업은 운영 문서에만 두지 말고 trigger 또는 hook으로 승격할지 검토합니다.
 - `inform/trigger/hook/block`와 `none/defer/waiver` 판단이 불명확하면 추정하지 말고 사용자에게 묻습니다.

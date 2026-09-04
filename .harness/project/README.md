@@ -66,4 +66,4 @@
 - scaffold 템플릿을 적용하면 템플릿 코드의 사용 계약은 `template-contract.md`의 브리지로 연결하고, 전체 가이드는 템플릿 저장소의 문서가 소유합니다.
 - 로컬 규칙이 비어 있으면 실제 버그 수정과 기능 개발 중 관찰한 반복 패턴을 후보로 기록하고, 사용자 확인이나 반복 근거가 쌓이면 `domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`로 승격합니다.
 - 하네스는 도메인 규칙을 임의로 발명하지 않습니다. 기존 코드, 반복 패턴, 사용자 확인을 근거로 프로젝트의 기억을 쌓습니다.
-- 내용이 길어지면 이 문서는 인덱스 역할만 유지하고 상세 내용은 하위 문서로 분리합니다.
+- 문서가 길어질 때의 분리 기준은 [documentation/split-thresholds.md](../documentation/split-thresholds.md)가 정본입니다.

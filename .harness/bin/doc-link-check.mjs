@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { findDeclarationLockIssues, readSpecState } from './spec-sync.mjs'
+import { findDeclarationLockIssues, parseSpecRef, readSpecState } from './spec-sync.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -496,13 +496,34 @@ function findSpecLinkInconsistencies() {
       : `${message} 확인 후 .harness/bin/harness spec:fetch --move-baseline --source <id> 로 기준을 재생성하세요.`
   )))
 
+  // 같은 경로가 여러 소스에 있는 것 자체는 정합 오류가 아니다(0.2.142 결정 102) —
+  // 소스 이름을 붙여 지정하면 정상 구성이다. 오류는 **이름 없이 그 경로를 매핑했을 때**뿐이다.
+  const lockSourceIds = Object.keys(state.lock.sources ?? {})
+  const collisionRels = new Set(state.collisions.map((item) => item.rel))
   for (const collision of state.collisions) {
-    issues.push(`같은 경로가 여러 기획 저장소에 있습니다: '${collision.rel}' (${collision.sourceIds.join(', ')}) — 매핑 표와 정산에서는 소스 이름을 붙여 지정하세요: ${collision.sourceIds[0]}:${collision.rel}`)
+    const unqualified = state.entries.some((entry) => {
+      const parsed = parseSpecRef(entry.spec, lockSourceIds)
+      return parsed.source === null && parsed.file === collision.rel
+    })
+    if (!unqualified) continue
+    issues.push(`spec-map: '${collision.rel}' 이 여러 기획 저장소(${collision.sourceIds.join(', ')})에 있어 어느 문서인지 알 수 없습니다 — 소스 이름을 붙이세요: ${collision.sourceIds[0]}:${collision.rel}`)
   }
 
-  const lockFiles = new Set(
-    Object.values(state.lock.sources).flatMap((recorded) => Object.keys(recorded?.files ?? {})),
-  )
+  // 기준 대조는 {소스, 경로} 짝으로 한다(재리뷰 P1-1). 경로만 모으면 `alpha:features/x.md`
+  // 같은 정상 매핑이 반드시 "기준에 없는 문서"로 오판되고, strict 검사에서 실패한다.
+  const lockPairs = new Set()
+  const lockRels = new Set()
+  for (const [sourceId, recorded] of Object.entries(state.lock.sources ?? {})) {
+    for (const rel of Object.keys(recorded?.files ?? {})) {
+      lockPairs.add(`${sourceId}\u0000${rel}`)
+      lockRels.add(rel)
+    }
+  }
+  const lockHasRef = (ref) => {
+    const parsed = parseSpecRef(ref, lockSourceIds)
+    return parsed.source ? lockPairs.has(`${parsed.source}\u0000${parsed.file}`) : lockRels.has(parsed.file)
+  }
+  const lockFiles = lockRels
 
   const specCodePathExists = (mapPath) => {
     const starIndex = mapPath.indexOf('*')
@@ -522,8 +543,11 @@ function findSpecLinkInconsistencies() {
   }
 
   for (const entry of state.entries) {
-    if (lockFiles.size > 0 && !lockFiles.has(entry.spec)) {
+    if (lockFiles.size > 0 && !lockHasRef(entry.spec)) {
       issues.push(`spec-map: '${entry.spec}' — 기준(spec-lock)에 없는 기획 문서입니다. 경로 오타이거나 폐기된 문서면 행을 정리하세요.`)
+    }
+    if (collisionRels.has(entry.spec)) {
+      // 위에서 이미 안내했다 — 여기서 중복으로 쌓지 않는다.
     }
     if (entry.codePaths.length > 0 && !entry.codePaths.some(specCodePathExists)) {
       issues.push(`spec-map: '${entry.spec}' → ${entry.codePaths.join(', ')} — 구현 경로가 저장소에 없습니다. 파일 이동/이름 변경을 반영하세요.`)

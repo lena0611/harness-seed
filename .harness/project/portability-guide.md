@@ -13,7 +13,7 @@
 2. 스택 하네스가 내부적으로 공통 하네스를 설치하거나 업데이트하고, 자기 스택 기준을 로컬룰로 정착했는지 확인합니다.
 3. `.harness/harness-lock.json`에서 실제 설치된 공통 하네스와 스택 하네스의 repo, ref, version을 확인합니다.
 4. `.harness/session/project-scan-report.md`에서 기존 프로젝트 기준, 기존 AI 작업 룰 후보, 스타일 출처, 버전 상태, 충돌 후보를 확인합니다.
-5. 로컬 hook 연결을 확인합니다 — 최초 설치(init)가 자동으로 활성화하며(끄려면 `--no-hooks`), 새로 clone한 사람은 각자 1회 `.harness/bin/harness hooks:install`을 실행합니다.
+5. 로컬 hook 연결을 확인합니다 — 최초 설치(init)가 자동으로 활성화하고(끄려면 `--no-hooks`), 새로 clone한 사람은 **세션을 열면 하네스가 자동으로 켭니다**(0.2.131+). 손으로 켤 때만 `.harness/bin/harness hooks:install`을 씁니다.
 6. scaffold가 필요하면 `.harness/bin/harness templates:list`로 별도 템플릿 후보를 확인하고 `template:apply`로 적용합니다.
 7. scaffold 템플릿이 적용되었으면 `.harness/project/template-contract.md`에서 템플릿 사용 계약 브리지를 확인합니다.
 8. scaffold가 함께 적용되었으면 `npm install` 후 `.harness/bin/harness check`로 검증합니다. 이 검사는 하네스 관문 검사이며 lint/test/build는 포함하지 않습니다 — 코드 품질 검사는 프로젝트 소유입니다(0.2.131).

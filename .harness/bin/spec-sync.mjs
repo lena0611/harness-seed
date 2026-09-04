@@ -456,7 +456,7 @@ export function findDeclarationLockIssues(sources, lockNorm) {
 // 폴더 관례를 각자 쓰기 때문이다. 경로만으로는 어느 문서인지 알 수 없어 예전에는 정산이 거부되고
 // 겹침을 없애는 방법이 include/exclude 조정뿐이었다(백엔드 통합 저장소 검토, 2026-09-04).
 // 접두는 **선언된 소스 id일 때만** 소스 지정으로 읽는다 — 콜론이 든 파일 이름을 깨뜨리지 않는다.
-function parseSpecRef(value, sourceIds = []) {
+export function parseSpecRef(value, sourceIds = []) {
   const text = String(value ?? '').trim()
   const at = text.indexOf(':')
   if (at > 0) {
@@ -1022,11 +1022,14 @@ function listLatestSourceIds() {
 
 // 소비되었거나 무효가 된 스냅샷을 제거한다. 남은 집합으로 디렉터리를 다시 만들어 통째로 교체하므로
 // 본문과 기록이 어긋난 중간 상태가 없다(4차 리뷰 P2-3).
-function dropLatestSnapshots(manifest, rels) {
-  const target = new Set(rels)
+// 제거 대상은 **{sourceId, rel} 짝**이다(0.2.142 재리뷰 P1-2). 경로만 받으면 같은 상대경로를
+// 가진 다른 소스의 최신 확인 기록까지 지워, 한쪽을 정산했을 뿐인데 다른 쪽 미정산 변경이
+// 조용히 사라진다(다시 fetch하기 전에는 정산할 수도 없다).
+function dropLatestSnapshots(manifest, items) {
+  const target = new Set((items ?? []).map((item) => `${item.sourceId}\u0000${item.rel}`))
   if (target.size === 0) return
   for (const [sourceId, entry] of Object.entries(manifest.sources ?? {})) {
-    const hit = Object.keys(entry.files ?? {}).filter((rel) => target.has(rel))
+    const hit = Object.keys(entry.files ?? {}).filter((rel) => target.has(`${sourceId}\u0000${rel}`))
     if (hit.length === 0) continue
     for (const rel of hit) delete entry.files[rel]
 
@@ -1426,8 +1429,14 @@ function diffAgainstLock(lockNorm, sources) {
   return result
 }
 
-function linkedCodePaths(specRel, entries) {
-  return entries.filter((entry) => entry.spec === specRel).flatMap((entry) => entry.codePaths)
+// 매핑 표의 기획 문서 칸은 `<소스id>:<경로>`일 수 있다(0.2.142). 문자열 일치만 쓰면
+// 소스를 지정한 매핑이 상태·알림에서 "매핑 없음"으로 표시된다(재리뷰 P2).
+function linkedCodePaths(sourceId, rel, entries, sourceIds = []) {
+  return entries.filter((entry) => specRefMatches(entry.spec, sourceId, rel, sourceIds)).flatMap((entry) => entry.codePaths)
+}
+
+function judgedAsNoCode(sourceId, rel, exemptSpecs, sourceIds = []) {
+  return (exemptSpecs ?? []).some((ref) => specRefMatches(ref, sourceId, rel, sourceIds))
 }
 
 function printNotConfigured() {
@@ -2530,7 +2539,7 @@ function runSettle({ docs = [] } = {}) {
 
       // 기준이 그 사이 움직였으면 이 스냅샷은 낡았다 — 적용하면 기준이 뒤로 간다.
       if (snapshot && isStaleSnapshot(snapshot, recorded.files[rel])) {
-        if (!staleSnapshots.includes(rel)) staleSnapshots.push(rel)
+        if (!staleSnapshots.some((item) => item.sourceId === source.id && item.rel === rel)) staleSnapshots.push({ sourceId: source.id, rel })
         continue
       }
 
@@ -2620,7 +2629,7 @@ function runSettle({ docs = [] } = {}) {
       }
 
       if (inLock && recorded.files[rel].sha === snapshot.sha && recorded.files[rel].commit === commit) {
-        unchanged.push(rel)
+        unchanged.push({ sourceId: source.id, rel })
         continue
       }
 
@@ -2633,8 +2642,8 @@ function runSettle({ docs = [] } = {}) {
     dropLatestSnapshots(latestManifest, staleSnapshots)
 
     console.error('읽은 시점 이후 기준이 이미 바뀌어 정산하지 않았습니다 (기준을 뒤로 돌리지 않습니다):')
-    for (const rel of staleSnapshots) {
-      console.error(`  - ${rel}`)
+    for (const item of staleSnapshots) {
+      console.error(`  - [${item.sourceId}] ${item.rel}`)
     }
     console.error('.harness/bin/harness spec:fetch --cache-only 로 최신을 다시 확인한 뒤 정산하세요.')
     process.exitCode = 1
@@ -2678,7 +2687,8 @@ function runSettle({ docs = [] } = {}) {
   // 한쪽만 계획에 남으면 lock에 "정책은 B, 화면은 A" 혼합 상태가 만들어진다(기획자 합의 계약).
   {
     const partialUnits = []
-    const plannedByRel = new Map(plan.map((item) => [item.rel, item]))
+    // 같은 상대경로가 두 소스에 있을 수 있으므로 소스까지 키에 넣는다(재리뷰 P1-2).
+    const plannedByRel = new Map(plan.map((item) => [`${item.sourceId}\u0000${item.rel}`, item]))
     const seenUnits = new Set()
     for (const item of plan) {
       const source = state.sources.find((candidate) => candidate.id === item.sourceId)
@@ -2686,12 +2696,12 @@ function runSettle({ docs = [] } = {}) {
       if (!unit || seenUnits.has(unit.id)) continue
       seenUnits.add(unit.id)
 
-      const members = unit.files.map((file) => plannedByRel.get(file))
+      const members = unit.files.map((file) => plannedByRel.get(`${item.sourceId}\u0000${file}`))
       const settledMembers = members.filter((member) => member?.kind === 'settle')
       const removedMembers = members.filter((member) => member?.kind === 'remove')
 
       // 이미 기준과 같아 계획에 없는 쪽(unchanged)은 정상이다 — 그 경우 짝의 commit이 같아야 한다.
-      const unchangedMembers = unit.files.filter((file) => !plannedByRel.has(file) && unchanged.includes(file))
+      const unchangedMembers = unit.files.filter((file) => !plannedByRel.has(`${item.sourceId}\u0000${file}`) && unchanged.some((u) => u.sourceId === item.sourceId && u.rel === file))
       if (removedMembers.length > 0 && removedMembers.length !== unit.files.length) {
         partialUnits.push({ unit: unit.id, reason: '한쪽만 삭제로 정산되려 합니다' })
         continue
@@ -2723,14 +2733,14 @@ function runSettle({ docs = [] } = {}) {
 
   // 같은 경로가 다른 소스에서 정산·일치로 처리됐다면 "없음"이 아니다.
   const plannedRels = new Set(plan.map((item) => item.rel))
-  const realMissing = missing.filter((rel) => !plannedRels.has(rel) && !unchanged.includes(rel))
+  const realMissing = missing.filter((rel) => !plannedRels.has(rel) && !unchanged.some((u) => u.rel === rel))
 
   // ── 여기부터 적용 단계. 위 검증을 전부 통과했을 때만 도달한다. ──
   applyPendingPromotion()
 
   if (plan.length === 0) {
     console.log('정산할 변경이 없습니다: 범위 안 문서가 이미 기준과 일치합니다.')
-    for (const rel of unchanged.slice(0, 10)) {
+    for (const { rel } of unchanged.slice(0, 10)) {
       console.log(`  - [일치] ${rel}`)
     }
     for (const rel of realMissing) {
@@ -2744,10 +2754,10 @@ function runSettle({ docs = [] } = {}) {
     const files = state.lock.sources[item.sourceId].files
     if (item.kind === 'remove') {
       delete files[item.rel]
-      removed.push(item.rel)
+      removed.push(item)
     } else {
       files[item.rel] = { sha: item.sha, commit: item.commit }
-      settled.push(item.rel)
+      settled.push(item)
     }
   }
 
@@ -2760,15 +2770,17 @@ function runSettle({ docs = [] } = {}) {
 
   // 정산된 스냅샷은 소비됐다. manifest 항목과 최신 사본 파일을 함께 지워
   // "아직 안 읽은 변경"만 남긴다(남겨두면 이미 기준이 된 내용이 계속 최신 변경처럼 보인다).
-  dropLatestSnapshots(latestManifest, plan.map((item) => item.rel))
+  dropLatestSnapshots(latestManifest, plan)
 
   console.log('기획 문서 정산 완료 (읽고 확인한 문서만 기준 전진)')
-  for (const rel of settled) {
-    const linked = linkedCodePaths(rel, state.entries)
-    console.log(`  - [정산] ${rel}${linked.length > 0 ? ` (연결 코드: ${linked.join(', ')})` : ''}`)
+  const settleSourceIds = Object.keys(state.lock.sources ?? {})
+  const settleName = (item) => (settleSourceIds.length > 1 ? `[${item.sourceId}] ${item.rel}` : item.rel)
+  for (const item of settled) {
+    const linked = linkedCodePaths(item.sourceId, item.rel, state.entries, settleSourceIds)
+    console.log(`  - [정산] ${settleName(item)}${linked.length > 0 ? ` (연결 코드: ${linked.join(', ')})` : ''}`)
   }
-  for (const rel of removed) {
-    console.log(`  - [삭제 정산] ${rel} — 기획에서 사라진 문서입니다. spec-map.md의 해당 행을 정리하세요.`)
+  for (const item of removed) {
+    console.log(`  - [삭제 정산] ${settleName(item)} — 기획에서 사라진 문서입니다. spec-map.md의 해당 행을 정리하세요.`)
   }
   for (const rel of realMissing) {
     console.log(`  - [없음] ${rel} — 기준에도 캐시에도 없는 문서입니다. 경로를 확인하세요.`)
@@ -2845,14 +2857,15 @@ function buildBroadcastMessage() {
   // "주소를 깜빡한 문서"와 "구현 대상이 아니라고 판정을 끝낸 문서"는 다른 상태다 — 라벨도 구분한다.
   // 후자를 "아직 없음"으로 말하면 매핑 누락처럼 읽힌다(2026-08-12 지적). 라우팅은 둘 다 리더:
   // 판정 문서가 움직였으면 그 판정을 유지할지 재판단하는 것도 판정을 내린 쪽의 몫이다.
-  const judgedSpecs = new Set(readSpecMapExemptions().specs)
+  const judgedSpecs = readSpecMapExemptions().specs
+  const broadcastSourceIds = Object.keys(state.lock.sources ?? {})
   for (const entry of folded.slice(0, MAX_DOCS)) {
     // 글롭 꼬리(/**)는 표시에서 뗀다 — Mattermost가 **를 굵게 마커로 먹어 별표가 사라지고(실증),
     // 혼성 채널에서 /**는 개발 표기다. 매핑 자체는 불변, 표시만 정리한다.
-    const linked = linkedCodePaths(entry.file, state.entries).map((p) => p.replace(/\/\*+$/, ''))
+    const linked = linkedCodePaths(entry.source, entry.file, state.entries, broadcastSourceIds).map((p) => p.replace(/\/\*+$/, ''))
     const owner = linked.length > 0
       ? `담당 코드: ${linked.join(', ')}`
-      : judgedSpecs.has(entry.file)
+      : judgedAsNoCode(entry.source, entry.file, judgedSpecs, broadcastSourceIds)
         ? '구현 대상 아님으로 판정된 문서 — 개발리더 확인'
         : '담당 코드 아직 없음 (개발리더 확인)'
     const kind = entry.kinds.has('변경') ? '수정' : entry.kinds.has('추가') ? '신규' : (KIND[[...entry.kinds][0]] ?? [...entry.kinds][0])
@@ -2979,8 +2992,9 @@ function runStatus() {
   if (unmapped.length > 0) {
     console.log('')
     console.log(`매핑되지 않은 기획: ${unmapped.length}건 — 기획 변경 알림이 코드로 연결되지 않은 문서입니다`)
+    const unmappedSourceIds = Object.keys(state.lock.sources ?? {})
     for (const item of unmapped.slice(0, 15)) {
-      console.log(`  - ${item.file}`)
+      console.log(`  - ${unmappedSourceIds.length > 1 ? `[${item.source}] ` : ''}${item.file}`)
     }
     if (unmapped.length > 15) console.log(`  - 외 ${unmapped.length - 15}건`)
     console.log('  구현할 때 에이전트에게 "매핑 추가해줘"라고 하면 근거와 함께 한 줄 넣습니다.')
@@ -3012,12 +3026,14 @@ function runStatus() {
   if (pending.length > 0) {
     console.log('')
     console.log('읽었지만 아직 정산하지 않은 기획 변경:')
+    const statusSourceIds = Object.keys(state.lock.sources ?? {})
+    const nameOf = (item) => (statusSourceIds.length > 1 ? `[${item.source}] ${item.file}` : item.file)
     for (const item of pending) {
-      const linked = linkedCodePaths(item.file, state.entries)
+      const linked = linkedCodePaths(item.source, item.file, state.entries, statusSourceIds)
       const suffix = item.kind === '추가'
         ? ' (매핑 검토 대상)'
         : linked.length > 0 ? ` → 연결 코드: ${linked.join(', ')}` : ' (매핑 없음)'
-      console.log(`  - [${item.kind}] ${item.file}${suffix}`)
+      console.log(`  - [${item.kind}] ${nameOf(item)}${suffix}`)
     }
     console.log('')
     console.log('판단: 구현에 영향을 주면 코드/테스트를 반영합니다. 영향 없음이 자명하면 커밋 메시지 한 줄, 자명하지 않은 판단만 decision-log에 남깁니다.')
