@@ -507,8 +507,19 @@ function classifyExistingAiRuleDoc(rel) {
   return hasProjectOwnedRuleContent(rel) ? 'rule-like markdown name' : null
 }
 
+// 프로젝트가 자기 문서를 등록하는 통로는 둘이다(0.2.142): profile.json sources[]와
+// document-registry.local.json. 후자만 등록한 문서를 계속 "미등록 후보"로 지목하면,
+// 하네스가 권한 대로 등록한 사람에게 같은 지적을 반복하게 된다(백엔드 통합 저장소 실측,
+// 2026-09-04 — 서비스 폴더의 CLAUDE.md 포인터가 등록 후에도 후보로 남았다).
+function readLocalRegistryPaths() {
+  const registry = readJson('.harness/documentation/document-registry.local.json', null)
+  const children = Array.isArray(registry?.children) ? registry.children : []
+  return new Set(children.filter((child) => typeof child === 'string'))
+}
+
 function detectExistingAiRuleDocs(declaredSources) {
   const declaredPaths = new Set((declaredSources?.declared ?? []).map((source) => source.path))
+  const localRegistered = readLocalRegistryPaths()
   const docs = []
 
   for (const { rel, entry } of walk(repoRoot, 0, 5)) {
@@ -517,10 +528,15 @@ function detectExistingAiRuleDocs(declaredSources) {
     const reason = classifyExistingAiRuleDoc(rel)
     if (!reason) continue
 
+    const declaredVia = declaredPaths.has(rel)
+      ? 'profile.json sources[]'
+      : (localRegistered.has(rel) ? 'document-registry.local.json' : null)
+
     docs.push({
       rel,
       reason,
-      declared: declaredPaths.has(rel),
+      declaredVia,
+      declared: Boolean(declaredVia),
       gitTracked: gitExit(['ls-files', '--error-unmatch', rel]) === 0,
       gitIgnored: gitExit(['check-ignore', '--quiet', rel]) === 0,
     })
@@ -1056,7 +1072,7 @@ ${formatList(
 
 ### Existing AI Rule Document Candidates
 ${formatList(
-  existingAiRuleDocs.map((doc) => `${doc.rel} (${doc.declared ? 'profile.json sources[] 등록됨' : '미등록 후보'}, ${doc.reason}, ${renderGitSafety(doc)})`),
+  existingAiRuleDocs.map((doc) => `${doc.rel} (${doc.declared ? `${doc.declaredVia} 등록됨` : '미등록 후보'}, ${doc.reason}, ${renderGitSafety(doc)})`),
   '- 감지 없음',
 )}
 

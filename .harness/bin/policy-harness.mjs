@@ -406,6 +406,7 @@ const DECISION_LOG_LINE_THRESHOLD = 400
 // spec 스크립트는 uninstall로 사라질 수 있어 여기서 import하지 않고 규칙만 복제한다 —
 // 어긋나면 회귀 specMapRowsSurviveNotesThatMentionTheHeaderWords가 잡는다.
 const SPEC_MAP_EXEMPT_TOKEN = /^[(（]\s*(사양\s*없음|코드\s*없음|해당\s*없음|없음)\s*[)）]$/
+const NON_IMPLEMENTATION_PREFIXES = ['.harness/', '.githooks/', '.github/', '.claude/', '.codex/', '.vscode/', '.idea/', 'node_modules/', 'dist/', 'build/', 'coverage/']
 
 // git이 비ASCII 경로를 "..." octal로 감싸 출력하는 것을 되돌린다(spec-sync.decodeGitPath와 동일 규칙).
 function decodeSpecGitPath(filePath) {
@@ -506,7 +507,15 @@ function analyzeMappingCoverageLocal(changedFiles, entries) {
     || filePath === mapPath
     || filePath.startsWith(`${mapPath.replace(/\/?\*\*$/, '')}/`)
 
+  // 구현 파일 판정은 push 게이트와 같아야 한다(0.2.142) — 문서·설정을 커밋에서만 지적하고
+  // push에서는 통과시키면 개발자는 어느 쪽을 믿을지 알 수 없다. 규칙 정본은
+  // spec-sync.isNonImplementationPath이고, spec 스크립트 부재에 대비해 여기서 복제한다.
+  const isNonImplementation = (filePath) => NON_IMPLEMENTATION_PREFIXES.some((prefix) => filePath.startsWith(prefix))
+    || filePath.toLowerCase().endsWith('.md')
+    || !filePath.includes('/')
+
   return added
+    .filter((filePath) => !isNonImplementation(filePath))
     .filter((filePath) => [...managedDirs].some((dir) => filePath.startsWith(`${dir}/`)))
     .filter((filePath) => !entries.some((entry) => entry.codePaths.some((mapPath) => matchesMapPath(filePath, mapPath))))
     .filter((filePath) => !exemptPaths.some((mapPath) => matchesMapPath(filePath, mapPath)))
@@ -550,7 +559,7 @@ function analyzeSpecLink(changedFiles) {
   if (specRuntime?.pendingSettlements && specRuntime?.normalizeLock) {
     try {
       const lockNorm = specRuntime.normalizeLock(lock)
-      changedSpecs = specRuntime.pendingSettlements(lockNorm).map((item) => ({ rel: item.file, kind: item.kind }))
+      changedSpecs = specRuntime.pendingSettlements(lockNorm).map((item) => ({ rel: item.file, kind: item.kind, source: item.source }))
 
       // 매핑이 0건이면 커버리지 검사가 아무것도 잡지 않는다(관리 영역을 매핑에서 도출하므로).
       // 도입 직후가 정확히 그 상태라, 시작하라는 말을 아무도 해주지 않았다(0.2.104).
@@ -578,9 +587,22 @@ function analyzeSpecLink(changedFiles) {
     }
   }
 
+  // 이번 변경이 어느 기획 소스의 영역을 건드렸는가(0.2.142). 한 저장소가 서비스 여럿을 담으면
+  // 남의 서비스 기획 알림이 매 커밋에 딸려 나온다 — 실측에서 레거시 팀 커밋마다 멀티사이트
+  // 미매핑 22건이 열거됐다. 알림은 저장소가 아니라 **변경한 영역**을 따라간다.
+  const sourceOfSpec = new Map()
+  for (const [sourceId, recorded] of Object.entries(lock.sources ?? {})) {
+    for (const rel of Object.keys(recorded?.files ?? {})) {
+      if (!sourceOfSpec.has(rel)) sourceOfSpec.set(rel, sourceId)
+    }
+  }
+  const touchedSources = [...new Set(touchedMappings.map((entry) => sourceOfSpec.get(entry.spec)).filter(Boolean))]
+
   return {
     configured: true,
     mappings: entries.length,
+    sourceCount: Object.keys(lock.sources ?? {}).length,
+    touchedSources,
     changedSpecs,
     touchedMappings,
     missingCaches,
@@ -590,14 +612,31 @@ function analyzeSpecLink(changedFiles) {
   }
 }
 
+// 매핑이 하나도 없으면 아직 시작 전이라 전부 보여준다(0.2.104 — 시작하라고 말해주는 유일한 곳).
+// 매핑이 있으면 이번 변경이 건드린 소스의 것만 펴고, 나머지는 마지막에 한 줄로 접는다.
+function scopeSpecItems(specLink, items) {
+  if (specLink.mappings === 0) return { shown: items, folded: 0 }
+  const shown = items.filter((item) => !item.source || specLink.touchedSources?.includes(item.source))
+  return { shown, folded: items.length - shown.length }
+}
+
+// 소스가 둘 이상이면 어느 서비스의 기획인지 이름을 붙인다 — 목록만 보고는 구분할 수 없다.
+function labelSpecItem(specLink, item, rel) {
+  return (specLink.sourceCount ?? 1) > 1 && item.source ? `[${item.source}] ${rel}` : rel
+}
+
 function printSpecLinkNotice(specLink) {
   if (!specLink.configured) return
   const uncovered = specLink.uncoveredNewFiles ?? []
   const missingCaches = specLink.missingCaches ?? []
-  const unmapped = specLink.unmappedSpecs ?? []
+  const pendingScope = scopeSpecItems(specLink, specLink.changedSpecs ?? [])
+  const unmappedScope = scopeSpecItems(specLink, specLink.unmappedSpecs ?? [])
+  const unmapped = unmappedScope.shown
+  const foldedOtherServices = pendingScope.folded + unmappedScope.folded
   if (!specLink.stateError
-    && specLink.changedSpecs.length === 0 && specLink.touchedMappings.length === 0
-    && uncovered.length === 0 && missingCaches.length === 0 && unmapped.length === 0) return
+    && pendingScope.shown.length === 0 && specLink.touchedMappings.length === 0
+    && uncovered.length === 0 && missingCaches.length === 0 && unmapped.length === 0
+    && foldedOtherServices === 0) return
 
   console.log('')
   console.log('기획 문서 연동 참고 (advisory):')
@@ -617,8 +656,11 @@ function printSpecLinkNotice(specLink) {
       console.log(`  - ${entry.spec} ← ${entry.codePaths.join(', ')}`)
     }
   }
-  if (specLink.changedSpecs.length > 0) {
-    console.log(`- 읽었지만 아직 정산하지 않은 기획 변경이 ${specLink.changedSpecs.length}건 있습니다. 상세: .harness/bin/harness spec:status`)
+  if (pendingScope.shown.length > 0) {
+    console.log(`- 읽었지만 아직 정산하지 않은 기획 변경이 ${pendingScope.shown.length}건 있습니다. 상세: .harness/bin/harness spec:status`)
+    for (const item of pendingScope.shown.slice(0, 3)) {
+      console.log(`  - [${item.kind}] ${labelSpecItem(specLink, item, item.rel)}`)
+    }
   }
   if (unmapped.length > 0) {
     // 매핑이 0건이면 커버리지 검사가 침묵한다 — 시작하라고 말해주는 곳이 여기뿐이다(0.2.104).
@@ -629,9 +671,13 @@ function printSpecLinkNotice(specLink) {
       console.log(`- 매핑되지 않은 기획이 ${unmapped.length}건 있습니다 — 그 기획이 바뀌어도 알림이 코드로 연결되지 않습니다. 상세: .harness/bin/harness spec:status`)
     }
     for (const item of unmapped.slice(0, 3)) {
-      console.log(`  - ${item.file}`)
+      console.log(`  - ${labelSpecItem(specLink, item, item.file)}`)
     }
     if (unmapped.length > 3) console.log(`  - 외 ${unmapped.length - 3}건`)
+  }
+  if (foldedOtherServices > 0) {
+    // 조용히 지우지 않는다 — 접었다는 사실과 전체를 보는 방법을 한 줄로 남긴다.
+    console.log(`- 이번 변경과 무관한 다른 서비스 영역의 기획 알림 ${foldedOtherServices}건은 접었습니다. 전체: .harness/bin/harness spec:status`)
   }
   if (uncovered.length > 0) {
     console.log('- 매핑된 영역에 새 파일이 있는데 spec-map 기록이 없습니다. 지금 한 줄 추가하면 이후 사양 변경이 이 코드로 연결됩니다.')

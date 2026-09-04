@@ -2476,7 +2476,12 @@ function main() {
     const forceOverwriteTargets = collectForceOverwriteTargets(TARGET, files, recognizedManifest);
 
     if (externalHarnessMode) {
-      console.log('이전에 설치된 하네스 흔적이 있어 기존 파일은 보존하고 누락된 공통 기준만 보강합니다.');
+      // 하네스 흔적(.harness)과 프로젝트 자신의 에이전트 파일(.claude·CLAUDE.md 등)은 다르다(0.2.142).
+      // 보존 동작은 같지만 문구는 갈라야 한다 — 처음 설치하는 저장소에 "이전 설치 흔적"이라고
+      // 말하면 리더가 없던 과거를 의심한다(백엔드 통합 저장소 실측, 2026-09-04).
+      console.log(existsSync(join(TARGET, '.harness'))
+        ? '이전에 설치된 하네스 흔적이 있어 기존 파일은 보존하고 누락된 공통 기준만 보강합니다.'
+        : '이미 있는 에이전트 설정(.claude, CLAUDE.md 등)은 그대로 두고 하네스 기준만 보강합니다.');
       console.log('기존 파일을 덮어쓰지 않습니다. 의도적으로 교체하려면 --force를 사용하세요.');
       console.log('');
     }

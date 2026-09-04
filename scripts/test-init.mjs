@@ -7,7 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isHistoryLogPath, isIgnorableCodePath } from '../.harness/bin/doc-link-check.mjs'
-import { buildScreenIndex, normalizeScreenLinks, parseSpecMapExemptions as specMapExemptions, parseSpecMapText as specMapParse, sha256Text as specSyncSha256Text } from '../.harness/bin/spec-sync.mjs'
+import { buildScreenIndex, isNonImplementationPath, normalizeScreenLinks, parseSpecMapExemptions as specMapExemptions, parseSpecMapText as specMapParse, sha256Text as specSyncSha256Text, specContextBudgetMs } from '../.harness/bin/spec-sync.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const repoRoot = path.resolve(path.dirname(__filename), '..')
@@ -5233,6 +5233,117 @@ function specMapRowsSurviveNotesThatMentionTheHeaderWords() {
   assert(!gate.includes('매핑 누락'), 'the gate must honour an exemption row whose note mentions the header words')
 }
 
+// 0.2.142 (백엔드 통합 저장소 실측, 2026-09-04): 한 저장소가 서비스 여럿을 담으면 남의 서비스
+// 기획 알림이 매 커밋에 딸려 나왔다 — 레거시 팀이 자기 코드만 고쳐도 멀티사이트 미매핑 22건이
+// 열거됐고, 목록에 소스 표기가 없어 어느 서비스 것인지도 알 수 없었다.
+// 알림은 저장소가 아니라 이번 변경이 건드린 영역을 따라간다. 접은 것은 조용히 지우지 않고 한 줄로 남긴다.
+function specNoticeScopesUnrelatedServicesToOneFoldedLine() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const alpha = makePlanningRepoWithFiles({
+    'features/알파.md': '# 알파\n\n알파 사양.\n',
+    'features/알파2.md': '# 알파2\n\n아직 매핑 안 된 알파 사양.\n',
+  })
+  const beta = makePlanningRepoWithFiles({ 'features/베타.md': '# 베타\n\n다른 팀 사양.\n' })
+  writeJson(target, '.harness/spec-sources.json', {
+    version: 1,
+    sources: [
+      { id: 'alpha', repo: alpha, ref: 'master', include: ['**/*.md'], exclude: [] },
+      { id: 'beta', repo: beta, ref: 'master', include: ['**/*.md'], exclude: [] },
+    ],
+  })
+  specSyncCli(target, ['fetch'])
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/알파.md` | `svc/alpha/**` | |',
+    '',
+  ].join('\n'))
+  fs.mkdirSync(path.join(target, 'svc/alpha'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'svc/alpha/a.js'), 'export const a = 1\n')
+  fs.mkdirSync(path.join(target, 'svc/legacy'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'svc/legacy/b.js'), 'export const b = 1\n')
+  gitCommitAll(target, 'baseline')
+
+  // (1) 다른 서비스 코드만 고친 커밋 — 어느 소스의 미매핑 목록도 펴지 않고 한 줄로 접는다.
+  fs.appendFileSync(path.join(target, 'svc/legacy/b.js'), 'export const c = 2\n')
+  const unrelated = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(!unrelated.includes('features/베타.md'), "another service's unmapped specs must not be listed on an unrelated commit")
+  assert(!unrelated.includes('features/알파2.md'), 'unmapped specs of an untouched source must not be listed either')
+  assert(unrelated.includes('이번 변경과 무관한 다른 서비스'), 'the folded items must still be acknowledged in one line')
+
+  // (2) 매핑된 서비스 코드를 고치면 그 소스의 안내는 펴고, 남의 서비스는 계속 접는다.
+  fs.appendFileSync(path.join(target, 'svc/alpha/a.js'), 'export const d = 3\n')
+  const touched = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(touched.includes('[alpha] features/알파2.md'), 'the touched source\'s unmapped spec must be listed and named by source')
+  assert(!touched.includes('features/베타.md'), "the untouched source's specs must stay folded")
+}
+
+// 커밋 advisory와 push 게이트의 "구현 파일" 판정이 어긋나 있었다 — 게이트는 .md를 제외하는데
+// advisory는 지목했다. 서비스 폴더에 룰 문서·포인터를 두자 커밋마다 매핑 누락으로 열거됐다.
+function commitAdvisoryIgnoresDocsAndMetaFilesInMappedAreas() {
+  const { target } = setupSpecLinkedTarget()
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/views/login/**` | |',
+    '',
+  ].join('\n'))
+  fs.mkdirSync(path.join(target, 'src/views/login'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/views/login/LoginView.vue'), '<template><div /></template>\n')
+  gitCommitAll(target, 'baseline')
+
+  // 관리 영역(src/views) 안의 형제 폴더에 문서와 코드를 함께 만든다.
+  fs.mkdirSync(path.join(target, 'src/views/payment'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/views/payment/RULES.md'), '# 결제 화면 규칙\n')
+  fs.writeFileSync(path.join(target, 'src/views/payment/PayView.vue'), '<template><div /></template>\n')
+
+  const advisory = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(advisory.includes('PayView.vue'), 'an implementation file with no mapping must still be surfaced')
+  assert(!advisory.includes('RULES.md'), 'a markdown document must not be reported as a missing mapping (the gate excludes it)')
+  assert(isNonImplementationPath('src/views/payment/RULES.md'), 'the shared rule must treat markdown as non-implementation')
+  assert(!isNonImplementationPath('src/views/payment/PayView.vue'), 'the shared rule must treat source files as implementation')
+}
+
+// 컨텍스트의 기획 네트워크 예산은 소스 수를 따라야 한다 — 고정 8초는 기획 저장소가 둘일 때
+// 본문 준비만으로 소진돼, 최신 확인이 늘 타임아웃으로 떨어졌다(팀원 clone 첫 컨텍스트 9초).
+function specContextBudgetGrowsWithSourceCount() {
+  assert(specContextBudgetMs(1) === 8000, 'a single-source project must keep the original budget')
+  assert(specContextBudgetMs(2) > specContextBudgetMs(1), 'a second planning source must buy more time')
+  assert(specContextBudgetMs(50) === specContextBudgetMs(20), 'the budget must be capped so context never hangs')
+  assert(specContextBudgetMs(50) <= 20000, 'the cap must keep the agent-visible wait bounded')
+  assert(specContextBudgetMs(0) === 8000 && specContextBudgetMs(undefined) === 8000, 'a missing count must fall back to the base budget')
+}
+
+// 프로젝트 자신의 에이전트 파일(.claude/commands 등)만 있는 저장소에 "이전에 설치된 하네스
+// 흔적"이라고 말하면 리더가 없던 과거를 의심한다(백엔드 통합 저장소 실측). 보존 동작은 그대로.
+function installTellsProjectOwnFilesApartFromPriorHarness() {
+  const target = makeTarget()
+  fs.mkdirSync(path.join(target, '.claude/commands'), { recursive: true })
+  fs.writeFileSync(path.join(target, '.claude/commands/langRegister.md'), '# 팀이 원래 쓰던 명령\n')
+
+  const output = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!output.includes('이전에 설치된 하네스 흔적'), 'a first install must not claim there was a prior harness')
+  assert(output.includes('이미 있는 에이전트 설정'), 'the message must name what is actually being preserved')
+  assert(exists(target, '.claude/commands/langRegister.md'), "the project's own command must survive the install")
+  assert(read(target, '.claude/commands/langRegister.md').includes('팀이 원래 쓰던 명령'), 'the preserved file must keep its content')
+}
+
+// 프로젝트가 자기 문서를 등록하는 통로는 둘이다(sources[]와 document-registry.local.json).
+// 후자만 등록한 문서를 계속 "미등록 후보"로 지목하면, 권한 대로 등록한 사람에게 같은 지적이 반복된다.
+function scanTreatsLocallyRegisteredDocsAsHandled() {
+  const target = makeTarget()
+  runInit(target)
+  fs.mkdirSync(path.join(target, 'svc/multisite'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'svc/multisite/CLAUDE.md'), '# 서비스 진입 포인터\n\n규칙 정본은 docs/rules.md 입니다.\n')
+  writeJson(target, '.harness/documentation/document-registry.local.json', { children: ['svc/multisite/CLAUDE.md'] })
+
+  run(harnessBin(target), ['scan'], { cwd: target })
+  const report = read(target, '.harness/session/project-scan-report.md')
+  assert(report.includes('svc/multisite/CLAUDE.md (document-registry.local.json 등록됨'), 'a locally registered doc must be shown as registered, naming the channel')
+  assert(!report.includes('svc/multisite/CLAUDE.md (미등록 후보'), 'a locally registered doc must not be repeated as an unregistered candidate')
+}
+
 // 판정 완료((사양 없음))는 "아직 안 봤다"와 구분되는 1급 상태다 — 기획 문서가 필요 없다고
 // 사람이 결론 낸 코드에 매핑을 강요하지 않는다. 매핑 영역 밖 파일은 애초에 대상이 아니다.
 function specMappingCoverageRespectsExemptionsAndScope() {
@@ -7208,6 +7319,11 @@ const tests = [
   specMappingCoverageIsEnforcedForNewFilesInMappedAreas,
   specMappingCoverageRespectsExemptionsAndScope,
   specMapRowsSurviveNotesThatMentionTheHeaderWords,
+  specNoticeScopesUnrelatedServicesToOneFoldedLine,
+  commitAdvisoryIgnoresDocsAndMetaFilesInMappedAreas,
+  specContextBudgetGrowsWithSourceCount,
+  installTellsProjectOwnFilesApartFromPriorHarness,
+  scanTreatsLocallyRegisteredDocsAsHandled,
   specCacheHydratesAutomaticallyAndFailsHarmlessly,
   specHydrationDetectsPerDocumentDrift,
   specContextSurfacesChangedAndNewPlanningDocs,

@@ -9,14 +9,15 @@
 - **부족한 것 → 0.2.142 후보**:
   - **A — 고쳤습니다(0.2.142 후보, 2026-09-04). 아래는 경위 기록.** 매핑 표 파서가 **비고에 "기획 문서"가 든 행을 헤더로 오인해 버린다** — 판정 행도 매핑 행도. 실측: `(사양 없음) | ss/lib/** | …기획 문서 대상 아님` 행이 무시돼 gate가 ss/lib 파일을 차단, 문구를 바꾸니 통과. 매핑 행이 버려지면 감시가 조용히 꺼진다. 4곳 동일 규칙: spec-sync parseSpecMapText·parseSpecMapExemptions, policy-harness specMapRows, build-context readSpecMapEntries — 헤더는 첫 칸이 정확히 "기획 문서"일 때만, 구분선은 모든 셀이 대시일 때만으로 좁혔습니다(백틱·정렬 표기 허용 — 비고의 "---"가 구분선으로 오인되던 같은 계열도 해소). build-context는 복제를 지우고 spec-sync 파서를 import(이미 import하던 모듈), policy-harness는 uninstall로 spec 스크립트가 사라져도 돌아야 해 복제 유지. 회귀 specMapRowsSurviveNotesThatMentionTheHeaderWords가 네 소비자(파서·커밋 advisory·컨텍스트·push 게이트)를 한 번에 검증하고, **옛 코드로 되돌리면 실패**함을 확인했습니다. practice 저장소에서도 덫 문구 복원 → push 차단 재현 → 고친 하네스 재설치 → 같은 push 통과까지 확인. 232종 전량 통과.
   - **B (연방 격차)** sources[] `inject: always`는 저장소 전역 — 레거시 작업(내부관리 계정 화면) 컨텍스트에도 멀티사이트 룰이 Always Read로 들어감. inject 없으면 "멀티사이트" 작업에도 안 뽑힘(local registry 등록해도). → sources[]에 경로 범위(appliesTo/paths) = 개발자 제안의 "경로로 범위" 패턴. 표식 방식이면 자연 해소.
-  - **C (잡음)** 미정산·미매핑 기획 안내가 레거시 커밋에도 매번(22건), 목록은 소스 표기 없이 평면(kiosk 문서가 섞여도 구분 불가). → 변경 파일이 그 소스 매핑 영역에 걸릴 때만 + 소스 접두.
-  - **D (잡음)** advisory 커버리지가 `.md`·CLAUDE.md 포인터도 "새 파일 매핑 없음"으로 지목 — gate의 isMeta(.md 제외)와 불일치. 같은 제외 적용.
-  - **E (예산)** 팀원 clone 첫 context: 두 소스 수화 9초 → 8초 예산 소진 → 최신 확인 ETIMEDOUT 경고. 수화와 최신 확인 예산 분리 또는 소스 수 비례.
-  - **F (오판)** init이 프로젝트 자체 `.claude/commands`만 있어도 "이전에 설치된 하네스 흔적" 문구 — hasHarnessLikeFiles가 `.claude` 존재로 판정(scripts/init.mjs 884). 하네스 고유 파일로 좁히기.
-  - **G (오탐)** scan이 우리가 권한 중첩 CLAUDE.md 포인터(ss/multisite/CLAUDE.md)를 "미등록 룰 후보"로 지목 — document-registry.local.json 등록 후에도. 포인터형(짧고 링크만) 또는 local 등록분은 제외.
+  - **C — 고쳤습니다(2026-09-04).** (잡음) 미정산·미매핑 기획 안내가 레거시 커밋에도 매번(22건), 목록은 소스 표기 없이 평면(kiosk 문서가 섞여도 구분 불가). → 변경 파일이 그 소스 매핑 영역에 걸릴 때만 + 소스 접두.
+  - **D — 고쳤습니다(2026-09-04).** (잡음) advisory 커버리지가 `.md`·CLAUDE.md 포인터도 "새 파일 매핑 없음"으로 지목 — gate의 isMeta(.md 제외)와 불일치. 같은 제외 적용.
+  - **E — 고쳤습니다(2026-09-04).** (예산) 팀원 clone 첫 context: 두 소스 수화 9초 → 8초 예산 소진 → 최신 확인 ETIMEDOUT 경고. 수화와 최신 확인 예산 분리 또는 소스 수 비례.
+  - **F — 고쳤습니다(2026-09-04).** (오판) init이 프로젝트 자체 `.claude/commands`만 있어도 "이전에 설치된 하네스 흔적" 문구 — hasHarnessLikeFiles가 `.claude` 존재로 판정(scripts/init.mjs 884). 하네스 고유 파일로 좁히기.
+  - **G — 고쳤습니다(2026-09-04).** (오탐) scan이 우리가 권한 중첩 CLAUDE.md 포인터(ss/multisite/CLAUDE.md)를 "미등록 룰 후보"로 지목 — document-registry.local.json 등록 후에도. 포인터형(짧고 링크만) 또는 local 등록분은 제외.
   - **H (구조·설계 결정)** gate는 저장소 전역: 실측은 판정 2행으로 통과했지만 실제 저장소는 폴더 53개·레거시 16 폴더라 `(사양 없음)` 행이 그만큼 필요. 경로 범위 gate 또는 폴더 표식 — 개발자 제안과 함께 판단.
   - **I (경미)** kiosk exclude 뒤 spec-latest 잔존 스냅샷이 "미정산 1건"으로 한 번 뜸 — `--cache-only` 재실행으로 정리됨. move-baseline이 selector 밖 스냅샷을 함께 정리하면 소멸.
   - **J (재확인)** PHP 저장소에서 scan "확인 필요를 소스 루트로", Quality Files 없음, charter 질문 4개 매 세션 출력, context-registry appliesTo PHP 경로 0건 — 개발자 gap §3-3·3-5·3-6 그대로 재현.
+- **잔손질 다섯(A·C·D·E·F·G) 완료, 남은 것은 B·H·I·J와 큰 것 셋.** 회귀 6종 추가(237종 전량 통과). C는 알림을 "이번 변경이 건드린 기획 소스"로 좁히고 접은 건수를 한 줄로 남기는 방식 — 매핑 0건은 예전대로 전부 표시(0.2.104 시작 안내 유지). E는 spec-sync.specContextBudgetMs(소스 수)로 순수 함수화해 테스트 가능하게 했다. **남은 것**: B(sources[] inject가 저장소 전역 — 경로 범위 필요), H(gate가 저장소 전역), I(경미·자가 해소), J(PHP 저장소를 스캐너·컨텍스트가 몰라봄), 그리고 큰 것 셋(폴더 표식 vs 구역, 게이트 범위, 소스 간 문서 경로 유일 제약). 셋 다 사용자 판단 필요.
 - 개발자 질문 6개 답 초안(사용자 확인 전): Q1 표식 걷어 올라가기 — 긍정 검토(구역=경로 접두+주인+룰+기획 소스+강도, 루트 목록 드리프트 지적 타당·scan 실존 검증은 있음) / Q2 PHP 스택 계획 없음 → 3단계 보류 동의 / Q3 폴더 disable보다 "범위"(gate 경로 한정이면 끄기 불필요, 길라잡이 원칙) / Q4 hooksPath 자동 복원의 합의 = master 설치 자체; 브랜치에만 있을 땐 그 브랜치 사용자만 영향(옵트아웃 표식 있음) / Q5 소스 루트 못 찾으면 권고 대신 질문 — 동의 / Q6 모놀리스 설치 안내에 CODEOWNERS 한 줄 — 후보. 0단계 7개 중 1·2·4·6은 이번 실측으로 동작 확인.
 - 다음 릴리스(0.2.142) 전 반영 여부는 사용자 판단. 실측 산출물 로그: 세션 scratchpad(central-init/check/commit/push, A~K 커밋·push 로그).
 

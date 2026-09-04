@@ -1239,7 +1239,8 @@ export function analyzeMappingCoverage(addedFiles, entries, exemptions) {
   const managedDirs = collectManagedAreas(entries)
   if (managedDirs.size === 0) return []
 
-  const inManagedArea = (filePath) => [...managedDirs].some((dir) => filePath === dir || filePath.startsWith(`${dir}/`))
+  const inManagedArea = (filePath) => !isNonImplementationPath(filePath)
+    && [...managedDirs].some((dir) => filePath === dir || filePath.startsWith(`${dir}/`))
   const isExempt = (filePath) => exemptions.codePaths.some((mapPath) => codePathMatches(filePath, mapPath))
   const isMapped = (filePath) => entries.some((entry) => entry.codePaths.some((mapPath) => codePathMatches(filePath, mapPath)))
 
@@ -1259,12 +1260,26 @@ export function analyzeMappingCoverage(addedFiles, entries, exemptions) {
 // 전수 판정을 요구하고, `(사양 없음)` 디렉터리 판정이 잡음 밸브가 된다(한 번 판정하면 끝).
 const NON_IMPLEMENTATION_PREFIXES = ['.harness/', '.githooks/', '.github/', '.claude/', '.codex/', '.vscode/', '.idea/', 'node_modules/', 'dist/', 'build/', 'coverage/']
 
-export function analyzeMappingCoverageStrict(changedFiles, entries, exemptions) {
-  const isMeta = (filePath) => (
-    NON_IMPLEMENTATION_PREFIXES.some((prefix) => filePath.startsWith(prefix))
+// "이건 구현 파일이 아니다"의 정본(0.2.142). 예전에는 gate만 이 판정을 갖고 있어서, 커밋
+// advisory가 문서(.md)·설정까지 "매핑이 없다"고 지목했다 — 같은 파일을 커밋에서는 지적하고
+// push에서는 통과시키는 어긋남이었다(백엔드 통합 저장소 실측, 2026-09-04: 서비스 폴더에
+// CLAUDE.md 포인터와 룰 문서를 두자 커밋마다 매핑 누락으로 열거됨).
+export function isNonImplementationPath(filePath) {
+  return NON_IMPLEMENTATION_PREFIXES.some((prefix) => filePath.startsWith(prefix))
     || filePath.toLowerCase().endsWith('.md')
     || !filePath.includes('/') // 루트 단일 파일(package.json, vite.config.* 등)은 구현 파일이 아니다
-  )
+}
+
+// 기획 컨텍스트의 네트워크 예산. 소스마다 clone/fetch가 순차로 일어나므로 고정값은 소스가
+// 늘수록 모자란다 — 통합 저장소(기획 저장소 둘)에서 본문 준비만으로 8초를 다 써 최신 확인이
+// 늘 타임아웃으로 떨어졌다(실측 2026-09-04, 팀원 clone 첫 컨텍스트 9초).
+export function specContextBudgetMs(sourceCount) {
+  const sources = Number.isFinite(sourceCount) && sourceCount > 0 ? Math.floor(sourceCount) : 1
+  return Math.min(20000, 8000 + (sources - 1) * 4000)
+}
+
+export function analyzeMappingCoverageStrict(changedFiles, entries, exemptions) {
+  const isMeta = isNonImplementationPath
   const isExempt = (filePath) => exemptions.codePaths.some((mapPath) => codePathMatches(filePath, mapPath))
   const isMapped = (filePath) => entries.some((entry) => entry.codePaths.some((mapPath) => codePathMatches(filePath, mapPath)))
 

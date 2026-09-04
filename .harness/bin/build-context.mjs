@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 // 기획 본문 읽기는 spec-sync의 안전 경로만 쓴다. 여기서 path.join + readFileSync로 직접 읽으면
 // 루트·중간·leaf 심볼릭 링크를 그대로 따라가, 쓰기는 막고 읽기는 뚫리는 비대칭이 생긴다(재리뷰 P1-2).
-import { buildScreenIndex, normalizeScreenLinks, parseSpecMapText, readSpecCacheDoc, specCacheDirPath } from './spec-sync.mjs'
+import { buildScreenIndex, normalizeScreenLinks, parseSpecMapText, readSpecCacheDoc, specCacheDirPath, specContextBudgetMs } from './spec-sync.mjs'
 
 function sha256Text(content) {
   return crypto.createHash('sha256').update(content).digest('hex')
@@ -146,7 +146,13 @@ function missingSpecCaches() {
 // 작업 시작 시 본문 준비 + 최신 확인. 둘 다 짧은 예산 안에서만 시도하고, 넘기면 즉시 진행한다.
 // 개발자 체감(에이전트가 멈춘 것처럼 보임)을 위해 네트워크 대기 상한을 작게 잡는다(0.2.102 리뷰).
 // 출력은 캡처해서 Agent Decision Context 본문을 오염시키지 않는다.
-const SPEC_CONTEXT_BUDGET_MS = 8000
+// 예산은 spec-sync가 소스 수를 보고 정한다(0.2.142) — 고정 8초는 기획 저장소가 둘 이상인
+// 저장소에서 본문 준비만으로 소진됐다. 한 번만 계산해 둔다(lock을 매번 읽지 않도록).
+let specContextBudgetCache = null
+function specContextBudget() {
+  if (specContextBudgetCache === null) specContextBudgetCache = specContextBudgetMs(lockSourceIds().length)
+  return specContextBudgetCache
+}
 
 // 두 단계(본문 준비 + 최신 확인)가 공유하는 단일 예산. 순차 실행이라 각각 상한을 두면
 // 실제 대기가 두 배가 된다(0.2.102 재리뷰 P2-1). 남은 시간을 계산해 넘겨준다.
@@ -155,7 +161,7 @@ const SPEC_CONTEXT_BUDGET_MS = 8000
 // "합계 8초"라는 문서상의 상한이 실제로는 지켜지지 않는다(0.2.103 재리뷰 P2-1).
 const SPEC_MIN_STEP_MS = 1000
 function specBudgetLeft(startedAt) {
-  const left = SPEC_CONTEXT_BUDGET_MS - (Date.now() - startedAt)
+  const left = specContextBudget() - (Date.now() - startedAt)
   return left >= SPEC_MIN_STEP_MS ? left : 0
 }
 
