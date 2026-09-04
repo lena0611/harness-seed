@@ -4495,6 +4495,25 @@ function ciBackstopLeaderChecklistCoversLiveSetup() {
   assert(skillDoc.includes('메인테이너 권한'), 'the checklist must say maintainers can do all of it — not an infra-script request')
 }
 
+// 0.2.142(백엔드 통합 저장소 문답, 2026-09-04): 어댑터는 "주소 인자 → 2절", "이미 연동 → 4절" 두 갈래뿐이라
+// 두 번째 기획 저장소를 붙일 때 정본의 '소스 추가 절차'를 가리키지 않았다 — 2절을 다시 밟으면 기존 선언이
+// 사라지고, --source 없는 --move-baseline은 기존 기준을 통째로 옮긴다(정본이 경고하는 바로 그 사고).
+// 소스 id는 견본의 'planning'(0.2.103, 근거 없는 일반명사)이 그대로 복사되어(멀티사이트 실측) 두 번째
+// 소스부터 칸을 구분할 수 없었다 — 견본은 서비스 이름을 요구하고, 이미 커밋된 id는 바꾸지 않는다.
+function specLinkAdapterRoutesSecondSourceToAddProcedure() {
+  const adapter = fs.readFileSync(path.join(repoRoot, '.claude/commands/기획문서연동.md'), 'utf8')
+  assert(adapter.includes('소스 추가 절차'), 'adapter must route an already-linked repo + new address to the add-source procedure')
+  assert(adapter.includes('--move-baseline --source <새 id>'), 'adapter must insist on --source when creating the new baseline')
+  assert(adapter.includes('기존 소스들의 기준까지'), 'adapter must spell out what --move-baseline without --source does')
+  assert(adapter.includes('서비스 이름으로'), 'adapter must name the source after the service')
+
+  const canon = fs.readFileSync(path.join(repoRoot, '.harness/project/spec-authority-workflow.md'), 'utf8')
+  assert(!canon.includes('"id": "planning"'), 'the first-link template must not hand out the generic id "planning"')
+  assert(canon.includes('제품·서비스 이름'), 'canon must state the source-id naming rule')
+  assert(canon.includes('이미 커밋된 id는 바꾸지 않습니다'), 'canon must protect existing ids (renaming forces baseline regeneration)')
+  assert(canon.includes('2절(최초 연결)을 다시 밟지 않습니다'), 'the add-source procedure must forbid re-running the first-link step')
+}
+
 // 릴리스 공지 payload는 도구가 소유한다(0.2.119) — yaml 속 문자열 조립은 회귀로 잠글 수 없다.
 // 0.2.120: 채널에는 사람이 선별한 "### 공지" 블록만 나간다 — 상세(개발 기록)는 발송 금지.
 function releaseNoticeBuildsPayloadFromLatestChangelogSection() {
@@ -7099,6 +7118,7 @@ const tests = [
   specStatusSeparatesAxesAndFoldsDetectedCount,
   ciBackstopExampleDelegatesToBroadcast,
   ciBackstopLeaderChecklistCoversLiveSetup,
+  specLinkAdapterRoutesSecondSourceToAddProcedure,
   releaseNoticeBuildsPayloadFromLatestChangelogSection,
   ciReleaseNoticeYamlParsesAndDelegates,
   newProjectChecklistShipsWithPointers,

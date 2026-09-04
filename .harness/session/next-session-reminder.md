@@ -2,6 +2,17 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
+## 0.2.142 후보 — 통합 저장소(백엔드 common)의 다중 기획 구독 검토 (2026-09-04)
+- **판정: 구조는 된다.** "하네스 한 벌 + 서비스별 소스"가 설계·코드·회귀에 있음(소스 단위 `--move-baseline --source`, 경로 충돌 거부, 관리 영역 깊이 2 규칙으로 `ss/<서비스>` 격리). 같은 기획 저장소를 프론트·백이 각자 소비하는 것이 정석.
+- **이번 커밋으로 반영(후보)**: `/기획문서연동` 어댑터 세 번째 갈래(이미 연동 + 새 주소 → 소스 추가 절차, `--source` 필수) + 소스 id 명명 규칙(서비스 이름, 견본 `planning` → `<서비스명>`, 기존 id 유지 — 결정 100). 회귀 specLinkAdapterRoutesSecondSourceToAddProcedure. CHANGELOG 0.2.142 미배포 절에 공지 1줄 초안(발사 전 승인 필요).
+- **미착수 후보(사용자 판정 대기)**:
+  - ① (큼) 문서 상대경로가 활성 소스 전역에서 유일해야 함 — 매핑 표·`--doc`·게이트가 `features/로그인.md`식 소스 없는 경로로만 식별(spec-sync settle 거부, push 게이트 전체 차단). 기획팀들이 같은 폴더 관례를 쓰면 실제로 자주 충돌, 현재 해법은 include/exclude 조정만. 안: 매핑·`--doc`에 `소스id:경로` 표기 허용.
+  - ② (중간, 설계 결정) `specEnforcement: gate`가 저장소 전역 — 전수 판정이 미연동 서비스 수십 개·루트 정적 파일(images/fonts)에 `(사양 없음)` 행을 요구. 통합 저장소는 당장 advisory 유지가 현실적. 안: 게이트 범위를 경로로 한정하는 설정.
+  - ③ (작음) 미매핑 기획 안내("매핑되지 않은 기획이 N건")가 변경 파일과 무관하게 저장소 전체 커밋에 뜸(policy-harness printSpecLinkNotice) — 다른 서비스 팀에 잡음. 안: 변경이 그 소스의 매핑 영역에 걸릴 때만.
+  - ④ (작음) `harness context` 기획 최신 확인 8초 예산(SPEC_CONTEXT_BUDGET_MS)을 모든 소스가 나눠 쓰고 순차 fetch — 소스 4~5개면 "확인 못함" 잦아질 수 있음(위험 없음: lock 기준 진행+경고, 10분 TTL). 안: 소스 수 비례 예산 또는 병렬 fetch.
+- 운영 팁(문서화 여부 미정): spec-map.md는 파일 하나지만 표 행은 파일 어디에 있어도 읽으므로 서비스별 절로 나눠 쓰면 머지 충돌이 줄어듦.
+- 참고: 내 Mac의 `~/project/common` 체크아웃은 브랜치 pr-multisite-harness-test, 루트에 .harness/.githooks/CLAUDE.md 없음(.claude만) — 설치 상태 판단은 그 팀 PC·리포트 기준으로.
+
 ## 확인 — 슬래시 커맨드는 스킬로 통합됨 (2026-09-03, 공식 문서)
 - `.claude/commands/*.md`와 `.claude/skills/<name>/SKILL.md`는 같은 것(둘 다 `/name`, 같은 frontmatter). commands는 폐기 아님·계속 동작, 새로 만들 땐 skills 권장. **같은 이름이면 skills가 이김**(소비자가 `.claude/skills/하네스업데이트/`를 만들면 우리 명령이 가려짐 — 알아둘 것). commands가 못 쓰는 필드: `name`, `paths`. 플러그인은 `skills/` 권장(우리 플러그인은 이미 skills/).
 - 판단: 본체 `.claude/commands/` 11개는 당장 옮기지 않는다(managed 경로 변경 = 은퇴 처리·회귀 비용, 이득 없음). 이관은 플러그인 R1(명령을 플러그인 skills/로) 때 한 번에. **`paths` 실측 완료(2026-09-03)**: 스킬의 `paths`는 파일을 읽어도 본문 자동 로드 안 됨(모델 호출 문일 뿐) → 규칙 배달 수단 아님. 같은 저장소 세션에선 중첩 CLAUDE.md·.claude/rules 파일의 paths 둘 다 결정적으로 로드. 다른 저장소 주 폴더 + additionalDirectories에선 셋 다 ✗(스킬 목록에도 안 뜸 — additionalDirectories는 파일 접근만, `--add-dir`와 다름) → 연결 블록이 유일 채널(설계 확정). 상세: claude-plugins/docs/plugin-platform-notes.md.
