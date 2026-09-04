@@ -5012,6 +5012,50 @@ function specMapRowsSurviveNotesThatMentionTheHeaderWords() {
 
 }
 
+// 0.2.142: 스킬 목록(registry.json)이 가리키는 경로·명령을 아무도 검증하지 않아 결함 3건이
+// 살아 있었다 — 소비자에 존재한 적 없는 npm 별칭(`npm run docs:check:strict`, 0.2.131에서 별칭
+// 주입이 0이 됨)과 리터럴 `YYYY` 경로 2건. 에이전트는 이 목록을 보고 읽을 파일과 실행할 명령을
+// 정하므로, 없는 것을 가리키면 그 스킬은 조용히 헛돈다. **설치본 기준**으로 검증한다.
+function skillRegistryPointsAtRealFilesAndCommands() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const registry = JSON.parse(read(target, '.harness/skills/registry.json'))
+
+  // 옵트인·명령 실행으로 생기는 산출물 — 설치 직후에 없는 것이 정상이다.
+  const optionalRuntimeArtifacts = new Set([
+    '.harness/spec-sources.json', // 기획 연동을 켠 프로젝트에만
+    '.harness/spec-lock.json', // 〃
+    '.harness/project/issue-adapter.md', // 견본을 복사해 켠 프로젝트에만
+    '.harness/session/project-scan-report.md', // harness scan 실행 산출물
+  ])
+  const isPlaceholder = (value) => value.includes('<') || value.includes('*')
+
+  const missing = []
+  for (const skill of registry.skills) {
+    // 본체 유지보수용 스킬은 소비자에게 배포되지 않는 문서를 가리킨다 — 시드 저장소 기준으로 본다.
+    const bodyOnly = (skill.audience ?? []).length > 0 && !(skill.audience ?? []).includes('consumer')
+    const root = bodyOnly ? repoRoot : target
+    const has = (rel) => fs.existsSync(path.join(root, rel))
+    for (const key of ['read', 'records']) {
+      for (const rel of skill[key] ?? []) {
+        if (isPlaceholder(rel) || optionalRuntimeArtifacts.has(rel)) continue
+        if (!has(rel)) missing.push(`${skill.id} ${key}: ${rel}`)
+      }
+    }
+    for (const command of skill.commands ?? []) {
+      assert(!command.startsWith('npm run '),
+        `skill ${skill.id} must not depend on an npm alias — the harness injects none since 0.2.131: ${command}`)
+      const script = command.match(/(\.harness\/bin\/[A-Za-z0-9_.-]+)/)
+      if (script && !has(script[1])) missing.push(`${skill.id} command: ${script[1]}`)
+    }
+  }
+  assert(missing.length === 0, `skill registry points at files that do not ship: ${missing.join(' | ')}`)
+
+  // 자리표시자는 실제 경로처럼 보이면 안 된다 — 리터럴 YYYY가 그렇게 새어 들어왔다.
+  const raw = read(target, '.harness/skills/registry.json')
+  assert(!raw.includes('work-history/YYYY'), 'a literal YYYY path must not pose as a real directory')
+}
+
 // 0.2.142 (백엔드 통합 저장소 실측, 2026-09-04): 한 저장소가 서비스 여럿을 담으면 남의 서비스
 // 기획 알림이 매 커밋에 딸려 나왔다 — 레거시 팀이 자기 코드만 고쳐도 멀티사이트 미매핑 22건이
 // 열거됐고, 목록에 소스 표기가 없어 어느 서비스 것인지도 알 수 없었다.
@@ -6634,6 +6678,7 @@ const tests = [
   specMappingCoverageIsEnforcedForNewFilesInMappedAreas,
   specMappingCoverageRespectsExemptionsAndScope,
   specMapRowsSurviveNotesThatMentionTheHeaderWords,
+  skillRegistryPointsAtRealFilesAndCommands,
   specNoticeScopesUnrelatedServicesToOneFoldedLine,
   commitAdvisoryIgnoresDocsAndMetaFilesInMappedAreas,
   specContextBudgetGrowsWithSourceCount,

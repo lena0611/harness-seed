@@ -316,7 +316,7 @@
         ".harness/session/developer-input-queue.md",
         ".harness/session/active-context.md",
         ".harness/session/next-session-reminder.md",
-        ".harness/maintenance/work-history/YYYY/"
+        ".harness/maintenance/work-history/<연도>/"
       ]
     },
     {
@@ -348,7 +348,7 @@
       ],
       "commands": [
         ".harness/bin/harness impact",
-        "npm run docs:check:strict",
+        "node .harness/bin/doc-link-check.mjs --strict",
         ".harness/bin/harness check"
       ],
       "outputs": [
@@ -743,7 +743,7 @@
         "project rule 승격 필요 여부"
       ],
       "records": [
-        ".harness/maintenance/work-history/YYYY/",
+        ".harness/maintenance/work-history/<연도>/",
         ".harness/session/next-session-reminder.md",
         ".harness/session/decision-log.md",
         ".harness/session/project-memory.md",
