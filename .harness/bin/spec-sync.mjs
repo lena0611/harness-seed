@@ -1125,14 +1125,39 @@ export function isExemptCell(value) {
 
 // spec-map 표 파싱. 텍스트 기반이라 push 게이트가 tip snapshot 내용에도 같은 파서를 쓴다.
 // 판정 행(exempt)은 매핑이 아니라 "검토 완료" 선언이므로 entries가 아니라 exemptions로 분리한다.
+// 표에서 데이터 행만 남긴다. **헤더·구분선 판정은 첫 칸만 본다(0.2.142).**
+//
+// 예전 규칙은 "줄 어딘가에 '기획 문서'가 있으면 헤더"였다. 그런데 이 표의 안내문 자신이
+// 그 말을 쓰라고 권한다("기획 문서가 필요 없는 코드면 판정으로 기록합니다") — 비고에 그대로
+// 적으면 그 행이 통째로 사라졌다. 판정 행이 사라지면 게이트가 멀쩡한 코드의 push를 막고,
+// 매핑 행이 사라지면 그 코드의 기획 변경 감시가 **조용히** 꺼진다(백엔드 통합 저장소 실측,
+// 2026-09-04: `(사양 없음) | ss/lib/** | 공용 라이브러리 — 기획 문서 대상 아님` 한 줄이 무시돼
+// push가 막혔고, 비고 문구만 바꾸니 통과했다).
+// 구분선도 같은 이유로 '---' 포함이 아니라 셀 전체 일치로 판정한다 — 비고에 '---'를 쓴 행이
+// 구분선으로 오인되던 같은 계열의 결함이다.
+export function isSpecMapHeaderRow(cells) {
+  return String(cells?.[0] ?? '').replaceAll('`', '').trim() === '기획 문서'
+}
+
+export function isSpecMapSeparatorRow(cells) {
+  return Array.isArray(cells) && cells.length > 0
+    && cells.every((cell) => /^:?-{3,}:?$/.test(String(cell ?? '').trim()))
+}
+
+export function specMapDataRows(text) {
+  if (typeof text !== 'string') return []
+  return text
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('|'))
+    .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
+    .filter((cells) => cells.length >= 2)
+    .filter((cells) => !isSpecMapHeaderRow(cells) && !isSpecMapSeparatorRow(cells))
+}
+
 export function parseSpecMapExemptions(text) {
-  if (typeof text !== 'string') return { specs: [], codePaths: [] }
   const specs = []
   const codePaths = []
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.startsWith('|') || line.includes('---') || /기획 문서/.test(line)) continue
-    const cells = line.split('|').slice(1, -1).map((cell) => cell.trim())
-    if (cells.length < 2) continue
+  for (const cells of specMapDataRows(text)) {
     const spec = cells[0].replaceAll('`', '').trim()
     const code = cells[1].replaceAll('`', '').trim()
     if (isExemptCell(spec) && code && !isExemptCell(code)) {
@@ -1147,12 +1172,7 @@ export function parseSpecMapExemptions(text) {
 }
 
 export function parseSpecMapText(text) {
-  if (typeof text !== 'string') return []
-  return text
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith('|') && !line.includes('---') && !/기획 문서/.test(line))
-    .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
-    .filter((cells) => cells.length >= 2)
+  return specMapDataRows(text)
     .filter((cells) => !isExemptCell(cells[0]) && !isExemptCell(cells[1]))
     .map(([spec, code, note]) => ({
       spec: spec.replaceAll('`', '').trim(),

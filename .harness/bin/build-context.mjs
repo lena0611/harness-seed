@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 // 기획 본문 읽기는 spec-sync의 안전 경로만 쓴다. 여기서 path.join + readFileSync로 직접 읽으면
 // 루트·중간·leaf 심볼릭 링크를 그대로 따라가, 쓰기는 막고 읽기는 뚫리는 비대칭이 생긴다(재리뷰 P1-2).
-import { buildScreenIndex, normalizeScreenLinks, readSpecCacheDoc, specCacheDirPath } from './spec-sync.mjs'
+import { buildScreenIndex, normalizeScreenLinks, parseSpecMapText, readSpecCacheDoc, specCacheDirPath } from './spec-sync.mjs'
 
 function sha256Text(content) {
   return crypto.createHash('sha256').update(content).digest('hex')
@@ -307,18 +307,11 @@ function selectSpecCandidates(tokens, limitCount, unreliableSources = []) {
   return merged.slice(0, limitCount)
 }
 
+// 파서 복제를 두지 않는다(0.2.142) — 이 모듈은 이미 spec-sync를 import하므로 그 파서를 그대로 쓴다.
+// 복제본이 있던 동안 헤더 판정 결함이 세 곳에 같이 살아 있었다.
 function readSpecMapEntries() {
   if (!exists('.harness/project/spec-map.md')) return []
-  return read('.harness/project/spec-map.md')
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith('|') && !line.includes('---') && !/기획 문서/.test(line))
-    .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
-    .filter((cells) => cells.length >= 2)
-    .map(([spec, code]) => ({
-      spec: spec.replaceAll('`', '').trim(),
-      codePaths: code.split(',').map((item) => item.replaceAll('`', '').trim()).filter(Boolean),
-    }))
-    .filter((entry) => entry.spec && entry.spec !== 'TBD')
+  return parseSpecMapText(read('.harness/project/spec-map.md'))
 }
 
 function readRegistryFiles() {

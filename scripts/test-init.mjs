@@ -7,7 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isHistoryLogPath, isIgnorableCodePath } from '../.harness/bin/doc-link-check.mjs'
-import { buildScreenIndex, normalizeScreenLinks, sha256Text as specSyncSha256Text } from '../.harness/bin/spec-sync.mjs'
+import { buildScreenIndex, normalizeScreenLinks, parseSpecMapExemptions as specMapExemptions, parseSpecMapText as specMapParse, sha256Text as specSyncSha256Text } from '../.harness/bin/spec-sync.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const repoRoot = path.resolve(path.dirname(__filename), '..')
@@ -5175,6 +5175,64 @@ function specMappingCoverageIsEnforcedForNewFilesInMappedAreas() {
   run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], { cwd: target, env: mappedEnv })
 }
 
+// 0.2.142 (백엔드 통합 저장소 실측, 2026-09-04): 표 파서가 "줄 어딘가에 '기획 문서'가 있으면
+// 헤더"로 판정해, **비고에 그 말을 쓴 행을 통째로 버렸다.** 그 문구는 이 표의 안내문 자신이
+// 권하는 말이라("기획 문서가 필요 없는 코드면 판정으로 기록합니다") 실사용에서 반드시 나온다.
+// 실측 증상: `(사양 없음) | ss/lib/** | 공용 라이브러리 — 기획 문서 대상 아님` 한 줄이 무시돼
+// push가 막혔고, 비고 문구만 바꾸니 통과했다. 더 나쁜 경우는 매핑 행이 사라지는 쪽이다 —
+// 그 코드의 기획 변경 감시가 **조용히** 꺼지고 아무 신호도 남지 않는다.
+// 같은 규칙을 세 파일이 복제하고 있었으므로 네 소비자를 한 번에 잠근다.
+function specMapRowsSurviveNotesThatMentionTheHeaderWords() {
+  const { target } = setupSpecLinkedTarget()
+
+  const mapText = [
+    '# 기획 문서 매핑',
+    '',
+    '| 기획 문서 | 구현 경로 | 비고 |',
+    '| --- | --- | --- |',
+    '| `features/로그인.md` | `src/views/login/**` | 이 기획 문서의 구현 --- 담당: A팀 |',
+    '| (사양 없음) | `src/views/shared/**` | 공용 프리젠테이션 — 기획 문서가 필요 없는 코드 |',
+    '',
+  ].join('\n')
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), mapText)
+  specTargetProfile(target, { specEnforcement: 'gate' })
+
+  // (1) 파서 자신 — 비고의 헤더 단어도, 비고의 '---'도 행을 죽이지 않는다.
+  const entries = specMapParse(mapText)
+  assert(entries.length === 1 && entries[0].spec === 'features/로그인.md', 'a mapping row whose note mentions the header words must survive parsing')
+  assert(entries[0].codePaths.join(',') === 'src/views/login/**', 'the surviving row must keep its code paths')
+  assert(specMapExemptions(mapText).codePaths.includes('src/views/shared/**'), 'an exemption row whose note mentions the header words must survive parsing')
+  assert(specMapParse(['| `기획 문서` | 구현 경로 | 비고 |', '| :--- | ---: | --- |', '| a.md | src/a/** | |'].join('\n')).length === 1,
+    'a backticked header cell and an aligned separator row must still be recognised as table furniture')
+
+  fs.mkdirSync(path.join(target, 'src/views/login'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/views/login/LoginView.vue'), '<template><div /></template>\n')
+  gitCommitAll(target, 'baseline')
+  const remote = addOriginRemote(target)
+  pushWithoutHooks(target)
+
+  fs.appendFileSync(path.join(target, 'src/views/login/LoginView.vue'), '<!-- edit -->\n')
+  fs.mkdirSync(path.join(target, 'src/views/shared'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'src/views/shared/Spinner.vue'), '<template><div /></template>\n')
+
+  // (2) 커밋 advisory — policy-harness의 복제 파서(spec 스크립트가 없어도 돌아야 해서 복제다).
+  const advisory = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
+  assert(advisory.includes('features/로그인.md'), 'the commit advisory must still link the mapped spec for the changed code')
+  assert(!advisory.includes('Spinner.vue'), 'the exemption row must still silence the managed-area coverage notice')
+
+  // (3) 컨텍스트 — 매핑이 살아 있어야 연결 구현을 제시한다.
+  const context = run(nodeBin, [path.join(target, '.harness/bin/build-context.mjs'), '--stdout', '로그인 기능 수정'], { cwd: target })
+  assert(context.includes('연결 구현: src/views/login/**'), 'the context builder must link the mapped implementation paths')
+
+  // (4) push 게이트 — 판정 행이 살아 있어야 판정된 경로가 막히지 않는다(실측 증상 그대로).
+  gitCommitAll(target, 'edit login view and add shared spinner')
+  const localSha = run('git', ['rev-parse', 'HEAD'], { cwd: target }).trim()
+  const remoteSha = run('git', ['rev-parse', 'origin/master'], { cwd: target }).trim()
+  const gateEnv = { ...process.env, HARNESS_PUSH_STDIN: `refs/heads/master ${localSha} refs/heads/master ${remoteSha}\n` }
+  const gate = run(nodeBin, [path.join(target, '.harness/bin/spec-push-gate.mjs'), 'origin', remote], { cwd: target, env: gateEnv })
+  assert(!gate.includes('매핑 누락'), 'the gate must honour an exemption row whose note mentions the header words')
+}
+
 // 판정 완료((사양 없음))는 "아직 안 봤다"와 구분되는 1급 상태다 — 기획 문서가 필요 없다고
 // 사람이 결론 낸 코드에 매핑을 강요하지 않는다. 매핑 영역 밖 파일은 애초에 대상이 아니다.
 function specMappingCoverageRespectsExemptionsAndScope() {
@@ -7149,6 +7207,7 @@ const tests = [
   specSettleRefusesPathCollisionsAcrossSources,
   specMappingCoverageIsEnforcedForNewFilesInMappedAreas,
   specMappingCoverageRespectsExemptionsAndScope,
+  specMapRowsSurviveNotesThatMentionTheHeaderWords,
   specCacheHydratesAutomaticallyAndFailsHarmlessly,
   specHydrationDetectsPerDocumentDrift,
   specContextSurfacesChangedAndNewPlanningDocs,

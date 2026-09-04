@@ -403,6 +403,8 @@ const DECISION_LOG_LINE_THRESHOLD = 400
 // 원격 최신 여부는 여기서 판정하지 않으며, 최신화는 명시적 harness:spec:fetch의 몫이다.
 // 판정 완료 표기((사양 없음)/(코드 없음))는 매핑이 아니라 "검토됨" 선언이므로 entries에서 뺀다.
 // 파서 관례는 spec-sync.parseSpecMapText와 동일하게 유지한다(같은 표를 두 곳이 읽는다).
+// spec 스크립트는 uninstall로 사라질 수 있어 여기서 import하지 않고 규칙만 복제한다 —
+// 어긋나면 회귀 specMapRowsSurviveNotesThatMentionTheHeaderWords가 잡는다.
 const SPEC_MAP_EXEMPT_TOKEN = /^[(（]\s*(사양\s*없음|코드\s*없음|해당\s*없음|없음)\s*[)）]$/
 
 // git이 비ASCII 경로를 "..." octal로 감싸 출력하는 것을 되돌린다(spec-sync.decodeGitPath와 동일 규칙).
@@ -429,14 +431,25 @@ function decodeSpecGitPath(filePath) {
   return Buffer.from(bytes).toString('utf8')
 }
 
+// 헤더·구분선 판정은 첫 칸만 본다(0.2.142) — spec-sync.specMapDataRows와 같은 규칙.
+// 줄 전체에서 '기획 문서'를 찾던 예전 규칙은 비고에 그 말을 쓴 행을 통째로 버렸다.
+function isSpecMapHeaderRow(cells) {
+  return String(cells[0] ?? '').replaceAll('`', '').trim() === '기획 문서'
+}
+
+function isSpecMapSeparatorRow(cells) {
+  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(String(cell ?? '').trim()))
+}
+
 function specMapRows() {
   const abs = path.join(repoRoot, '.harness/project/spec-map.md')
   if (!fs.existsSync(abs)) return []
   return fs.readFileSync(abs, 'utf8')
     .split(/\r?\n/)
-    .filter((line) => line.startsWith('|') && !line.includes('---') && !/기획 문서/.test(line))
+    .filter((line) => line.startsWith('|'))
     .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
     .filter((cells) => cells.length >= 2)
+    .filter((cells) => !isSpecMapHeaderRow(cells) && !isSpecMapSeparatorRow(cells))
     .map(([spec, code]) => ({
       spec: spec.replaceAll('`', '').trim(),
       codePaths: code.split(',').map((item) => item.replaceAll('`', '').trim()).filter(Boolean),
