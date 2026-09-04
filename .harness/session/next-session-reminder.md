@@ -2,6 +2,13 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
+## ⏸ 0.2.142 릴리스 대기 — 월요일 오전에 사용자가 요청 (2026-09-04 금요일 확인)
+- **사용자 지시: "월요일 오전에 릴리스 요청하겠다."** 그때까지 범프·태그·push·공지 발송을 시작하지 않는다. 먼저 나서서 재촉하지도 않는다.
+- 현재 상태: 작업 트리 clean, v0.2.141 이후 커밋 13개(후보 8 + 기록 5), CHANGELOG `## 0.2.142 - 미배포` 절에 공지 8줄 초안 + 상세 완비, 회귀 229종 전량 통과, `harness check` 통과.
+- **릴리스 요청이 오면**: ① 공지 8줄을 사용자에게 보여 문구 승인 받기(태그 push 전 필수 — 기억된 사용자 규칙) ② 그다음 body-release-checklist 순서대로 범프 → `release:version-net --write` → 스택·템플릿·레지스트리 → 태그 → 양원격(origin main + company main:master, 태그 포함) → ai-standard-cli 반영 → 자기 report:install → CI 확인(`gh run list` JSON에서 headSha로 선택).
+- 담긴 것 요약(공지 승인 때 이 근거를 함께): 결함 3건(매핑 표 파서·스킬 목록·재리뷰 P1 계열), 통합 저장소 실전검증 잔손질 6건, 다이어트(게이트 제거 561줄·export 47개·문서 1건 배포 제외), 소스 이름 붙이기(결정 102), 낡은 문서 서술 7곳·읽기 목록 2벌 통합. **코드 순감소 794/1588줄.**
+- 미착수로 남긴 것: 지방 룰의 경로 범위(B) — 6주 관찰 뒤 판단, 두 소스 동일 화면 단위의 부분 정산 회귀.
+
 ## 연방 구조 실전검증 결과 — common(PHP 통합 저장소) 중앙정부 + ss/multisite 지방 (2026-09-04)
 - 실측 장소(practice, 원격은 practice 안 bare로 대체 — 회사 원격에 push 없음): `~/practice/common-central`(master=중앙 설치 커밋, pr-multisite-province=지방 브랜치, origin=`~/practice/common-central-remote.git`), `~/practice/common-central-clone2`(팀원 clone), `~/practice/kiosk-planning`(가짜 두 번째 기획 저장소). 기획 소스 id는 서비스 이름(multisite·kiosk)으로 시작 — 결정 100 첫 적용.
 - 개발자 문서 2건(멀티사이트 백엔드 개발자, 2026-09-03, 사용자 Downloads의 harness_multiservice_gap.md / harness_multiservice_proposal.md): "저장소=서비스=스택 하나" 가정이 스택 층·프로젝트 문서 층에 남았다(기획 층은 이미 여럿), 해법은 루트 목록이 아니라 **폴더 표식(.service.json) 걷어 올라가기 + 배차원 훅**, 0단계 7개(하네스 변경 없음) → 6주 관찰 → 아프면 표식. 하네스 팀에 질문 6개(표식 방향·PHP 스택·폴더 disable·hooksPath 자동 복원·스캐너 권고 중단·CODEOWNERS 안내). **우리 "구역" 구상과 같은 원시** — 설계 논의는 사용자 몫.
