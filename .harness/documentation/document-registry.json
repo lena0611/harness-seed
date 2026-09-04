@@ -136,9 +136,7 @@
     {
       "id": "stacks",
       "index": ".harness/stacks/README.md",
-      "children": [
-        ".harness/stacks/authoring-guide.md"
-      ]
+      "children": []
     }
   ]
 }

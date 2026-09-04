@@ -2547,6 +2547,8 @@ const SEED_ONLY_DOCS = [
   '.harness/project/body-release-checklist.md',
   '.harness/project/body-roadmap.md',
   '.harness/project/standards-adoption-roadmap.md',
+  // 0.2.142: 스택 하네스를 만드는 사람의 문서 257줄이 모든 소비자에게 배포되고 있었다.
+  '.harness/stacks/authoring-guide.md',
 ]
 const SEED_ONLY_DOC = SEED_ONLY_DOCS[0]
 

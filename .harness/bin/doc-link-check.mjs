@@ -116,6 +116,7 @@ const seedOnlyDocs = new Set([
   '.harness/project/body-release-checklist.md',
   '.harness/project/body-roadmap.md',
   '.harness/project/standards-adoption-roadmap.md',
+  '.harness/stacks/authoring-guide.md', // 스택 작성자용 — 소비자 미배포(0.2.142)
 ])
 
 function toPosix(p) {

@@ -29,6 +29,7 @@
   - **스킬 registry 결함 3건은 고침(2026-09-04)** — npm 별칭 안내를 실제 스크립트 호출로, 리터럴 YYYY 경로 2건을 `<연도>/` 자리표시자로. 회귀 skillRegistryPointsAtRealFilesAndCommands가 설치본 기준으로 read·records 실존과 명령 스크립트 실존을 검증하고 npm 별칭 의존을 금지한다(본체 전용 스킬은 시드 기준, 옵트인 산출물 4종은 예외). 옛 목록으로 되돌리면 실패함을 확인.
   - **다이어트 2차 완료(2026-09-04)**: export 47개 비공개화(spec-sync 60→22, 잠긴 5개·테스트 검증 3개 제외), `profile.version` 배포 중단, `profile.notes` 1974자→629자(계약 정본은 config-contract.md), 헌장 질문 4건을 설치+2주 유예로(매 세션 4줄 → 집계 한 줄), `--confirm-overwrite-project-state` 도움말 추가(제거 아님 — update가 전달하는 실동작 별칭), 서브커맨드 6종 실행 회귀 신설. 226종 전량 통과.
   - **남기기로 한 것**: `profile.available`(apply-stack이 쓰고 복원하는 기록 — 무동작 키가 아님), 테스트가 검증하는 export 3개(`isIgnorableCodePath`·`gitShowText`·`parseSpecMapExemptions`), 소비자 CI 계약 5개.
+  - **문서 다이어트 착수(2026-09-04)**: 스택 작성 가이드(257줄)를 seed-only로 편입 — 소비자 md 85→84 실측. 인바운드 포인터·내용 중복 전수 조사 2건은 이 세션에서 돌렸고 결과는 아래 후보 판단의 근거로 쓴다.
   - **다음 다이어트 후보(미착수)**: `.harness/project` 문서 23종 중 리더용 참고 문서(bootstrap·portability-guide·project-harness-guide·scope-contract·new-project-checklist 등)의 통합 여부 — 소비자가 설치로 받는 md가 114개다. 단, 업무 프로젝트 3곳 중 2곳이 domain·architecture·workflow를 실제로 채웠으므로 룰 문서 3종은 값을 한다(줄일 대상 아님).
 - **큰 것 중 남은 둘**: B(지방 룰의 경로 범위 — sources[] inject가 저장소 전역)와 H(게이트 범위)는 게이트 제거로 H가 소멸했고 B만 남는다. 폴더 표식(.service.json) 방향은 저쪽 개발자의 6주 관찰 뒤 판단. 기준: **기존 장치를 대체하면 도입, 얹기만 하면 안 함.**
 

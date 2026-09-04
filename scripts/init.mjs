@@ -137,6 +137,9 @@ const SEED_ONLY_DOC_PATHS = new Set([
   '.harness/project/body-release-checklist.md',
   '.harness/project/body-roadmap.md',
   '.harness/project/standards-adoption-roadmap.md',
+  // 스택 하네스를 **만드는 사람**의 문서다(0.2.142). 스택을 갖다 쓰는 소비자에게는 쓸 일이
+  // 없는데 257줄이 모든 설치에 배포되고 있었다 — 소비자 문서 더미를 그만큼 키운다.
+  '.harness/stacks/authoring-guide.md',
 ]);
 
 // 은퇴한 관리 파일(0.2.134, score-print 보고): 예전 버전이 배포했지만 본체가 삭제·개명해

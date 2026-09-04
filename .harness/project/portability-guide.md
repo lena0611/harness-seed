@@ -17,7 +17,7 @@
 6. scaffold가 필요하면 `.harness/bin/harness templates:list`로 별도 템플릿 후보를 확인하고 `template:apply`로 적용합니다.
 7. scaffold 템플릿이 적용되었으면 `.harness/project/template-contract.md`에서 템플릿 사용 계약 브리지를 확인합니다.
 8. scaffold가 함께 적용되었으면 `npm install` 후 `.harness/bin/harness check`로 검증합니다. 이 검사는 하네스 관문 검사이며 lint/test/build는 포함하지 않습니다 — 코드 품질 검사는 프로젝트 소유입니다(0.2.131).
-9. 새 스택 하네스가 필요하면 `.harness/stacks/authoring-guide.md`를 먼저 보고 외부 프리셋 저장소를 만듭니다. 기본 계약은 `package.json bin + scripts/init.mjs + manifest.json + policies.json + instructions/`입니다.
+9. 새 스택 하네스가 필요하면 하네스 본체 저장소의 스택 작성 가이드를 먼저 보고 외부 프리셋 저장소를 만듭니다(설치본에는 배포되지 않는 문서입니다). 기본 계약은 `package.json bin + scripts/init.mjs + manifest.json + policies.json + instructions/`입니다.
 10. 새 scaffold 템플릿이 필요하면 `kind=scaffold-template`, `requiredStackHarness`, `template.guideRoot`, `source` 계약을 가진 별도 저장소로 둡니다.
 11. `policy-registry.json`은 일반 개발 기준만 유지합니다. 스택-특화 기준은 스택의 `policies.json`으로만 둡니다.
 12. `policy-harness.mjs`의 framework-specific 블록은 새 `checksKey`를 원할 때만 분기 확장합니다.
