@@ -4889,6 +4889,47 @@ function specSettleRefusesPathCollisionsAcrossSources() {
   assert(refuse.includes('어느 문서인지 알 수 없습니다'), 'settle should explain the ambiguity instead of settling both sources')
 }
 
+// 0.2.142 재리뷰 4차 P2: 기획자가 문서와 화면을 **같은 커밋에서 함께 삭제**하는 것은 정상적인
+// 폐기 절차다(한쪽만 지우면 링크 정합이 막지만, 둘 다 지우면 통과한다). 그런데 정산의 화면 단위
+// 색인은 "읽은 시점"에서만 만들어지고 그 시점에는 두 파일이 이미 없어 단위를 찾지 못했다 —
+// 범위 확장도 원자성 검사도 건너뛰어, 대표 MD만 기준에서 빠지고 HTML은 남는 혼합 기준이 됐다.
+// (이 경로 때문에 3차의 "부분 상태는 만들 수 없다" 결론을 철회했다.)
+function specDeletedScreenUnitSettlesTogetherFromBaselineIndex() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const docBody = '# 공통\n\n화면: [화면](./a.html)\n'
+  const screenBody = '<html><body>화면</body></html>\n'
+  const alpha = makePlanningRepoWithFiles({ 'features/a.md': docBody, 'features/a.html': screenBody })
+  const beta = makePlanningRepoWithFiles({ 'features/a.md': docBody, 'features/a.html': screenBody })
+  writeJson(target, '.harness/spec-sources.json', {
+    version: 1,
+    sources: [
+      { id: 'alpha', repo: alpha, ref: 'master', include: ['**/*.md'], exclude: [] },
+      { id: 'beta', repo: beta, ref: 'master', include: ['**/*.md'], exclude: [] },
+    ],
+  })
+  specSyncCli(target, ['fetch'])
+  const baseline = JSON.parse(read(target, '.harness/spec-lock.json'))
+  assert(baseline.sources.beta.files['features/a.md'] && baseline.sources.beta.files['features/a.html'],
+    'the baseline must hold both members of the screen unit (precondition)')
+  const alphaBefore = JSON.stringify(baseline.sources.alpha)
+
+  // 기획자가 문서와 화면을 함께 폐기한다 — 링크 정합이 막지 않는 정상 경로다.
+  fs.rmSync(path.join(beta, 'features/a.md'))
+  fs.rmSync(path.join(beta, 'features/a.html'))
+  gitCommitAll(beta, '기획 폐기')
+  specSyncCli(target, ['fetch', '--cache-only'])
+
+  // 대표 문서 한 줄만 정산해도 화면이 함께 빠져야 한다(매핑은 대표 문서만 적는 계약).
+  specSyncCli(target, ['settle', '--doc', 'beta:features/a.md'])
+  const after = JSON.parse(read(target, '.harness/spec-lock.json'))
+
+  assert(!after.sources.beta.files['features/a.md'], 'the deleted document must leave the baseline')
+  assert(!after.sources.beta.files['features/a.html'],
+    'the screen must leave the baseline with its document — a lone screen is the mixed baseline the contract forbids')
+  assert(JSON.stringify(after.sources.alpha) === alphaBefore, 'the other source must stay byte-for-byte identical')
+}
+
 // 0.2.142 재리뷰 3차 P2 2건.
 // ① v1→v2 승격도 lock 쓰기다. 거부 검사보다 앞에 있어서 "문서가 없어 실패"라고 반환하면서
 //    spec-lock.json은 이미 바뀌어 있었다(거부 경로에서는 lock 불변 계약 위반).
@@ -6957,6 +6998,7 @@ const tests = [
   specExemptionRowsGetTheSameSourceChecksAsMappings,
   specSettleRefusesAllWhenOneRequestedDocIsMissing,
   specSettleRefusalLeavesLockUntouchedRegardlessOfV1OrArgOrder,
+  specDeletedScreenUnitSettlesTogetherFromBaselineIndex,
   specMappingCoverageIsEnforcedForNewFilesInMappedAreas,
   specMappingCoverageRespectsExemptionsAndScope,
   specMapRowsSurviveNotesThatMentionTheHeaderWords,

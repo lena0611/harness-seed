@@ -2405,6 +2405,38 @@ function runSettle({ docs = [] } = {}) {
     return screenIndexCache.get(key)
   }
 
+  // 기준(lock) 시점의 화면 관계. **삭제 정산에 필수다**(재리뷰 4차 P2): 기획자가 문서와 화면을
+  // 같은 커밋에서 함께 폐기하면(정상 절차 — 한쪽만 지우면 링크 정합이 막는다), 읽은 시점에는
+  // 두 파일이 이미 없어 위 색인이 단위를 찾지 못한다. 그러면 범위 확장도 원자성 검사도 건너뛰어
+  // 대표 문서만 기준에서 빠지고 화면이 남는 혼합 기준이 된다.
+  const baselineIndexCache = new Map()
+  const baselineIndexForSource = (source) => {
+    if (!baselineIndexCache.has(source.id)) {
+      let index = null
+      try {
+        const recorded = state.lock.sources[source.id]
+        const dir = cacheDirFor(source.id)
+        index = buildScreenIndex(Object.keys(recorded?.files ?? {}), (rel) => {
+          try {
+            return readSafeFile(dir, rel)
+          } catch {
+            return null
+          }
+        }, screenLinksFor(recorded, source))
+      } catch {
+        index = null
+      }
+      baselineIndexCache.set(source.id, index)
+    }
+    return baselineIndexCache.get(source.id)
+  }
+
+  // 단위 조회는 "읽은 시점 우선, 없으면 기준 시점". 새 화면이 생긴 변경은 읽은 시점이 알고,
+  // 사라진 화면은 기준 시점만 안다 — 둘을 합쳐야 양쪽이 한 단위로 움직인다.
+  const unitForDoc = (source, rel) => (
+    screenIndexForSource(source)?.unitFor(rel) ?? baselineIndexForSource(source)?.unitFor(rel) ?? null
+  )
+
   {
     const expanded = new Map()
     const add = (ref) => expanded.set(`${ref.source ?? ''}\u0000${ref.file}`, ref)
@@ -2412,7 +2444,7 @@ function runSettle({ docs = [] } = {}) {
       add(ref)
       for (const source of state.sources) {
         if (ref.source && ref.source !== source.id) continue
-        const unit = screenIndexForSource(source)?.unitFor(ref.file)
+        const unit = unitForDoc(source, ref.file)
         if (!unit) continue
         for (const file of unit.files) add({ source: ref.source, file })
         break
@@ -2698,7 +2730,7 @@ function runSettle({ docs = [] } = {}) {
     const seenUnits = new Set()
     for (const item of plan) {
       const source = state.sources.find((candidate) => candidate.id === item.sourceId)
-      const unit = source ? screenIndexForSource(source)?.unitFor(item.rel) : null
+      const unit = source ? unitForDoc(source, item.rel) : null
       // 두 소스가 같은 문서·화면 경로를 가지면 unit.id가 겹친다 — 소스까지 키에 넣지 않으면
       // 두 번째 소스의 화면 원자성 검사가 통째로 생략된다(재리뷰 P2).
       if (!unit) continue
