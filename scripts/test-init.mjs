@@ -5430,6 +5430,15 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
   assert(guide.includes('"ownedAreas"') && guide.includes('"documents"'), 'the policies example must use the shape the body validates (documents + ownedAreas)')
   assert(!guide.includes('"severity"') && !guide.includes('"evidence"'), 'the old policies shape the body never validated must be gone')
   assert(guide.includes('package.json 병합'), 'the guide must warn non-Node stacks off the package.json merge section')
+
+  // 견본이 어디 있는지 이름으로 짚어야 한다(2026-09-07 사용자 실측: stacks 그룹을 열어도 "견본"이라
+  // 이름 붙은 저장소가 없어 막막했다). 견본은 따로 만들지 않고 카탈로그의 기존 스택이 견본이므로,
+  // 가이드가 가리키는 대상이 실제로 배포 카탈로그에 있는 항목인지 잠근다.
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const catalog = JSON.parse(read(target, '.harness/stacks/registry.json')).stacks
+  assert(catalog.some((entry) => guide.includes(entry.repo)),
+    'the guide must name a real catalog entry as the sample to copy — a guide that only says "copy an existing one" leaves the author hunting')
 }
 
 // 2026-09-07: 사내 GitLab 그룹을 역할대로 정리했다 — 스택 하네스는 `ai-standard/stacks`, 제품

@@ -32,7 +32,11 @@
 순서대로 하면 하루 안에 첫 태그까지 갑니다. 각 단계의 판단 기준은 뒤 절에 있습니다.
 
 1. **범위와 이름을 정합니다.** 위 표로 스택에 담을 것과 뺄 것을 가르고 이름을 하나 고릅니다. 저장소 이름 = `manifest.json`의 `id` = `package.json`의 `bin` 키. 소문자와 하이픈만 씁니다(예: `php-backend`, `spring-boot-api`, `vue3-vite-pinia-router`).
-2. **견본을 복사합니다.** `.harness/bin/harness standards:list`가 보여주는 기존 스택 하네스 하나를 clone 해 `.git`을 지우고 새 저장소로 올립니다. 그대로 두는 것: `scripts/` 세 파일(설치기·자기 검사·자기 회귀), `package.json`, `.nvmrc`, `.gitignore`. 새로 쓰는 것: `manifest.json`, `policies.json`, `instructions/`, `README.md` 본문.
+2. **견본을 복사합니다.** 견본은 따로 없습니다 — **카탈로그에 이미 있는 스택 하네스가 곧 견본입니다.** 지금은 하나뿐입니다.
+   ```bash
+   git clone https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.git <새-스택-이름>
+   ```
+   현재 목록은 `.harness/bin/harness standards:list`로 확인합니다(스택이 늘면 결이 가까운 쪽을 고릅니다). clone 한 뒤 `.git`을 지우고 새 저장소로 올립니다. 그대로 두는 것: `scripts/` 세 파일(설치기·자기 검사·자기 회귀), `package.json`, `.nvmrc`, `.gitignore`. 새로 쓰는 것: `manifest.json`, `policies.json`, `instructions/`, `README.md` 본문.
 3. **`package.json`을 고칩니다.** `name`, `bin`의 키(= 스택 id), `version`(`0.1.0`부터). `files` 목록과 `engines`는 그대로 둡니다. 설치기는 의존성 없이 유지합니다 — `npx`가 매번 받아 실행하는 패키지입니다.
 4. **`manifest.json`을 채웁니다.** 아래 계약 절의 표대로. `source.type`은 `none`으로 두고, package.json 병합이나 scaffold 절은 넣지 않습니다(다른 언어 저장소에 `package.json`을 만들어 버립니다).
 5. **설치기에서 바꿀 곳은 셋뿐입니다.** ① 대상 프로젝트의 의존성 파일을 읽는 함수와 호환성 판정 함수 — 견본은 `package.json`을 읽으니 「런타임별 차이」 표의 자기 파일로 바꿉니다. ② 스택 id와 문구 상수(자기 검사 스크립트의 id 단언 포함). ③ 자기 회귀의 픽스처 — 견본의 "Vue 2 프로젝트면 중단" 테스트를 자기 언어의 "맞지 않는 프로젝트" 픽스처로. 공통 하네스 설치 → `stack:apply` → lock 기록 → scan/handoff/check로 이어지는 체인은 건드리지 않습니다.
