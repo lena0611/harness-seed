@@ -659,13 +659,9 @@ function checkHarnessVersionLock() {
     throw new Error(`공통 하네스 버전이 낮습니다. required >= ${minVersion}, installed ${installedBase.version}. 스택 하네스 init을 다시 실행하세요.`)
   }
 
-  if (requiredBase.exactRefRequired && requiredBase.ref && installedBase.ref && requiredBase.ref !== installedBase.ref) {
-    const message = `공통 하네스 ref가 스택 요구사항과 다릅니다. required ${requiredBase.ref}, installed ${installedBase.ref}.`
-    if (strictMode) {
-      throw new Error(message)
-    }
-    console.warn(`WARNING: ${message}`)
-  }
+  // exactRefRequired 분기 제거(2026-09-07, 외부 리뷰 P2). 선언한 스택·템플릿이 하나도 없었고,
+  // 신규 설치의 base 고정은 baseHarness.ref에 구체 태그를 적는 것으로 이미 된다. 요구하는 팀이
+  // 나오면 그때 되살린다 — 그때는 이 분기 하나가 아니라 문서·scan·guard를 한 세트로 되살린다.
 
   console.log(`Harness versions OK: base=${installedBase.version}${installedBase.ref ? ` (${installedBase.ref})` : ''}, stack=${lock.stackHarness?.version ?? profile.activeStack}`)
 }

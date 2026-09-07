@@ -34,9 +34,11 @@ function printTemplateList(templates, heading) {
     if (template.description) console.log(`  ${template.description}`)
     if (template.requiredStackHarness?.id) console.log(`  대상 스택: ${template.requiredStackHarness.id}`)
     console.log(`  repo: ${template.repo}`)
-    // 스택 목록과 같은 이유로 버전을 고정하지 않는다(결정 108).
-    console.log(`  기준: 그 저장소의 최신 태그`)
-    console.log(`  적용: .harness/bin/harness template:apply --preset-git ${template.repo} --ref <태그>`)
+    // 자리표시자 `<태그>`를 잠시 썼다가 되돌렸다(외부 리뷰 2026-09-07 P2): ref를 빼면
+    // 사용자가 최신 태그를 알 방법이 없어 실행 가능한 경로가 사라진다. 적용은 git ref를
+    // 요구하므로 검증된 ref를 유지한다.
+    console.log(`  기준: ${template.ref ?? '저장소 기본 브랜치'}`)
+    console.log(`  적용: .harness/bin/harness template:apply --preset-git ${template.repo}${template.ref ? ` --ref ${template.ref}` : ''}`)
   }
 
   console.log('')

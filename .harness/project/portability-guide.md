@@ -64,7 +64,7 @@
 ## 릴리스와 실행 방식
 - 문서와 샘플에서는 저장소 종류와 무관하게 `<stack-harness-repo-url>` placeholder를 우선 사용합니다.
 - 팀 배포 절차에는 `git+<stack-harness-repo-url>#vX.Y.Z`처럼 tag를 고정합니다.
-- 스택 하네스의 `manifest.json`은 내부에서 사용할 공통 하네스의 `baseHarness.ref`를 고정합니다.
+- 스택 하네스의 `manifest.json`은 내부에서 사용할 공통 하네스를 `baseHarness.ref`에 **검증된 정확한 태그**로 고정합니다. 범위 표기(`semver:<range>`)는 쓰지 않습니다 — 릴리스 시점 검증이 그 이후에 나올 본체를 보장하지 못합니다(2026-09-07 외부 리뷰). 이 값을 올리는 것은 스택 소유자의 일입니다.
 - 적용 프로젝트는 `.harness/harness-lock.json`으로 실제 설치된 일반/스택 하네스 ref와 version을 기록합니다.
 - 적용 후 패치나 마이너 업데이트 후보는 `.harness/bin/harness outdated`로 확인하고, 반영하려면 `.harness/bin/harness update`를 실행합니다. 기본 전략은 현재 설치 버전의 SemVer caret 범위 안에서 최신 태그를 다시 선택하는 방식입니다.
 - 기본 `.harness/bin/harness update`는 스택과 공통 하네스를 함께 갱신합니다. 공통 하네스만 업데이트할 때는 `.harness/bin/harness update --base-only`를 사용합니다. 이 경로는 다음 업데이트 감지를 위해 `.harness/harness-lock.json`과 `.harness/install-manifest.json`에 공통 하네스의 git repo/ref/version을 남겨야 합니다.

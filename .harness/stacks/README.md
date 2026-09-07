@@ -21,7 +21,7 @@
 git clone --depth 1 --branch "v$(node -p 'JSON.parse(require("fs").readFileSync(".harness/harness-lock.json","utf8")).baseHarness.version')" https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git /tmp/harness-seed-guide && cat /tmp/harness-seed-guide/.harness/stacks/authoring-guide.md
 ```
 
-에이전트에게 "PHP 스택 하네스 만들어줘"처럼 요청하면 이 절차로 가이드를 가져와 읽고 시작합니다. 복사해서 시작할 **견본은 따로 없고, 카탈로그에 이미 있는 스택 하네스가 견본입니다** — 주소는 위 `standards:list` 출력의 `repo` 줄입니다. API, 배치, 모바일, 라이브러리 패키지, 운영 도구처럼 서로 다른 스택도 같은 계약으로 만들 수 있습니다.
+**제품 템플릿을 만들 때는 같은 저장소의 `.harness/templates/authoring-guide.md`입니다.** 위 한 줄에서 파일 경로만 바꾸면 됩니다. 에이전트에게 "PHP 스택 하네스 만들어줘"나 "제품 템플릿 만들어줘"처럼 요청하면 이 절차로 가이드를 가져와 읽고 시작합니다. 복사해서 시작할 **견본은 따로 없고, 카탈로그에 이미 있는 스택 하네스가 견본입니다** — 주소는 위 `standards:list` 출력의 `repo` 줄입니다. API, 배치, 모바일, 라이브러리 패키지, 운영 도구처럼 서로 다른 스택도 같은 계약으로 만들 수 있습니다.
 
 공통 하네스의 실행 로직은 소비자 프로젝트 루트의 `scripts/`에 드러내지 않고 `.harness/bin/` 아래에 둡니다. 스택 하네스의 사용자-facing `scripts/init.mjs`는 해당 스택 저장소의 설치 진입점으로만 두고, 적용 대상 프로젝트에는 공통 하네스 런타임을 `.harness/bin/` 형태로 정착시킵니다.
 

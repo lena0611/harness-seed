@@ -1379,7 +1379,7 @@ function makePreset() {
   return preset
 }
 
-function makeRulesOnlyPreset() {
+function makeRulesOnlyPreset(stackVersion = null) {
   const preset = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-rules-only-preset-test-'))
 
   fs.mkdirSync(path.join(preset, 'instructions'), { recursive: true })
@@ -1389,6 +1389,7 @@ function makeRulesOnlyPreset() {
   fs.writeFileSync(path.join(preset, 'manifest.json'), JSON.stringify({
     id: 'rules-only-demo',
     title: 'Rules Only Demo',
+    ...(stackVersion ? { version: stackVersion } : {}),
     framework: {
       runtime: 'demo',
     },
@@ -1405,11 +1406,19 @@ function makeRulesOnlyPreset() {
     stackId: 'rules-only-demo',
     policies: [],
   }, null, 2))
+  // 스택 버전은 프리셋의 package.json에서 읽힌다(manifest.version은 스택 경로에서 읽지 않는다 —
+  // 2026-09-07 실측). 버전 없이 --preset-path로 붙인 스택은 lock에 버전이 안 남고, 그러면
+  // 템플릿의 minVersion 검사가 '판정 불능'으로 차단한다.
+  if (stackVersion) {
+    fs.writeFileSync(path.join(preset, 'package.json'), JSON.stringify({
+      name: 'rules-only-demo', version: stackVersion, private: true,
+    }, null, 2))
+  }
 
   return preset
 }
 
-function makeScaffoldTemplatePreset(requiredStackId = 'rules-only-demo') {
+function makeScaffoldTemplatePreset(requiredStackId = 'rules-only-demo', requiredStackMinVersion = null) {
   const preset = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-template-preset-test-'))
 
   fs.mkdirSync(path.join(preset, 'developmentGuide'), { recursive: true })
@@ -1452,6 +1461,7 @@ function makeScaffoldTemplatePreset(requiredStackId = 'rules-only-demo') {
       id: requiredStackId,
       repo: 'https://example.test/rules-only-demo.git',
       ref: 'v1.0.0',
+      ...(requiredStackMinVersion ? { minVersion: requiredStackMinVersion } : {}),
     },
     source: {
       type: 'local',
@@ -5447,17 +5457,93 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
   // 본체는 `semver:` 범위 source ref를 이미 받아 설치 기록에 구체 버전으로 정규화한다
   // (sourceMetadataNormalizesSemverSourceRef). 그 선택지가 가이드에 없으면 작성자는
   // 태그를 박는 예시만 보고 매 릴리스 수동 갱신을 떠안는다.
-  assert(guide.includes('semver:^'), 'the guide must offer the range form for baseHarness.ref, not only a pinned tag')
   assert(guide.includes('minVersion'), 'the guide must keep the floor separate from the pin')
 
-  // 견본이 어디 있는지 이름으로 짚어야 한다(2026-09-07 사용자 실측: stacks 그룹을 열어도 "견본"이라
-  // 이름 붙은 저장소가 없어 막막했다). 견본은 따로 만들지 않고 카탈로그의 기존 스택이 견본이므로,
-  // 가이드가 가리키는 대상이 실제로 배포 카탈로그에 있는 항목인지 잠근다.
+  // 견본에 닿는 길은 있어야 하지만 **주소를 문서에 박아서는 안 된다**(외부 리뷰 2026-09-07 P2:
+  // 처음 판은 이 회귀가 오히려 하드코딩을 강제했다 — 같은 날 그룹 이전에서 그 주소가 낡았다).
+  // 정본은 목록 명령의 출력이다.
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
   const catalog = JSON.parse(read(target, '.harness/stacks/registry.json')).stacks
-  assert(catalog.some((entry) => guide.includes(entry.repo)),
-    'the guide must name a real catalog entry as the sample to copy — a guide that only says "copy an existing one" leaves the author hunting')
+  for (const entry of catalog) {
+    assert(!guide.includes(entry.repo),
+      `the guide must not hardcode a catalog repo address (${entry.id}) — it went stale the day that repo moved`)
+  }
+  assert(/standards:list[\s\S]{0,400}git clone/.test(guide),
+    'the guide must send the author to standards:list and then clone what it printed')
+
+  // 범위 표기는 되돌렸다(외부 리뷰 P1): 릴리스 시점 검증이 그 이후에 나올 본체를 보장하지 못한다.
+  assert(!guide.includes('"ref": "semver:'), 'the guide must not recommend a semver range for baseHarness.ref')
+  assert(guide.includes('검증된 정확한 태그'), 'the guide must say the base ref is a verified exact tag')
+}
+
+// 제품 템플릿 작성 가이드(2026-09-07 신설). 스택 가이드와 같은 취급이다 — 만드는 사람용이라
+// 설치본에는 배포하지 않고, 닿는 길은 배포되는 문서와 스킬이 갖는다. 템플릿만의 계약
+// (contractChecks의 필수 조건, 두 적용 방식)이 빠지면 작성자가 invalid 항목을 만든다.
+function templateAuthoringGuideStaysReachableAndCarriesItsContract() {
+  const guide = fs.readFileSync(path.join(repoRoot, '.harness/templates/authoring-guide.md'), 'utf8')
+
+  assert(guide.includes('contractChecks'), 'the template guide must cover the contract-check declaration')
+  assert(guide.includes('pathsAll') && guide.includes('pathsAny')
+    && guide.includes('dependenciesAll') && guide.includes('scriptsAll'),
+    'it must list every expectation field the body actually evaluates')
+  assert(guide.includes('invalid'), 'it must explain the invalid verdict — that one is the author\'s own mistake')
+  assert(guide.includes('--contract-only'), 'it must cover the second application mode, not just scaffold')
+  assert(guide.includes('recommended'), 'it must warn that severity defaults to required unless that exact word is used')
+  assert(guide.includes('scaffold-template'), 'it must name the kind value the body uses to tell assets apart')
+  assert(!/git clone https:\/\/git\.smartscore\.kr/.test(guide),
+    'the template guide must not hardcode a repo address either — templates:list is the source')
+
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!exists(target, '.harness/templates/authoring-guide.md'), 'the author guide itself must not ship')
+  const shipped = read(target, '.harness/stacks/README.md')
+  assert(shipped.includes('templates/authoring-guide.md'), 'the shipped doc must name the template guide too')
+
+  const registry = JSON.parse(read(target, '.harness/skills/registry.json'))
+  const authoring = registry.skills.find((skill) => skill.id === 'harness.stack-authoring')
+  assert(authoring.triggers.some((t) => t.includes('템플릿 만들')), 'a plain "템플릿 만들" request must route here')
+  assert(authoring.commands.some((c) => c.includes('templates:list')), 'the skill must offer the template catalog command')
+}
+
+// 외부 리뷰 2026-09-07 P2: 템플릿의 requiredStackHarness.minVersion 검사가 **판정 불능을
+// 조용히 통과**시켰다. 레거시 lock이라 스택 버전이 없으면 비교가 false를 반환해 성공 처리됐고,
+// 정규식에 끝 경계가 없어 `1.2.3-beta`가 정식 `1.2.3`으로 판정됐다. "최소 버전이 집행된다"고
+// 믿게 만든 검사의 목적을 무너뜨리는 구멍이라, 판정할 수 없으면 복구 안내와 함께 막는다.
+function templateMinStackVersionBlocksLowAndUnjudgeable() {
+  const cases = [
+    { label: '낮음', stackVersion: '1.0.0', minVersion: '2.0.0', blocked: true, expect: '요구하는 스택 하네스 버전보다 낮습니다' },
+    { label: '같음', stackVersion: '2.0.0', minVersion: '2.0.0', blocked: false },
+    { label: '높음', stackVersion: '2.1.0', minVersion: '2.0.0', blocked: false },
+    { label: '설치 버전 없음', stackVersion: null, minVersion: '2.0.0', blocked: true, expect: '확인할 수 없어' },
+    { label: 'prerelease', stackVersion: '2.0.0-beta', minVersion: '2.0.0', blocked: true, expect: '확인할 수 없어' },
+    { label: 'minVersion 형식 오류', stackVersion: '2.0.0', minVersion: 'semver:^2.0.0', blocked: true, expect: '완전한 SemVer가 아닙니다' },
+    { label: 'minVersion 미선언', stackVersion: null, minVersion: null, blocked: false },
+  ]
+
+  for (const item of cases) {
+    const target = makeTarget()
+    runInit(target, '--no-scan', '--no-handoff', '--no-check')
+    run(harnessBin(target), ['stack:apply', '--preset-path', makeRulesOnlyPreset(item.stackVersion)], { cwd: target })
+    const templatePreset = makeScaffoldTemplatePreset('rules-only-demo', item.minVersion)
+
+    const appliedMarker = '.harness/templates/.applied/demo-template/manifest.json'
+    if (!item.blocked) {
+      run(harnessBin(target), ['template:apply', '--preset-path', templatePreset], { cwd: target })
+      assert(exists(target, appliedMarker), `${item.label}: 통과해야 하는데 템플릿이 적용되지 않았습니다`)
+      continue
+    }
+
+    const output = expectFailure(
+      () => run(harnessBin(target), ['template:apply', '--preset-path', templatePreset], { cwd: target }),
+      `${item.label}: 템플릿 적용이 차단돼야 합니다`,
+    )
+    assert(output.includes(item.expect), `${item.label}: 안내가 원인을 짚어야 합니다 (기대: ${item.expect})`)
+    // template-contract.md는 설치가 자리표시자로 배포하므로 존재 여부로 판정할 수 없다.
+    // 적용 흔적은 스냅샷 manifest다.
+    assert(!exists(target, appliedMarker), `${item.label}: 차단됐는데 템플릿이 적용됐습니다`)
+    assert(!exists(target, 'src/App.vue'), `${item.label}: 차단됐는데 scaffold 파일이 복사됐습니다`)
+  }
 }
 
 // 결정 108(2026-09-07): 본체가 관리하는 것은 harness-seed·CLI·docs뿐이고, 스택·scaffold는
@@ -5473,11 +5559,15 @@ function bodyDoesNotTrackForeignStacksOrTemplates() {
 
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  // 카탈로그의 `ref`는 **검증된 구체 태그**다. 잠시 제거했다가 되돌렸다(외부 리뷰 2026-09-07):
+  // `#semver:*`는 zsh에서 glob으로 죽고, 템플릿은 적용에 git ref가 필요해 자리표시자로는 못 쓴다.
+  // 본체가 이 값을 갱신하는 시점은 **그 저장소 소유자가 새 태그를 알려올 때**이고, 본체 릴리스
+  // 절차에는 들어 있지 않다(그 분리는 체크리스트 문구와 version-net으로 잠근다).
   for (const [rel, key] of [['.harness/stacks/registry.json', 'stacks'], ['.harness/templates/registry.json', 'templates']]) {
     for (const entry of JSON.parse(read(target, rel))[key]) {
-      assert(entry.ref === undefined,
-        `the shipped catalog must not pin a foreign repo version (${rel}: ${entry.id}) — it goes stale the moment that repo tags`)
-      assert(entry.repo, `a catalog entry still needs the repo address (${rel}: ${entry.id})`)
+      assert(entry.repo, `a catalog entry needs the repo address (${rel}: ${entry.id})`)
+      assert(/^v\d+\.\d+\.\d+$/.test(entry.ref ?? ''),
+        `a catalog ref must be a concrete verified tag (${rel}: ${entry.id}: ${entry.ref}) — glob forms die in zsh`)
     }
   }
 
@@ -5488,8 +5578,24 @@ function bodyDoesNotTrackForeignStacksOrTemplates() {
     'the specific versions a stack must skip belong to that stack repo, not the body checklist')
   assert(checklist.includes('본체가 할 일은 없습니다'), 'the checklist must say the body does not release satellites')
 
-  const shipped = read(target, '.harness/project/stack-preset-rules.md')
-  assert(!shipped.includes('exactRefRequired'), 'an option no stack ever declared must not stay in a shipped doc')
+  // 은퇴 판정은 **현행 트리 전역**으로 확인한다(외부 리뷰 2026-09-07 P2: 배포 문서 한 곳만
+  // 보고 "제거했다"고 적었는데 guard·scan 런타임 분기와 README 권고가 살아 있었다).
+  // 이력 문서(CHANGELOG·decision-log·리마인더)는 사실 기록이므로 제외한다.
+  const retiredOption = 'exactRefRequired'
+  const liveFiles = [
+    '.harness/bin/guard.mjs', '.harness/bin/scan-project.mjs', '.harness/bin/apply-stack.mjs',
+    '.harness/project/stack-preset-rules.md', '.harness/project/portability-guide.md',
+    '.harness/stacks/README.md', '.harness/stacks/authoring-guide.md',
+  ]
+  for (const rel of liveFiles) {
+    const abs = path.join(repoRoot, rel)
+    if (!fs.existsSync(abs)) continue
+    const text = fs.readFileSync(abs, 'utf8')
+    const live = text.split('\n').filter((line) => line.includes(retiredOption) && !line.trimStart().startsWith('//'))
+    assert(live.length === 0, `retired option still live in ${rel}: ${live[0]?.trim()}`)
+  }
+  assert(!fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8').includes(retiredOption),
+    'the body README must not recommend the retired option')
 
   // 설치 안내의 예시 주소도 특정 스택을 이름으로 들고 있으면 그 저장소가 옮겨지거나
   // 사라질 때 낡는다(2026-09-07 그룹 이전에서 실제로 낡았다). 주소의 정본은 목록 명령이다.
@@ -7248,6 +7354,8 @@ const tests = [
   stackAuthoringGuideSpeaksEveryRuntime,
   stackAndTemplateRegistriesLiveUnderTheirOwnGroups,
   bodyDoesNotTrackForeignStacksOrTemplates,
+  templateMinStackVersionBlocksLowAndUnjudgeable,
+  templateAuthoringGuideStaysReachableAndCarriesItsContract,
   installedQueueSnoozesCharterQuestionsAndProfileStaysThin,
   specNoticeScopesUnrelatedServicesToOneFoldedLine,
   commitAdvisoryIgnoresDocsAndMetaFilesInMappedAreas,

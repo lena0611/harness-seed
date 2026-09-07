@@ -218,7 +218,7 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2
 | `.harness/install-manifest.json` | 공통 하네스가 어떤 파일을 설치/갱신했는지 추적하는 설치 manifest |
 | `.harness/harness-lock.json` | 현재 프로젝트에 설치된 공통 하네스와 스택 하네스의 repo, ref, version을 기록하는 잠금 파일 |
 
-스택 하네스의 `manifest.json`은 자신이 요구하는 공통 하네스를 `baseHarness`로 명시합니다. `minVersion`은 최소 요구 버전이고, `ref`는 검증된 기준 ref입니다. 기본적으로 `ref`는 exact pin이 아니므로 이미 설치된 공통 하네스가 `minVersion` 이상이면 더 낮은 ref로 자동 downgrade하지 않아야 합니다. 정확한 ref 고정이 필요한 스택만 `exactRefRequired: true`를 명시합니다.
+스택 하네스의 `manifest.json`은 자신이 요구하는 공통 하네스를 `baseHarness`로 명시합니다. `minVersion`은 최소 요구 버전이고, `ref`는 검증된 기준 ref입니다. 기본적으로 `ref`는 exact pin이 아니므로 이미 설치된 공통 하네스가 `minVersion` 이상이면 더 낮은 ref로 자동 downgrade하지 않아야 합니다.
 
 업데이트는 보통 다음처럼 진행합니다.
 

@@ -39,11 +39,13 @@ function printStackList(stacks, heading) {
     console.log(`- ${stack.title ?? stack.id}`)
     if (stack.description) console.log(`  ${stack.description}`)
     console.log(`  repo: ${stack.repo}`)
-    // 카탈로그는 남의 저장소 버전을 고정하지 않는다(결정 108). `#semver:*`가 그 저장소의
-    // 최신 태그로 해석되므로, 스택이 새 태그를 내면 본체 릴리스 없이 반영된다.
-    console.log(`  기준: 그 저장소의 최신 태그 (설치 시 해석)`)
-    console.log(`  설치: npx -y git+${stack.repo}#semver:* init`)
-    console.log(`  적용(고급): .harness/bin/harness stack:apply --preset-git ${stack.repo} --ref <태그>`)
+    // `#semver:*`를 잠시 썼다가 되돌렸다(외부 리뷰 2026-09-07 P1): zsh가 `*`를 파일 패턴으로
+    // 먼저 해석해 `no matches found`로 죽는다(실측). 목록에서 복사해 붙이는 것이 기본 경로라
+    // 그대로는 못 쓴다. 카탈로그의 ref는 **검증된 태그**이고, 그 저장소 소유자가 새 태그를
+    // 알려올 때만 갱신한다 — 본체 릴리스마다 맞출 값이 아니다.
+    console.log(`  기준: ${stack.ref ?? '저장소 기본 브랜치'}`)
+    console.log(`  설치: npx -y git+${stack.repo}${stack.ref ? `#${stack.ref}` : ''} init`)
+    console.log(`  적용(고급): .harness/bin/harness stack:apply --preset-git ${stack.repo}${stack.ref ? ` --ref ${stack.ref}` : ''}`)
   }
 
   console.log('')

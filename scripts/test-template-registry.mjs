@@ -7,10 +7,15 @@ import { fileURLToPath } from 'node:url'
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(scriptRoot, '..')
 const listTemplates = path.join(repoRoot, '.harness/bin/list-templates.mjs')
-// 카탈로그는 남의 저장소 버전을 고정하지 않는다(결정 108, 2026-09-07). 예전에는 항목마다
-// `ref`가 있어 그 저장소가 태그를 내면 배포된 목록이 낡았고, 그것을 맞추는 일이 본체
-// 릴리스 절차에 들어와 있었다.
+// 카탈로그의 `ref`는 **검증된 태그**다. 자리표시자 `<태그>`를 잠시 썼다가 되돌렸다
+// (외부 리뷰 2026-09-07 P2): 적용은 git ref를 요구하는데 ref를 빼면 사용자가 최신 태그를
+// 알 방법이 없어 실행 가능한 경로가 사라진다. 기대값은 registry.json에서 읽는다.
 const templatesRegistry = JSON.parse(readFileSync(path.join(repoRoot, '.harness/templates/registry.json'), 'utf8'))
+const adminTemplateRef = templatesRegistry.templates.find((template) => template.id === 'cloud-front-admin-template').ref
+
+function escapeRegExp(value) {
+  return value.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
+}
 
 function run(args, env = {}) {
   const result = spawnSync(process.execPath, [listTemplates, ...args], {
@@ -27,9 +32,17 @@ function run(args, env = {}) {
 const consumerOutput = run([])
 assert.match(consumerOutput, /승인된 템플릿 목록/)
 assert.match(consumerOutput, /Cloud Front 관리자형 업무 앱 템플릿/)
-assert.match(consumerOutput, /--ref <태그>/)
+assert.match(consumerOutput, new RegExp(`--ref ${escapeRegExp(adminTemplateRef)}`))
 for (const template of templatesRegistry.templates) {
-  assert.equal(template.ref, undefined, `카탈로그는 남의 버전을 고정하지 않습니다: ${template.id}`)
+  assert.match(template.ref ?? '', /^v\d+\.\d+\.\d+$/, `카탈로그 ref는 검증된 구체 태그여야 합니다: ${template.id}`)
+}
+// 목록에서 복사한 적용 명령이 zsh에서 실제로 실행되는지 확인한다(glob 문자 금지).
+for (const line of consumerOutput.split('\n')) {
+  const trimmed = line.trim()
+  if (!trimmed.startsWith('적용: ')) continue
+  const command = trimmed.slice(trimmed.indexOf(': ') + 2)
+  const probe = spawnSync('zsh', ['-fc', `print -r -- ${command}`], { encoding: 'utf8' })
+  assert.equal(probe.status, 0, `목록의 명령이 zsh에서 실행되지 않습니다: ${command}\n${probe.stderr}`)
 }
 assert.doesNotMatch(consumerOutput, /GITLAB_TOKEN/)
 assert.doesNotMatch(consumerOutput, /GitLab API/)

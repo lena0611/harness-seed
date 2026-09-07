@@ -929,24 +929,36 @@ function commandStatus() {
   }
 }
 
-// 템플릿이 요구하는 스택 최소 버전 비교. `1.2.3` 형태만 다루고, 그 밖의 값(범위·태그·미선언)은
-// 비교하지 않는다 — 판정할 수 없는 값으로 설치를 막으면 안 된다.
-function stackVersionBelow(installed, minimum) {
-  const parse = (value) => String(value ?? '').match(/^v?(\d+)\.(\d+)\.(\d+)/)
-  const a = parse(installed)
-  const b = parse(minimum)
-  if (!a || !b) {
-    return false
+// 템플릿이 요구하는 스택 최소 버전 판정.
+//
+// 외부 리뷰 2026-09-07 P2 수용: 처음 판은 판정할 수 없는 값을 **조용히 통과**시켰다.
+// `minVersion`을 선언했는데 설치 버전을 확인할 수 없으면(레거시 lock, 형식 오류) 그대로
+// 통과해, "최소 버전이 집행된다"고 믿게 만든 이 검사의 목적 자체를 무너뜨렸다. 또 정규식에
+// 끝 경계가 없어 `1.2.3-beta`·`1.2.3garbage`가 정식 `1.2.3`으로 판정됐다.
+// 이제 완전한 SemVer만 인정하고, 판정 불능은 복구 안내와 함께 차단한다.
+function parseExactSemver(value) {
+  const matched = String(value ?? '').match(/^v?(\d+)\.(\d+)\.(\d+)$/)
+  return matched ? [Number(matched[1]), Number(matched[2]), Number(matched[3])] : null
+}
+
+// 'ok' | 'below' | 'unknown-installed' | 'invalid-minimum'
+function judgeStackVersion(installed, minimum) {
+  const required = parseExactSemver(minimum)
+  if (!required) {
+    return 'invalid-minimum'
   }
 
-  for (let i = 1; i <= 3; i += 1) {
-    const left = Number(a[i])
-    const right = Number(b[i])
-    if (left !== right) {
-      return left < right
+  const current = parseExactSemver(installed)
+  if (!current) {
+    return 'unknown-installed'
+  }
+
+  for (let i = 0; i < 3; i += 1) {
+    if (current[i] !== required[i]) {
+      return current[i] < required[i] ? 'below' : 'ok'
     }
   }
-  return false
+  return 'ok'
 }
 
 function validateTemplateRequirements(manifest, profile, lock) {
@@ -961,16 +973,42 @@ function validateTemplateRequirements(manifest, profile, lock) {
     // 작성자는 버전을 고정했다고 믿는데 실제 검사는 id만 비교했다. 선언한 대로 검사한다.
     // 너무 낮은 스택 위에 템플릿 계약을 얹으면 프로젝트가 만족할 수 없는 계약이 생긴다.
     const installedStackVersion = lock.stackHarness?.version ?? null
-    if (required.minVersion && stackVersionBelow(installedStackVersion, required.minVersion)) {
-      console.error('템플릿이 요구하는 스택 하네스 버전보다 낮습니다.')
-      console.error(`  required: ${required.id} >= ${required.minVersion}`)
-      console.error(`  current: ${required.id} ${installedStackVersion}`)
+    if (!required.minVersion) {
+      return
+    }
+
+    const verdict = judgeStackVersion(installedStackVersion, required.minVersion)
+    if (verdict === 'ok') {
+      return
+    }
+
+    if (verdict === 'invalid-minimum') {
+      console.error('템플릿의 requiredStackHarness.minVersion 값이 완전한 SemVer가 아닙니다.')
+      console.error(`  declared: ${required.minVersion}`)
       console.error('')
-      console.error('먼저 스택 하네스를 올리세요.')
-      console.error(`  .harness/bin/harness update --stack-only`)
+      console.error('템플릿 소유자가 `1.2.3` 형태로 고쳐야 합니다. 판정할 수 없는 값으로는 검사를 통과시키지 않습니다.')
       process.exit(1)
     }
-    return
+
+    if (verdict === 'unknown-installed') {
+      console.error('설치된 스택 하네스 버전을 확인할 수 없어 템플릿 요구를 판정하지 못했습니다.')
+      console.error(`  required: ${required.id} >= ${required.minVersion}`)
+      console.error(`  current: ${installedStackVersion ?? '(기록 없음)'}`)
+      console.error('')
+      console.error('스택 하네스를 다시 적용해 lock에 버전을 기록한 뒤 진행하세요.')
+      console.error('  .harness/bin/harness update --stack-only')
+      console.error('  또는 해당 스택 하네스의 init을 다시 실행')
+      console.error('(prerelease나 비표준 버전 표기도 여기서 걸립니다 — 정식 버전으로 적용하세요.)')
+      process.exit(1)
+    }
+
+    console.error('템플릿이 요구하는 스택 하네스 버전보다 낮습니다.')
+    console.error(`  required: ${required.id} >= ${required.minVersion}`)
+    console.error(`  current: ${required.id} ${installedStackVersion}`)
+    console.error('')
+    console.error('먼저 스택 하네스를 올리세요.')
+    console.error('  .harness/bin/harness update --stack-only')
+    process.exit(1)
   }
 
   console.error('템플릿 요구 스택과 현재 프로젝트 스택이 맞지 않습니다.')
