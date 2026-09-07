@@ -54,7 +54,7 @@
 
 질문 예시:
 > 사용할 스택 하네스를 골라주세요.
-> - 사내 스택 하네스 — `.harness/bin/harness standards:list`로 `ai-standard/harnesses`의 스택 하네스 패키지 조회
+> - 사내 스택 하네스 — `.harness/bin/harness standards:list`로 `ai-standard/stacks`의 스택 하네스 패키지 조회
 > - scaffold 템플릿 — 스택 하네스 적용 후 `.harness/bin/harness templates:list`로 후보를 조회한 뒤 선택
 > - 로컬 스택 자산 — 별도 폴더의 `manifest.json` 경로를 `stackManifest`에 기록
 > - `none` — 예외적으로 공통 기준만 운영. 사유를 `decision-log.md`에 기록

@@ -218,7 +218,7 @@ function buildReport() {
 
 \`\`\`bash
 .harness/bin/harness standards:list
-npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init
+npx -y git+https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.git#<tag> init
 .harness/bin/harness stack:status
 .harness/bin/harness check
 \`\`\`

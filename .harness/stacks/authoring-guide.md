@@ -141,7 +141,7 @@ scaffold를 함께 제공해야 하는 특수한 경우에만 아래를 추가�
   "description": "서비스 종류와 무관하게 이 회사의 PHP 백엔드 저장소에 적용하는 기술 기준입니다.",
   "version": 1,
   "stackHarness": {
-    "repo": "https://git.smartscore.kr/<스택 그룹>/php-backend.git",
+    "repo": "https://git.smartscore.kr/ai-standard/stacks/php-backend.git",
     "ref": "v0.1.0",
     "range": "^0.1.0"
   },

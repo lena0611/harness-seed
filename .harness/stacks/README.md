@@ -37,18 +37,18 @@ git clone --depth 1 --branch "$(node -p 'JSON.parse(require("fs").readFileSync("
 스택 하네스 후보가 조회되면 각 후보의 설치 명령을 확인합니다.
 
 ```bash
-npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init
+npx -y git+https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.git#<tag> init
 ```
 
 기본 조회 대상:
 - GitLab URL: `https://git.smartscore.kr`
-- 그룹: `ai-standard/harnesses`
+- 그룹: `ai-standard/stacks`
 
 필요하면 환경변수로 바꿉니다.
 
 ```bash
 HARNESS_GITLAB_URL=https://git.example.com \
-HARNESS_STACK_STANDARD_GROUP=ai-standard/harnesses \
+HARNESS_STACK_STANDARD_GROUP=ai-standard/stacks \
 .harness/bin/harness standards:list
 ```
 
@@ -66,20 +66,20 @@ HARNESS_STACK_STANDARD_GROUP=ai-standard/harnesses \
 현재 등록된 템플릿 후보 예시입니다. 실제 적용 방법은 해당 템플릿 저장소의 README와 manifest 계약을 먼저 확인합니다.
 
 ```bash
-.harness/bin/harness template:apply --preset-git https://git.smartscore.kr/ai-standard/stacks/cloud-front-admin-template.git --ref <tag-or-branch>
+.harness/bin/harness template:apply --preset-git https://git.smartscore.kr/ai-standard/scaffolds/cloud-front-admin-template.git --ref <tag-or-branch>
 ```
 
 빈 프로젝트에서는 템플릿 코드를 적용하고, 기존 프로젝트에서는 `--contract-only`로 코드 복사 없이 계약과 개발 가이드 스냅샷만 연결합니다. 두 경우 모두 `.harness/project/template-contract.md`가 생성되고 `.harness/bin/harness template:gap`이 현재 구현과 구조화된 템플릿 계약을 비교합니다.
 
 기본 조회 대상:
 - GitLab URL: `https://git.smartscore.kr`
-- 그룹: `ai-standard/stacks`
+- 그룹: `ai-standard/scaffolds`
 
 필요하면 환경변수로 바꿉니다.
 
 ```bash
 HARNESS_GITLAB_URL=https://git.example.com \
-HARNESS_TEMPLATE_GROUP=ai-standard/stacks \
+HARNESS_TEMPLATE_GROUP=ai-standard/scaffolds \
 .harness/bin/harness templates:list
 ```
 
@@ -88,9 +88,10 @@ HARNESS_TEMPLATE_GROUP=ai-standard/stacks \
 ```text
 ai-standard
 ├── harnesses
-│   ├── harness-seed
-│   └── <stack-harness>
+│   └── harness-seed
 ├── stacks
+│   └── <stack-harness>
+├── scaffolds
 │   └── <scaffold-template>
 ├── agents
 │   └── ai-standard-cli
@@ -98,11 +99,14 @@ ai-standard
 └── docs
 ```
 
-- `harnesses`: AI 작업 규칙과 설치기 저장소 모음
-- `stacks`: 프로젝트 scaffold 템플릿 모음
+- `harnesses`: 공통 하네스 본체
+- `stacks`: 스택 하네스 모음
+- `scaffolds`: 제품 scaffold 템플릿 모음
 - `agents`: 자동화 CLI/라우터 모음
 - `policies`: 회사 공통 기준 문서
 - `docs`: 표준 문서 진입점
+
+그룹은 2026-09-07에 이 모양으로 정리했습니다(그전에는 스택 하네스가 `harnesses`에, 제품 템플릿이 `stacks`에 있었습니다). GitLab이 옛 경로를 새 경로로 넘겨주므로 lock에 옛 주소가 기록된 프로젝트도 그대로 동작합니다.
 
 ## 외부 스택 자산 계약
 외부 스택 자산은 아래 구조를 가진 독립 폴더 또는 별도 저장소입니다. 사용자에게 직접 제공되는 스택 하네스라면 `package.json`의 `bin`과 `scripts/init.mjs` 같은 설치 진입점을 함께 둡니다.
@@ -199,7 +203,7 @@ my-stack-preset/
 일반 프로젝트 개발자는 스택 하네스의 `init`을 실행합니다.
 
 ```bash
-npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-router.git#<tag> init
+npx -y git+https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.git#<tag> init
 ```
 
 스택 하네스 `init`은 일반적으로 다음 순서로 동작합니다.

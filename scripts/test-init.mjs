@@ -5429,6 +5429,32 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
   assert(guide.includes('package.json 병합'), 'the guide must warn non-Node stacks off the package.json merge section')
 }
 
+// 2026-09-07: 사내 GitLab 그룹을 역할대로 정리했다 — 스택 하네스는 `ai-standard/stacks`, 제품
+// scaffold 템플릿은 `ai-standard/scaffolds`, 본체만 `ai-standard/harnesses`에 남는다. 옛 배치
+// (스택이 harnesses에, 템플릿이 stacks에)로 되돌아가면 조회 기본 그룹과 배포 레지스트리가 서로
+// 다른 곳을 가리키고, 그 불일치는 `--remote` 조회에서만 드러나 한참 뒤에 발견된다.
+function stackAndTemplateRegistriesLiveUnderTheirOwnGroups() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const stacks = JSON.parse(read(target, '.harness/stacks/registry.json')).stacks
+  const templates = JSON.parse(read(target, '.harness/templates/registry.json')).templates
+  assert(stacks.length > 0 && templates.length > 0, 'both registries must ship at least one candidate (precondition)')
+  for (const stack of stacks) {
+    assert(stack.repo.includes('/ai-standard/stacks/'), `stack '${stack.id}' must live in the stack group, not ${stack.repo}`)
+  }
+  for (const template of templates) {
+    assert(template.repo.includes('/ai-standard/scaffolds/'), `template '${template.id}' must live in the scaffold group, not ${template.repo}`)
+  }
+
+  assert(read(target, '.harness/bin/list-stack-standards.mjs').includes("'ai-standard/stacks'"),
+    'the stack lookup default group must match the group the stack registry points at')
+  assert(read(target, '.harness/bin/list-templates.mjs').includes("'ai-standard/scaffolds'"),
+    'the template lookup default group must match the group the template registry points at')
+  assert(read(target, '.harness/stacks/README.md').includes('- `scaffolds`:'),
+    'the shipped stacks README must document the scaffold group in its group layout')
+}
+
 // 0.2.142 다이어트: 런처 서브커맨드 27개 중 6개는 "파일이 있는가"만 확인하고 **한 번도 실행해
 // 보지 않았다**. 배포하는 명령이 소비자 환경에서 실제로 도는지 아무도 몰랐다는 뜻이다.
 // 스택 미적용·기획 미연동 프로젝트에서도 깨끗이 끝나야 하는 명령들이라 한 번에 훑는다.
@@ -7150,6 +7176,7 @@ const tests = [
   launcherSubcommandsWithoutRegressionsRunClean,
   stackAuthoringGuideStaysReachableAfterExclusion,
   stackAuthoringGuideSpeaksEveryRuntime,
+  stackAndTemplateRegistriesLiveUnderTheirOwnGroups,
   installedQueueSnoozesCharterQuestionsAndProfileStaysThin,
   specNoticeScopesUnrelatedServicesToOneFoldedLine,
   commitAdvisoryIgnoresDocsAndMetaFilesInMappedAreas,

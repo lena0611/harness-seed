@@ -8,6 +8,13 @@
 - 건드리지 않은 것: 소비자 CI가 import한다고 회귀가 잠근 5개, 테스트가 계약으로 검증하는 3개, 파일 밖에서 실제로 쓰이는 나머지.
 - 판정 방법(재현 가능): 이름이 다른 파일 텍스트에 한 번도 등장하지 않으면 solo. 동적 접근(`specRuntime.pendingSettlements`)도 텍스트에 이름이 있으므로 함께 걸린다.
 
+## 2026-09-07 - 결정 106: 자산 종류마다 GitLab 그룹을 나눈다 (harnesses / stacks / scaffolds)
+- **`ai-standard/harnesses` = 공통 하네스 본체만, `ai-standard/stacks` = 스택 하네스, `ai-standard/scaffolds` = 제품 scaffold 템플릿.** 사용자 결정(2026-09-07)으로 `vue3-vite-pinia-router`를 harnesses→stacks, `cloud-front-admin-template`을 stacks→scaffolds로 이전했다.
+- 근거: 이름이 역할과 어긋나 있었다 — 스택 하네스가 본체와 같은 그룹에 있어 "스택 기준을 어디서 찾나"가 그룹 이름으로 안 드러났고, `stacks`라는 이름이 실제로는 템플릿을 담고 있어 기술 스택과 제품 템플릿을 나눈 기존 결정(2026-07-10)이 저장소 배치에서는 반대로 보였다.
+- 안전한 순서: **이전이 먼저, 주소 수정이 나중.** GitLab은 옛 경로를 새 경로로 넘겨주지만 반대는 없다 — 옮기기 전에 본체를 새 주소로 고치면 설치가 404가 된다. 이 순서 때문에 이전 확인(옛·새 주소 4개 `git ls-remote`) 전에는 주소를 하나도 바꾸지 않았다.
+- 권한 메모: 프로젝트 이전은 GitLab **Owner** 전용이다. 하네스 관리자는 `ai-standard`의 Maintainer라 Settings → Advanced에 Transfer 절이 아예 보이지 않았고(Archive·Delete도 동일), Owner에게 부탁해 진행했다. 다음에 그룹을 손볼 때도 같은 벽을 만난다.
+- GitLab 함정: 그룹의 **이름과 경로는 별개다.** 서브그룹 이름을 `scaffolds`로 바꿔도 경로는 `scaffold`로 남는다. 코드·URL·API 조회가 쓰는 것은 경로이므로 판단 기준은 항상 `path`/`full_path`다.
+
 ## 2026-09-07 - 결정 105: 스택 작성 가이드는 언어별로 만들지 않는다 — 공용 하나 + 런타임별 표
 - **언어·프레임워크별 작성 가이드(PHP용, Java용…)는 만들지 않는다.** 사용자 결정(2026-09-07): "언어에 상관없이 공용 가이드가 있어야 한다." 공용 가이드 `.harness/stacks/authoring-guide.md` 하나가 어느 언어든 같은 순서로 안내하고, 언어를 타는 단 한 곳(의존성 파일·호환성 판정 근거)은 표 한 개로 둔다.
 - 근거: 스택 하네스는 **설치기(항상 Node)와 지침(그 언어)** 두 부분이고, 언어가 바뀌어도 설치기는 견본 복사다. 바뀌는 것은 대상 프로젝트의 의존성 파일을 읽는 함수 하나. 본체는 manifest의 `compatibility`를 읽지 않는다(실측: `.harness/bin`·`scripts/init.mjs` 어디에도 없음) — 호환성 검사는 스택 설치기의 몫이라 본체 계약을 언어마다 늘릴 일도 없다.

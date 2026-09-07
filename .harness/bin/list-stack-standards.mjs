@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const gitlabUrl = process.env.HARNESS_GITLAB_URL ?? 'https://git.smartscore.kr'
-const groupPath = process.env.HARNESS_STACK_STANDARD_GROUP ?? 'ai-standard/harnesses'
+const groupPath = process.env.HARNESS_STACK_STANDARD_GROUP ?? 'ai-standard/stacks'
 const token = process.env.GITLAB_TOKEN ?? process.env.HARNESS_GITLAB_TOKEN
 const remoteMode = process.argv.slice(2).includes('--remote')
 const registryPath = path.join(__dirname, '..', 'stacks', 'registry.json')
@@ -56,7 +56,7 @@ function printRemoteFallback(stacks, status = null) {
   console.log('')
   console.log('관리자용 원격 조회 설정:')
   console.log('  HARNESS_GITLAB_URL=https://git.smartscore.kr')
-  console.log('  HARNESS_STACK_STANDARD_GROUP=ai-standard/harnesses')
+  console.log('  HARNESS_STACK_STANDARD_GROUP=ai-standard/stacks')
   console.log('  GITLAB_TOKEN=<read_api token> .harness/bin/harness standards:list --remote')
 }
 
