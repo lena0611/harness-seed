@@ -5490,6 +5490,13 @@ function bodyDoesNotTrackForeignStacksOrTemplates() {
 
   const shipped = read(target, '.harness/project/stack-preset-rules.md')
   assert(!shipped.includes('exactRefRequired'), 'an option no stack ever declared must not stay in a shipped doc')
+
+  // 설치 안내의 예시 주소도 특정 스택을 이름으로 들고 있으면 그 저장소가 옮겨지거나
+  // 사라질 때 낡는다(2026-09-07 그룹 이전에서 실제로 낡았다). 주소의 정본은 목록 명령이다.
+  for (const rel of ['.harness/stacks/README.md', '.harness/bin/handoff.mjs']) {
+    assert(!read(target, rel).includes('vue3-vite-pinia-router.git'),
+      `install guidance must not hardcode one stack's address (${rel}) — standards:list is the source`)
+  }
 }
 
 // 2026-09-07: 사내 GitLab 그룹을 역할대로 정리했다 — 스택 하네스는 `ai-standard/stacks`, 제품

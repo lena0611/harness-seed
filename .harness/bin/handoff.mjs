@@ -218,7 +218,8 @@ function buildReport() {
 
 \`\`\`bash
 .harness/bin/harness standards:list
-npx -y git+https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.git#<tag> init
+npx -y git+<스택-저장소>#<tag> init
+(스택-저장소 주소는 .harness/bin/harness standards:list 출력에서 확인)
 .harness/bin/harness stack:status
 .harness/bin/harness check
 \`\`\`

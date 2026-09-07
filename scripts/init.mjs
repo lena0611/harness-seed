@@ -2861,7 +2861,8 @@ ${renderNodeStep(TARGET)}
        .harness/bin/harness standards:list
        .harness/bin/harness stack:status
   4) 맞는 스택 기준이 있으면 해당 스택 하네스의 init 명령을 실행
-       예: npx -y git+https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.git#<tag> init
+       예: npx -y git+<스택-저장소>#<tag> init
+            (주소는 3)의 standards:list 출력에 나옵니다 — 본체는 특정 스택 주소를 들고 있지 않습니다)
   5) 팀 기준으로 남길 판단이 생기면 기록
        .harness/session/decision-log.md
        또는 판단이 필요하면 .harness/session/developer-input-queue.md

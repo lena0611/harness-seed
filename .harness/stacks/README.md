@@ -34,10 +34,10 @@ git clone --depth 1 --branch "v$(node -p 'JSON.parse(require("fs").readFileSync(
 
 목록은 누구나 볼 수 있지만 private 스택을 실제 설치하려면 해당 저장소의 Git 읽기 권한이 필요합니다. 원격 GitLab 그룹을 관리 목적으로 조회할 때만 `.harness/bin/harness standards:list --remote`와 `GITLAB_TOKEN`을 사용합니다.
 
-스택 하네스 후보가 조회되면 각 후보의 설치 명령을 확인합니다.
+스택 하네스 후보가 조회되면 각 후보의 설치 명령을 확인합니다. **실제 저장소 주소는 이 문서가 들고 있지 않습니다** — 위 목록 명령의 출력이 정본입니다(본체가 특정 스택을 이름으로 들고 있으면 그 저장소가 옮겨지거나 사라질 때 안내가 낡습니다).
 
 ```bash
-npx -y git+https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.git#<tag> init
+npx -y git+<스택-저장소>#<tag> init
 ```
 
 기본 조회 대상:
@@ -66,7 +66,7 @@ HARNESS_STACK_STANDARD_GROUP=ai-standard/stacks \
 현재 등록된 템플릿 후보 예시입니다. 실제 적용 방법은 해당 템플릿 저장소의 README와 manifest 계약을 먼저 확인합니다.
 
 ```bash
-.harness/bin/harness template:apply --preset-git https://git.smartscore.kr/ai-standard/scaffolds/cloud-front-admin-template.git --ref <tag-or-branch>
+.harness/bin/harness template:apply --preset-git <템플릿-저장소> --ref <tag-or-branch>
 ```
 
 빈 프로젝트에서는 템플릿 코드를 적용하고, 기존 프로젝트에서는 `--contract-only`로 코드 복사 없이 계약과 개발 가이드 스냅샷만 연결합니다. 두 경우 모두 `.harness/project/template-contract.md`가 생성되고 `.harness/bin/harness template:gap`이 현재 구현과 구조화된 템플릿 계약을 비교합니다.
@@ -203,7 +203,7 @@ my-stack-preset/
 일반 프로젝트 개발자는 스택 하네스의 `init`을 실행합니다.
 
 ```bash
-npx -y git+https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.git#<tag> init
+npx -y git+<스택-저장소>#<tag> init
 ```
 
 스택 하네스 `init`은 일반적으로 다음 순서로 동작합니다.

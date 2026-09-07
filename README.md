@@ -73,7 +73,7 @@ CLI가 배포된 승인 스택 후보를 읽어 화살표 선택 화면을 보�
 스택 하네스 주소를 이미 알고 있으면 직접 실행할 수도 있습니다.
 
 ```bash
-npx -y git+https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.git#<tag> init
+npx -y git+<스택-저장소>#<tag> init
 ```
 
 설치하면 대략 다음 항목이 생기거나 갱신됩니다. 실제 수량은 설치 완료 요약과 `--dry-run` 출력에서 확인합니다.
@@ -598,7 +598,7 @@ Harness check summary
 
 ```bash
 .harness/bin/harness standards:list
-npx -y git+https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.git#<tag> init
+npx -y git+<스택-저장소>#<tag> init
 .harness/bin/harness stack:status
 .harness/bin/harness check
 ```
@@ -614,7 +614,7 @@ npx -y git+https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.g
 스택 하네스 후보가 조회되면 각 후보의 설치 명령을 확인합니다.
 
 ```bash
-npx -y git+https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.git#<tag> init
+npx -y git+<스택-저장소>#<tag> init
 ```
 
 `stack:apply`는 선택한 스택의 instruction을 `.harness/project/stack-preset-rules.md`에 로컬룰로 기록합니다. 스택 기준 패키지가 `source.type=none`이면 파일 복사 없이 기준 문서만 정착합니다.
@@ -634,8 +634,8 @@ npx -y git+https://git.smartscore.kr/ai-standard/stacks/vue3-vite-pinia-router.g
 현재 등록된 템플릿 후보 예시는 다음 저장소입니다. 목록은 누구나 볼 수 있지만, private 템플릿을 실제 적용하려면 해당 저장소의 Git 읽기 권한이 필요합니다. 실제 적용 방법은 해당 템플릿 저장소의 README와 manifest 계약을 먼저 확인합니다.
 
 ```bash
-.harness/bin/harness template:apply --preset-git https://git.smartscore.kr/ai-standard/scaffolds/cloud-front-admin-template.git --ref <tag-or-branch>
-.harness/bin/harness template:apply --preset-git https://git.smartscore.kr/ai-standard/scaffolds/cloud-front-admin-template.git --contract-only
+.harness/bin/harness template:apply --preset-git <템플릿-저장소> --ref <tag-or-branch>
+.harness/bin/harness template:apply --preset-git <템플릿-저장소> --contract-only
 .harness/bin/harness template:gap
 ```
 
