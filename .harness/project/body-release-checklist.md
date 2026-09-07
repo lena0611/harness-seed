@@ -85,6 +85,10 @@
 - [ ] pre-push에 연결된 `.harness/bin/check-remote-sync.mjs` 가드가 어긋남을 알리면 빠진 원격에 push한다. (이 가드는 캐시된 remote-tracking 기준의 비차단 알림이며 push를 막지 않는다.)
 - [ ] 각 push는 pre-push hook의 `harness check --fast`를 거친다. 저버전 Node 셸에서 push해도 hook이 dual-runtime으로 하네스 Node로 전환해 검증한다(0.2.63+).
 - [ ] push 후 GitHub Actions `Policy Guard` 워크플로(`.github/workflows/policy-guard.yml`) 결과가 통과인지 확인한다. (`gh run list --branch main --limit 1`)
+- [ ] **⛔ 번복 배너를 담은 push는 CI가 반드시 빨개진다 — 알고 있어야 한다**(2026-09-07 실측). CI는 `harness:check:strict`를 `--base <이전 push> --head <이번 push>`로 돌린다. 그 범위의 decision-log diff에 ⛔가 있으면 기준 동기화 후보가 **확인 필수로 승격**되고, strict에서 확인 필수는 실패다. 게다가 정책 검사 단계에서 멈추므로 **그 뒤의 회귀 스위트는 아예 돌지 않는다** — "CI 빨감 = 테스트 실패"가 아니다.
+  - 승격은 **diff 범위**로 판정하므로 다음 push의 범위에는 그 ⛔가 없어 저절로 통과한다. 기다리는 것이 정상 처리다.
+  - **릴리스 태그를 찍는 push의 범위에 ⛔를 넣지 말 것.** 릴리스 커밋은 초록 CI가 필요한데 그 push가 빨개진다. 번복 커밋을 먼저 별도로 push해 초록을 받고, 그다음 push에 태그를 얹는다.
+  - 후보를 침묵시키려고 연결 문서를 억지로 만지지 않는다. 승격은 "반대 서술이 남았는지 확인하라"는 요구이고, 확인 결과와 판정은 커밋 메시지에 남긴다.
 
 ## 6단계 — downstream 반영/통지
 
