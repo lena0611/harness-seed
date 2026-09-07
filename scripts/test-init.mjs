@@ -5431,6 +5431,13 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
   assert(!guide.includes('"severity"') && !guide.includes('"evidence"'), 'the old policies shape the body never validated must be gone')
   assert(guide.includes('package.json 병합'), 'the guide must warn non-Node stacks off the package.json merge section')
 
+  // 가벼운 길 둘을 앞에서 먼저 제시해야 한다(2026-09-07 사용자 피드백: 가이드가 복잡해 보인다).
+  // 실측으로 둘 다 동작을 확인했다 — ① `.harness/project/*` md 하나(프로젝트 소유라 업데이트가
+  // 덮지 않는다) ② 저장소 안 폴더 4개 파일 + `stack:apply --preset-path`(설치기·package.json 불필요).
+  // 저장소가 하나면 태그 운영은 값이 없다.
+  assert(guide.includes('--preset-path'), 'the guide must offer the in-repo asset route before the full repo route')
+  assert(guide.includes('.harness/project/domain-rules.md'), 'the guide must offer the md-only route for a single repository')
+
   // 견본이 어디 있는지 이름으로 짚어야 한다(2026-09-07 사용자 실측: stacks 그룹을 열어도 "견본"이라
   // 이름 붙은 저장소가 없어 막막했다). 견본은 따로 만들지 않고 카탈로그의 기존 스택이 견본이므로,
   // 가이드가 가리키는 대상이 실제로 배포 카탈로그에 있는 항목인지 잠근다.
