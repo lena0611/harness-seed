@@ -493,9 +493,18 @@ function printConsumerSummary({ edgeResult, criticalResult, cacheHit = false, fa
   // 보고 대기(0.2.137)는 요약 칸에도 올린다 — 소비자 에이전트가 출력을 grep으로 걸러 봐도
   // (실측: clubadm 에이전트가 keyword 필터로 tail 안내를 놓침) 요약 줄은 읽는 지점이라서다.
   const pendingReport = fs.existsSync(path.join(repoRoot, '.harness/generated/pending-report.json'))
+  // 설치가 기존 CLAUDE.md를 보존하면(프로젝트가 자기 진입점을 이미 갖고 있던 경우) 하네스
+  // 읽기 순서가 그 파일에 연결되지 않는다. 설치는 그때 한 줄 권고를 찍지만 그 뒤로 아무것도
+  // 추적하지 않아, 에이전트가 규약만 읽고 하네스 기준은 안 읽는 상태가 조용히 유지됐다
+  // (2026-09-07 PHP 백엔드 재현 실측). 매 검사에 보이게 하고, 한 줄만 이으면 사라진다.
+  // 판정은 파일 내용으로 한다 — 표식을 쓰면 정리 책임이 또 생긴다.
+  const claudeEntrypoint = path.join(repoRoot, 'CLAUDE.md')
+  const claudeUnlinked = fs.existsSync(claudeEntrypoint)
+    && !fs.readFileSync(claudeEntrypoint, 'utf8').includes('.harness/')
   const manualParts = []
   if (openManualActions > 0) manualParts.push(`${openManualActions}건 (.harness/session/manual-actions.md 확인)`)
   if (pendingReport) manualParts.push('설치·업데이트 리포트 대기 (harness report:install)')
+  if (claudeUnlinked) manualParts.push('CLAUDE.md에 하네스 읽기 순서 미연결 (그 파일에 .harness/ 기준 문서를 가리키는 줄을 추가하세요)')
   console.log(`수동 조치: ${manualParts.length === 0 ? '없음' : manualParts.join(', ')}`)
   console.log(`추천 조치: ${recommendedActions.length === 0 ? '없음' : recommendedActions.join(', ')}`)
   console.log(`관문 검사: ${cacheHit ? '캐시 재사용' : '실행'}`)

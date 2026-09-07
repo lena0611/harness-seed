@@ -5477,6 +5477,79 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
   assert(guide.includes('검증된 정확한 태그'), 'the guide must say the base ref is a verified exact tag')
 }
 
+// 설치가 기존 CLAUDE.md를 보존하면(프로젝트가 자기 진입점을 이미 갖고 있던 경우) 하네스
+// 읽기 순서가 그 파일에 연결되지 않는다. 설치는 그때 한 줄 권고를 찍지만 그 뒤로 아무것도
+// 추적하지 않아, 에이전트가 프로젝트 규약만 읽고 하네스 기준은 안 읽는 상태가 조용히
+// 유지됐다(2026-09-07 PHP 백엔드 상태 재현 실측 — `harness check`도 통과했다).
+// 매 검사의 수동 조치로 띄우고, 한 줄만 이으면 사라지게 한다(표식 없이 파일 내용으로 판정).
+function checkFlagsAnUnlinkedProjectEntrypointUntilItIsLinked() {
+  const target = makeTarget()
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), '# 프로젝트 규약\n\n@CONVENTIONS.md\n')
+  fs.writeFileSync(path.join(target, 'CONVENTIONS.md'), '# 규약\n\n- 규칙\n')
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  assert(!read(target, 'CLAUDE.md').includes('.harness/'),
+    'the install must preserve the project entrypoint as-is (precondition)')
+
+  const before = run(harnessBin(target), ['check'], { cwd: target })
+  assert(before.includes('CLAUDE.md에 하네스 읽기 순서 미연결'),
+    'check must surface the unlinked entrypoint as a manual action, not stay silent')
+
+  fs.appendFileSync(path.join(target, 'CLAUDE.md'), '\n하네스 기준은 `.harness/policy/ai-standard-guiding-policy.md`부터 읽습니다.\n')
+  const after = run(harnessBin(target), ['check'], { cwd: target })
+  assert(!after.includes('CLAUDE.md에 하네스 읽기 순서 미연결'),
+    'one pointer line must clear it — a manual action that needs a marker to clean up is worse than none')
+}
+
+// 외부 리뷰 2026-09-07 2차 P1: `source.packageMerge`가 임의 파일 이름을 가리키면
+// adapterLocal이 그 파일을 **일반 scaffold 파일로 먼저 복사**해 대상 package.json을 덮어쓴 뒤,
+// 그 덮어쓴 파일을 원본으로 삼아 병합했다. 병합이 아니라 교체가 되고, 복원 스냅샷도 덮어쓴
+// 뒤에 만들어져 reset으로 원래 파일을 되돌리지 못할 수 있었다. adapterTiged에는 있던 필터가
+// adapterLocal에만 없었고 하드코딩된 `package.merge.json` 이름만 예외였다.
+function templatePackageMergeAddsWithoutReplacingTheProjectFile() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run(harnessBin(target), ['stack:apply', '--preset-path', makeRulesOnlyPreset('1.0.0')], { cwd: target })
+
+  // 대상 프로젝트가 이미 갖고 있는 package.json — 이름·자기 script·자기 의존성이 살아야 한다.
+  fs.writeFileSync(path.join(target, 'package.json'), `${JSON.stringify({
+    name: 'the-real-project',
+    version: '9.9.9',
+    private: true,
+    scripts: { 'my-own': 'echo mine' },
+    dependencies: { 'my-own-dep': '^1.0.0' },
+  }, null, 2)}\n`)
+
+  const preset = makeScaffoldTemplatePreset('rules-only-demo', '1.0.0')
+  // 임의 이름의 병합 파일 — 하드코딩 예외(`package.merge.json`)에 걸리지 않는 이름이어야 한다.
+  fs.writeFileSync(path.join(preset, 'merge-me.json'), `${JSON.stringify({
+    scripts: { 'from-template': 'vite build' },
+    dependencies: { 'from-template-dep': '^2.0.0' },
+  }, null, 2)}\n`)
+  const manifest = JSON.parse(fs.readFileSync(path.join(preset, 'manifest.json'), 'utf8'))
+  manifest.source.packageMerge = 'merge-me.json'
+  manifest.source.exclude = [...(manifest.source.exclude ?? []), 'package.json']
+  fs.writeFileSync(path.join(preset, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+
+  run(harnessBin(target), ['template:apply', '--preset-path', preset], { cwd: target })
+
+  const pkg = JSON.parse(read(target, 'package.json'))
+  assert(pkg.name === 'the-real-project', `병합이 대상 package.json을 교체했습니다: name=${pkg.name}`)
+  assert(pkg.version === '9.9.9', `병합이 대상 버전을 덮어썼습니다: ${pkg.version}`)
+  assert(pkg.scripts['my-own'] === 'echo mine', '대상의 기존 script가 사라졌습니다')
+  assert(pkg.dependencies['my-own-dep'] === '^1.0.0', '대상의 기존 의존성이 사라졌습니다')
+  assert(pkg.scripts['from-template'] === 'vite build', '템플릿 script가 추가되지 않았습니다')
+  assert(pkg.dependencies['from-template-dep'] === '^2.0.0', '템플릿 의존성이 추가되지 않았습니다')
+  assert(!exists(target, 'merge-me.json'), '병합 파일 자체가 대상에 복사됐습니다')
+
+  // reset이 적용 전 package.json을 되돌릴 수 있어야 한다(스냅샷이 덮어쓴 뒤 만들어지면 못 한다).
+  run(harnessBin(target), ['template:reset'], { cwd: target })
+  const restored = JSON.parse(read(target, 'package.json'))
+  assert(restored.name === 'the-real-project' && restored.scripts['my-own'] === 'echo mine',
+    'reset 이후에도 프로젝트 소유 package.json이 살아 있어야 합니다')
+  assert(restored.scripts['from-template'] === undefined, 'reset이 템플릿 항목을 걷어내야 합니다')
+}
+
 // 제품 템플릿 작성 가이드(2026-09-07 신설). 스택 가이드와 같은 취급이다 — 만드는 사람용이라
 // 설치본에는 배포하지 않고, 닿는 길은 배포되는 문서와 스킬이 갖는다. 템플릿만의 계약
 // (contractChecks의 필수 조건, 두 적용 방식)이 빠지면 작성자가 invalid 항목을 만든다.
@@ -5504,6 +5577,12 @@ function templateAuthoringGuideStaysReachableAndCarriesItsContract() {
   const authoring = registry.skills.find((skill) => skill.id === 'harness.stack-authoring')
   assert(authoring.triggers.some((t) => t.includes('템플릿 만들')), 'a plain "템플릿 만들" request must route here')
   assert(authoring.commands.some((c) => c.includes('templates:list')), 'the skill must offer the template catalog command')
+  // 신규 가이드는 seed-only라 소비자 설치본에 없다. 트리거만 넓히고 가져오는 명령이 없으면
+  // 에이전트가 템플릿 요청을 받아도 그 문서를 읽을 수 없다(외부 리뷰 2026-09-07 2차 P2).
+  assert(authoring.commands.some((c) => c.includes('templates/authoring-guide.md')),
+    'the skill must carry a command that actually fetches the template guide, not just the stack one')
+  assert(authoring.outputs.some((o) => o.includes('contractChecks')),
+    'and its outputs must name the template-only artifact so the agent knows what to produce')
 }
 
 // 외부 리뷰 2026-09-07 P2: 템플릿의 requiredStackHarness.minVersion 검사가 **판정 불능을
@@ -5576,7 +5655,24 @@ function bodyDoesNotTrackForeignStacksOrTemplates() {
   // 본체 문서에 남아 있는지를 본다(포인터 문장에서 그 주제를 언급하는 것은 정상이다).
   assert(!/v0\.2\.2[56]/.test(checklist),
     'the specific versions a stack must skip belong to that stack repo, not the body checklist')
-  assert(checklist.includes('본체가 할 일은 없습니다'), 'the checklist must say the body does not release satellites')
+  assert(checklist.includes('본체 릴리스마다 위성을 따라 올리지는 않습니다'),
+    'the checklist must say the body does not bump satellites on its own release')
+  assert(checklist.includes('위성 소유자가 검증한 새 태그의 카탈로그 반영을 요청하면'),
+    'and it must say who asks for a catalog ref update — the two sentences are a contract pair (외부 리뷰 2026-09-07 2차 P2)')
+
+  // 카탈로그가 태그를 고정하는 동안 **현행 문서가 반대로 말하지 못하게** 한다. 코드는 되돌렸는데
+  // 문서는 "고정하지 않는다"로 남아 정반대를 말하던 것이 그 리뷰의 지적이다. 이력 문서는 제외한다.
+  const pinsInCatalog = JSON.parse(read(target, '.harness/stacks/registry.json')).stacks
+    .every((entry) => /^v\d+\.\d+\.\d+$/.test(entry.ref ?? ''))
+  if (pinsInCatalog) {
+    for (const rel of ['.harness/project/body-release-checklist.md', '.harness/templates/authoring-guide.md', '.harness/stacks/authoring-guide.md']) {
+      const abs = path.join(repoRoot, rel)
+      if (!fs.existsSync(abs)) continue
+      const text = fs.readFileSync(abs, 'utf8')
+      assert(!/카탈로그[^\n]{0,40}버전을 고정하지 않/.test(text),
+        `catalog pins a tag but ${rel} still says it does not — pick one`)
+    }
+  }
 
   // 은퇴 판정은 **현행 트리 전역**으로 확인한다(외부 리뷰 2026-09-07 P2: 배포 문서 한 곳만
   // 보고 "제거했다"고 적었는데 guard·scan 런타임 분기와 README 권고가 살아 있었다).
@@ -7355,6 +7451,8 @@ const tests = [
   stackAndTemplateRegistriesLiveUnderTheirOwnGroups,
   bodyDoesNotTrackForeignStacksOrTemplates,
   templateMinStackVersionBlocksLowAndUnjudgeable,
+  templatePackageMergeAddsWithoutReplacingTheProjectFile,
+  checkFlagsAnUnlinkedProjectEntrypointUntilItIsLinked,
   templateAuthoringGuideStaysReachableAndCarriesItsContract,
   installedQueueSnoozesCharterQuestionsAndProfileStaysThin,
   specNoticeScopesUnrelatedServicesToOneFoldedLine,

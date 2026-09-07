@@ -763,7 +763,12 @@ function adapterLocal(manifest, context) {
     throw new Error(`local source 경로가 존재하지 않습니다: ${scaffoldRel}`)
   }
 
-  const files = listScaffoldFiles(scaffoldRoot, manifest)
+  // 병합 파일은 복사 대상에서 뺀다(외부 리뷰 2026-09-07 2차 P1). 빼지 않으면 먼저 대상
+  // package.json을 **덮어쓴 뒤** 그 덮어쓴 파일을 원본으로 삼아 병합해, 병합이 아니라 교체가
+  // 된다. adapterTiged는 이미 같은 필터를 갖고 있었는데 adapterLocal에만 없었고,
+  // 하드코딩된 `package.merge.json` 이름만 예외였다 — 임의 이름은 그 구멍에 빠졌다.
+  const packageMergeRelForCopy = manifest.source?.packageMerge ? toPosix(manifest.source.packageMerge) : null
+  const files = listScaffoldFiles(scaffoldRoot, manifest).filter((rel) => toPosix(rel) !== packageMergeRelForCopy)
   const copied = []
 
   for (const rel of files) {

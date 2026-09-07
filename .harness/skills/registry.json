@@ -540,10 +540,12 @@
       "commands": [
         ".harness/bin/harness standards:list",
         ".harness/bin/harness templates:list",
-        "git clone --depth 1 --branch \"v$(node -p 'JSON.parse(require(\"fs\").readFileSync(\".harness/harness-lock.json\",\"utf8\")).baseHarness.version')\" https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git /tmp/harness-seed-guide && cat /tmp/harness-seed-guide/.harness/stacks/authoring-guide.md"
+        "git clone --depth 1 --branch \"v$(node -p 'JSON.parse(require(\"fs\").readFileSync(\".harness/harness-lock.json\",\"utf8\")).baseHarness.version')\" https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git /tmp/harness-seed-guide && cat /tmp/harness-seed-guide/.harness/stacks/authoring-guide.md",
+        "cat /tmp/harness-seed-guide/.harness/templates/authoring-guide.md    # 위 clone 이후 — 제품 템플릿을 만들 때"
       ],
       "outputs": [
         "본체 저장소에서 가져온 작성 가이드 요약(만들 자산이 스택인지 템플릿인지 먼저 가른 뒤 그 가이드)",
+        "제품 템플릿을 만들 때: 계약 항목(contractChecks) 선언 — 근거 문서 등록·기대값 4종 중 최소 하나·severity 기본값이 required인 것, 그리고 두 적용 방식(scaffold / --contract-only)",
         "이 스택에 담을 것과 프로젝트 로컬룰로 남길 것의 경계",
         "저장소 하나에 스택 하나 제약에 대한 판단(여러 층이 있는 저장소면 공통 층만 스택으로)",
         "카탈로그 등록 요청(본체 .harness/stacks/registry.json 편입은 본체 몫)"

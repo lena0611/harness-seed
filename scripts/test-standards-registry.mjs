@@ -13,6 +13,40 @@ const listStacks = path.join(repoRoot, '.harness/bin/list-stack-standards.mjs')
 const stacksRegistry = JSON.parse(readFileSync(path.join(repoRoot, '.harness/stacks/registry.json'), 'utf8'))
 const vueStackRef = stacksRegistry.stacks.find((stack) => stack.id === 'vue3-vite-pinia-router').ref
 
+// 목록 명령은 개발자가 **복사해 붙이는** 것이므로 셸에서 그대로 실행돼야 한다.
+// 두 단계로 본다(외부 리뷰 2026-09-07 2차 P1): 정적 검사는 모든 환경에서 돌고,
+// 실제 파싱 검사는 zsh가 있는 환경에서만 돈다. 처음 판은 zsh를 무조건 실행해
+// zsh가 없는 ubuntu-latest CI를 깨뜨렸다 — 하네스는 Linux·Windows도 다룬다.
+function assertShellSafeCommands(output, prefixes) {
+  const commands = []
+  for (const line of output.split('\n')) {
+    const trimmed = line.trim()
+    const prefix = prefixes.find((item) => trimmed.startsWith(item))
+    if (!prefix) continue
+    commands.push(trimmed.slice(trimmed.indexOf(': ') + 2))
+  }
+
+  assert.ok(commands.length > 0, '목록에서 검사할 명령을 찾지 못했습니다')
+
+  // ① 정적: 따옴표 밖 glob 문자는 셸마다 다르게 해석된다(zsh는 매칭 실패 시 죽는다).
+  for (const command of commands) {
+    const glob = command.match(/[*?[\]]/)
+    assert.equal(glob, null, `목록의 명령에 셸 glob 문자가 있습니다: ${command}`)
+  }
+
+  // ② 실제 파싱: zsh가 있는 환경에서만.
+  const hasZsh = spawnSync('zsh', ['-fc', 'exit 0'], { encoding: 'utf8' }).status === 0
+  if (!hasZsh) {
+    console.log('  (zsh 없음 — 정적 검사만 수행)')
+    return
+  }
+
+  for (const command of commands) {
+    const probe = spawnSync('zsh', ['-fc', `print -r -- ${command.replace(/^npx -y /, '')}`], { encoding: 'utf8' })
+    assert.equal(probe.status, 0, `목록의 명령이 zsh에서 실행되지 않습니다: ${command}\n${probe.stderr}`)
+  }
+}
+
 function escapeRegExp(value) {
   return value.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
 }
@@ -36,15 +70,7 @@ assert.match(consumerOutput, new RegExp(`#${escapeRegExp(vueStackRef)} init`))
 for (const stack of stacksRegistry.stacks) {
   assert.match(stack.ref ?? '', /^v\d+\.\d+\.\d+$/, `카탈로그 ref는 검증된 구체 태그여야 합니다: ${stack.id}`)
 }
-// 목록에서 복사한 설치 명령이 **macOS 기본 zsh에서 실제로 실행되는지** 확인한다.
-// glob 문자(`*`)가 들어가면 zsh가 파일 패턴으로 먼저 해석해 no matches found로 죽는다.
-for (const line of consumerOutput.split('\n')) {
-  const trimmed = line.trim()
-  if (!trimmed.startsWith('설치: ') && !trimmed.startsWith('적용(고급): ')) continue
-  const command = trimmed.slice(trimmed.indexOf(': ') + 2)
-  const probe = spawnSync('zsh', ['-fc', `print -r -- ${command.replace(/^npx -y /, '')}`], { encoding: 'utf8' })
-  assert.equal(probe.status, 0, `목록의 명령이 zsh에서 실행되지 않습니다: ${command}\n${probe.stderr}`)
-}
+assertShellSafeCommands(consumerOutput, ['설치: ', '적용(고급): '])
 assert.doesNotMatch(consumerOutput, /GITLAB_TOKEN/)
 assert.doesNotMatch(consumerOutput, /GitLab API/)
 

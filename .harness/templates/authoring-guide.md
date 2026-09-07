@@ -31,7 +31,7 @@
 | 방식 | 무엇이 일어나나 | 언제 쓰나 |
 | --- | --- | --- |
 | scaffold(기본) | 파일을 복사하고 계약을 연결한다 | 빈 프로젝트, 새로 시작 |
-| `--contract-only` | **파일을 하나도 복사하지 않고** 계약과 가이드만 연결한다 | 이미 업무 코드가 있는 프로젝트 |
+| `--contract-only` | **업무 코드와 프로젝트 소유 파일은 건드리지 않고**, `.harness` 아래에 계약·가이드 스냅샷·적용 기록만 만든다 | 이미 업무 코드가 있는 프로젝트 |
 
 `--contract-only`를 주면 본체가 `source.type`을 강제로 `none`으로 다룹니다. 즉 **복사 로직은 건너뛰고 계약 항목만 살아남습니다.** 그래서 계약 항목이 "복사한 파일이 있다"는 전제 위에 서 있으면 기존 프로젝트에서는 전부 갭으로 뜹니다. 항목을 쓸 때 "이 프로젝트가 이 계약을 채택했다면 무엇이 있어야 하나"로 생각하고, 채택하지 않는 경우의 해법을 `remediation`에 적습니다.
 
@@ -87,7 +87,7 @@ my-product-template/
   "source": {
     "type": "local",
     "path": ".",
-    "packageMerge": "package.json",
+    "packageMerge": "package.merge.json",
     "exclude": [".git", "developmentGuide", "manifest.json"]
   }
 }
@@ -103,7 +103,7 @@ my-product-template/
 | `requiredStackHarness.id` | 이 템플릿이 요구하는 스택. 현재 프로젝트의 스택과 다르면 **적용이 중단된다** |
 | `requiredStackHarness.minVersion` | 그 스택의 최소 버전. **0.2.143부터 실제로 비교하고, 낮으면 중단한다** |
 | `requiredStackHarness.repo` · `ref` | 중단 안내에 찍히는 설치 명령을 만든다 |
-| `baseHarness` | 이 템플릿이 전제하는 공통 하네스. **검증된 정확한 태그**로 적는다(범위 표기는 쓰지 않는다 — 이유는 스택 가이드의 `baseHarness.ref` 절) |
+| `baseHarness` | **기록용 필드다.** 설치 기록에 남고 사람이 읽지만, **본체는 이 값을 비교하지 않는다**(실측: guard·scan은 스택의 `baseHarness`만 본다). 공통 하네스 요구는 `requiredStackHarness`가 간접 보장한다 — 그 스택이 자기 `baseHarness`로 본체 버전을 강제하기 때문이다. 적을 때는 검증된 정확한 태그로 |
 | `contractChecks` | 이 템플릿의 계약을 구조화한 검사 목록. 아래 절 |
 | `source.type` | `local`(저장소 안 경로 복사) · `tiged`(원격에서 받아 복사) · `none`(복사 없음). `--contract-only`를 주면 강제로 `none` |
 | `source.path` · `exclude` | 복사 범위와 제외 목록 |
@@ -112,6 +112,8 @@ my-product-template/
 **`minVersion`이 실제로 판정되려면 그 스택이 버전을 기록해야 합니다.** 스택 버전은 그 스택 프리셋의 `package.json`에서 읽힙니다. 스택 하네스의 `init`으로 설치하면 자동으로 기록되지만, 관리자가 `stack:apply --preset-path`로 `package.json` 없는 폴더를 붙였다면 기록이 없습니다. 그때 `minVersion`은 통과가 아니라 **판정 불능으로 차단**되고, 안내가 스택을 다시 적용하라고 알려줍니다(2026-09-07 실측).
 
 `packageMerge`는 Node 제품 템플릿에서만 선언합니다. 대상 저장소에 `package.json`이 없는 제품이라면 선언하지 마세요 — 없던 파일이 생깁니다.
+
+**병합 파일은 `package.json`이 아니라 별도 파일(`package.merge.json`)로 두세요.** 템플릿 저장소의 `package.json`은 그 저장소 자신의 것이고, 대상에 얹을 항목은 다릅니다(대상의 `name`·기존 script·기존 의존성을 지우면 안 됩니다). 병합 파일은 복사 대상에서 제외되고 `dependencies`·`devDependencies`·`scripts` 같은 섹션 단위로 **대상에 없는 키만 추가**됩니다. 템플릿 저장소의 `package.json` 자체를 대상에 복사하고 싶지 않다면 `exclude`에도 넣으세요.
 
 ## `contractChecks` — 이 템플릿만의 핵심
 
@@ -179,7 +181,7 @@ my-product-template/
 릴리스 전에 최소한 아래를 확인합니다.
 
 - 빈 폴더에서 스택 하네스 설치 → `template:apply`가 성공하는가
-- 업무 코드가 있는 폴더에서 `template:apply --contract-only`가 **파일을 하나도 바꾸지 않는가**
+- 업무 코드가 있는 폴더에서 `template:apply --contract-only`가 **업무 코드와 프로젝트 소유 파일을 하나도 바꾸지 않는가**(`.harness` 아래 계약·스냅샷·기록은 생깁니다 — 그건 정상입니다)
 - 요구 스택이 다른 프로젝트에서 적용이 중단되는가
 - 요구 스택 최소 버전보다 낮은 프로젝트에서 중단되는가(0.2.143+)
 - `harness template:gap` 리포트에 `invalid`가 0인가
@@ -194,7 +196,7 @@ my-product-template/
 
 **이 저장소가 자기 릴리스를 소유합니다.** 공통 하네스나 스택 하네스가 새 버전을 냈다는 것만으로는 낼 이유가 되지 않습니다(결정 108).
 
-`baseHarness.ref`와 `requiredStackHarness.ref`는 **검증된 정확한 태그**로 적습니다. 범위 표기(`semver:<range>`)는 쓰지 않습니다 — 릴리스 시점 검증이 그 이후에 나올 본체·스택을 보장하지 못합니다(2026-09-07 외부 리뷰). 그래서 그 둘을 올리는 판단은 **그 버전을 대상으로 실제로 검증했을 때만** 합니다. 검증하지 않은 버전을 가리키면 신규 설치가 검증 안 된 조합을 받습니다.
+`requiredStackHarness.ref`는 **검증된 정확한 태그**로 적습니다(`baseHarness`는 기록용이지만 같은 규칙을 씁니다). 범위 표기(`semver:<range>`)는 쓰지 않습니다 — 릴리스 시점 검증이 그 이후에 나올 본체·스택을 보장하지 못합니다(2026-09-07 외부 리뷰). 그래서 그 둘을 올리는 판단은 **그 버전을 대상으로 실제로 검증했을 때만** 합니다. 검증하지 않은 버전을 가리키면 신규 설치가 검증 안 된 조합을 받습니다.
 
 | 변경 | 버전 |
 | --- | --- |
@@ -208,6 +210,6 @@ my-product-template/
 2. **`manifest.json`의 자기 ref를 만들 태그 번호로 먼저 맞춥니다** — `template.ref`와 `template.range`. 빼먹으면 배포된 태그가 한 세대 뒤 self-ref를 담습니다.
 3. 위 체크리스트를 확인합니다.
 4. 커밋 → 태그(`vX.Y.Z`) → 브랜치와 태그를 push 합니다.
-5. 본체 카탈로그(`.harness/templates/registry.json`)는 **버전을 고정하지 않습니다.** 새로 만든 템플릿을 목록에 처음 올릴 때만 본체 팀에 등록을 요청합니다. 등록 전에도 주소만 알면 적용됩니다.
+5. 본체 카탈로그(`.harness/templates/registry.json`)는 **검증된 태그를 고정합니다.** 새 태그를 냈으면 본체 팀에 그 태그의 카탈로그 반영을 요청하세요 — 본체가 알아서 따라가지 않습니다. 새로 만든 템플릿을 목록에 처음 올릴 때도 같은 창구입니다. **등록 전에도 주소와 태그를 알면 적용됩니다.**
 
 결번(재사용 금지 번호)이 있는 템플릿은 그 저장소의 릴리스 문서가 소유합니다. 본체 문서는 들고 있지 않습니다.
