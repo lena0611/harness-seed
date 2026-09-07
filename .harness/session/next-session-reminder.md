@@ -18,7 +18,7 @@
   - `~/project/vue3-vite-pinia-router` `9040b13` — manifest, README, 설치기 조회 기본 그룹, 자기 회귀 두 곳의 단언. remote도 새 주소로. 자기 검사 + 설치기 회귀 8종 통과.
   - `~/project/cloud-front-admin-template` `5784724` — manifest(자기 repo + requiredStackHarness), README. remote도 새 주소로. (이 저장소에는 자체 테스트가 없다.)
 - **남은 것 = 릴리스 때 함께**: 세 저장소 push + 위성 둘의 새 태그(vue3 v0.2.46, 템플릿 v0.2.47). 태그를 서두를 이유는 없다 — 본체 레지스트리는 vue3의 **기존 태그 v0.2.45**를 새 주소로 가리키고 있고 태그는 저장소와 함께 이동했으므로 지금 상태로 이미 유효하다.
-- **다음에 그룹을 손볼 때 기억할 것 둘**: ① 프로젝트 이전은 GitLab **Owner** 전용이다(Maintainer에게는 Transfer 절이 아예 안 보인다 — Archive·Delete도 동일). Owner: 박성민(@smpark)·장용준(@jangyj11). ② 그룹의 **이름과 경로는 별개다** — 이름만 바꾸면 URL은 안 바뀐다. 코드가 쓰는 것은 `path`/`full_path`다.
+- **다음에 그룹을 손볼 때 기억할 것 둘**: ① 프로젝트 이전은 GitLab **Owner** 전용이다(Maintainer에게는 Transfer 절이 아예 안 보인다 — Archive·Delete도 동일). Owner는 사내 GitLab `ai-standard` 그룹 멤버 목록에서 확인한다(실명·계정은 공개 미러 때문에 적지 않는다). ② 그룹의 **이름과 경로는 별개다** — 이름만 바꾸면 URL은 안 바뀐다. 코드가 쓰는 것은 `path`/`full_path`다.
 
 ## ✅ 0.2.142 배포 완료 (2026-09-07) — 남은 후보는 결정 108 목록
 
