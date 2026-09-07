@@ -4958,6 +4958,39 @@ function specSettleFailsClosedWithoutTheBaselineCache() {
   assert(read(target, '.harness/spec-lock.json') === lockBefore, 'a fail-closed settle must not change the lock')
 }
 
+// 0.2.142 재리뷰 5차 비차단 참고를 채운다: 캐시 **git 저장소는 있는데 체크아웃 본문만 없는** 상태.
+// 기준 화면 색인이 작업 트리를 읽던 시절엔 이 상태에서 기준 단위를 못 찾아 화면이 기준에 남았다.
+// 이제 git 객체를 읽으므로 폐기 정산이 그대로 성공해야 한다 — 위의 "저장소 전체 부재 → 거부"와
+// 짝을 이루는 회귀이고, 이쪽은 고친 코드 경로를 실제로 밟는다(옛 코드에서는 실패).
+function specSettleReadsBaselineScreensFromGitObjectsWithoutCheckout() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const docBody = '# 공통\n\n화면: [화면](./a.html)\n'
+  const planning = makePlanningRepoWithFiles({ 'features/a.md': docBody, 'features/a.html': '<html></html>\n' })
+  writeJson(target, '.harness/spec-sources.json', {
+    version: 1,
+    sources: [{ id: 'planning', repo: planning, ref: 'master', include: ['**/*.md'], exclude: [] }],
+  })
+  specSyncCli(target, ['fetch'])
+  fs.rmSync(path.join(planning, 'features/a.md'))
+  fs.rmSync(path.join(planning, 'features/a.html'))
+  gitCommitAll(planning, '기획 폐기')
+  specSyncCli(target, ['fetch', '--cache-only'])
+
+  // 체크아웃 본문만 지우고 .git은 남긴다 — cache-only 경로에서 실제로 생기는 모양이다.
+  const cacheDir = path.join(target, '.harness/generated/spec-cache/planning')
+  for (const entry of fs.readdirSync(cacheDir)) {
+    if (entry !== '.git') fs.rmSync(path.join(cacheDir, entry), { recursive: true, force: true })
+  }
+  assert(!exists(target, '.harness/generated/spec-cache/planning/features/a.md'), 'the checkout body must be gone (precondition)')
+
+  specSyncCli(target, ['settle', '--doc', 'features/a.md'])
+  const after = JSON.parse(read(target, '.harness/spec-lock.json'))
+  assert(!after.sources.planning.files['features/a.md'], 'the deprecated document must leave the baseline')
+  assert(!after.sources.planning.files['features/a.html'],
+    'the screen must leave with it — the baseline relation must come from git objects, not the missing checkout')
+}
+
 // 0.2.142 재리뷰 4차 P2: 기획자가 문서와 화면을 **같은 커밋에서 함께 삭제**하는 것은 정상적인
 // 폐기 절차다(한쪽만 지우면 링크 정합이 막지만, 둘 다 지우면 통과한다). 그런데 정산의 화면 단위
 // 색인은 "읽은 시점"에서만 만들어지고 그 시점에는 두 파일이 이미 없어 단위를 찾지 못했다 —
@@ -7070,6 +7103,7 @@ const tests = [
   specDeletedScreenUnitSettlesTogetherFromBaselineIndex,
   specReplacedScreenSettlesOldAndNewTogether,
   specSettleFailsClosedWithoutTheBaselineCache,
+  specSettleReadsBaselineScreensFromGitObjectsWithoutCheckout,
   specMappingCoverageIsEnforcedForNewFilesInMappedAreas,
   specMappingCoverageRespectsExemptionsAndScope,
   specMapRowsSurviveNotesThatMentionTheHeaderWords,
