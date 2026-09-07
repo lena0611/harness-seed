@@ -5636,6 +5636,14 @@ function bodyDoesNotTrackForeignStacksOrTemplates() {
   assert(!net.includes("resolve(repoRoot, '..'"), 'the body version net must not reach outside its own repo')
   assert(net.includes('CHANGELOG'), 'it must still check the body version against its own CHANGELOG')
 
+  // 새로 만든 테스트를 아무도 돌리지 않는 상태가 되지 않게 한다(2026-09-07 실측: 카탈로그
+  // 계약 테스트 둘이 npm 스크립트로만 있어 검사기도 CI도 돌리지 않았고, 외부 리뷰를 고친
+  // 회귀도 그 안에 있어 실행되지 않았다). 본체 관문이 그 둘을 부르는지 확인한다.
+  const guardSource = fs.readFileSync(path.join(repoRoot, '.harness/bin/guard.mjs'), 'utf8')
+  for (const script of ['scripts/test-init.mjs', 'scripts/test-standards-registry.mjs', 'scripts/test-template-registry.mjs']) {
+    assert(guardSource.includes(script), `the body gate must actually run ${script} — an npm script nobody calls is not a check`)
+  }
+
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
   // 카탈로그의 `ref`는 **검증된 구체 태그**다. 잠시 제거했다가 되돌렸다(외부 리뷰 2026-09-07):

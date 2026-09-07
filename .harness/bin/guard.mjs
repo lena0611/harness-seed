@@ -822,6 +822,16 @@ const seedMode = fs.existsSync(path.join(repoRoot, '.harness-seed-mode')) && fs.
 const seedRegressionSkipped = seedMode && process.env.HARNESS_GUARD_STAGE === 'commit'
 if (seedMode && !seedRegressionSkipped) {
   run('node', ['scripts/test-init.mjs'])
+  // 배포 카탈로그 계약 검사(2026-09-07). 이 둘은 npm 스크립트로만 있었고 **아무도 자동으로
+  // 돌리지 않았다** — 검사기도, CI도. 그래서 카탈로그가 소비자에게 주는 설치·적용 명령이
+  // 셸에서 실제로 도는지, ref가 구체 태그인지가 사람이 기억할 때만 확인됐다. 외부 리뷰의
+  // zsh 지적을 고친 회귀도 그 파일 안에 있어 실행되지 않는 상태였다. 둘 합쳐 0.4초다.
+  // 있을 때만 돌린다 — 시드 모드 픽스처는 test-init.mjs만 갖고 있을 수 있다.
+  for (const script of ['scripts/test-standards-registry.mjs', 'scripts/test-template-registry.mjs']) {
+    if (fs.existsSync(path.join(repoRoot, script))) {
+      run('node', [script])
+    }
+  }
 } else if (seedRegressionSkipped) {
   console.log('본체 회귀 스위트는 커밋 단계에서 건너뜁니다 — push 단계(pre-push)가 전량 실행합니다.')
 }
