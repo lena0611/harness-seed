@@ -4889,6 +4889,68 @@ function specSettleRefusesPathCollisionsAcrossSources() {
   assert(refuse.includes('어느 문서인지 알 수 없습니다'), 'settle should explain the ambiguity instead of settling both sources')
 }
 
+// 0.2.142 재리뷰 3차 P2 2건.
+// ① v1→v2 승격도 lock 쓰기다. 거부 검사보다 앞에 있어서 "문서가 없어 실패"라고 반환하면서
+//    spec-lock.json은 이미 바뀌어 있었다(거부 경로에서는 lock 불변 계약 위반).
+// ② 같은 {소스, 경로}의 누락을 두 번 만나면 첫 항목만 남겨, 이름 없는 요청이 먼저 오면
+//    뒤따르는 소스 지정 요청의 엄격함이 사라졌다 — 인자 순서가 판정을 바꿨다.
+function specSettleRefusalLeavesLockUntouchedRegardlessOfV1OrArgOrder() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const alpha = makePlanningRepoWithFiles({
+    'features/공통.md': '# 공통 A\n\nA의 사양.\n',
+    'features/알파만.md': '# 알파만\n\nalpha에만 있는 문서.\n',
+  })
+  const beta = makePlanningRepoWithFiles({ 'features/공통.md': '# 공통 B\n\nB의 사양.\n' })
+  writeJson(target, '.harness/spec-sources.json', {
+    version: 1,
+    sources: [
+      { id: 'alpha', repo: alpha, ref: 'master', include: ['**/*.md'], exclude: [] },
+      { id: 'beta', repo: beta, ref: 'master', include: ['**/*.md'], exclude: [] },
+    ],
+  })
+  specSyncCli(target, ['fetch'])
+  fs.appendFileSync(path.join(alpha, 'features/알파만.md'), '\n- A 개정.\n')
+  gitCommitAll(alpha, 'A 개정')
+  specSyncCli(target, ['fetch', '--cache-only'])
+
+  // ② 인자 순서가 판정을 바꾸면 안 된다 — 양쪽 순서 모두 거부되고 lock은 불변이어야 한다.
+  for (const args of [
+    ['settle', '--doc', 'features/알파만.md', '--doc', 'beta:features/알파만.md'],
+    ['settle', '--doc', 'beta:features/알파만.md', '--doc', 'features/알파만.md'],
+  ]) {
+    const lockBefore = read(target, '.harness/spec-lock.json')
+    const refused = expectFailure(() => specSyncCli(target, args), `a qualified missing request must refuse regardless of argument order: ${args.join(' ')}`)
+    assert(refused.includes('[beta] features/알파만.md'), 'the refusal must name the missing request with its source')
+    assert(read(target, '.harness/spec-lock.json') === lockBefore, `a refused settle must not change the lock (${args.join(' ')})`)
+  }
+
+  // ① v1 lock에서도 거부는 파일을 건드리지 않는다(승격 자체가 쓰기다).
+  const v2 = JSON.parse(read(target, '.harness/spec-lock.json'))
+  const v1 = { version: 1, sources: {} }
+  for (const [id, recorded] of Object.entries(v2.sources)) {
+    v1.sources[id] = {
+      repo: recorded.repo,
+      ref: recorded.ref,
+      commit: recorded.commit,
+      fetchedAt: recorded.fetchedAt,
+      files: Object.fromEntries(Object.entries(recorded.files).map(([rel, value]) => [rel, value.sha])),
+    }
+  }
+  writeJson(target, '.harness/spec-lock.json', v1)
+  const v1Bytes = read(target, '.harness/spec-lock.json')
+
+  expectFailure(
+    () => specSyncCli(target, ['settle', '--doc', 'alpha:features/없는문서.md']),
+    'a missing document must refuse the settle on a v1 lock too',
+  )
+  assert(read(target, '.harness/spec-lock.json') === v1Bytes, 'a refused settle must not promote a v1 lock to v2 — promotion is a write')
+
+  // 정상 정산이면 승격은 그대로 일어난다(거부 경로에서만 미루는 것이 계약이다).
+  specSyncCli(target, ['settle', '--doc', 'alpha:features/알파만.md'])
+  assert(JSON.parse(read(target, '.harness/spec-lock.json')).version === 2, 'a successful settle must still promote the lock format')
+}
+
 // 0.2.142 재리뷰 2차 P1: `(코드 없음)` 판정 행이 소스 검사를 통째로 우회했다. 판정은 일반
 // 매핑과 다른 목록으로 파싱되는데 충돌·기준 존재 검사는 매핑만 봤다. 그래서 이름 없는 판정
 // 하나로 같은 경로를 가진 **다른 서비스의 문서까지** "구현 대상 아님"으로 숨길 수 있었다.
@@ -6894,6 +6956,7 @@ const tests = [
   specQualifiedRefsSurviveStrictCheckAndScopedSettle,
   specExemptionRowsGetTheSameSourceChecksAsMappings,
   specSettleRefusesAllWhenOneRequestedDocIsMissing,
+  specSettleRefusalLeavesLockUntouchedRegardlessOfV1OrArgOrder,
   specMappingCoverageIsEnforcedForNewFilesInMappedAreas,
   specMappingCoverageRespectsExemptionsAndScope,
   specMapRowsSurviveNotesThatMentionTheHeaderWords,

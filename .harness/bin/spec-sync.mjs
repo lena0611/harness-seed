@@ -2551,8 +2551,10 @@ function runSettle({ docs = [] } = {}) {
           if (!notReviewed.some((item) => item.sourceId === source.id && item.rel === rel)) {
             notReviewed.push({ sourceId: source.id, rel })
           }
-        } else if (!missing.some((item) => item.sourceId === source.id && item.rel === rel)) {
-          missing.push({ sourceId: source.id, rel, qualified })
+        } else {
+          const seen = missing.find((item) => item.sourceId === source.id && item.rel === rel)
+          if (seen) seen.qualified = seen.qualified || qualified
+          else missing.push({ sourceId: source.id, rel, qualified })
         }
         continue
       }
@@ -2748,6 +2750,22 @@ function runSettle({ docs = [] } = {}) {
     ? !plannedPairs.has(`${item.sourceId}\u0000${item.rel}`) && !unchanged.some((u) => u.sourceId === item.sourceId && u.rel === item.rel)
     : !plannedRels.has(item.rel) && !unchanged.some((u) => u.rel === item.rel)))
 
+  // "한 건이라도 거부되면 lock은 단 1바이트도 바뀌지 않는다"는 이 함수의 계약이다(재리뷰 P1).
+  // 예전에는 없는 문서가 섞여 있어도 나머지를 먼저 적용하고 마지막에 exitCode만 1로 올려,
+  // 명령이 실패를 반환하면서 lock은 이미 바뀌어 있었다.
+  //
+  // 이 검사는 **v1→v2 승격보다 앞에** 있어야 한다(재리뷰 3차 P2): 승격도 lock 쓰기이므로,
+  // 뒤에 두면 "문서가 없어서 실패"라고 반환하면서 파일은 이미 바뀐 상태가 된다.
+  if (realMissing.length > 0) {
+    console.error('지정한 문서 중 기준에도 캐시에도 없는 것이 있어 정산하지 않았습니다 (lock은 그대로입니다):')
+    for (const item of realMissing) {
+      console.error(`  - ${settleRefName(item)}`)
+    }
+    console.error('경로를 확인하거나 .harness/bin/harness spec:fetch --cache-only 로 최신을 먼저 받으세요.')
+    process.exitCode = 1
+    return
+  }
+
   // ── 여기부터 적용 단계. 위 검증을 전부 통과했을 때만 도달한다. ──
   applyPendingPromotion()
 
@@ -2756,23 +2774,6 @@ function runSettle({ docs = [] } = {}) {
     for (const { rel } of unchanged.slice(0, 10)) {
       console.log(`  - [일치] ${rel}`)
     }
-    for (const item of realMissing) {
-      console.log(`  - [없음] ${settleRefName(item)} — 기준에도 캐시에도 없는 문서입니다. 경로를 확인하세요.`)
-    }
-    if (realMissing.length > 0) process.exitCode = 1
-    return
-  }
-
-  // "한 건이라도 거부되면 lock은 단 1바이트도 바뀌지 않는다"는 이 함수의 계약이다(재리뷰 P1).
-  // 예전에는 없는 문서가 섞여 있어도 나머지를 먼저 적용하고 마지막에 exitCode만 1로 올려,
-  // 명령이 실패를 반환하면서 lock은 이미 바뀌어 있었다.
-  if (realMissing.length > 0) {
-    console.error('지정한 문서 중 기준에도 캐시에도 없는 것이 있어 정산하지 않았습니다 (lock은 그대로입니다):')
-    for (const item of realMissing) {
-      console.error(`  - ${settleRefName(item)}`)
-    }
-    console.error('경로를 확인하거나 .harness/bin/harness spec:fetch --cache-only 로 최신을 먼저 받으세요.')
-    process.exitCode = 1
     return
   }
 
