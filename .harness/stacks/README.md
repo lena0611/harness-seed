@@ -197,7 +197,7 @@ my-stack-preset/
 }
 ```
 
-`stackHarness`는 사용자-facing 스택 하네스 자체의 저장소와 ref입니다. `range`는 `harness:update`가 같은 major 안에서 최신 버전을 다시 받을 때 우선 사용하는 SemVer 범위입니다. `baseHarness`는 그 스택 하네스가 내부적으로 설치해야 하는 공통 하네스입니다. 프로젝트 적용 결과에는 두 값이 모두 `.harness/harness-lock.json`에 기록됩니다.
+`stackHarness`는 사용자-facing 스택 하네스 자체의 저장소와 ref입니다. `range`는 `harness:update`가 같은 major 안에서 최신 버전을 다시 받을 때 우선 사용하는 SemVer 범위입니다. `baseHarness`는 그 스택 하네스가 내부적으로 설치해야 하는 공통 하네스입니다. `ref`에는 태그(`v0.2.142`) 대신 범위(`semver:^0.2.142`)를 적을 수 있고, 그러면 새 설치가 그 범위의 최신 태그를 받으므로 본체 릴리스마다 이 값을 올리지 않아도 됩니다 — 대신 같은 마이너 안에서 계약이 바뀌면 검증되지 않은 조합이 깔릴 수 있습니다. 어느 쪽이든 `minVersion`(설치를 멈추는 바닥)은 필요합니다. 프로젝트 적용 결과에는 두 값이 모두 `.harness/harness-lock.json`에 기록됩니다.
 
 ## 적용 방법
 일반 프로젝트 개발자는 스택 하네스의 `init`을 실행합니다.

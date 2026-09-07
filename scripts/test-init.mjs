@@ -5443,6 +5443,13 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
   assert(guide.includes('HARNESS_SEED_PATH'), 'the guide must say how to point the sample regression at a local body checkout')
   assert(guide.includes('stackManifest.stackHarness.repo'), 'the guide must warn that the sample asserts its own repo URL as a literal')
 
+  // 스택 운영자가 본체 릴리스마다 base ref를 손으로 올려야 하는지가 운영 부담을 정한다.
+  // 본체는 `semver:` 범위 source ref를 이미 받아 설치 기록에 구체 버전으로 정규화한다
+  // (sourceMetadataNormalizesSemverSourceRef). 그 선택지가 가이드에 없으면 작성자는
+  // 태그를 박는 예시만 보고 매 릴리스 수동 갱신을 떠안는다.
+  assert(guide.includes('semver:^'), 'the guide must offer the range form for baseHarness.ref, not only a pinned tag')
+  assert(guide.includes('minVersion'), 'the guide must keep the floor separate from the pin')
+
   // 견본이 어디 있는지 이름으로 짚어야 한다(2026-09-07 사용자 실측: stacks 그룹을 열어도 "견본"이라
   // 이름 붙은 저장소가 없어 막막했다). 견본은 따로 만들지 않고 카탈로그의 기존 스택이 견본이므로,
   // 가이드가 가리키는 대상이 실제로 배포 카탈로그에 있는 항목인지 잠근다.
