@@ -5707,6 +5707,30 @@ function bodyDoesNotTrackForeignStacksOrTemplates() {
     assert(!read(target, rel).includes('vue3-vite-pinia-router.git'),
       `install guidance must not hardcode one stack's address (${rel}) — standards:list is the source`)
   }
+
+  // `baseHarness.ref`는 **검증한 정확한 태그**만 쓴다(범위 표기는 되돌렸다 — 릴리스 시점 검증이
+  // 그 뒤에 나올 본체를 보장하지 못한다). 정본(작성 가이드 둘)만 고치고 운영 문서를 놔두면
+  // 다음 작성자가 README·체크리스트·결정 로그를 읽고 폐기된 쪽을 고른다(외부 리뷰 2026-09-07 3차 P2).
+  // 검사 대상은 **현행 운영 문서**로 한정하고, 이력(CHANGELOG·아카이브·리마인더)은 사실 기록이라 뺀다.
+  // `stackHarness.range`와 `harness:update --strategy compatible`의 범위는 **다른 개념**이라
+  // 여기서 걸리지 않는다 — 판별자에 `baseHarness`/`requiredStackHarness`를 함께 요구한다.
+  const rangeTokens = [/semver:\s*[\^~<>=]/, /semver:<range>/, /범위 표기/, /semver 범위/]
+  const policyReversed = [/쓰지 않습니다/, /쓰지 마세요/, /⛔/, /되돌/, /폐기/]
+  for (const rel of [
+    '.harness/project/body-release-checklist.md', '.harness/project/portability-guide.md',
+    '.harness/project/stack-preset-rules.md', '.harness/stacks/README.md',
+    '.harness/stacks/authoring-guide.md', '.harness/templates/authoring-guide.md',
+    '.harness/session/decision-log.md',
+  ]) {
+    const abs = path.join(repoRoot, rel)
+    if (!fs.existsSync(abs)) continue
+    for (const line of fs.readFileSync(abs, 'utf8').split('\n')) {
+      const aboutBaseRef = line.includes('baseHarness') || line.includes('requiredStackHarness')
+      if (!aboutBaseRef || !rangeTokens.some((token) => token.test(line))) continue
+      assert(policyReversed.some((mark) => mark.test(line)),
+        `${rel} still offers a semver range for baseHarness.ref without marking it retired: ${line.trim().slice(0, 120)}`)
+    }
+  }
 }
 
 // 2026-09-07: 사내 GitLab 그룹을 역할대로 정리했다 — 스택 하네스는 `ai-standard/stacks`, 제품
