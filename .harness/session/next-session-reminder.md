@@ -11,16 +11,16 @@
 - **카탈로그 등록은 본체 몫**: 완성되면 `.harness/stacks/registry.json`에 id·repo·ref 추가 + 릴리스. 그때 그 팀에 먼저 물을 것: "스택에 담을 게 두 층 공통 규칙인가, 멀티사이트 규칙인가."
 
 ## GitLab 그룹 재배치 — 사용자 결정 완료 · **Owner 권한에서 막힘** (2026-09-07)
-- **결정(사용자)**: 스택 하네스는 `ai-standard/stacks`로, 제품 템플릿은 `ai-standard/scaffold` 서브그룹으로 옮긴다. 옮길 것 둘 — `harnesses/vue3-vite-pinia-router` → `stacks`, `stacks/cloud-front-admin-template` → `scaffold`.
+- **결정(사용자)**: 스택 하네스는 `ai-standard/stacks`로, 제품 템플릿은 `ai-standard/scaffolds` 서브그룹으로 옮긴다. 옮길 것 둘 — `harnesses/vue3-vite-pinia-router` → `stacks`, `stacks/cloud-front-admin-template` → `scaffolds`.
 - **막힌 지점(실측 2026-09-07, Chrome)**: 두 프로젝트의 Settings → General → Advanced에 **Transfer project 절이 없다**(Archive·Delete도 없음 — 셋 다 Owner 전용). `ai-standard` 그룹 멤버 28명 조회 결과 **사용자(@paul0528)는 Maintainer**이고 Owner는 **박성민(@smpark)·장용준(@jangyj11)** 둘이다. GitLab은 프로젝트 이전에 Owner를 요구하므로 이 계정으로는 이전 자체가 불가능하다.
 - **푸는 길 둘**: ① Owner에게 이전 두 건을 부탁한다(각 프로젝트 Settings → General → Advanced → Transfer project → 대상 네임스페이스 선택 → 프로젝트 이름 입력 확인). ② Owner가 그 두 프로젝트에 사용자를 프로젝트 Owner로 올려주면 직접 할 수 있다. 대상 그룹에 프로젝트를 만들 권한은 이미 있다(두 그룹 모두 `project_creation_level: maintainer`).
-- **⚠ 이름과 경로가 다르다**: 서브그룹의 **이름**은 `scaffolds`로 바뀌었지만 **경로(URL)는 여전히 `scaffold`**다(API 실측: `name: "scaffolds"`, `path: "scaffold"`, `full_path: "ai-standard/scaffold"`, id 840). 코드·URL·API 조회는 전부 **경로**를 쓰므로 본체에 넣을 값은 `ai-standard/scaffold`다. 이름과 URL을 맞추고 싶으면 그룹 Settings → General → Advanced → Change group URL에서 경로도 `scaffolds`로 바꿔야 하고, **그 결정이 나온 뒤에 본체를 고치는 것이 안전하다**(두 번 고치지 않도록).
+- **경로도 `scaffolds`로 통일하기로 했다(사용자 결정 2026-09-07)** — 본체에 넣을 값은 `ai-standard/scaffolds`다. 배경: 이름만 `scaffolds`로 바뀌고 경로는 `scaffold`로 남아 있었다(API 실측 id 840: `name: "scaffolds"`, `path: "scaffold"`). 코드·URL·API 조회는 전부 **경로**를 쓰므로 이름이 아니라 경로가 정본이다. 경로 변경은 그룹 Settings → General → Advanced → Change group URL(`https://git.smartscore.kr/groups/ai-standard/scaffold/-/edit`). **본체를 고치기 전에 경로가 실제로 `scaffolds`인지 API로 다시 확인할 것** — 마지막 확인 시점(2026-09-07 이 커밋)에는 아직 `scaffold`였다.
 - **순서를 지킬 것 — 이전이 먼저, URL 수정이 나중이다.** GitLab은 옮긴 뒤 **옛 경로에서 새 경로로** 넘겨주므로 lock에 옛 주소가 남은 소비자는 계속 동작한다. 반대 방향은 없다 — 아직 옮기지 않았는데 본체를 새 주소로 고치면 설치가 404로 깨진다. 그래서 이번 세션은 주소를 하나도 바꾸지 않았다.
 - **이전이 끝나면 본체에서 고칠 곳(한 커밋)**:
   - `.harness/bin/list-stack-standards.mjs` 기본 그룹 → `ai-standard/stacks`(상수 + 도움말 2곳)
-  - `.harness/bin/list-templates.mjs` 기본 그룹 → `ai-standard/scaffold`(상수 + 도움말 2곳)
+  - `.harness/bin/list-templates.mjs` 기본 그룹 → `ai-standard/scaffolds`(상수 + 도움말 2곳)
   - `.harness/stacks/registry.json` vue3 repo URL, `.harness/templates/registry.json` 템플릿 repo URL
-  - `.harness/stacks/README.md` — 예시 URL·그룹 줄·권장 그룹 구조 트리(`harnesses`/`stacks`/`scaffold` 설명까지)
+  - `.harness/stacks/README.md` — 예시 URL·그룹 줄·권장 그룹 구조 트리(`harnesses`/`stacks`/`scaffolds` 설명까지)
   - `README.md`(예시 URL 4곳 + "스택 기준은 ai-standard/harnesses 쪽에서" 문장), `.harness/bin/handoff.mjs`, `scripts/init.mjs` 도움말, `.harness/project/bootstrap.md`
   - `.harness/stacks/authoring-guide.md`의 `<스택 그룹>` 자리표시 → 실제 `ai-standard/stacks`
   - CHANGELOG 상세 + 공지 한 줄 후보(설치 명령 주소가 바뀌므로 사람이 복사하는 값이다 — 릴리스 때 판단)
