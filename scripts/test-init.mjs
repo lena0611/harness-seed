@@ -5390,6 +5390,29 @@ function specMapRowsSurviveNotesThatMentionTheHeaderWords() {
 
 }
 
+// 0.2.142: 스택 작성 가이드는 설치본에서 빼되(만드는 사람용 257줄), **만들려는 사람이 닿는 길**은
+// 설치본에 있어야 한다. 실측: PHP 백엔드가 스택 하네스를 만들려는 순간 "스택" 요청은 선택 스킬로만
+// 가고, 배포 문서의 안내는 다른 저장소의 경로만 적어 가져오는 방법이 없었다. 길은 둘로 잠근다 —
+// 배포되는 stacks/README에 lock의 본체 주소·태그로 가져오는 한 줄, 그리고 "스택 만들어줘"를 그 길로
+// 보내는 소비자 스킬.
+function stackAuthoringGuideStaysReachableAfterExclusion() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  assert(!exists(target, '.harness/stacks/authoring-guide.md'), 'the author guide itself must not ship (precondition)')
+  const readme = read(target, '.harness/stacks/README.md')
+  assert(readme.includes('authoring-guide.md'), 'the shipped stacks README must still name the guide')
+  assert(readme.includes('baseHarness.repo') && readme.includes('git clone'), 'the README must show how to fetch the guide from the body repo recorded in harness-lock')
+
+  const registry = JSON.parse(read(target, '.harness/skills/registry.json'))
+  const authoring = registry.skills.find((skill) => skill.id === 'harness.stack-authoring')
+  assert(authoring, 'a stack-authoring skill must ship so "스택 만들어줘" routes to the guide path')
+  assert(authoring.audience.includes('consumer'), 'the authoring skill must be consumer-facing — the author is a consumer team')
+  assert(authoring.triggers.some((t) => t.includes('스택 만들')), 'the skill must trigger on a plain "스택 만들" request')
+  assert(authoring.read.includes('.harness/stacks/README.md'), 'the skill must read the shipped README that carries the fetch path')
+  assert(authoring.commands.some((c) => c.includes('authoring-guide.md') && c.includes('git clone')), 'the skill must carry the fetch command itself')
+}
+
 // 0.2.142 다이어트: 런처 서브커맨드 27개 중 6개는 "파일이 있는가"만 확인하고 **한 번도 실행해
 // 보지 않았다**. 배포하는 명령이 소비자 환경에서 실제로 도는지 아무도 몰랐다는 뜻이다.
 // 스택 미적용·기획 미연동 프로젝트에서도 깨끗이 끝나야 하는 명령들이라 한 번에 훑는다.
@@ -7109,6 +7132,7 @@ const tests = [
   specMapRowsSurviveNotesThatMentionTheHeaderWords,
   skillRegistryPointsAtRealFilesAndCommands,
   launcherSubcommandsWithoutRegressionsRunClean,
+  stackAuthoringGuideStaysReachableAfterExclusion,
   installedQueueSnoozesCharterQuestionsAndProfileStaysThin,
   specNoticeScopesUnrelatedServicesToOneFoldedLine,
   commitAdvisoryIgnoresDocsAndMetaFilesInMappedAreas,

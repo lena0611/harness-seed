@@ -504,6 +504,48 @@
       ]
     },
     {
+      "id": "harness.stack-authoring",
+      "title": "새 스택 하네스 만들기",
+      "purpose": "특정 기술스택(PHP 백엔드 등)의 반복 개발 기준을 여러 프로젝트에 공유하기 위해 새 스택 하네스 저장소를 만든다. 작성 가이드는 본체 저장소에만 있으므로 먼저 가져와 읽고, 견본(유일한 기존 스택 하네스)을 복사해 시작한다.",
+      "audience": [
+        "consumer",
+        "stack-author"
+      ],
+      "taskTypes": [
+        "feature",
+        "docs",
+        "maintenance"
+      ],
+      "priority": "medium",
+      "triggers": [
+        "스택 만들",
+        "스택 하네스 만들",
+        "새 스택",
+        "스택 작성",
+        "스택 하네스 작성",
+        "stack authoring",
+        "authoring-guide"
+      ],
+      "read": [
+        ".harness/stacks/README.md",
+        ".harness/project/stack-preset-rules.md",
+        ".harness/project/standards-layers.md"
+      ],
+      "commands": [
+        ".harness/bin/harness standards:list",
+        "git clone --depth 1 --branch \"$(node -p 'JSON.parse(require(\"fs\").readFileSync(\".harness/harness-lock.json\",\"utf8\")).baseHarness.ref')\" \"$(node -p 'JSON.parse(require(\"fs\").readFileSync(\".harness/harness-lock.json\",\"utf8\")).baseHarness.repo')\" /tmp/harness-seed-guide && cat /tmp/harness-seed-guide/.harness/stacks/authoring-guide.md"
+      ],
+      "outputs": [
+        "본체 저장소에서 가져온 작성 가이드 요약(범위·manifest 계약·호환성 검사·instruction·릴리스 절차)",
+        "이 스택에 담을 것과 프로젝트 로컬룰로 남길 것의 경계",
+        "저장소 하나에 스택 하나 제약에 대한 판단(여러 층이 있는 저장소면 공통 층만 스택으로)",
+        "카탈로그 등록 요청(본체 .harness/stacks/registry.json 편입은 본체 몫)"
+      ],
+      "records": [
+        ".harness/session/decision-log.md"
+      ]
+    },
+    {
       "id": "harness.update-flow",
       "title": "하네스 업데이트 흐름",
       "purpose": "공통 하네스와 스택 하네스의 업데이트 후보를 분리해 확인하고, downgrade 없이 안전한 업데이트 명령을 선택한다.",

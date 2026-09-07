@@ -15,7 +15,13 @@
 
 공통 하네스 본체는 특정 스택 기준이나 scaffold 템플릿을 포함하지 않습니다. 실제 프로젝트 개발자는 보통 스택 하네스의 `init`을 실행하고, 필요한 경우 별도 템플릿 저장소에서 scaffold를 적용합니다.
 
-새 스택 하네스를 만들어야 한다면 작성 가이드가 따로 있습니다 — 하네스 본체 저장소의 `.harness/stacks/authoring-guide.md`입니다(스택을 **만드는 사람**용이라 설치본에는 배포하지 않습니다). API, 배치, 모바일, 라이브러리 패키지, 운영 도구처럼 서로 다른 스택도 같은 계약으로 만들 수 있습니다.
+새 스택 하네스를 만들어야 한다면 작성 가이드가 따로 있습니다 — 하네스 본체 저장소의 `.harness/stacks/authoring-guide.md`입니다. 스택을 **만드는 사람**용이라 설치본에는 배포하지 않지만, 가져오는 길은 한 줄입니다. 본체 저장소 주소와 태그는 이 프로젝트의 `.harness/harness-lock.json`(`baseHarness.repo`·`ref`)에 있습니다.
+
+```bash
+git clone --depth 1 --branch "$(node -p 'JSON.parse(require("fs").readFileSync(".harness/harness-lock.json","utf8")).baseHarness.ref')" "$(node -p 'JSON.parse(require("fs").readFileSync(".harness/harness-lock.json","utf8")).baseHarness.repo')" /tmp/harness-seed-guide && cat /tmp/harness-seed-guide/.harness/stacks/authoring-guide.md
+```
+
+에이전트에게 "PHP 스택 하네스 만들어줘"처럼 요청하면 이 절차로 가이드를 가져와 읽고 시작합니다. API, 배치, 모바일, 라이브러리 패키지, 운영 도구처럼 서로 다른 스택도 같은 계약으로 만들 수 있습니다.
 
 공통 하네스의 실행 로직은 소비자 프로젝트 루트의 `scripts/`에 드러내지 않고 `.harness/bin/` 아래에 둡니다. 스택 하네스의 사용자-facing `scripts/init.mjs`는 해당 스택 저장소의 설치 진입점으로만 두고, 적용 대상 프로젝트에는 공통 하네스 런타임을 `.harness/bin/` 형태로 정착시킵니다.
 
