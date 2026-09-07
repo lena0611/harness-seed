@@ -2,12 +2,18 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
-## PHP 스택 하네스 — 백엔드가 만들기 시작 (2026-09-04 사용자 전언)
-- **상황**: PHP 백엔드 개발자가 `.harness/project` 레벨이 아닌 **PHP용 스택 하네스**를 만들려 한다. 지난주 그 개발자의 제안서는 "PHP 스택은 지금 만들지 않기"(§9)였고 우리 답도 "계획 없음"이었다 — 입장이 바뀐 것인지 확인 필요. 만들면 카탈로그 첫 비-Node 스택.
-- **우리가 한 것**: 작성 가이드는 설치본에서 뺀 채로 두고(만드는 사람용), 닿는 길을 만들었다 — `stacks/README.md`의 가져오기 한 줄(lock의 baseHarness.repo·ref) + 소비자 스킬 `harness.stack-authoring`("스택 만들어줘" 트리거). 회귀 stackAuthoringGuideStaysReachableAfterExclusion. 그 팀은 아직 0.2.140이라 지금은 설치본에 가이드가 있다.
-- **처음 만드는 비-Node 스택이 드러낸 계약 빈틈(본체 몫, 그 팀 초안이 나오면 열기)**: ① 호환성 검사(`compatibility.expected[].package`)가 package.json 모양 — PHP 저장소는 "package.json 없음"으로 그냥 통과해 검사가 무력. composer.json을 볼 수 있는 계약 필요. ② 스택 manifest의 package.json 병합 절을 PHP 스택이 선언하면 없는 package.json을 만들어냄 — 선언하지 말 것(결정 93 정신). ③ 저장소 하나에 스택 하나 — common의 레거시 16폴더+모던 멀티사이트 두 층 → **스택은 두 층 공통 규칙(7.2∩8.4·DAO·살균 접근자)만**, 모던 전용은 폴더 룰. ④ 견본이 vue3 하나(설치기 Node 700줄) — 설치기는 복사, 지침만 PHP로.
-- **기대 맞추기**: 스택은 lint/test/build를 실행하지 않는다(0.2.131). 주는 것은 지침의 로컬룰 정착·정책 선언·호환성 확인·버전 업데이트. PHPStan/ast-grep 게이트는 프로젝트 소유(quality-gates 툴킷).
+## PHP 스택 하네스 — 백엔드가 만들기 시작 (2026-09-04 전언 · 2026-09-07 공용 가이드 재작성)
+- **상황**: PHP 백엔드 개발자가 PHP용 스택 하네스를 만들려 하는데 "어떻게 구성을 가져가야 할지 가이드가 없다"(2026-09-07 사용자 전언). 지난주 그 개발자 제안서는 "PHP 스택은 지금 만들지 않기"(§9)였다 — 입장이 바뀐 것. 만들면 카탈로그 첫 비-Node 스택.
+- **한 것(2026-09-07)**: 사용자 결정 "언어별 가이드 금지, 공용 하나"(결정 105)에 따라 `.harness/stacks/authoring-guide.md`를 언어 중립으로 다시 썼다 — 두 부분(설치기 Node / 지침 그 언어), 구성 순서 11단계(견본 복사 → 태그 → 카탈로그), 런타임별 표(Node/PHP/Java/Python/Go), manifest 키별 "누가 읽나", policies.json의 본체 필수 모양(id·title·documents·ownedAreas·checks — 예전 가이드 예시 summary/severity/evidence는 본체 검사가 요구하는 모양이 아니었다). 회귀 stackAuthoringGuideSpeaksEveryRuntime.
+- **정정**: 9/4에 적은 "계약 빈틈 ①(호환성 검사가 package.json 모양 — 본체 몫)"은 틀렸다. **본체는 `compatibility`를 읽지 않는다**(grep 실측: `.harness/bin`·`scripts/init.mjs` 어디에도 없음). 견본 설치기의 `detectPackageCompatibility`/`readTargetPackageJson`이 package.json을 읽는 것뿐 — 스택 작성자가 composer.json으로 바꾸면 끝(가이드 5단계 ①). 본체 몫으로 남는 빈틈은 없다(② 병합 절 미선언 · ③ 층 하나만 · ④ 견본 복사는 모두 가이드 절이 됐다).
+- **그 팀에 닿는 방법**: 그 팀은 0.2.140이라 `stacks/README.md`의 가져오기 한 줄이 옛 판(v0.2.140)을 가져온다. 새 가이드는 0.2.142 태그 뒤에 그 길로 닿는다 → 그때까지는 파일을 직접 전달(2026-09-07 사용자에게 파일로 전달).
+- **기대 맞추기**: 스택은 lint/test/build를 실행하지 않는다(0.2.131) — 그 언어의 검증 명령은 지침 verification에 문서로. PHPStan/ast-grep 게이트는 프로젝트 소유(quality-gates 툴킷).
 - **카탈로그 등록은 본체 몫**: 완성되면 `.harness/stacks/registry.json`에 id·repo·ref 추가 + 릴리스. 그때 그 팀에 먼저 물을 것: "스택에 담을 게 두 층 공통 규칙인가, 멀티사이트 규칙인가."
+
+## GitLab 그룹 정리 제안 — 사용자 결정 대기 (2026-09-07)
+- 실측(Chrome, 2026-09-07): `ai-standard/stacks` = `cloud-front-admin-template` 하나(제품 템플릿), `ai-standard/scaffold` = 빈 신설 그룹, `ai-standard/harnesses` = `harness-seed` + `vue3-vite-pinia-router`.
+- 사용자 제안: 템플릿은 `scaffold`로, 스택 하네스는 `stacks`로. 판정: **맞다** — 이름이 역할과 일치하게 된다(harnesses = 본체, stacks = 스택 하네스, scaffold = 제품 템플릿). GitLab은 프로젝트 이전 뒤 옛 경로를 리다이렉트하므로 lock에 옛 URL이 남은 소비자도 계속 동작한다(옛 경로를 재사용하지 않는 한).
+- 결정되면 본체가 바꿀 곳(한 커밋): `.harness/bin/list-templates.mjs`·`.harness/bin/list-stack-standards.mjs`의 기본 그룹, `.harness/stacks/registry.json`·`.harness/templates/registry.json`의 repo URL, `.harness/stacks/README.md`의 권장 그룹 구조·예시 URL, `README.md`·`.harness/bin/handoff.mjs`·`scripts/init.mjs` 도움말의 예시 URL, `.harness/project/bootstrap.md`. 스택 저장소 쪽: vue3 manifest의 `stackHarness.repo`(새 태그 필요), 템플릿 manifest에 URL이 있으면 같이. 이전 자체(GitLab 프로젝트 transfer)는 사용자 몫.
 
 ## ⏸ 0.2.142 릴리스 대기 — 월요일 오전에 사용자가 요청 (2026-09-04 금요일 확인)
 - **사용자 지시: "월요일 오전에 릴리스 요청하겠다."** 그때까지 범프·태그·push·공지 발송을 시작하지 않는다. 먼저 나서서 재촉하지도 않는다.

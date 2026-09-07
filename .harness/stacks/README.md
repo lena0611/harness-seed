@@ -204,9 +204,9 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/vue3-vite-pinia-route
 
 스택 하네스 `init`은 일반적으로 다음 순서로 동작합니다.
 
-1. `baseHarness`에 명시된 공통 하네스를 설치하거나 업데이트합니다.
-2. `compatibility` 계약으로 기존 프로젝트의 package stack과 이미 적용된 하네스 스택이 맞는지 선검사합니다.
-3. 맞지 않으면 공통 하네스 설치 전에 중단하고, 조회 가능한 스택 하네스 목록에서 호환 후보가 있으면 추천합니다.
+1. 스택 자신의 호환성 검사로 기존 프로젝트의 의존성 선언 파일(`package.json`, `composer.json`, `pom.xml` 등)과 이미 적용된 하네스 스택이 맞는지 선검사합니다. 이 검사는 스택 설치기의 몫이고, 본체는 manifest의 `compatibility`를 읽지 않습니다.
+2. 맞지 않으면 공통 하네스 설치 전에 중단하고, 조회 가능한 스택 하네스 목록에서 호환 후보가 있으면 추천합니다.
+3. `baseHarness`에 명시된 공통 하네스를 설치하거나 업데이트합니다.
 4. 자기 저장소의 `manifest.json`을 `stack:apply -- --preset-path <self>`로 적용합니다.
 5. `.harness/stacks/.applied/<stack-id>/`에 스택 기준 스냅샷을 남깁니다.
 6. `.harness/harness-lock.json`에 공통 하네스와 스택 하네스의 repo, ref, version을 기록합니다.

@@ -5413,6 +5413,22 @@ function stackAuthoringGuideStaysReachableAfterExclusion() {
   assert(authoring.commands.some((c) => c.includes('authoring-guide.md') && c.includes('git clone')), 'the skill must carry the fetch command itself')
 }
 
+// 2026-09-07 결정 105: 언어별 스택 작성 가이드는 만들지 않는다. 공용 가이드 하나가 Node가 아닌
+// 스택도 같은 순서로 안내해야 한다. 실측: PHP 백엔드가 "어떻게 구성을 가져가야 할지 가이드가 없다"고
+// 했을 때 가이드는 package.json 모양의 호환성 예시와, 본체가 요구하지 않는 policies 모양
+// (summary/severity/evidence)을 담고 있었다. 런타임별 표와 본체가 실제로 읽는 모양이 빠지면
+// 다시 Node 전용 문서가 된다.
+function stackAuthoringGuideSpeaksEveryRuntime() {
+  const guide = fs.readFileSync(path.join(repoRoot, '.harness/stacks/authoring-guide.md'), 'utf8')
+  for (const file of ['composer.json', 'pom.xml', 'build.gradle', 'pyproject.toml', 'go.mod']) {
+    assert(guide.includes(file), `the guide must name ${file} so a non-Node author finds their runtime row`)
+  }
+  assert(guide.includes('`compatibility`를 읽지 않'), 'the guide must say the body does not read compatibility — the check is the installer\'s own code')
+  assert(guide.includes('"ownedAreas"') && guide.includes('"documents"'), 'the policies example must use the shape the body validates (documents + ownedAreas)')
+  assert(!guide.includes('"severity"') && !guide.includes('"evidence"'), 'the old policies shape the body never validated must be gone')
+  assert(guide.includes('package.json 병합'), 'the guide must warn non-Node stacks off the package.json merge section')
+}
+
 // 0.2.142 다이어트: 런처 서브커맨드 27개 중 6개는 "파일이 있는가"만 확인하고 **한 번도 실행해
 // 보지 않았다**. 배포하는 명령이 소비자 환경에서 실제로 도는지 아무도 몰랐다는 뜻이다.
 // 스택 미적용·기획 미연동 프로젝트에서도 깨끗이 끝나야 하는 명령들이라 한 번에 훑는다.
@@ -7133,6 +7149,7 @@ const tests = [
   skillRegistryPointsAtRealFilesAndCommands,
   launcherSubcommandsWithoutRegressionsRunClean,
   stackAuthoringGuideStaysReachableAfterExclusion,
+  stackAuthoringGuideSpeaksEveryRuntime,
   installedQueueSnoozesCharterQuestionsAndProfileStaysThin,
   specNoticeScopesUnrelatedServicesToOneFoldedLine,
   commitAdvisoryIgnoresDocsAndMetaFilesInMappedAreas,

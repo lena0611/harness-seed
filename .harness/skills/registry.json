@@ -536,7 +536,7 @@
         "git clone --depth 1 --branch \"$(node -p 'JSON.parse(require(\"fs\").readFileSync(\".harness/harness-lock.json\",\"utf8\")).baseHarness.ref')\" \"$(node -p 'JSON.parse(require(\"fs\").readFileSync(\".harness/harness-lock.json\",\"utf8\")).baseHarness.repo')\" /tmp/harness-seed-guide && cat /tmp/harness-seed-guide/.harness/stacks/authoring-guide.md"
       ],
       "outputs": [
-        "본체 저장소에서 가져온 작성 가이드 요약(범위·manifest 계약·호환성 검사·instruction·릴리스 절차)",
+        "본체 저장소에서 가져온 작성 가이드 요약(두 부분·구성 순서·런타임별 차이·manifest 계약·instruction·정책·릴리스 절차)",
         "이 스택에 담을 것과 프로젝트 로컬룰로 남길 것의 경계",
         "저장소 하나에 스택 하나 제약에 대한 판단(여러 층이 있는 저장소면 공통 층만 스택으로)",
         "카탈로그 등록 요청(본체 .harness/stacks/registry.json 편입은 본체 몫)"
