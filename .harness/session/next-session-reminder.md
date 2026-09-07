@@ -10,10 +10,24 @@
 - **기대 맞추기**: 스택은 lint/test/build를 실행하지 않는다(0.2.131) — 그 언어의 검증 명령은 지침 verification에 문서로. PHPStan/ast-grep 게이트는 프로젝트 소유(quality-gates 툴킷).
 - **카탈로그 등록은 본체 몫**: 완성되면 `.harness/stacks/registry.json`에 id·repo·ref 추가 + 릴리스. 그때 그 팀에 먼저 물을 것: "스택에 담을 게 두 층 공통 규칙인가, 멀티사이트 규칙인가."
 
-## GitLab 그룹 정리 제안 — 사용자 결정 대기 (2026-09-07)
-- 실측(Chrome, 2026-09-07): `ai-standard/stacks` = `cloud-front-admin-template` 하나(제품 템플릿), `ai-standard/scaffold` = 빈 신설 그룹, `ai-standard/harnesses` = `harness-seed` + `vue3-vite-pinia-router`.
-- 사용자 제안: 템플릿은 `scaffold`로, 스택 하네스는 `stacks`로. 판정: **맞다** — 이름이 역할과 일치하게 된다(harnesses = 본체, stacks = 스택 하네스, scaffold = 제품 템플릿). GitLab은 프로젝트 이전 뒤 옛 경로를 리다이렉트하므로 lock에 옛 URL이 남은 소비자도 계속 동작한다(옛 경로를 재사용하지 않는 한).
-- 결정되면 본체가 바꿀 곳(한 커밋): `.harness/bin/list-templates.mjs`·`.harness/bin/list-stack-standards.mjs`의 기본 그룹, `.harness/stacks/registry.json`·`.harness/templates/registry.json`의 repo URL, `.harness/stacks/README.md`의 권장 그룹 구조·예시 URL, `README.md`·`.harness/bin/handoff.mjs`·`scripts/init.mjs` 도움말의 예시 URL, `.harness/project/bootstrap.md`. 스택 저장소 쪽: vue3 manifest의 `stackHarness.repo`(새 태그 필요), 템플릿 manifest에 URL이 있으면 같이. 이전 자체(GitLab 프로젝트 transfer)는 사용자 몫.
+## GitLab 그룹 재배치 — 사용자 결정 완료 · **Owner 권한에서 막힘** (2026-09-07)
+- **결정(사용자)**: 스택 하네스는 `ai-standard/stacks`로, 제품 템플릿은 `ai-standard/scaffold` 서브그룹으로 옮긴다. 옮길 것 둘 — `harnesses/vue3-vite-pinia-router` → `stacks`, `stacks/cloud-front-admin-template` → `scaffold`.
+- **막힌 지점(실측 2026-09-07, Chrome)**: 두 프로젝트의 Settings → General → Advanced에 **Transfer project 절이 없다**(Archive·Delete도 없음 — 셋 다 Owner 전용). `ai-standard` 그룹 멤버 28명 조회 결과 **사용자(@paul0528)는 Maintainer**이고 Owner는 **박성민(@smpark)·장용준(@jangyj11)** 둘이다. GitLab은 프로젝트 이전에 Owner를 요구하므로 이 계정으로는 이전 자체가 불가능하다.
+- **푸는 길 둘**: ① Owner에게 이전 두 건을 부탁한다(각 프로젝트 Settings → General → Advanced → Transfer project → 대상 네임스페이스 선택 → 프로젝트 이름 입력 확인). ② Owner가 그 두 프로젝트에 사용자를 프로젝트 Owner로 올려주면 직접 할 수 있다. 대상 그룹에 프로젝트를 만들 권한은 이미 있다(두 그룹 모두 `project_creation_level: maintainer`).
+- **⚠ 이름과 경로가 다르다**: 서브그룹의 **이름**은 `scaffolds`로 바뀌었지만 **경로(URL)는 여전히 `scaffold`**다(API 실측: `name: "scaffolds"`, `path: "scaffold"`, `full_path: "ai-standard/scaffold"`, id 840). 코드·URL·API 조회는 전부 **경로**를 쓰므로 본체에 넣을 값은 `ai-standard/scaffold`다. 이름과 URL을 맞추고 싶으면 그룹 Settings → General → Advanced → Change group URL에서 경로도 `scaffolds`로 바꿔야 하고, **그 결정이 나온 뒤에 본체를 고치는 것이 안전하다**(두 번 고치지 않도록).
+- **순서를 지킬 것 — 이전이 먼저, URL 수정이 나중이다.** GitLab은 옮긴 뒤 **옛 경로에서 새 경로로** 넘겨주므로 lock에 옛 주소가 남은 소비자는 계속 동작한다. 반대 방향은 없다 — 아직 옮기지 않았는데 본체를 새 주소로 고치면 설치가 404로 깨진다. 그래서 이번 세션은 주소를 하나도 바꾸지 않았다.
+- **이전이 끝나면 본체에서 고칠 곳(한 커밋)**:
+  - `.harness/bin/list-stack-standards.mjs` 기본 그룹 → `ai-standard/stacks`(상수 + 도움말 2곳)
+  - `.harness/bin/list-templates.mjs` 기본 그룹 → `ai-standard/scaffold`(상수 + 도움말 2곳)
+  - `.harness/stacks/registry.json` vue3 repo URL, `.harness/templates/registry.json` 템플릿 repo URL
+  - `.harness/stacks/README.md` — 예시 URL·그룹 줄·권장 그룹 구조 트리(`harnesses`/`stacks`/`scaffold` 설명까지)
+  - `README.md`(예시 URL 4곳 + "스택 기준은 ai-standard/harnesses 쪽에서" 문장), `.harness/bin/handoff.mjs`, `scripts/init.mjs` 도움말, `.harness/project/bootstrap.md`
+  - `.harness/stacks/authoring-guide.md`의 `<스택 그룹>` 자리표시 → 실제 `ai-standard/stacks`
+  - CHANGELOG 상세 + 공지 한 줄 후보(설치 명령 주소가 바뀌므로 사람이 복사하는 값이다 — 릴리스 때 판단)
+- **위성 저장소 둘도 자기 주소를 박아두고 있다(각각 새 태그 필요)**:
+  - `~/project/vue3-vite-pinia-router`: `manifest.json`의 `stackHarness.repo`, `README.md` URL 7곳 + 그룹 언급, `scripts/init.mjs`의 `HARNESS_STACK_STANDARD_GROUP` 기본값, **`scripts/test-init.mjs` 125·136행이 옛 URL을 단언**(안 고치면 그 저장소 회귀가 깨진다), `git remote set-url`, 태그 v0.2.46
+  - `~/project/cloud-front-admin-template`: `manifest.json`의 자기 `repo`와 `requiredStackHarness.repo`(vue3), `README.md` URL, `git remote set-url`, 태그 v0.2.47
+- 두 저장소 모두 현재 clean이고 각각 v0.2.45·v0.2.46이 최신 태그다(2026-09-07 확인).
 
 ## ⏸ 0.2.142 릴리스 대기 — 월요일 오전에 사용자가 요청 (2026-09-04 금요일 확인)
 - **사용자 지시: "월요일 오전에 릴리스 요청하겠다."** 그때까지 범프·태그·push·공지 발송을 시작하지 않는다. 먼저 나서서 재촉하지도 않는다.
