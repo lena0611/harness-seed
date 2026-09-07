@@ -63,6 +63,23 @@
 10. **태그를 만듭니다.** `manifest.json`의 `stackHarness.ref`와 `package.json`의 `version`을 만들 태그에 맞추고(`v0.1.0` ↔ `0.1.0`) 커밋한 뒤 태그를 push 합니다.
 11. **카탈로그 등록을 요청합니다.** 본체 팀에 id·repo·ref를 전달하면 `.harness/stacks/registry.json`에 실려 다음 본체 릴리스부터 `standards:list`에 보입니다. 등록 전에도 `npx -y git+<repo>#<tag> init`으로 설치는 됩니다.
 
+
+### 견본을 복사하면 걸리는 것 셋
+
+실제로 견본을 복사해 다른 런타임 스택을 만들어 보고 걸린 것들입니다(2026-09-07 실측). 미리 알면 각각 1분입니다.
+
+1. **견본 회귀가 자기 저장소 주소를 문자열로 단언합니다.** 그대로 복사하면 새 스택이 견본의 옛 주소를 단언해 첫 실행부터 실패합니다(`lock should record stack harness repository`). `manifest.json`에서 읽게 바꾸세요 — 나중에 저장소가 다른 그룹으로 옮겨져도 안 깨집니다.
+   ```js
+   assert(lock.stackHarness.repo === stackManifest.stackHarness.repo, '...')
+   ```
+2. **견본 회귀의 픽스처가 대상 프로젝트에 `package.json`을 만듭니다.** Node 스택은 대상이 정의상 그 파일을 갖기 때문입니다. 비-Node 스택은 그 줄을 지우고, **반대 방향 단언으로 바꾸는 것이 낫습니다** — 설치가 끝나도 `package.json`이 없어야 합니다(하네스는 그 파일을 만들지 않는다는 계약이 비-Node 저장소에서만 눈에 보입니다).
+3. **회귀를 돌릴 때 공통 하네스 위치를 알려줘야 합니다.** 견본 회귀는 형제 폴더의 공통 하네스 checkout을 찾습니다. 없으면 `HARNESS_SEED_PATH`로 가리키세요.
+   ```bash
+   HARNESS_SEED_PATH=<공통 하네스 checkout> npm run test:init
+   ```
+
+설치기의 나머지(공통 하네스 설치 → `stack:apply` → lock 기록 → scan·handoff·check)는 한 줄도 고칠 필요가 없었습니다.
+
 ## 런타임별 차이 — 언어를 타는 유일한 곳
 
 호환성 검사는 **스택 설치기가 혼자 합니다.** 본체는 `manifest.json`의 `compatibility`를 읽지 않으므로 그 안의 모양은 스택이 정하고, 판정 코드도 스택 저장소에 있습니다. 견본은 `package.json`을 읽으니 다른 런타임은 읽는 파일과 판정 근거만 바꿉니다.

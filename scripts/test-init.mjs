@@ -5438,6 +5438,11 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
   assert(guide.includes('--preset-path'), 'the guide must offer the in-repo asset route before the full repo route')
   assert(guide.includes('.harness/project/domain-rules.md'), 'the guide must offer the md-only route for a single repository')
 
+  // 견본을 실제로 복사해 만들어 보고 걸린 세 가지(2026-09-07). 셋 다 첫 실행을 막거나
+  // 조용히 잘못된 단언을 남기는 종류라 가이드에 남아 있어야 한다.
+  assert(guide.includes('HARNESS_SEED_PATH'), 'the guide must say how to point the sample regression at a local body checkout')
+  assert(guide.includes('stackManifest.stackHarness.repo'), 'the guide must warn that the sample asserts its own repo URL as a literal')
+
   // 견본이 어디 있는지 이름으로 짚어야 한다(2026-09-07 사용자 실측: stacks 그룹을 열어도 "견본"이라
   // 이름 붙은 저장소가 없어 막막했다). 견본은 따로 만들지 않고 카탈로그의 기존 스택이 견본이므로,
   // 가이드가 가리키는 대상이 실제로 배포 카탈로그에 있는 항목인지 잠근다.
