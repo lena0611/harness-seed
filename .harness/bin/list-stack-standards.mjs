@@ -39,9 +39,11 @@ function printStackList(stacks, heading) {
     console.log(`- ${stack.title ?? stack.id}`)
     if (stack.description) console.log(`  ${stack.description}`)
     console.log(`  repo: ${stack.repo}`)
-    console.log(`  기준: ${stack.ref ?? '저장소 기본 브랜치'}`)
-    console.log(`  설치: npx -y git+${stack.repo}${stack.ref ? `#${stack.ref}` : ''} init`)
-    console.log(`  적용: .harness/bin/harness stack:apply --preset-git ${stack.repo}${stack.ref ? ` --ref ${stack.ref}` : ''}`)
+    // 카탈로그는 남의 저장소 버전을 고정하지 않는다(결정 108). `#semver:*`가 그 저장소의
+    // 최신 태그로 해석되므로, 스택이 새 태그를 내면 본체 릴리스 없이 반영된다.
+    console.log(`  기준: 그 저장소의 최신 태그 (설치 시 해석)`)
+    console.log(`  설치: npx -y git+${stack.repo}#semver:* init`)
+    console.log(`  적용(고급): .harness/bin/harness stack:apply --preset-git ${stack.repo} --ref <태그>`)
   }
 
   console.log('')

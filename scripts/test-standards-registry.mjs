@@ -7,10 +7,10 @@ import { fileURLToPath } from 'node:url'
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(scriptRoot, '..')
 const listStacks = path.join(repoRoot, '.harness/bin/list-stack-standards.mjs')
-// 기대 ref는 하드코딩하지 않고 진실 출처(registry.json)에서 읽는다.
-// 하드코딩 픽스처는 레지스트리 범프 때마다 깨진다(2026-08-05 v0.2.1→v0.2.3 범프에서 실증).
+// 카탈로그는 남의 저장소 버전을 고정하지 않는다(결정 108, 2026-09-07). 예전에는 항목마다
+// `ref`가 있어 스택이 태그를 내면 배포된 목록이 낡았고, 그것을 맞추는 일이 본체 릴리스
+// 절차에 들어와 있었다. 이제 설치 명령이 `#semver:*`로 최신 태그를 해석한다.
 const stacksRegistry = JSON.parse(readFileSync(path.join(repoRoot, '.harness/stacks/registry.json'), 'utf8'))
-const vueStackRef = stacksRegistry.stacks.find((stack) => stack.id === 'vue3-vite-pinia-router').ref
 
 function escapeRegExp(value) {
   return value.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
@@ -31,7 +31,10 @@ function run(args, env = {}) {
 const consumerOutput = run([])
 assert.match(consumerOutput, /승인된 스택 하네스 목록/)
 assert.match(consumerOutput, /Vue 3 \+ Vite \+ Pinia \+ Vue Router/)
-assert.match(consumerOutput, new RegExp(`#${escapeRegExp(vueStackRef)} init`))
+assert.match(consumerOutput, /#semver:\* init/)
+for (const stack of stacksRegistry.stacks) {
+  assert.equal(stack.ref, undefined, `카탈로그는 남의 버전을 고정하지 않습니다: ${stack.id}`)
+}
 assert.doesNotMatch(consumerOutput, /GITLAB_TOKEN/)
 assert.doesNotMatch(consumerOutput, /GitLab API/)
 

@@ -929,6 +929,26 @@ function commandStatus() {
   }
 }
 
+// 템플릿이 요구하는 스택 최소 버전 비교. `1.2.3` 형태만 다루고, 그 밖의 값(범위·태그·미선언)은
+// 비교하지 않는다 — 판정할 수 없는 값으로 설치를 막으면 안 된다.
+function stackVersionBelow(installed, minimum) {
+  const parse = (value) => String(value ?? '').match(/^v?(\d+)\.(\d+)\.(\d+)/)
+  const a = parse(installed)
+  const b = parse(minimum)
+  if (!a || !b) {
+    return false
+  }
+
+  for (let i = 1; i <= 3; i += 1) {
+    const left = Number(a[i])
+    const right = Number(b[i])
+    if (left !== right) {
+      return left < right
+    }
+  }
+  return false
+}
+
 function validateTemplateRequirements(manifest, profile, lock) {
   const required = manifest.requiredStackHarness
   if (!required?.id) {
@@ -937,6 +957,19 @@ function validateTemplateRequirements(manifest, profile, lock) {
 
   const activeStackId = lock.stackHarness?.id ?? profile.activeStack ?? 'none'
   if (activeStackId === required.id) {
+    // 2026-09-07(결정 108 후보 4): `minVersion`은 선언만 받고 아무도 읽지 않았다 — 템플릿
+    // 작성자는 버전을 고정했다고 믿는데 실제 검사는 id만 비교했다. 선언한 대로 검사한다.
+    // 너무 낮은 스택 위에 템플릿 계약을 얹으면 프로젝트가 만족할 수 없는 계약이 생긴다.
+    const installedStackVersion = lock.stackHarness?.version ?? null
+    if (required.minVersion && stackVersionBelow(installedStackVersion, required.minVersion)) {
+      console.error('템플릿이 요구하는 스택 하네스 버전보다 낮습니다.')
+      console.error(`  required: ${required.id} >= ${required.minVersion}`)
+      console.error(`  current: ${required.id} ${installedStackVersion}`)
+      console.error('')
+      console.error('먼저 스택 하네스를 올리세요.')
+      console.error(`  .harness/bin/harness update --stack-only`)
+      process.exit(1)
+    }
     return
   }
 

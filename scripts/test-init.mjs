@@ -5460,6 +5460,38 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
     'the guide must name a real catalog entry as the sample to copy — a guide that only says "copy an existing one" leaves the author hunting')
 }
 
+// 결정 108(2026-09-07): 본체가 관리하는 것은 harness-seed·CLI·docs뿐이고, 스택·scaffold는
+// 누구나 만들고 운영한다. 그 원칙을 어기던 자리 넷을 걷어냈고, 되돌아가면 실패해야 한다.
+//   ① 버전 그물이 형제 저장소를 이름으로 알던 것 ② 배포 카탈로그가 남의 버전을 고정하던 것
+//   ③ 릴리스 절차가 위성 동반 범프를 요구하던 것 ④ 아무도 안 켠 옵션
+function bodyDoesNotTrackForeignStacksOrTemplates() {
+  const net = fs.readFileSync(path.join(repoRoot, 'scripts/sync-version-net.mjs'), 'utf8')
+  assert(!net.includes('vue3-vite-pinia-router') && !net.includes('cloud-front-admin-template'),
+    'the body version net must not know sibling repos by name — a third-party stack is not in that directory')
+  assert(!net.includes("resolve(repoRoot, '..'"), 'the body version net must not reach outside its own repo')
+  assert(net.includes('CHANGELOG'), 'it must still check the body version against its own CHANGELOG')
+
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  for (const [rel, key] of [['.harness/stacks/registry.json', 'stacks'], ['.harness/templates/registry.json', 'templates']]) {
+    for (const entry of JSON.parse(read(target, rel))[key]) {
+      assert(entry.ref === undefined,
+        `the shipped catalog must not pin a foreign repo version (${rel}: ${entry.id}) — it goes stale the moment that repo tags`)
+      assert(entry.repo, `a catalog entry still needs the repo address (${rel}: ${entry.id})`)
+    }
+  }
+
+  const checklist = fs.readFileSync(path.join(repoRoot, '.harness/project/body-release-checklist.md'), 'utf8')
+  // 특정 스택이 건너뛸 번호는 그 저장소 것이다. "결번"이라는 낱말이 아니라 **번호**가
+  // 본체 문서에 남아 있는지를 본다(포인터 문장에서 그 주제를 언급하는 것은 정상이다).
+  assert(!/v0\.2\.2[56]/.test(checklist),
+    'the specific versions a stack must skip belong to that stack repo, not the body checklist')
+  assert(checklist.includes('본체가 할 일은 없습니다'), 'the checklist must say the body does not release satellites')
+
+  const shipped = read(target, '.harness/project/stack-preset-rules.md')
+  assert(!shipped.includes('exactRefRequired'), 'an option no stack ever declared must not stay in a shipped doc')
+}
+
 // 2026-09-07: 사내 GitLab 그룹을 역할대로 정리했다 — 스택 하네스는 `ai-standard/stacks`, 제품
 // scaffold 템플릿은 `ai-standard/scaffolds`, 본체만 `ai-standard/harnesses`에 남는다. 옛 배치
 // (스택이 harnesses에, 템플릿이 stacks에)로 되돌아가면 조회 기본 그룹과 배포 레지스트리가 서로
@@ -7208,6 +7240,7 @@ const tests = [
   stackAuthoringGuideStaysReachableAfterExclusion,
   stackAuthoringGuideSpeaksEveryRuntime,
   stackAndTemplateRegistriesLiveUnderTheirOwnGroups,
+  bodyDoesNotTrackForeignStacksOrTemplates,
   installedQueueSnoozesCharterQuestionsAndProfileStaysThin,
   specNoticeScopesUnrelatedServicesToOneFoldedLine,
   commitAdvisoryIgnoresDocsAndMetaFilesInMappedAreas,
