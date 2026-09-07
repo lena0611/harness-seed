@@ -2409,6 +2409,9 @@ function runSettle({ docs = [] } = {}) {
   // 같은 커밋에서 함께 폐기하면(정상 절차 — 한쪽만 지우면 링크 정합이 막는다), 읽은 시점에는
   // 두 파일이 이미 없어 위 색인이 단위를 찾지 못한다. 그러면 범위 확장도 원자성 검사도 건너뛰어
   // 대표 문서만 기준에서 빠지고 화면이 남는 혼합 기준이 된다.
+  // 본문은 **git 객체**에서 읽는다(재리뷰 5차). 작업 트리(spec-cache 체크아웃)는 git에 들어가지
+  // 않는 생성물이라 fresh clone에서는 없을 수 있고, 없는 것을 "링크 없음"으로 삼키면 기준 단위가
+  // 조용히 사라진다. 캐시 저장소 자체가 없으면 정산은 어차피 출처 검증에서 fail-closed로 멈춘다.
   const baselineIndexCache = new Map()
   const baselineIndexForSource = (source) => {
     if (!baselineIndexCache.has(source.id)) {
@@ -2417,11 +2420,8 @@ function runSettle({ docs = [] } = {}) {
         const recorded = state.lock.sources[source.id]
         const dir = cacheDirFor(source.id)
         index = buildScreenIndex(Object.keys(recorded?.files ?? {}), (rel) => {
-          try {
-            return readSafeFile(dir, rel)
-          } catch {
-            return null
-          }
+          const commit = recorded?.files?.[rel]?.commit ?? recorded?.commit ?? null
+          return commit ? gitShowText(dir, commit, rel) : null
         }, screenLinksFor(recorded, source))
       } catch {
         index = null
@@ -2431,11 +2431,18 @@ function runSettle({ docs = [] } = {}) {
     return baselineIndexCache.get(source.id)
   }
 
-  // 단위 조회는 "읽은 시점 우선, 없으면 기준 시점". 새 화면이 생긴 변경은 읽은 시점이 알고,
-  // 사라진 화면은 기준 시점만 안다 — 둘을 합쳐야 양쪽이 한 단위로 움직인다.
-  const unitForDoc = (source, rel) => (
-    screenIndexForSource(source)?.unitFor(rel) ?? baselineIndexForSource(source)?.unitFor(rel) ?? null
-  )
+  // 단위는 **읽은 시점과 기준 시점의 합집합**이다(재리뷰 5차 P2). 한쪽만 고르면 화면 교체
+  // (a.md의 링크를 a.html → b.html로 바꾸고 a.html을 지움)에서 옛 화면이 기준에 남는다 —
+  // 읽은 시점은 b.html만 알고, 기준 시점은 a.html만 알기 때문이다. 새로 생긴 화면과 사라진
+  // 화면이 한 정산에 함께 들어가야 "정책은 B, 화면은 A" 같은 혼합 기준이 생기지 않는다.
+  const unitForDoc = (source, rel) => {
+    const latest = screenIndexForSource(source)?.unitFor(rel) ?? null
+    const baseline = baselineIndexForSource(source)?.unitFor(rel) ?? null
+    if (!latest && !baseline) return null
+    const primary = latest?.primary ?? baseline.primary
+    const files = [...new Set([...(latest?.files ?? []), ...(baseline?.files ?? [])])]
+    return { id: primary, primary, files }
+  }
 
   {
     const expanded = new Map()
@@ -2744,15 +2751,17 @@ function runSettle({ docs = [] } = {}) {
 
       // 이미 기준과 같아 계획에 없는 쪽(unchanged)은 정상이다 — 그 경우 짝의 commit이 같아야 한다.
       const unchangedMembers = unit.files.filter((file) => !plannedByRel.has(`${item.sourceId}\u0000${file}`) && unchanged.some((u) => u.sourceId === item.sourceId && u.rel === file))
-      if (removedMembers.length > 0 && removedMembers.length !== unit.files.length) {
-        partialUnits.push({ unit: unit.id, reason: '한쪽만 삭제로 정산되려 합니다' })
-        continue
-      }
-      if (removedMembers.length === unit.files.length) continue
-      if (settledMembers.length + unchangedMembers.length !== unit.files.length) {
+      // 단위의 모든 구성원이 셋 중 하나로 설명돼야 한다: 정산 / 삭제 / 이미 일치.
+      // 하나라도 설명되지 않으면 그 정산은 lock에 혼합 기준을 남긴다.
+      //
+      // 삭제가 섞여 있어도 부분이 아니다(재리뷰 5차): 화면 교체는 옛 화면 삭제 + 문서·새 화면
+      // 정산이 한 단위로 일어나는 정상 절차다. 예전에는 "삭제가 하나라도 있으면 전부 삭제여야
+      // 한다"고 봐서 교체를 거부했고, 합치기 전에는 옛 화면이 조용히 기준에 남았다.
+      if (settledMembers.length + removedMembers.length + unchangedMembers.length !== unit.files.length) {
         partialUnits.push({ unit: unit.id, reason: '짝 문서 중 일부만 정산할 수 있는 상태입니다' })
         continue
       }
+      if (settledMembers.length === 0) continue // 단위 전체가 폐기됐다
       const commits = new Set(settledMembers.map((member) => member.commit))
       for (const file of unchangedMembers) {
         commits.add(state.lock.sources[item.sourceId].files[file].commit)

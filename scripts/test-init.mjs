@@ -4889,6 +4889,75 @@ function specSettleRefusesPathCollisionsAcrossSources() {
   assert(refuse.includes('어느 문서인지 알 수 없습니다'), 'settle should explain the ambiguity instead of settling both sources')
 }
 
+// 0.2.142 재리뷰 5차 P2: 단위 조회가 "읽은 시점 ?? 기준 시점"이라 **하나만** 골랐다.
+// 화면 교체(문서의 링크를 a.html에서 b.html로 바꾸고 같은 커밋에서 a.html 삭제)는 읽은 시점이
+// b.html만 알고 기준 시점이 a.html만 아는 상황이라, 옛 화면이 기준에 남는 혼합 기준이 됐다.
+// 단위는 두 시점의 합집합이어야 한다.
+function specReplacedScreenSettlesOldAndNewTogether() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const withLink = (screen) => `# 공통\n\n화면: [화면](./${screen})\n`
+  const screenBody = '<html><body>화면</body></html>\n'
+  const alpha = makePlanningRepoWithFiles({ 'features/a.md': withLink('a.html'), 'features/a.html': screenBody })
+  const beta = makePlanningRepoWithFiles({ 'features/a.md': withLink('a.html'), 'features/a.html': screenBody })
+  writeJson(target, '.harness/spec-sources.json', {
+    version: 1,
+    sources: [
+      { id: 'alpha', repo: alpha, ref: 'master', include: ['**/*.md'], exclude: [] },
+      { id: 'beta', repo: beta, ref: 'master', include: ['**/*.md'], exclude: [] },
+    ],
+  })
+  specSyncCli(target, ['fetch'])
+  const alphaBefore = JSON.stringify(JSON.parse(read(target, '.harness/spec-lock.json')).sources.alpha)
+
+  // 화면 교체: 링크를 b.html로 바꾸고 옛 화면을 같은 커밋에서 지운다.
+  fs.writeFileSync(path.join(beta, 'features/a.md'), withLink('b.html'))
+  fs.rmSync(path.join(beta, 'features/a.html'))
+  fs.writeFileSync(path.join(beta, 'features/b.html'), screenBody)
+  gitCommitAll(beta, '화면 교체')
+  specSyncCli(target, ['fetch', '--cache-only'])
+
+  specSyncCli(target, ['settle', '--doc', 'beta:features/a.md'])
+  const after = JSON.parse(read(target, '.harness/spec-lock.json'))
+
+  assert(!after.sources.beta.files['features/a.html'], 'the replaced screen must leave the baseline with its document')
+  assert(after.sources.beta.files['features/b.html'], 'the new screen must enter the baseline in the same settlement')
+  assert(after.sources.beta.files['features/a.md'].commit === after.sources.beta.files['features/b.html'].commit,
+    'the document and its screen must be recorded at the same commit')
+  assert(JSON.stringify(after.sources.alpha) === alphaBefore, 'the other source must stay byte-for-byte identical')
+}
+
+// 0.2.142 재리뷰 5차: 기준 본문 캐시는 git에 들어가지 않는 생성물이라 fresh clone에는 없다.
+// 없는 상태에서 정산이 "링크 없음"으로 진행하면 화면이 조용히 기준에 남을 수 있다.
+// **이 회귀는 고친 결함이 아니라 이미 성립하던 fail-closed를 계약으로 잠근다** — 출처 검증이
+// 캐시 부재를 먼저 잡아 멈추고, 그때 lock은 1바이트도 바뀌지 않는다. 기준 색인이 git 객체를
+// 읽도록 바뀌었으므로(작업 트리 의존 제거) 이 경계가 유지되는지 확인해 두는 것이다.
+function specSettleFailsClosedWithoutTheBaselineCache() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const docBody = '# 공통\n\n화면: [화면](./a.html)\n'
+  const planning = makePlanningRepoWithFiles({ 'features/a.md': docBody, 'features/a.html': '<html></html>\n' })
+  writeJson(target, '.harness/spec-sources.json', {
+    version: 1,
+    sources: [{ id: 'planning', repo: planning, ref: 'master', include: ['**/*.md'], exclude: [] }],
+  })
+  specSyncCli(target, ['fetch'])
+  fs.rmSync(path.join(planning, 'features/a.md'))
+  fs.rmSync(path.join(planning, 'features/a.html'))
+  gitCommitAll(planning, '기획 폐기')
+  specSyncCli(target, ['fetch', '--cache-only'])
+
+  // fresh clone 재현: 기준 본문·캐시 저장소가 통째로 없다.
+  fs.rmSync(path.join(target, '.harness/generated/spec-cache'), { recursive: true, force: true })
+  const lockBefore = read(target, '.harness/spec-lock.json')
+
+  expectFailure(
+    () => specSyncCli(target, ['settle', '--doc', 'features/a.md']),
+    'settling without the baseline cache must fail closed instead of guessing',
+  )
+  assert(read(target, '.harness/spec-lock.json') === lockBefore, 'a fail-closed settle must not change the lock')
+}
+
 // 0.2.142 재리뷰 4차 P2: 기획자가 문서와 화면을 **같은 커밋에서 함께 삭제**하는 것은 정상적인
 // 폐기 절차다(한쪽만 지우면 링크 정합이 막지만, 둘 다 지우면 통과한다). 그런데 정산의 화면 단위
 // 색인은 "읽은 시점"에서만 만들어지고 그 시점에는 두 파일이 이미 없어 단위를 찾지 못했다 —
@@ -6999,6 +7068,8 @@ const tests = [
   specSettleRefusesAllWhenOneRequestedDocIsMissing,
   specSettleRefusalLeavesLockUntouchedRegardlessOfV1OrArgOrder,
   specDeletedScreenUnitSettlesTogetherFromBaselineIndex,
+  specReplacedScreenSettlesOldAndNewTogether,
+  specSettleFailsClosedWithoutTheBaselineCache,
   specMappingCoverageIsEnforcedForNewFilesInMappedAreas,
   specMappingCoverageRespectsExemptionsAndScope,
   specMapRowsSurviveNotesThatMentionTheHeaderWords,
