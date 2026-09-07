@@ -252,7 +252,9 @@ scaffold 템플릿은 스택 기준과 분리해서 적용합니다.
 .harness/bin/harness template:gap
 ```
 
-`template:apply`는 템플릿 manifest의 `requiredStackHarness`가 현재 적용된 스택 하네스와 맞는지 확인합니다. 일반 적용은 scaffold를 복사하고, `--contract-only`는 업무 코드를 바꾸지 않고 계약만 연결합니다. 두 방식 모두 `.harness/project/template-contract.md`와 `.harness/templates/.applied/<template-id>/manifest.json`에 출처를 남기고 `.harness/session/template-gap-report.md`를 생성합니다.
+`template:apply`는 템플릿 manifest의 `requiredStackHarness`가 현재 적용된 스택 하네스와 맞는지 확인합니다. `minVersion`을 선언했으면 설치된 스택 버전과 비교하고, 낮거나 **판정할 수 없으면**(버전 미기록·prerelease·비표준 표기) 복구 안내와 함께 멈춥니다.
+
+템플릿이 `source.packageMerge`를 선언하면 그 파일은 **복사 대상에서 제외되고 병합에만 쓰입니다.** 대상 `package.json`의 `name`·기존 script·기존 의존성은 그대로 남고 템플릿 항목만 더해집니다(`scripts`에서 키가 겹치면 프로젝트 것이 이깁니다). 병합 파일을 `package.json`으로 선언하면 그 파일이 복사되며 교체되던 결함이 있었고 0.2.143에서 고쳤습니다 — 템플릿은 `package.merge.json`처럼 별도 이름을 쓰는 편이 안전합니다. 일반 적용은 scaffold를 복사하고, `--contract-only`는 업무 코드를 바꾸지 않고 계약만 연결합니다. 두 방식 모두 `.harness/project/template-contract.md`와 `.harness/templates/.applied/<template-id>/manifest.json`에 출처를 남기고 `.harness/session/template-gap-report.md`를 생성합니다.
 
 템플릿 manifest의 `contractChecks`는 각 제품 계약에 대해 근거 문서와 기대 경로, 의존성, npm script를 구조화해 선언합니다. `.harness/bin/harness template:gap`은 이 선언과 현재 프로젝트를 비교하고 필수·권장 갭을 구분해 안내합니다. 템플릿 자체의 문서 연결이 깨진 경우에는 검사 실패로 처리하지만, 기존 프로젝트의 계약 갭은 도입 과정에서 해결하거나 예외로 기록할 수 있도록 리포트합니다.
 
