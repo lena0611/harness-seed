@@ -5402,7 +5402,10 @@ function stackAuthoringGuideStaysReachableAfterExclusion() {
   assert(!exists(target, '.harness/stacks/authoring-guide.md'), 'the author guide itself must not ship (precondition)')
   const readme = read(target, '.harness/stacks/README.md')
   assert(readme.includes('authoring-guide.md'), 'the shipped stacks README must still name the guide')
-  assert(readme.includes('baseHarness.repo') && readme.includes('git clone'), 'the README must show how to fetch the guide from the body repo recorded in harness-lock')
+  assert(readme.includes('baseHarness.version') && readme.includes('git clone'), 'the README must show how to fetch the guide at the installed body version')
+  // 실측(설치본 16곳): `baseHarness.repo`는 bundled base 설치에서 null이라 그때 이 한 줄이
+  // `fatal: repository 'null' does not exist`로 죽었다. `version`은 16곳 전부에 기록돼 있다.
+  assert(!readme.includes('baseHarness.repo'), 'the fetch path must not depend on baseHarness.repo — it is null on bundled-base installs')
 
   const registry = JSON.parse(read(target, '.harness/skills/registry.json'))
   const authoring = registry.skills.find((skill) => skill.id === 'harness.stack-authoring')
