@@ -13,6 +13,7 @@
 - `project-charter.md`
 - `scope-contract.md`
 - `domain-rules.md`
+- `coding-conventions.md`
 - `architecture-rules.md`
 - `workflow-rules.md`
 - `commit-push-rules.md`
@@ -45,6 +46,7 @@
 9. [스택 프리셋 로컬 규칙](./stack-preset-rules.md)
 10. [템플릿 사용 계약](./template-contract.md)
 11. [도메인 규칙](./domain-rules.md)
+11-1. [코딩 규약](./coding-conventions.md)
 12. [아키텍처 규칙](./architecture-rules.md)
 13. [작업 흐름 규칙](./workflow-rules.md)
 14. [커밋/푸시 안전장치 규칙](./commit-push-rules.md)

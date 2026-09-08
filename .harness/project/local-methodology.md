@@ -9,6 +9,7 @@
 2. [스택 프리셋 로컬 규칙](./stack-preset-rules.md)
 3. [템플릿 사용 계약](./template-contract.md)
 4. [도메인 규칙](./domain-rules.md)
+4-1. [코딩 규약](./coding-conventions.md)
 5. [아키텍처 규칙](./architecture-rules.md)
 6. [작업 흐름 규칙](./workflow-rules.md)
 7. [커밋/푸시 안전장치 규칙](./commit-push-rules.md)

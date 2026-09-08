@@ -108,6 +108,7 @@ const PROJECT_OWNED_PATHS = new Set([
   '.harness/project/template-contract.md',
   '.harness/project/domain-rules.md',
   '.harness/project/architecture-rules.md',
+  '.harness/project/coding-conventions.md',
   '.harness/project/workflow-rules.md',
   '.harness/project/commit-push-rules.md',
   '.harness/project/critical-paths.md',
@@ -1346,6 +1347,7 @@ function consumerProjectStateTemplate(rel, context) {
 - 개발/검증/운영 흐름 규칙: \`.harness/project/workflow-rules.md\`
 - 커밋/푸시 hook 운영 기준: \`.harness/project/commit-push-rules.md\`
 - 프로젝트 도메인/구조 규칙: \`.harness/project/domain-rules.md\`, \`.harness/project/architecture-rules.md\`
+- 코딩 규약(언어·서식·네이밍): \`.harness/project/coding-conventions.md\`
 
 ## 확인할 일
 - 에이전트는 사용자가 "하네스"를 언급하지 않아도 루트의 \`.harness/\`를 감지하면 하네스 작업 프로토콜을 적용해야 합니다.
@@ -1453,6 +1455,7 @@ function consumerProjectStateTemplate(rel, context) {
 - 작업 흐름/검증/완료 승인: \`.harness/project/workflow-rules.md\`
 - 커밋/푸시 기준: \`.harness/project/commit-push-rules.md\`
 - 도메인/구조 규칙: \`.harness/project/domain-rules.md\`, \`.harness/project/architecture-rules.md\`
+- 코딩 규약(언어·서식·네이밍): \`.harness/project/coding-conventions.md\`
 
 ## 다음 작업
 - 프로젝트 헌장 TBD 항목을 확인합니다.

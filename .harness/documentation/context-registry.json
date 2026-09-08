@@ -104,6 +104,42 @@
       ]
     },
     {
+      "id": "coding-conventions",
+      "file": ".harness/project/coding-conventions.md",
+      "category": "coding",
+      "taskTypes": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "review"
+      ],
+      "priority": "high",
+      "appliesTo": [
+        "src/**",
+        "lib/**",
+        "app/**",
+        "style",
+        "lint",
+        "naming"
+      ],
+      "keywords": [
+        "코딩 규약",
+        "규약",
+        "문법",
+        "서식",
+        "네이밍",
+        "이름 규칙",
+        "스타일",
+        "lint",
+        "포맷",
+        "들여쓰기",
+        "금지 문법",
+        "호환",
+        "convention",
+        "naming"
+      ]
+    },
+    {
       "id": "workflow-rules",
       "file": ".harness/project/workflow-rules.md",
       "category": "workflow",

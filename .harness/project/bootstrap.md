@@ -94,7 +94,7 @@ npm install
 - 반복되는 검증 또는 릴리스 절차
 - 외부 API 또는 데이터 소스
 
-이 답들은 `project-charter.md`, `domain-rules.md`, `architecture-rules.md`, `workflow-rules.md` 중 알맞은 위치에 들어갑니다.
+이 답들은 `project-charter.md`, `domain-rules.md`, `architecture-rules.md`, `coding-conventions.md`, `workflow-rules.md` 중 알맞은 위치에 들어갑니다.
 
 ### 6. 비표준 위치 룰 등록 (선택)
 프로젝트가 기존 기준/룰 문서를 `.harness/project/*` 밖(예: 별도 가이드 폴더, 루트 표준 문서)에 두고 있고 그대로 유지하려면, 그 위치를 `.harness/policy/profile.json`의 `sources[]`에 등록해 하네스가 발견·주입하게 합니다. 본체는 이 배열을 읽기만 하고 자동으로 채우지 않으므로, 등록 여부는 사용자에게 확인한 뒤 에이전트가 기록합니다.

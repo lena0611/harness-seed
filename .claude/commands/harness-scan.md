@@ -40,6 +40,7 @@ allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 - `.harness/project/local-methodology.md`: 프로젝트 고유 개발방법론의 진입점
 - `.harness/project/stack-preset-rules.md`: 적용된 스택 프리셋이 로컬룰로 정착된 내용
 - `.harness/project/domain-rules.md`: 업무 용어, 불변식, 도메인 제약
+- `.harness/project/coding-conventions.md`: 언어·문법 제약, 서식, 네이밍 (도구가 못 잡는 것만)
 - `.harness/project/architecture-rules.md`: 모듈 경계, 의존 방향, 데이터 흐름
 - `.harness/project/workflow-rules.md`: 개발, 리뷰, 릴리스, 장애 대응 흐름
 - `.harness/policy/profile.json`: active stack 또는 `none`

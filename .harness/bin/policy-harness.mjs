@@ -1269,7 +1269,7 @@ function printProjectRuleCandidateReminder(changedGroups) {
   console.log('- 이번 변경에서 반복되는 도메인 규칙, 구조 결정, 검증/리뷰 절차가 생겼는지 확인하세요.')
   console.log('- 승격 전에 먼저 물으세요: 이 규칙은 문서로 남길 것인가, 실행 가능한 검증으로 만들 것인가?')
   console.log('- 사람이 매번 기억해야 지켜지는 런타임 불변식(예: 동적 클래스 safelist 등록)은 문서 규칙으로는 못 막습니다. 테스트/CI/lint 가드로 표현해 누락을 빌드 실패로 만드세요.')
-  console.log('- 확정 가능한 문서 규칙은 .harness/project/domain-rules.md, architecture-rules.md, workflow-rules.md에 기록합니다.')
+  console.log('- 확정 가능한 문서 규칙은 .harness/project/domain-rules.md, architecture-rules.md, coding-conventions.md, workflow-rules.md에 기록합니다.')
   console.log('- 확신이 없거나 팀 선택이 필요하면 .harness/session/developer-input-queue.md에 질문으로 남기고, 선택 이유는 decision-log.md에 남깁니다.')
   console.log('')
 }

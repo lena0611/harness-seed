@@ -411,6 +411,7 @@ function detectLocalMethodologyFiles() {
     '.harness/project/stack-preset-rules.md',
     '.harness/project/domain-rules.md',
     '.harness/project/architecture-rules.md',
+    '.harness/project/coding-conventions.md',
     '.harness/project/workflow-rules.md',
   ])
 }
@@ -608,6 +609,7 @@ function renderProjectRuleAuthoringGuide() {
 
 - \`.harness/project/domain-rules.md\`: 도메인 용어, 업무 규칙, 예외 조건
 - \`.harness/project/architecture-rules.md\`: 책임 경계, 데이터 흐름, 금지 구조
+- \`.harness/project/coding-conventions.md\`: 언어·런타임 제약, 금지 문법·API, 서식, 네이밍 (도구가 못 잡는 것만)
 - \`.harness/project/workflow-rules.md\`: 작업 순서, 리뷰/검증 방식, 반복 업무 패턴
 - \`.harness/project/commit-push-rules.md\`: 완료 승인, commit/push, hook 검증 기준
 - \`.harness/session/decision-log.md\`: 아직 영구 규칙으로 확정하지 않은 판단과 선택 이유
@@ -641,7 +643,7 @@ function renderHarnessEffectSummary({ profile, pkg, sourceRoots, testRoots, exis
     ].filter(Boolean).join(', ')
     lines.push(`기존 AI 작업 룰을 지우지 않고 보존했습니다. ${status || '팀/개인 기준 여부를 확인해야 합니다.'}`)
   } else {
-    lines.push('기존 AI 작업 룰 후보가 없어서, 새 팀 작업방식은 .harness/project/domain-rules.md, architecture-rules.md, workflow-rules.md에 기록하면 됩니다.')
+    lines.push('기존 AI 작업 룰 후보가 없어서, 새 팀 작업방식은 .harness/project/domain-rules.md, architecture-rules.md, coding-conventions.md, workflow-rules.md에 기록하면 됩니다.')
   }
 
   if (hasTestScript || testRoots.length > 0 || hasBuildScript) {
@@ -1125,11 +1127,12 @@ ${formatList(bridgeCandidates)}
 3. \`.harness/project/stack-preset-rules.md\`
 4. \`.harness/project/domain-rules.md\`
 5. \`.harness/project/architecture-rules.md\`
-6. \`.harness/project/workflow-rules.md\`
-7. \`.harness/project/commit-push-rules.md\`
-8. \`.harness/policy/ai-standard-guiding-policy.md\`
-9. \`.harness/policy/README.md\`
-10. \`.harness/session/active-context.md\`
+6. \`.harness/project/coding-conventions.md\`
+7. \`.harness/project/workflow-rules.md\`
+8. \`.harness/project/commit-push-rules.md\`
+9. \`.harness/policy/ai-standard-guiding-policy.md\`
+10. \`.harness/policy/README.md\`
+11. \`.harness/session/active-context.md\`
 \`\`\`
 
 ## Harness Update Targets
@@ -1140,6 +1143,7 @@ ${formatList(bridgeCandidates)}
 - .harness/project/stack-preset-rules.md
 - .harness/project/domain-rules.md
 - .harness/project/architecture-rules.md
+- .harness/project/coding-conventions.md
 - .harness/project/workflow-rules.md
 - .harness/project/commit-push-rules.md
 - .harness/policy/profile.json

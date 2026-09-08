@@ -134,7 +134,7 @@ trace는 프롬프트 진행 중 짧은 상태 로그, `harness:handoff` 산출�
 2. 큰 작업이나 생소한 영역을 다룰 때 `.harness/bin/harness sync`로 프로젝트 맵을 최신화합니다.
 3. 에이전트가 `.harness/bin/harness context "<작업 설명>"`으로 이번 작업의 Agent Decision Context를 생성합니다.
 4. 후보 문서를 실제로 읽고, 상충되는 기준이 있으면 충돌 해석 순서에 따라 판단합니다.
-5. 코드나 기준을 바꾼 뒤 반복 패턴이 드러나면 `.harness/project/domain-rules.md`, `architecture-rules.md`, `workflow-rules.md`, `commit-push-rules.md` 중 맞는 곳에 로컬룰 후보로 승격합니다.
+5. 코드나 기준을 바꾼 뒤 반복 패턴이 드러나면 `.harness/project/domain-rules.md`, `architecture-rules.md`, `coding-conventions.md`, `workflow-rules.md`, `commit-push-rules.md` 중 맞는 곳에 로컬룰 후보로 승격합니다.
 6. 최종화(검증·커밋·푸시)는 `CLAUDE.md` 작업 원칙의 "최종화 규칙(정본)"을 따릅니다.
 
 ## 금지

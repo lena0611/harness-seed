@@ -229,7 +229,7 @@ function cleanInstallCreatesExpectedFiles() {
   // 안내는 마커 안(업데이트로 기존 팀에도 전파)과 아래(신규 설치) 양쪽에 "포인터만, 규칙 본문은 룰 문서"로.
   const managedEnd = claudeInstructions.lastIndexOf('<!-- harness-managed:end -->') // 머리 주석 4행에도 같은 단어가 있어 indexOf는 너무 이르다
   assert(managedEnd > 0, 'consumer CLAUDE.md must carry the managed block markers')
-  assert(claudeInstructions.slice(0, managedEnd).includes('규칙 본문(아키텍처 경계·도메인·워크플로우·커밋 규칙)은 룰 문서에'), 'the rule-body guidance must live inside the managed block so updates reach existing consumers')
+  assert(claudeInstructions.slice(0, managedEnd).includes('규칙 본문(아키텍처 경계·도메인·코딩 규약·워크플로우·커밋 규칙)은 룰 문서에'), 'the rule-body guidance must live inside the managed block so updates reach existing consumers')
   assert(claudeInstructions.slice(0, managedEnd).includes('에이전트가 먼저 나서지 않습니다'), 'the guidance must stop agents from volunteering a CLAUDE.md cleanup')
   assert(!claudeInstructions.includes('진입 지침(아키텍처 경계, 읽기 순서 예외, 워크플로우 보충 등)을 자유롭게'), 'the old invitation to write architecture boundaries in CLAUDE.md must be gone')
 
@@ -4069,6 +4069,36 @@ function buildContextInjectsRelatedSpecs() {
 // 개발자가 가장 자연스럽게 쓰는 말이 가장 나쁜 결과를 내면 안 된다.
 // "개발"이 유형 키워드에 없어 unknown/low로 떨어졌고, 유형 가점이 죽어 관련 문서가 밀리고
 // 엉뚱한 스킬(JIRA 운영 업무 접수)이 올라왔다(2026-08-11 multisite 실측).
+// 코딩 규약 문서(2026-09-08, 0.2.143): 언어·문법 제약·서식·네이밍은 도메인도 구조도 절차도 아니라 룰 문서 지도에
+// 칸이 없었다 — PHP 백엔드 규약을 찢을 때 그 절들이 갈 곳이 없어 별도 문서로 남았다(사용자 지적). 표준 프로젝트
+// 문서로 추가한다: 새 설치에 실리고, 프로젝트 소유라 업데이트가 덮지 않고, 등록돼 있어 orphan이 아니며,
+// 컨텍스트가 네이밍·문법 요청에 골라내고, 스캔의 읽기 순서와 업데이트 대상 목록에 들어 있어야 한다.
+function codingConventionsShipsAsProjectOwnedRuleDoc() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const rel = '.harness/project/coding-conventions.md'
+  assert(exists(target, rel), 'a fresh install must ship the coding conventions rule doc')
+  assert(read(target, rel).includes('## 금지 문법·API') && read(target, rel).includes('## 네이밍'), 'the skeleton must carry the sections the migration table points at')
+
+  // 프로젝트 소유: 팀이 채운 내용을 업데이트가 덮지 않는다
+  fs.writeFileSync(path.join(target, rel), '# 코딩 규약\n\n## 금지 문법·API\n| `match` | `switch` |\n')
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(read(target, rel).includes('| `match` | `switch` |'), 'the team\'s conventions must survive an update (project-owned)')
+
+  // 컨텍스트가 골라낸다
+  run(harnessBin(target), ['context', '클래스 네이밍 규칙과 금지 문법 정리'], { cwd: target })
+  assert(read(target, '.harness/session/task-context.md').includes(rel), 'a naming/syntax request must surface the coding conventions doc')
+
+  // 스캔 리포트의 읽기 순서·업데이트 대상에 들어 있다
+  run(harnessBin(target), ['scan'], { cwd: target })
+  const report = read(target, '.harness/session/project-scan-report.md')
+  assert(report.includes(rel), 'the scan report must list the doc among project rule docs')
+
+  // 진입점 읽기 목록과 가이드 표에도 있다(같은 지도를 세 곳이 보여야 한다)
+  assert(read(target, 'CLAUDE.md').includes(rel), 'CLAUDE.md task-specific reading list must include it')
+  assert(read(target, '.harness/project/project-harness-guide.md').includes('`coding-conventions.md`'), 'the guide responsibility table must include it')
+}
+
 // 설치가 기존 CLAUDE.md 위에 블록을 얹은 뒤 안내하는 문장 — "CLAUDE.md의 규칙을 하네스 문서로 마이그레이션해줘" —
 // 을 개발자가 그대로 말하면 에이전트는 로컬룰 승격 스킬과 그 스킬이 읽는 가이드(절차 절)를 골라야 한다.
 // 2026-09-08 실측: 요청이 docs로 분류되면 docs를 가진 스킬 넷이 task 가점(+10)으로 상위 4칸을 다 차지하고,
@@ -7557,6 +7587,7 @@ const tests = [
   buildContextInjectsRelatedSpecs,
   contextClassifiesPlainKoreanDevelopmentRequest,
   contextSelectsRulePromotionForEntrypointMigrationRequest,
+  codingConventionsShipsAsProjectOwnedRuleDoc,
   guardShowsSpecAdvisoryForMappedCodeChange,
   specFetchCacheOnlyDoesNotMoveTeamBaseline,
   specFetchAtLockRehydratesCacheAtBaseline,

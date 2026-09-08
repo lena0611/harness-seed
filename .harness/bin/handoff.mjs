@@ -167,6 +167,7 @@ function renderProjectRuleAuthoringGuide() {
 
 - \`.harness/project/domain-rules.md\`: 도메인/업무 규칙
 - \`.harness/project/architecture-rules.md\`: 책임 경계/구조 기준
+- \`.harness/project/coding-conventions.md\`: 언어·서식·네이밍 규약 (도구가 못 잡는 것만)
 - \`.harness/project/workflow-rules.md\`: 작업 순서/검증/반복 업무 패턴
 - \`.harness/project/commit-push-rules.md\`: 완료 승인, commit/push, hook 기준
 - \`.harness/session/decision-log.md\`: 확정 전 판단과 선택 이유

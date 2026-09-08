@@ -19,6 +19,7 @@
 | `.harness/project/project-charter.md` | 프로젝트 상태, 책임 범위, 성공 기준이 바뀔 때 |
 | `.harness/project/scope-contract.md` | 이 저장소가 다루는 범위와 제외 범위가 바뀔 때 |
 | `.harness/project/domain-rules.md` | 업무 용어, 불변식, 외부 시스템 계약이 드러날 때 |
+| `.harness/project/coding-conventions.md` | 언어·문법 제약, 서식, 네이밍처럼 "코드를 어떻게 쓰는가"를 정할 때 |
 | `.harness/project/architecture-rules.md` | 모듈 경계, 의존 방향, 반복 구조 규칙이 생길 때 |
 | `.harness/project/workflow-rules.md` | 검증 명령, 리뷰 기준, 릴리스/장애 대응 흐름이 바뀔 때 |
 | `.harness/session/decision-log.md` | 기준 충돌, 예외, 아키텍처 선택의 이유를 남길 때 |

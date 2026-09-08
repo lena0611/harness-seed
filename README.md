@@ -514,6 +514,7 @@ Harness check summary
 | 파일 | 기록할 내용 |
 | --- | --- |
 | `.harness/project/domain-rules.md` | 도메인 용어, 업무 규칙, 예외 조건 |
+| `.harness/project/coding-conventions.md` | 언어·런타임 제약, 금지 문법·API, 서식, 네이밍 (도구가 못 잡는 것만) |
 | `.harness/project/architecture-rules.md` | 책임 경계, 데이터 흐름, 금지 구조 |
 | `.harness/project/workflow-rules.md` | 작업 순서, 리뷰/검증 방식, 반복 업무 패턴 |
 | `.harness/project/commit-push-rules.md` | 완료 승인, commit/push, hook 검증 기준 |

@@ -616,6 +616,7 @@
         ".harness/project/project-harness-guide.md",
         ".harness/project/domain-rules.md",
         ".harness/project/architecture-rules.md",
+        ".harness/project/coding-conventions.md",
         ".harness/project/workflow-rules.md",
         ".harness/session/decision-log.md",
         ".harness/session/developer-input-queue.md"
@@ -623,6 +624,7 @@
       "ownedAreas": [
         ".harness/project/domain-rules.md",
         ".harness/project/architecture-rules.md",
+        ".harness/project/coding-conventions.md",
         ".harness/project/workflow-rules.md",
         ".harness/session/decision-log.md",
         ".harness/session/developer-input-queue.md",
