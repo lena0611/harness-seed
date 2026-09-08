@@ -4159,6 +4159,30 @@ function codingConventionsShipsAsProjectOwnedRuleDoc() {
   assert(read(target, '.harness/project/project-harness-guide.md').includes('`coding-conventions.md`'), 'the guide responsibility table must include it')
 }
 
+// 코딩 규약은 채워지면 자동으로 항상 읽기(2026-09-08 사용자 지적): 기능·버그 작업 컨텍스트에는 작업 유형만으로 골라지지만,
+// 컨텍스트를 만들지 않는 작은 수정에서는 이름만 남는다. "profile sources에 inject: always를 넣어라"를 마이그레이션 단계로
+// 두면 새로 하네스를 입힌 프로젝트가 정확히 빠진다. 정의상 모든 코드 변경에 걸리는 규칙이라 채워진 순간 항상 읽기가 맞고,
+// 빈 뼈대일 땐 넣지 않는다(소음).
+function codingConventionsBecomeAlwaysReadOnceFilled() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const rel = '.harness/project/coding-conventions.md'
+  const alwaysSection = () => read(target, '.harness/session/task-context.md').split('## Always Read')[1].split('\n## ')[0]
+
+  run(harnessBin(target), ['context', '결제 취소 API 버그 수정'], { cwd: target })
+  assert(!alwaysSection().includes(rel), 'the empty skeleton must not be always-read (noise)')
+
+  // 팀이 규칙 한 줄을 채운다 — 등록 없이.
+  const doc = read(target, rel).replace('## 금지 문법·API\n- `TBD` — "금지 | 대신 사용" 표 형식을 권합니다', '## 금지 문법·API\n\n| 금지 | 대신 사용 |\n|---|---|\n| `match` | `switch` |')
+  assert(doc !== read(target, rel), 'the fixture must actually fill a rule (precondition)')
+  fs.writeFileSync(path.join(target, rel), doc)
+  run(harnessBin(target), ['context', '결제 취소 API 버그 수정'], { cwd: target })
+  assert(alwaysSection().includes(rel), 'once a rule is filled the doc must be always-read without any profile registration')
+  const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
+  assert(!(profile.sources ?? []).some((src) => src.path === rel), 'no profile sources[] line is needed (precondition of the claim)')
+  assert(alwaysSection().split(rel).length === 2, 'the doc must appear once even if also matched elsewhere')
+}
+
 // 설치가 기존 CLAUDE.md 위에 블록을 얹은 뒤 안내하는 문장 — "CLAUDE.md의 규칙을 하네스 문서로 마이그레이션해줘" —
 // 을 개발자가 그대로 말하면 에이전트는 로컬룰 승격 스킬과 그 스킬이 읽는 가이드(절차 절)를 골라야 한다.
 // 2026-09-08 실측: 요청이 docs로 분류되면 docs를 가진 스킬 넷이 task 가점(+10)으로 상위 4칸을 다 차지하고,
@@ -7675,6 +7699,7 @@ const tests = [
   contextClassifiesPlainKoreanDevelopmentRequest,
   contextSelectsRulePromotionForEntrypointMigrationRequest,
   codingConventionsShipsAsProjectOwnedRuleDoc,
+  codingConventionsBecomeAlwaysReadOnceFilled,
   guardShowsSpecAdvisoryForMappedCodeChange,
   specFetchCacheOnlyDoesNotMoveTeamBaseline,
   specFetchAtLockRehydratesCacheAtBaseline,

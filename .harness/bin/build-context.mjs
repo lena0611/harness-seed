@@ -538,6 +538,25 @@ function uniqueByFile(items) {
   return out
 }
 
+const CODING_CONVENTIONS_REL = '.harness/project/coding-conventions.md'
+
+// 뼈대(`- \`TBD\``)가 아닌 규칙 줄 — 불릿이나 표 행 — 이 하나라도 있으면 "채워졌다"고 본다.
+// 표의 헤더·구분선은 규칙이 아니므로 세지 않는다.
+function codingConventionsFilled() {
+  if (!exists(CODING_CONVENTIONS_REL)) return false
+  let section = ''
+  for (const line of read(CODING_CONVENTIONS_REL).split(/\r?\n/)) {
+    const t = line.trim()
+    if (t.startsWith('## ')) { section = t.slice(3).trim(); continue }
+    if (section === '변경 규칙' || section === '') continue // 이 문서를 고치는 법·머리말은 규칙이 아니다(뼈대에도 있다)
+    if (t.includes('TBD')) continue
+    if (/^\|\s*-{3,}/.test(t)) continue // 표 구분선
+    if (t.startsWith('- ')) return true
+    if (t.startsWith('|') && !/^\|\s*(금지|항목|대상|규칙)\s*\|/.test(t)) return true // 표 행(헤더 제외)
+  }
+  return false
+}
+
 function renderContext() {
   const tokens = tokenize(task)
   const taskType = detectTaskType(tokens)
@@ -549,7 +568,13 @@ function renderContext() {
       .map((source) => source.path)
       .filter((rel) => exists(rel) && !baseAlways.includes(rel)),
   )]
-  const always = [...baseAlways, ...declaredAlways]
+  // 코딩 규약은 정의상 모든 코드 변경에 걸리므로, 팀이 한 줄이라도 채웠으면 자동으로 항상 읽기에 넣는다
+  // (0.2.144, 사용자 지적). 빈 뼈대(TBD만)일 땐 소음이라 넣지 않는다. profile sources[]의 inject: always
+  // 선언은 필요 없다 — "마이그레이션 때만 등록"이면 새로 하네스를 입힌 프로젝트가 정확히 빠진다.
+  const conventionsAlways = codingConventionsFilled()
+    && !baseAlways.includes(CODING_CONVENTIONS_REL) && !declaredAlways.includes(CODING_CONVENTIONS_REL)
+    ? [CODING_CONVENTIONS_REL] : []
+  const always = [...baseAlways, ...declaredAlways, ...conventionsAlways]
   const contextEntries = selectContextEntries(tokens, taskType)
   const skillEntries = selectSkillEntries(tokens, taskType)
   const keywordCandidates = registryFiles

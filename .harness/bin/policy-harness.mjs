@@ -1260,7 +1260,7 @@ function printProjectRuleCandidateReminder(changedGroups) {
   }
 
   if (summaryMode) {
-    console.log('Project rule candidate check: 반복 규칙/구조 결정/검증 절차가 생겼으면 .harness/project/* 로컬룰 승격을 검토하고, 런타임 불변식은 문서 대신 테스트/CI 가드로 만드세요. (안내 상세: --verbose)')
+    console.log('Project rule candidate check: 반복 규칙/구조 결정/코딩 규약(문법·서식·네이밍)/검증 절차가 생겼으면 .harness/project/* 로컬룰 승격을 검토하고, 런타임 불변식은 문서 대신 테스트/CI 가드로 만드세요. (안내 상세: --verbose)')
     console.log('')
     return
   }
