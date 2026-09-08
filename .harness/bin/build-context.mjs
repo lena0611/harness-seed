@@ -490,7 +490,9 @@ function scoreSkillEntry(entry, tokens, taskType) {
   // 선례를 따르되, 짧은 토큰이 긴 트리거에 붙어 과다 매칭되는 쪽(트리거 ⊇ 토큰)은 위 텍스트 일치가
   // 이미 담당하므로 여기서는 토큰 ⊇ 트리거만 본다.
   for (const trigger of (entry.triggers ?? []).map((t) => String(t).toLowerCase()).filter((t) => t.length >= 2)) {
-    if (tokens.some((token) => token !== trigger && token.includes(trigger))) {
+    // 정확 일치도 포함한다 — 트리거와 같은 낱말이 그대로 온 것이 가장 강한 신호다(2026-09-08 실측: 제외했더니
+    // "claude.md"·"포인터"가 정확히 온 요청에서 rule-promotion이 4순위 끝에 걸렸다).
+    if (tokens.some((token) => token.includes(trigger))) {
       score += 6
       matched.push(`trigger:${trigger}`)
     }

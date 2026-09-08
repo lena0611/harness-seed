@@ -54,3 +54,4 @@
 - `.claude/settings.json`은 project-owned 설정이지만, 에이전트 안전 훅 wiring이 빠지지 않도록 `init`이 하네스의 hooks/permissions(deny·allow)/env/statusLine을 기존 소비자 설정에 멱등·비파괴로 병합합니다. 기존 키와 값은 보존하고 누락된 안전 표면만 추가하며, 이 병합은 프로젝트 런타임/환경값 계약을 바꾸지 않습니다.
 - `init` 기본 출력은 설치 결과, 자동 스캔/인수인계/검사 성공 여부, 기존 AI 작업 룰 후보 수만 요약합니다. 내부 `node .harness/bin/...` 실행 명령과 원문 진단 로그는 실패 시 또는 `init --verbose`에서만 표시합니다. 이는 콘솔 표시 계약이며 설치 manifest, lock, Node 런타임 계약을 바꾸지 않습니다.
 - 기존 AI 작업 룰 후보 감지는 리포팅 계약입니다. 하네스는 후보 문서를 자동으로 `profile.json sources[]`에 쓰지 않고, 팀 공유 기준으로 확정된 항목만 사용자가 프로젝트 소유 설정으로 등록합니다.
+- `profile.json sources[]`의 역할은 하나입니다(2026-09-08 정리): **저장소 전체가 항상 따르는 문서를 신고**하는 것 — `inject: "always"`면 모든 작업 컨텍스트의 Always Read에 실리고, 스캔은 그 문서를 팀 기준으로 분류합니다. 프로젝트 문서를 하네스에 알리는 일반 등록은 `document-registry.local.json`(링크 검사·컨텍스트 후보·스캔 분류)이고, 서비스 하나에만 적용되는 룰은 거기에만 등록합니다 — `sources[]`에 두면 다른 서비스 작업에도 실립니다.

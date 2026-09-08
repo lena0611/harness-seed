@@ -22,6 +22,7 @@
 - **#26 multisite**: #24 수정 2건 실측 확인 + "매핑 추가해도 숫자 안 변함" 주장 **제보자 실측으로 철회**(정상 감소). close.
 - **#27 scorecard**: 다이어트 293→148줄 실측, 코딩 규약 Always Read 자동 편입 실전 확인. #22 ①(다중 홉)은 미검증 — 다음 다중 홉 update 때 회신 예정. close.
 - 긴급 사항 없음. 0.2.145 공지는 현재 `없음`(에이전트만 보는 변화). 후보가 더 쌓이면 릴리스.
+- **후보(설계) — `profile.json sources[]`를 등록부로 흡수할지**: 남은 고유 역할은 `inject: always`(저장소 전체 항상 읽기) 하나. 그 외(스캔 분류·미등록 후보 억제)는 `document-registry.local.json`이 다 한다. 실측 사용자 0(multisite·리허설 둘 다 `[]`). 결정 101 계열(안 쓰는 옵트인은 부채) — 등록부 children에 `{path, always: true}` 형태를 허용하고 sources[]는 무동작 수용으로 은퇴하는 안. 소비자 grep 선행(결정 83). 지금은 문서로 역할만 좁혀 둠(config-contract·가이드·spec-authority).
 
 ## v0.2.144 배포 완료 (2026-09-08 저녁)
 
