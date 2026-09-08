@@ -4069,6 +4069,27 @@ function buildContextInjectsRelatedSpecs() {
 // 개발자가 가장 자연스럽게 쓰는 말이 가장 나쁜 결과를 내면 안 된다.
 // "개발"이 유형 키워드에 없어 unknown/low로 떨어졌고, 유형 가점이 죽어 관련 문서가 밀리고
 // 엉뚱한 스킬(JIRA 운영 업무 접수)이 올라왔다(2026-08-11 multisite 실측).
+// 설치가 기존 CLAUDE.md 위에 블록을 얹은 뒤 안내하는 문장 — "CLAUDE.md의 규칙을 하네스 문서로 마이그레이션해줘" —
+// 을 개발자가 그대로 말하면 에이전트는 로컬룰 승격 스킬과 그 스킬이 읽는 가이드(절차 절)를 골라야 한다.
+// 2026-09-08 실측: 요청이 docs로 분류되면 docs를 가진 스킬 넷이 task 가점(+10)으로 상위 4칸을 다 차지하고,
+// 스킬 매칭이 한 방향(토큰 ⊂ 스킬 텍스트)이라 조사가 붙은 "규칙을"·"마이그레이션해줘"는 트리거 "규칙"·"마이그레이션"에
+// 걸리지 않아 rule-promotion이 탈락했다. 안내 문장이 스킬을 못 부르면 안내는 거짓이다.
+function contextSelectsRulePromotionForEntrypointMigrationRequest() {
+  const target = makeTarget()
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), '# 프로젝트 규약\n\n@CONVENTIONS.md\n')
+  fs.writeFileSync(path.join(target, 'CONVENTIONS.md'), '# 규약\n\n## 3. 계층\n- Controller/Service/DAO\n')
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  run(harnessBin(target), ['context', 'CLAUDE.md의 규칙을 하네스 문서로 마이그레이션해줘'], { cwd: target })
+  const ctx = read(target, '.harness/session/task-context.md')
+  const skills = ctx.split('## Selected Skills')[1]?.split('\n## ')[0] ?? ''
+  assert(skills.includes('(harness.rule-promotion)'),
+    'the sentence the installer hands to developers must select the rule-promotion skill — otherwise the guidance is a dead end')
+  const block = skills.split('(harness.rule-promotion)')[1]?.split('\n### ')[0] ?? ''
+  assert(block.includes('.harness/project/project-harness-guide.md'),
+    'the selected skill must read the guide that carries the migration procedure')
+}
+
 function contextClassifiesPlainKoreanDevelopmentRequest() {
   const { target } = setupSpecLinkedTarget()
 
@@ -7535,6 +7556,7 @@ const tests = [
   guideSyncPolicyKeepsBundledGuideLinked,
   buildContextInjectsRelatedSpecs,
   contextClassifiesPlainKoreanDevelopmentRequest,
+  contextSelectsRulePromotionForEntrypointMigrationRequest,
   guardShowsSpecAdvisoryForMappedCodeChange,
   specFetchCacheOnlyDoesNotMoveTeamBaseline,
   specFetchAtLockRehydratesCacheAtBaseline,

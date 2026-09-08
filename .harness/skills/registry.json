@@ -424,7 +424,9 @@
         "feature",
         "bugfix",
         "refactor",
-        "review"
+        "review",
+        "docs",
+        "maintenance"
       ],
       "priority": "medium",
       "triggers": [

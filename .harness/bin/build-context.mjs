@@ -483,6 +483,19 @@ function scoreSkillEntry(entry, tokens, taskType) {
     }
   }
 
+  // 트리거는 의도 신호라 일반 텍스트 일치보다 무겁게 친다(+6 > 텍스트 +3, 그리고 task 가점 +10과
+  // 합쳐 상위 4칸 경쟁에서 밀리지 않게). 한국어 요청은 조사가 붙어 토큰이 트리거보다 길다
+  // ("규칙을" ⊇ "규칙", "마이그레이션해줘" ⊇ "마이그레이션") — 위 한 방향 includes는 이를 놓쳤다
+  // (2026-09-08 실측: 설치 안내 문장이 rule-promotion을 부르지 못했다). detectTaskType의 양방향
+  // 선례를 따르되, 짧은 토큰이 긴 트리거에 붙어 과다 매칭되는 쪽(트리거 ⊇ 토큰)은 위 텍스트 일치가
+  // 이미 담당하므로 여기서는 토큰 ⊇ 트리거만 본다.
+  for (const trigger of (entry.triggers ?? []).map((t) => String(t).toLowerCase()).filter((t) => t.length >= 2)) {
+    if (tokens.some((token) => token !== trigger && token.includes(trigger))) {
+      score += 6
+      matched.push(`trigger:${trigger}`)
+    }
+  }
+
   if (entry.priority === 'critical') score += 6
   else if (entry.priority === 'high') score += 4
   else if (entry.priority === 'medium') score += 2
