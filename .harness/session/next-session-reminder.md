@@ -7,6 +7,7 @@
 - **경로**: `origin/mhryu75-OPDTEAM3-667`(master로 갈 개발 브랜치)에 CLI로 설치 → 에이전트에게 "CLAUDE.md의 규칙을 하네스 문서로 마이그레이션해줘" → master 머지. 667엔 규약·셋업·tools/php가 이미 있어 "667 파일 먼저" 단계가 사라진다. 회신문을 이 경로로 다시 썼다(1절 제목·상자·꼬리말·`#` 함정 항목).
 - **실측(`~/practice/common-test-667`, 브랜치 harness-on-667)**: 설치는 깨끗 — 블록 위·팀 4줄 아래, phpcs 훅 유지, 하네스 훅 병합, 1개 보존. **리허설 커밋 cherry-pick은 비권장**: ② CLAUDE.md 충돌(리허설 base는 하네스 템플릿, 667은 팀 문서) + `.claude/settings.json`에 **허용 명령 7개 중복·phpcs 훅 2번**(설치기가 이미 병합한 위에 ②가 다시 넣음). 충돌 해소 뒤 `cherry-pick --continue`가 편집기 경로를 타서 `#OPDTEAM3-667 …` 첫 줄이 **주석으로 지워짐** — `#` 함정 실증(`-c commit.cleanup=whitespace` 필요).
 - 알아둘 것 둘(문서에 적음): 667 머지 전 master에서 딴 브랜치엔 하네스 없음 · 667의 다른 코드 변경도 함께 올라감.
+- **확정된 브랜치 흐름(사용자 2026-09-08 밤)**: 667에서 설치·마이그레이션 → master 머지 → pr-multisite에 master 머지 → 그 위에서 `ss/multisite/CLAUDE.md` 작성. master(하네스 포함)→pr-multisite 머지는 리허설에서 충돌 0 확인. 회신문 머리에 이 흐름을 박고, 개발자용 문서에서 리허설·practice 언급과 '확인 명령' 단계를 걷어냈다(에이전트 절차가 이미 확인함). §3-4 기획 연동 문장은 첫 연결이라 "도" 없이.
 - 세 워크트리 모두 참고용: `common-test`(master 기준 리허설), `common-test-handover`(master+667파일+cherry-pick, 깨끗), `common-test-667`(667 위 설치+pick, settings 중복 상태 그대로 둠 — 교훈 보존용).
 
 ## PHP 팀 전달 직전 점검 — 회신문 정정 (2026-09-08 저녁)
