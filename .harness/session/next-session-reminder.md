@@ -2,6 +2,13 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
+## PHP 전달 경로 변경 — 667 브랜치에 설치 (사용자 제안 2026-09-08 밤, 실측 확인)
+
+- **경로**: `origin/mhryu75-OPDTEAM3-667`(master로 갈 개발 브랜치)에 CLI로 설치 → 에이전트에게 "CLAUDE.md의 규칙을 하네스 문서로 마이그레이션해줘" → master 머지. 667엔 규약·셋업·tools/php가 이미 있어 "667 파일 먼저" 단계가 사라진다. 회신문을 이 경로로 다시 썼다(1절 제목·상자·꼬리말·`#` 함정 항목).
+- **실측(`~/practice/common-test-667`, 브랜치 harness-on-667)**: 설치는 깨끗 — 블록 위·팀 4줄 아래, phpcs 훅 유지, 하네스 훅 병합, 1개 보존. **리허설 커밋 cherry-pick은 비권장**: ② CLAUDE.md 충돌(리허설 base는 하네스 템플릿, 667은 팀 문서) + `.claude/settings.json`에 **허용 명령 7개 중복·phpcs 훅 2번**(설치기가 이미 병합한 위에 ②가 다시 넣음). 충돌 해소 뒤 `cherry-pick --continue`가 편집기 경로를 타서 `#OPDTEAM3-667 …` 첫 줄이 **주석으로 지워짐** — `#` 함정 실증(`-c commit.cleanup=whitespace` 필요).
+- 알아둘 것 둘(문서에 적음): 667 머지 전 master에서 딴 브랜치엔 하네스 없음 · 667의 다른 코드 변경도 함께 올라감.
+- 세 워크트리 모두 참고용: `common-test`(master 기준 리허설), `common-test-handover`(master+667파일+cherry-pick, 깨끗), `common-test-667`(667 위 설치+pick, settings 중복 상태 그대로 둠 — 교훈 보존용).
+
 ## PHP 팀 전달 직전 점검 — 회신문 정정 (2026-09-08 저녁)
 
 - **리허설 커밋을 통째로 넘기면 안 되는 이유 둘(실측)**: ① 리허설 설치 lock이 `source.type: bundled`(로컬 시드) — 그대로 올리면 나중 `harness update`가 재설치 안내. ② 리허설 ①(설치 커밋)을 amend할 때 667의 `CONVENTIONS.md·DEV_SETUP.md·tools/php`가 index에 있어 **함께 들어갔다** — 그래서 ②는 그 파일들의 *수정*이고 파일 없는 master에 cherry-pick하면 modify/delete 충돌.
