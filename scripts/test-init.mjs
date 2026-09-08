@@ -4199,15 +4199,40 @@ function registeredServiceRuleDocKeepsASlotInRelevantPolicies() {
   fs.writeFileSync(path.join(target, 'ss/multisite/rules/architecture.md'),
     '# 멀티사이트 아키텍처 규칙\n## 경기관제 API 응답\n- 모든 관제 API는 `{ ok, data, serverTime }` 봉투로 응답한다.\n')
   fs.writeFileSync(path.join(target, 'ss/multisite/CLAUDE.md'), '# 멀티사이트\n- [아키텍처](rules/architecture.md)\n')
-  writeJson(target, '.harness/documentation/document-registry.local.json', { children: ['ss/multisite/CLAUDE.md', 'ss/multisite/rules/architecture.md'] })
+  // 같이 등록된 절차 문서(슬래시 명령·셋업 안내)가 흔한 낱말을 수십 번 반복하면 점수(단어당 최대 5점)로는
+  // 앞선다 — 실제 PHP 저장소에서 .claude/commands/*.md 둘과 DEV_SETUP.md가 보장 3칸을 다 먹었다(2026-09-08).
+  fs.mkdirSync(path.join(target, '.claude/commands'), { recursive: true })
+  const chatter = '- API 수정 절차: API를 수정하고 응답을 수정한다.\n'.repeat(30)
+  fs.writeFileSync(path.join(target, '.claude/commands/migrate.md'), `# 마이그레이션 명령\n${chatter}`)
+  fs.writeFileSync(path.join(target, '.claude/commands/register.md'), `# 등록 명령\n${chatter}`)
+  fs.writeFileSync(path.join(target, 'DEV_SETUP.md'), `# 셋업\n${chatter}`)
+  writeJson(target, '.harness/documentation/document-registry.local.json', {
+    children: ['ss/multisite/CLAUDE.md', 'ss/multisite/rules/architecture.md', '.claude/commands/migrate.md', '.claude/commands/register.md', 'DEV_SETUP.md'],
+  })
 
   run(harnessBin(target), ['context', '경기관제 API 응답 봉투 수정'], { cwd: target })
-  const ctx = read(target, '.harness/session/task-context.md')
-  const relevant = ctx.split('## Relevant Policies')[1].split('\n## ')[0]
+  let ctx = read(target, '.harness/session/task-context.md')
+  let relevant = ctx.split('## Relevant Policies')[1].split('\n## ')[0]
   assert(relevant.includes('ss/multisite/rules/architecture.md'),
     'a registered service rule doc whose content matches the request must keep a slot in Relevant Policies even when root docs fill the cap by task type')
+  // 요청 단어를 넷 담은 문서가, 두 단어를 서른 번 반복한 절차 문서보다 먼저 보장 자리를 받아야 한다.
+  assert(!relevant.includes('.claude/commands/register.md') || relevant.indexOf('ss/multisite/rules/architecture.md') < relevant.indexOf('.claude/commands/register.md'),
+    'reserved slots must prefer the doc covering more distinct request words over one repeating a common word')
   // 루트 문서가 통째로 밀려나면 안 된다 — 보장은 최대 3칸이다.
   assert(relevant.includes('.harness/project/architecture-rules.md'), 'root rule docs must still be present')
+
+  // 한 파일 모양 — 서비스 폴더 CLAUDE.md에 규칙을 직접 담아도(등록만 하면) 같은 자리를 받는다 (2026-09-08 사용자 질문).
+  fs.rmSync(path.join(target, 'ss/multisite/rules'), { recursive: true, force: true })
+  fs.writeFileSync(path.join(target, 'ss/multisite/CLAUDE.md'),
+    '# 멀티사이트 백엔드 (ss/multisite) 전용 규칙\n\n## 아키텍처\n- 모든 경기관제 API는 `{ ok, data, serverTime }` 봉투로 응답한다.\n')
+  writeJson(target, '.harness/documentation/document-registry.local.json', {
+    children: ['ss/multisite/CLAUDE.md', '.claude/commands/migrate.md', '.claude/commands/register.md', 'DEV_SETUP.md'],
+  })
+  run(harnessBin(target), ['context', '경기관제 API 응답 봉투 수정'], { cwd: target })
+  ctx = read(target, '.harness/session/task-context.md')
+  relevant = ctx.split('## Relevant Policies')[1].split('\n## ')[0]
+  assert(relevant.includes('ss/multisite/CLAUDE.md'),
+    'a registered service-folder CLAUDE.md holding the rules itself must be selected like any registered rule doc')
 }
 
 // 설치가 기존 CLAUDE.md 위에 블록을 얹은 뒤 안내하는 문장 — "CLAUDE.md의 규칙을 하네스 문서로 마이그레이션해줘" —

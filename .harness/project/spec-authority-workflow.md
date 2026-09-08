@@ -226,7 +226,7 @@ hunk라 찢어질 수 없음), 최악의 해소(통째 ours, 손편집 후퇴)�
 - **설치 발자국은 저장소 전역입니다** — 루트 `.harness/`와 훅 전환은 그 저장소에서 커밋하는 모든
   팀에게 보입니다. 한 팀이 단독으로 정할 일이 아니라 **저장소를 공유하는 리더들의 합의가 선행**입니다.
 - 서비스별 개발룰은 2단으로 둡니다: 저장소 공통 룰은 `.harness/project/*.md`, 서비스 전용 룰은
-  서비스 디렉터리의 문서(`document-registry.local.json`에 등록, 그 디렉터리 `CLAUDE.md`는 포인터만).
+  서비스 디렉터리의 문서(`document-registry.local.json`에 등록 — 그 디렉터리 `CLAUDE.md`에 전부 담거나, 유형별 파일로 나누고 `CLAUDE.md`는 목차로).
   `profile.json sources[]`는 저장소 전체가 항상 따르는 기준을 신고하는 자리라 서비스 전용 룰은 거기 두지 않습니다
   (작성 요령: [project-harness-guide.md](./project-harness-guide.md)의 "서비스 폴더 CLAUDE.md" 절).
 

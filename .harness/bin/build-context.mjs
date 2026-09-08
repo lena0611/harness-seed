@@ -603,7 +603,12 @@ function renderContext() {
   // 보장 대상은 **프로젝트가 등록부에 올린 문서**만이다 — 본체 문서(가이드·정책)는 컨텍스트 레지스트리 항목으로
   // 이미 자리를 잡고, 키워드 후보로도 위에 몰려 있어 전체 후보에서 3개를 뽑으면 그것들만 다시 들어온다(실측).
   const localRegistered = readLocalRegistryChildren()
-  const projectCandidates = keywordCandidates.filter((item) => localRegistered.has(item.file))
+  // 보장 자리 안에서는 "요청 단어를 몇 개나 담았나"(matched 수)를 먼저 본다 — 점수는 한 단어 반복도 최대 5점씩
+  // 쌓여서, api·수정을 수십 번 쓰는 절차 문서(슬래시 명령·셋업 안내)가 10점으로 앞서고 요청 단어 넷을 각 한 번씩
+  // 담은 서비스 룰(4점)이 밀렸다(2026-09-08 실측). 전체 순서는 그대로 두고 보장 후보만 이 기준으로 고른다.
+  const projectCandidates = keywordCandidates
+    .filter((item) => localRegistered.has(item.file))
+    .sort((a, b) => b.matched.length - a.matched.length || b.score - a.score || a.file.localeCompare(b.file))
   const reserved = Math.min(3, projectCandidates.length, cap)
   const candidates = uniqueByFile([
     ...contextEntries.slice(0, cap - reserved),
