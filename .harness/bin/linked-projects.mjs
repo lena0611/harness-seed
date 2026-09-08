@@ -152,7 +152,8 @@ function addLinkedProject() {
       dir = candidateDirs().find((d) => fs.existsSync(d) && remoteUrls(d).some((u) => normalizeRepo(u) === wanted)) ?? null
     }
   }
-  if (path.resolve(dir ?? '') === root) fail('자기 자신을 연결할 수는 없습니다.')
+  // dir이 null(이 PC에 폴더 없음)일 때 path.resolve('')는 cwd = 저장소 루트가 되어 자기 자신으로 오판했다(2026-09-08).
+  if (dir && path.resolve(dir) === root) fail('자기 자신을 연결할 수는 없습니다.')
 
   const label = typeof flags.label === 'string' && flags.label.trim() ? flags.label.trim() : path.basename(normalizeRepo(repoUrl) ?? repoUrl)
   const focus = typeof flags.focus === 'string' && flags.focus.trim() ? flags.focus.trim().replace(/\/+$/, '') : null

@@ -2941,6 +2941,23 @@ function hookCoexistenceDocCoversOwnHookDirPattern() {
 }
 
 // 0.2.141: 연결 선언을 사람이 JSON으로 쓰지 않게 — `harness linked add`가 폴더의 git remote로 정체를 뽑아
+// 폴더 없는 선언(2026-09-08 실측, PHP 백엔드 리허설): git 주소만 주고 이 PC에 그 저장소가 없으면 dir이
+// null인데, 자기 자신 검사가 `path.resolve(dir ?? '')`로 빈 문자열을 cwd로 풀어 저장소 루트와 같다고 판정했다.
+// 저장소 루트에서 실행하는 정상 경로에서 항상 죽으므로 문서가 약속한 "선언은 저장됐으니 폴더만 열리면 다음
+// 세션부터 연결" 경로는 닿을 수 없었다. 선언은 기록되고, 개인 설정은 만들지 않아야 한다.
+function linkedAddDeclaresWithoutLocalFolder() {
+  const front = makeTarget()
+  runInit(front, '--no-scan', '--no-handoff', '--no-check')
+  fs.rmSync(path.join(front, '.claude/settings.local.json'), { force: true })
+  const out = run(harnessBin(front), ['linked', 'add', '--repo', 'https://git.example.com/team/frontend.git', '--label', '프론트', '--no-dir'], { cwd: front })
+  assert(!out.includes('자기 자신'), 'a URL-only declaration must not be mistaken for a self-link (dir is null, not cwd)')
+  const profile = JSON.parse(read(front, '.harness/policy/profile.json'))
+  assert(profile.linkedProjects.length === 1 && profile.linkedProjects[0].repo === 'https://git.example.com/team/frontend.git',
+    'the declaration must be written even when no local folder resolves')
+  assert(!fs.existsSync(path.join(front, '.claude/settings.local.json')), '--no-dir must not create personal settings')
+  assert(out.includes('폴더를 찾지 못했습니다') || out.includes('선언은 저장됐으니'), 'the output must tell the developer the folder is not yet opened on this PC')
+}
+
 // profile(팀)과 settings.local.json(개인)을 함께 쓰고, 같은 저장소 재실행은 갱신만 한다. 스킬 /연결프로젝트가 이 명령을 부른다.
 function linkedAddWritesProfileAndLocalSettings() {
   const front = makeTarget()
@@ -2951,8 +2968,7 @@ function linkedAddWritesProfileAndLocalSettings() {
   fs.writeFileSync(path.join(back, 'svc/multisite/CLAUDE.md'), '# 서비스 룰\n')
   run('git', ['remote', 'add', 'origin', 'https://git.example.com/team/backend.git'], { cwd: back })
   const rel = path.relative(front, back)
-  // 이 테스트는 linked add의 중복 방지만 본다. 로컬 소스 init이 남길 수 있는 settings.local.json을
-  // 지워 add 전 상태를 '깨끗'으로 통제한다(개인 settings.local.json 유출은 별건 — spawn_task).
+  // add 전 상태를 '깨끗'으로 통제한다(시드 개인 파일 유출은 installNeverShipsTheSeedsPersonalLocalFiles가 잠근다 — 여기서는 방어적으로만 지운다).
   fs.rmSync(path.join(front, '.claude/settings.local.json'), { force: true })
 
   const out = run(harnessBin(front), ['linked', 'add', '--repo', rel, '--focus', 'svc/multisite', '--label', '백엔드'], { cwd: front })
@@ -5733,6 +5749,47 @@ function bodyDoesNotTrackForeignStacksOrTemplates() {
   }
 }
 
+// 개인 로컬 파일은 시드 작업 트리에 있어도 설치본에 실리면 안 된다(2026-09-08 실측, 2026-09-03에 알고
+// 별건으로 미뤘던 것). INSTALL_ITEMS가 `.claude` 폴더를 통째로 걷는데 필터가 개인 파일 셋
+// (settings.local.json · CLAUDE.local.md · personal-methodology.local.md)을 빼지 않아, 로컬 체크아웃에서
+// 설치한 모든 프로젝트가 개발자 PC 경로가 든 권한 목록을 받았다. 같은 파일에서 gitignore 병합은 그 셋을
+// "개인용"으로 알고 등록한다 — 본체가 아는 것을 복사 단계만 몰랐다. npx 태그 설치는 clone에 gitignore
+// 파일이 없어 무사하므로, 이 회귀는 시드 트리를 복사해 개인 파일을 심은 **합성 시드**로 재현한다
+// (CI의 깨끗한 체크아웃에서도 실제로 결함 경로를 밟게 하기 위해 — 실기계 상태에 의존하는 테스트는 CI에서 헛돈다).
+function installNeverShipsTheSeedsPersonalLocalFiles() {
+  const seed = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-seed-copy-'))
+  const skip = new Set(['.git', 'node_modules', '.harness/generated', '.claude/worktrees', '.harness-backup'])
+  fs.cpSync(repoRoot, seed, {
+    recursive: true,
+    filter: (src) => !skip.has(path.relative(repoRoot, src).split(path.sep).join('/')),
+  })
+  const personal = {
+    '.claude/settings.local.json': JSON.stringify({ permissions: { additionalDirectories: ['/Users/someone/private-repo'] } }),
+    'CLAUDE.local.md': '# 개인 메모 — SENTINEL-PERSONAL\n',
+    '.harness/project/personal-methodology.local.md': '# 개인 방법론 — SENTINEL-PERSONAL\n',
+  }
+  for (const [rel, body] of Object.entries(personal)) {
+    fs.mkdirSync(path.dirname(path.join(seed, rel)), { recursive: true })
+    fs.writeFileSync(path.join(seed, rel), body)
+  }
+
+  const target = makeTarget()
+  run(nodeBin, [path.join(seed, 'scripts/init.mjs'), 'init', '--no-hooks', '--no-scan', '--no-handoff', '--no-check'], { cwd: target })
+
+  for (const rel of Object.keys(personal)) {
+    assert(!fs.existsSync(path.join(target, rel)),
+      `the seed's personal file must not ship to an install: ${rel} — a developer's own permissions/notes landed in every local-tree install`)
+  }
+  // 대조군: 같은 폴더의 팀 공유 설정은 실려야 한다 — 필터가 `.claude`를 통째로 버린 게 아님을 확인.
+  assert(fs.existsSync(path.join(target, '.claude/settings.json')), 'shared .claude/settings.json must still ship (control)')
+  // 그 셋은 소비자 .gitignore에는 계속 등록된다(소비자가 자기 것을 만들 때 커밋되지 않게).
+  const ignore = read(target, '.gitignore')
+  for (const rel of Object.keys(personal)) {
+    assert(ignore.split('\n').includes(rel), `consumer .gitignore must still list ${rel}`)
+  }
+  fs.rmSync(seed, { recursive: true, force: true })
+}
+
 // 2026-09-07: 사내 GitLab 그룹을 역할대로 정리했다 — 스택 하네스는 `ai-standard/stacks`, 제품
 // scaffold 템플릿은 `ai-standard/scaffolds`, 본체만 `ai-standard/harnesses`에 남는다. 옛 배치
 // (스택이 harnesses에, 템플릿이 stacks에)로 되돌아가면 조회 기본 그룹과 배포 레지스트리가 서로
@@ -7386,6 +7443,7 @@ const tests = [
   bodyHooksDeclareScope,
   hookCoexistenceDocCoversOwnHookDirPattern,
   linkedAddWritesProfileAndLocalSettings,
+  linkedAddDeclaresWithoutLocalFolder,
   installOutputEndsWithReportPrompt,
   hooksInstallWarnsAboutGitHooksThatStopRunning,
   reportInstallHelpWritesNothing,
@@ -7482,6 +7540,7 @@ const tests = [
   stackAuthoringGuideSpeaksEveryRuntime,
   stackAndTemplateRegistriesLiveUnderTheirOwnGroups,
   bodyDoesNotTrackForeignStacksOrTemplates,
+  installNeverShipsTheSeedsPersonalLocalFiles,
   templateMinStackVersionBlocksLowAndUnjudgeable,
   templatePackageMergeAddsWithoutReplacingTheProjectFile,
   checkFlagsAnUnlinkedProjectEntrypointUntilItIsLinked,

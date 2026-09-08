@@ -50,6 +50,15 @@ const CONSUMER_PROJECT_STATE_PATHS = [
   '.harness/session/project-memory.md',
 ];
 
+// 개인 로컬 파일(2026-09-08): 개발자 PC마다 다른 권한·메모·방법론. 시드 작업 트리에 있어도 설치본에
+// 실리면 안 되고(로컬 체크아웃 설치가 개발자 경로를 모든 설치본에 복사했던 실측), 소비자 .gitignore에는
+// 등록돼야 한다(소비자가 자기 것을 만들 때 커밋되지 않게). 두 자리가 같은 목록을 써야 한쪽만 낡지 않는다.
+const PERSONAL_LOCAL_PATHS = [
+  '.claude/settings.local.json',
+  'CLAUDE.local.md',
+  '.harness/project/personal-methodology.local.md',
+];
+
 const INSTALL_ITEMS = [
   '.harness',
   '.claude',
@@ -770,6 +779,8 @@ function shouldIncludeInstallFile(relPath) {
     // 에이전트 세션이 만드는 격리 워크트리는 본체 저장소 상태다. 로컬 체크아웃에서
     // 설치/테스트할 때 딸려 나가 소비자 쪽 .claude/** 정책(visible-trace)을 오발시킨다.
     rel.startsWith('.claude/worktrees/') ||
+    // 개인 로컬 파일은 시드에 있어도 배포하지 않는다 — 목록은 PERSONAL_LOCAL_PATHS 한 곳.
+    PERSONAL_LOCAL_PATHS.includes(rel) ||
     CONSUMER_PROJECT_STATE_PATHS.includes(rel) ||
     [
       '.harness/session/project-scan-report.md',
@@ -2023,9 +2034,7 @@ function mergeGitignore(target, opts) {
     '.harness-backup/',
     // prune:aliases와 managed 파일 덮어쓰기가 남기는 사이드카 백업. 커밋에 딸려 들어가지 않게 한다.
     '*.harness-bak',
-    'CLAUDE.local.md',
-    '.harness/project/personal-methodology.local.md',
-    '.claude/settings.local.json',
+    ...PERSONAL_LOCAL_PATHS,
   ];
 
   let current = '';

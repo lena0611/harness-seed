@@ -2,6 +2,28 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
+## PHP 백엔드(common) 하네스 설치·규약 마이그레이션 리허설 — 완료 (2026-09-08)
+
+- **배경(사용자)**: 멀티사이트 백엔드 개발자가 master에서 개발 브랜치를 따려는데, **그 전에 하네스가 master에 설치돼 있기를** 바란다. 그래서 실제 저장소로 리허설해 master에 올릴 커밋 실물을 만들었다.
+- **장소**: `~/practice/common-test` = GitLab `smartscore-backend/common` 새 clone(fetch만, **push 없음**). `~/project/common`(사용자 작업 clone, 667 브랜치)은 건드리지 않았다.
+- **브랜치**: `harness-migration`(master + 커밋 2) → ① `#OPDTEAM3-667 [공통] 공통 하네스 설치` ② `… 개발 규약(CONVENTIONS)을 하네스 구조로 마이그레이션`. `pr-multisite`(origin/pr-multisite + 머지 + 커밋 ③ `[멀티사이트] 서비스 폴더 포인터 CLAUDE.md + 프론트 연결 선언`). `pr-multisite-harness-only`(cherry-pick 둘만). master는 origin과 동일.
+- **머지 결과**: 전체 머지(master 103커밋 동반)·cherry-pick 둘 다 **충돌 0**. pr-multisite 변경(137파일)과 하네스 경로 교집합 0.
+- **마이그레이션 배치(발행한 결정 문서 그대로)**: 내용 이동 없이 등록만 — CONVENTIONS·DEV_SETUP·팀 명령 2개 → `document-registry.local.json`. 얻는 게 있는 절만 이동(규약엔 포인터) — §3-1~3-3 → architecture-rules, 브랜치·커밋 형식 → commit-push-rules(+커밋 템플릿), §5 수정 금지 8경로 → critical-paths(전부 master 실존). domain-rules엔 불변식·포인터. `.claude/settings.json`에 팀 허용 명령 + PostToolUse phpcs 훅 병합 — **없는 스크립트(scan-84.sh·scan-merge.sh)는 빼고 dev-setup.sh를 넣었다**(팀에 알릴 것). `tools/php/*`는 667에서 가져옴.
+- **실측으로 확인한 것**: check --strict 통과 · doc-link-check --strict 통과 · `harness context "…트랜잭션 처리"`가 architecture-rules.md를 선택 · `phpmailer/` 프로브 변경에 critical-paths.review 발동 · phpcs 훅은 도구 없으면 exit 0(fail-open, 설계대로).
+- **새로 찾은 함정**: 팀 커밋 형식 `#이슈키 …`는 **편집기 커밋에서 git이 첫 줄을 주석으로 지운다**(`commit.cleanup=strip`, `git stripspace --strip-comments`로 재현). 하네스가 커밋 템플릿을 연결해 편집기 경로가 실제로 열린다. 규칙·템플릿에 안내(`-m` 사용 또는 `commit.cleanup=whitespace`). 팀에 알릴 것.
+- **팀에 전달할 순서**: master에 ①②를 올리고(리더 결정·push는 팀) → 개발자가 브랜치를 딴다 → pr-multisite에는 머지 또는 cherry-pick(둘 다 깨끗) + ③. `composer install`(tools/php)은 각자 PC. 설치 리포트(`report:install`)는 리더 승인 후.
+- **남은 권고(미적용)**: phpcs를 커밋 시점에도 — `hook-coexistence.md` 자체 훅 폴더 패턴, 도구 없으면 실패시킬 것.
+
+## 연결 프로젝트 양방향 실증 — 통과 (2026-09-08) · 부수 결함 1건 수정
+
+- **왜**: 최근 배포들의 출발점인 PHP 백엔드(통합 저장소)와 멀티사이트 프론트를 **한 세션에서 어느 쪽을 주 창으로 열어도** 반대쪽 하네스가 동작해야 배포가 맺음된다(사용자). 09-02·09-04 실측은 프론트→백엔드 한 방향과 통합 저장소+기획 소스 2개까지였고, **백엔드를 주 창으로 연 방향과 양쪽이 서로를 선언한 상태는 미실증**이었다.
+- **실측 장소**: `~/practice/linked-pair-0908/frontend`(remote 정체 `smartscore-frontend/multisite`) · `…/common`(정체 `smartscore-backend/common`, `ss/multisite/CLAUDE.md` 포인터 포함 통합 저장소 모양). 원격은 정체 확인용 주소만, push 없음. 둘 다 현재 본체(0.2.143 후보 트리)로 설치.
+- **양방향 통과 5항목**: ① `harness linked add`가 양쪽에서 profile(팀)·settings.local(개인)을 정확히 씀(PC 경로는 팀 파일에 안 들어감, settings.local은 gitignore) ② 세션 시작 블록 — 프론트 주 창은 `common/CLAUDE.md` + **focus `ss/multisite/CLAUDE.md`** 둘을 "먼저 읽기"로, 백엔드 주 창은 `frontend/CLAUDE.md`를 가리킴 ③ 매 프롬프트 한 줄 양쪽 ④ 주 창 cwd에서 반대쪽 런처로 `check` 실행 양쪽(둘 다 새 수동 조치 "CLAUDE.md 미연결"이 뜸 — 실습 CLAUDE.md가 `.harness/`를 안 가리키니 정확한 판정) ⑤ 주 창 cwd에서 반대쪽 파일을 고치고 `git -C <반대쪽> commit` → **그쪽 pre-commit 훅이 실행**(관문 검사: 실행, 통과) 양쪽.
+- **기획 소스 여러 개**: 스키마 `sources[]` + `spec-authority-workflow.md` §"서비스가 늘어도 sources 항목만 늘어난다" + 09-04 실측(kiosk-planning 2번째 소스) + 회귀 3종(specMoveBaselineSourceScopeKeepsOtherSourcesIntact 등). 이번엔 재실행하지 않았다(정적 확인).
+- **부수 결함(수정)**: 새 설치의 `settings.local.json`이 **시드의 내 개인 파일 바이트 복사**였다 — `INSTALL_ITEMS`가 `.claude`를 통째로 걷고 필터가 개인 파일 셋을 안 뺐다. 09-03에 알고 별건 칩으로 미뤘던 것(회귀 주석 "유출은 별건 — spawn_task"). npx 태그 설치는 무사(clone에 gitignore 파일 없음), 로컬 체크아웃 설치만 해당. `PERSONAL_LOCAL_PATHS` 상수 하나로 복사 제외·gitignore 등록을 묶고, 합성 시드 회귀로 잠갔다(수정 전 빨강 확인). 칩 dismiss.
+- **런타임에서 사람이 알아야 할 것(변화 없음, 문서에 있음)**: 세션 주 폴더는 **저장소 루트**여야 훅이 돈다(`ss/multisite`로 열면 0개) · 반대쪽 세션 훅(쓰기 시점)은 안 돌고 git 훅은 돈다 · `additionalDirectories`는 PC마다 `linked add`가 써 준다.
+- **남은 것(연결과 별개, 09-04 B·H)**: 기획 소스의 경로 범위(`appliesTo`)·gate 저장소 전역 문제 — 통합 저장소 설계 결정 대기.
+
 ## PHP 백엔드 — 스택 없이 프로젝트 룰로 (결정 109, 2026-09-07 사용자 결정)
 
 - **결론**: PHP 백엔드는 **스택 하네스를 만들지 않는다.** 규약은 그 저장소의 `.harness/project/*` 로컬룰로 간다. **트리거는 두 번째 PHP 저장소** — 그때 공통 절만 뽑아 스택으로 만들고 **common 저장소도 그 스택을 주입받는다**(사용자 명시).
