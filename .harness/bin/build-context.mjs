@@ -341,6 +341,17 @@ function readRegistryFiles() {
   return [...files].filter((file) => exists(file)).sort()
 }
 
+// 프로젝트가 자기 문서를 하네스에 알리는 등록부(document-registry.local.json)의 항목만 돌려준다.
+function readLocalRegistryChildren() {
+  if (!exists('.harness/documentation/document-registry.local.json')) return new Set()
+  try {
+    const local = JSON.parse(fs.readFileSync(localRegistryPath, 'utf8'))
+    return new Set((Array.isArray(local.children) ? local.children : []).filter((child) => typeof child === 'string'))
+  } catch {
+    return new Set()
+  }
+}
+
 function readContextRegistry() {
   if (!exists('.harness/documentation/context-registry.json')) {
     return { contexts: [] }
@@ -584,8 +595,22 @@ function renderContext() {
     .map((file) => ({ file, ...scoreFile(file, tokens) }))
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score || a.file.localeCompare(b.file))
-  const candidates = uniqueByFile([...contextEntries, ...keywordCandidates])
-    .slice(0, Number.isFinite(limit) && limit > 0 ? limit : 12)
+  // 등록부(document-registry.local.json)에 올린 프로젝트 문서에 자리를 보장한다(0.2.145, PHP 백엔드 ss/multisite 실측):
+  // 컨텍스트 레지스트리 항목은 작업 유형만 맞아도 +8이라 루트 문서가 상한 12칸을 다 채웠고, 서비스 룰 파일은 요청
+  // 단어가 전부 들어 있어도 밀려났다. 루트 문서 순서는 그대로 두고, 내용이 맞는 등록 문서 중 상위 최대 3개를 끼운다.
+  // 등록 문서가 안 맞으면(score 0) 보장도 없다 — 맞는 것만 들어온다.
+  const cap = Number.isFinite(limit) && limit > 0 ? limit : 12
+  // 보장 대상은 **프로젝트가 등록부에 올린 문서**만이다 — 본체 문서(가이드·정책)는 컨텍스트 레지스트리 항목으로
+  // 이미 자리를 잡고, 키워드 후보로도 위에 몰려 있어 전체 후보에서 3개를 뽑으면 그것들만 다시 들어온다(실측).
+  const localRegistered = readLocalRegistryChildren()
+  const projectCandidates = keywordCandidates.filter((item) => localRegistered.has(item.file))
+  const reserved = Math.min(3, projectCandidates.length, cap)
+  const candidates = uniqueByFile([
+    ...contextEntries.slice(0, cap - reserved),
+    ...projectCandidates.slice(0, reserved),
+    ...contextEntries.slice(cap - reserved),
+    ...keywordCandidates,
+  ]).slice(0, cap)
   // 백스톱 수화(0.2.102): post-merge 훅이 안 탄 경로(rebase pull, 클론 직후, 훅 미설치)에서도
   // 작업 시작 시점에 본문이 준비되게 한다. 캐시가 없을 때만 시도하고, 실패는 무해하다.
   const specStartedAt = Date.now()

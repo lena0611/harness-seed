@@ -4189,6 +4189,27 @@ function codingConventionsBecomeAlwaysReadOnceFilled() {
   assert(alwaysSection().split(rel).length === 2, 'the doc must appear once even if also matched elsewhere')
 }
 
+// 서비스 폴더의 유형별 룰 파일(2026-09-08 실측, PHP 백엔드 ss/multisite): 등록부에 올린 프로젝트 문서는 내용이 딱 맞아도
+// 관련 문서 12칸에서 밀려났다 — 후보 병합이 "컨텍스트 레지스트리 항목 전부 → 그 다음 등록 문서" 순이고, 루트 문서들은
+// 작업 유형만 맞아도 +8이라 12칸을 다 채운다. 등록 문서 중 실제로 맞는 것에는 자리를 보장해야 한다(최대 3).
+function registeredServiceRuleDocKeepsASlotInRelevantPolicies() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  fs.mkdirSync(path.join(target, 'ss/multisite/rules'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'ss/multisite/rules/architecture.md'),
+    '# 멀티사이트 아키텍처 규칙\n## 경기관제 API 응답\n- 모든 관제 API는 `{ ok, data, serverTime }` 봉투로 응답한다.\n')
+  fs.writeFileSync(path.join(target, 'ss/multisite/CLAUDE.md'), '# 멀티사이트\n- [아키텍처](rules/architecture.md)\n')
+  writeJson(target, '.harness/documentation/document-registry.local.json', { children: ['ss/multisite/CLAUDE.md', 'ss/multisite/rules/architecture.md'] })
+
+  run(harnessBin(target), ['context', '경기관제 API 응답 봉투 수정'], { cwd: target })
+  const ctx = read(target, '.harness/session/task-context.md')
+  const relevant = ctx.split('## Relevant Policies')[1].split('\n## ')[0]
+  assert(relevant.includes('ss/multisite/rules/architecture.md'),
+    'a registered service rule doc whose content matches the request must keep a slot in Relevant Policies even when root docs fill the cap by task type')
+  // 루트 문서가 통째로 밀려나면 안 된다 — 보장은 최대 3칸이다.
+  assert(relevant.includes('.harness/project/architecture-rules.md'), 'root rule docs must still be present')
+}
+
 // 설치가 기존 CLAUDE.md 위에 블록을 얹은 뒤 안내하는 문장 — "CLAUDE.md의 규칙을 하네스 문서로 마이그레이션해줘" —
 // 을 개발자가 그대로 말하면 에이전트는 로컬룰 승격 스킬과 그 스킬이 읽는 가이드(절차 절)를 골라야 한다.
 // 2026-09-08 실측: 요청이 docs로 분류되면 docs를 가진 스킬 넷이 task 가점(+10)으로 상위 4칸을 다 차지하고,
@@ -7706,6 +7727,7 @@ const tests = [
   contextSelectsRulePromotionForEntrypointMigrationRequest,
   codingConventionsShipsAsProjectOwnedRuleDoc,
   codingConventionsBecomeAlwaysReadOnceFilled,
+  registeredServiceRuleDocKeepsASlotInRelevantPolicies,
   guardShowsSpecAdvisoryForMappedCodeChange,
   specFetchCacheOnlyDoesNotMoveTeamBaseline,
   specFetchAtLockRehydratesCacheAtBaseline,
