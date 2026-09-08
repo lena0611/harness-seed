@@ -1314,6 +1314,8 @@ function externalHarnessWithoutManifestIsPreserved() {
   assert(!manifest.managedFiles['CLAUDE.md'], 'preserved external CLAUDE.md should not become managed')
 }
 
+// 자기 CLAUDE.md만 있던 프로젝트는 설치가 블록을 얹으므로(2026-09-08) 스캔이 더는 브리지 후보로 지목하지 않아야 한다.
+// 브리지 후보는 전용 하네스(.harness/ 선존) 보존 경로에만 남는다 — 그 경우는 externalHarnessWithoutManifestIsPreserved가 본다.
 function scanReportSuggestsBridgeCandidates() {
   const target = makeTarget()
 
@@ -1322,9 +1324,10 @@ function scanReportSuggestsBridgeCandidates() {
   run(harnessBin(target), ['scan'], { cwd: target })
 
   const report = read(target, '.harness/session/project-scan-report.md')
-  assert(report.includes('## Bridge Section Candidates'), 'scan report should include bridge section candidate section')
-  assert(report.includes('CLAUDE.md'), 'scan report should suggest CLAUDE.md bridge candidate')
-  assert(report.includes('Project Harness Bridge'), 'scan report should include bridge template')
+  assert(report.includes('## Bridge Section Candidates'), 'scan report should keep the bridge section')
+  const section = report.split('## Bridge Section Candidates')[1].split('\n## ')[0]
+  assert(!section.includes('- CLAUDE.md'), 'a prepended entrypoint already reads the harness — it must not be a bridge candidate')
+  assert(read(target, 'CLAUDE.md').endsWith('# Personal Rules\n'), 'the personal rules survive below the block')
 }
 
 function makePreset() {
@@ -2493,11 +2496,13 @@ function autoMigrateUnmodifiedLegacyFileToMarkerVersion() {
   assert(!exists(target, 'CLAUDE.md.harness-bak'), 'auto-migration of unmodified file needs no sidecar')
 }
 
-function preserveModifiedLegacyFileWithoutMarkerAndAdvise() {
+// 마커 없는 옛 파일을 소비자가 수정(sha 불일치) → 0.2.142까지는 "자동 분리 불가"로 보존 + 수동 이전 안내였다.
+// 2026-09-08부터는 하네스 블록을 **위에 얹는다**(내용 보존). 어디까지가 회사/소비자인지 모르는 건 사실이지만,
+// 마커 설계상 답은 정해져 있다 — 위 = 본체, 아래 = 프로젝트. 안내를 받은 개발자가 할 수 있는 일이 정확히 그것이었다.
+function prependHarnessBlockOntoModifiedLegacyFileWithoutMarker() {
   const target = makeTarget()
   runInit(target)
 
-  // 마커 없는 옛 파일을 소비자가 수정(sha 불일치) → 자동 분리 불가 → 보존 + 안내.
   const legacyModified = '# CLAUDE\n\n옛 버전인데 소비자가 수정함. 마커 없음.\n## 내 메모\n중요\n'
   fs.writeFileSync(path.join(target, 'CLAUDE.md'), legacyModified)
   const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
@@ -2506,8 +2511,12 @@ function preserveModifiedLegacyFileWithoutMarkerAndAdvise() {
 
   const output = runInit(target, '--no-scan', '--no-check')
 
-  assert(read(target, 'CLAUDE.md') === legacyModified, 'modified legacy file without markers should be preserved as-is')
-  assert(output.includes('수동 이전 필요'), 'should advise manual marker migration')
+  const merged = read(target, 'CLAUDE.md')
+  assert(merged.startsWith(MARKER_START_T), 'the harness block must be prepended')
+  assert(merged.endsWith(legacyModified), 'the consumer\'s modified content must survive byte-for-byte below the block')
+  assert(output.includes('위에 하네스 읽기 순서 블록을 얹었습니다'), 'the report must say the block was prepended')
+  assert(!output.includes('수동 이전 필요'), 'no more vague manual-migration advice')
+  assert(!exists(target, 'CLAUDE.md.harness-bak'), 'nothing was lost, so no sidecar backup')
 }
 
 function markerMergeIsIdempotent() {
@@ -5493,28 +5502,47 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
   assert(guide.includes('검증된 정확한 태그'), 'the guide must say the base ref is a verified exact tag')
 }
 
-// 설치가 기존 CLAUDE.md를 보존하면(프로젝트가 자기 진입점을 이미 갖고 있던 경우) 하네스
-// 읽기 순서가 그 파일에 연결되지 않는다. 설치는 그때 한 줄 권고를 찍지만 그 뒤로 아무것도
-// 추적하지 않아, 에이전트가 프로젝트 규약만 읽고 하네스 기준은 안 읽는 상태가 조용히
-// 유지됐다(2026-09-07 PHP 백엔드 상태 재현 실측 — `harness check`도 통과했다).
-// 매 검사의 수동 조치로 띄우고, 한 줄만 이으면 사라지게 한다(표식 없이 파일 내용으로 판정).
+// 프로젝트가 자기 진입점(CLAUDE.md)을 이미 갖고 있으면 설치는 그 파일 **위에 하네스 블록을 얹는다**
+// (2026-09-08). 0.2.142까지는 통째 보존 + "읽기 순서를 연결할지 검토하세요"였는데, 에이전트 없이 터미널에서
+// npx로 설치한 개발자는 그 문장으로 무엇을 어디에 쓰라는지 알 수 없었다(사용자 지적). 마커 설계상 답은
+// 정해져 있다(위 = 본체, 아래 = 프로젝트). 기존 내용은 한 글자도 바뀌지 않아야 하고, 결과는 정상 설치본과
+// 같은 모양이어야 다음 업데이트가 마커 머지 경로를 탄다. 검사의 수동 조치는 블록이 나중에 지워진 경우를 위해
+// 남고, 그 문구는 구체적인 복구 방법(재설치/업데이트로 자동 부착)을 말한다.
 function checkFlagsAnUnlinkedProjectEntrypointUntilItIsLinked() {
   const target = makeTarget()
-  fs.writeFileSync(path.join(target, 'CLAUDE.md'), '# 프로젝트 규약\n\n@CONVENTIONS.md\n')
+  const own = '# 프로젝트 규약\n\n이 저장소에서 코드를 작성·수정할 때는 아래 규약을 반드시 따른다.\n\n@CONVENTIONS.md\n'
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), own)
   fs.writeFileSync(path.join(target, 'CONVENTIONS.md'), '# 규약\n\n- 규칙\n')
-  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const out = runInit(target, '--no-scan', '--no-handoff', '--no-check')
 
-  assert(!read(target, 'CLAUDE.md').includes('.harness/'),
-    'the install must preserve the project entrypoint as-is (precondition)')
+  const merged = read(target, 'CLAUDE.md')
+  assert(merged.startsWith('<!-- harness-managed:start -->'), 'the harness block must be prepended at the very top')
+  assert(merged.includes('<!-- harness-managed:end -->'), 'the block must be closed with the end marker')
+  assert(merged.endsWith(own), 'the project\'s own content must follow the block byte-for-byte — nothing rewritten')
+  assert(merged.indexOf('<!-- harness-managed:end -->') < merged.indexOf('@CONVENTIONS.md'), 'project content must sit below the block (project area)')
+  assert(out.includes('위에 하네스 읽기 순서 블록을 얹었습니다') && out.includes('할 일은 없습니다'),
+    'the terminal message must state what was done, not hand the developer a vague task')
+  assert(!out.includes('수동 이전 필요') && !out.includes('연결할지 검토하세요'), 'the old vague instructions must be gone')
 
-  const before = run(harnessBin(target), ['check'], { cwd: target })
-  assert(before.includes('CLAUDE.md에 하네스 읽기 순서 미연결'),
-    'check must surface the unlinked entrypoint as a manual action, not stay silent')
+  // 얹은 결과는 정상 설치본 모양이라 검사는 조용해야 한다.
+  const quiet = run(harnessBin(target), ['check'], { cwd: target })
+  assert(!quiet.includes('CLAUDE.md에 하네스 읽기 순서 미연결'), 'a prepended entrypoint is linked — no manual action')
 
+  // 두 번째 업데이트는 마커 머지 경로를 타야 한다(블록만 갱신, 아래 내용 보존, 다시 얹지 않음).
+  const out2 = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const merged2 = read(target, 'CLAUDE.md')
+  assert(merged2.split('<!-- harness-managed:start -->').length === 2, 'a second install must not stack a second block')
+  assert(merged2.endsWith(own), 'project content survives the second install unchanged')
+  assert(!out2.includes('위에 하네스 읽기 순서 블록을 얹었습니다'), 'the second install goes through marker merge, not prepend')
+
+  // 누군가 블록을 지우면 검사가 수동 조치로 알리고, 복구 방법을 구체적으로 말한다. 한 줄 포인터로도 풀린다.
+  fs.writeFileSync(path.join(target, 'CLAUDE.md'), own)
+  const flagged = run(harnessBin(target), ['check'], { cwd: target })
+  assert(flagged.includes('CLAUDE.md에 하네스 읽기 순서 미연결'), 'a stripped entrypoint must surface as a manual action')
+  assert(flagged.includes('/하네스업데이트') && flagged.includes('자동으로 붙습니다'), 'the manual action must hand the developer a sentence for the agent (/하네스업데이트) and say what happens, not "add a line somewhere"')
   fs.appendFileSync(path.join(target, 'CLAUDE.md'), '\n하네스 기준은 `.harness/policy/ai-standard-guiding-policy.md`부터 읽습니다.\n')
-  const after = run(harnessBin(target), ['check'], { cwd: target })
-  assert(!after.includes('CLAUDE.md에 하네스 읽기 순서 미연결'),
-    'one pointer line must clear it — a manual action that needs a marker to clean up is worse than none')
+  const cleared = run(harnessBin(target), ['check'], { cwd: target })
+  assert(!cleared.includes('CLAUDE.md에 하네스 읽기 순서 미연결'), 'one pointer line still clears it')
 }
 
 // 외부 리뷰 2026-09-07 2차 P1: `source.packageMerge`가 임의 파일 이름을 가리키면
@@ -7424,7 +7452,7 @@ const tests = [
   markerMergePreservesConsumerAreaAndUpdatesManagedBlock,
   markerMergeRestoresTamperedManagedBlockWithSidecar,
   autoMigrateUnmodifiedLegacyFileToMarkerVersion,
-  preserveModifiedLegacyFileWithoutMarkerAndAdvise,
+  prependHarnessBlockOntoModifiedLegacyFileWithoutMarker,
   markerMergeIsIdempotent,
   isIgnorableCodePathClassifiesExamplesAndCiPaths,
   consumerDocLinkCheckIgnoresCiExamplePaths,

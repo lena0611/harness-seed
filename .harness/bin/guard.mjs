@@ -504,7 +504,7 @@ function printConsumerSummary({ edgeResult, criticalResult, cacheHit = false, fa
   const manualParts = []
   if (openManualActions > 0) manualParts.push(`${openManualActions}건 (.harness/session/manual-actions.md 확인)`)
   if (pendingReport) manualParts.push('설치·업데이트 리포트 대기 (harness report:install)')
-  if (claudeUnlinked) manualParts.push('CLAUDE.md에 하네스 읽기 순서 미연결 (그 파일에 .harness/ 기준 문서를 가리키는 줄을 추가하세요)')
+  if (claudeUnlinked) manualParts.push('CLAUDE.md에 하네스 읽기 순서 미연결 — 에이전트에게 「/하네스업데이트 해줘」라고 하면 그 파일 맨 위에 하네스 블록이 자동으로 붙습니다(기존 내용은 그대로 아래에 남음). 터미널만 쓰면 설치 명령(npx … init)을 다시 실행하세요')
   console.log(`수동 조치: ${manualParts.length === 0 ? '없음' : manualParts.join(', ')}`)
   console.log(`추천 조치: ${recommendedActions.length === 0 ? '없음' : recommendedActions.join(', ')}`)
   console.log(`관문 검사: ${cacheHit ? '캐시 재사용' : '실행'}`)

@@ -416,7 +416,7 @@
     {
       "id": "harness.rule-promotion",
       "title": "로컬룰 승격 흐름",
-      "purpose": "반복되는 도메인, 구조, 검증 지식을 프로젝트 룰로 승격할지 판단한다.",
+      "purpose": "반복되는 도메인, 구조, 검증 지식을 프로젝트 룰로 승격할지 판단한다. 기존 진입점 문서(CLAUDE.md 등)에 있던 규칙 본문을 룰 문서로 옮기는 마이그레이션도 이 흐름이다 — 얻는 게 있는 절만 옮기고(아키텍처·커밋 규칙·위험 경로), 원문에는 포인터를 남긴다.",
       "audience": [
         "consumer"
       ],
@@ -434,13 +434,18 @@
         "승격",
         "도메인",
         "아키텍처",
-        "워크플로우"
+        "워크플로우",
+        "마이그레이션",
+        "CLAUDE.md의 규칙",
+        "하네스 문서로 옮"
       ],
       "read": [
         ".harness/project/project-harness-guide.md",
         ".harness/project/domain-rules.md",
         ".harness/project/architecture-rules.md",
         ".harness/project/workflow-rules.md",
+        ".harness/project/commit-push-rules.md",
+        ".harness/project/critical-paths.md",
         ".harness/policy/context-protocol.md"
       ],
       "commands": [
@@ -450,7 +455,8 @@
       "outputs": [
         "승격 후보",
         "아직 기록하지 않을 일회성 사실",
-        "기록 대상 파일"
+        "기록 대상 파일",
+        "옮긴 절과 원문에 남긴 포인터"
       ],
       "records": [
         ".harness/project/domain-rules.md",

@@ -1020,7 +1020,11 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
   const mergedMarkerFiles = [];        // 마커 머지: 마커 밖(소비자) 보존 + 마커 안(본체) 갱신
   const overwroteManagedRegion = [];   // 머지 중 소비자가 회사 영역(마커 안)을 수정해 사이드카로 백업한 파일
   const autoMigratedMarkerFiles = [];  // 마커 없던 미수정 파일을 마커 버전으로 자동 이전
-  const needsMarkerMigration = [];     // 마커 없는 수정본 → 보존 + 수동 이전 안내
+  const prependedMarkerFiles = [];     // 마커 없는 프로젝트 자체 파일 → 하네스 블록을 위에 얹음(내용 보존)
+  // 전용(외부) 하네스 판정은 루프 **전에** 한다 — 루프가 .harness/**를 먼저 복사하므로 CLAUDE.md 차례엔 항상 존재한다.
+  // 우리 manifest 없이 .harness/가 이미 있으면 그 프로젝트의 진입점은 자기 하네스를 가리키고 있을 가능성이 크다 →
+  // 얹지 않고 보존 + 브리지 후보 안내(사람이 판단). CLAUDE.md만 있는 경우(대다수 팀)는 얹는다.
+  const foreignHarnessDir = !manifest && existsSync(join(target, '.harness'));
   // seed-only 문서(0.2.69): 본체 전용 문서는 소비자 타깃에 배포하지 않는다.
   const seedModeTarget = existsSync(join(target, SEED_MODE_MARKER));
   const skippedSeedOnlyDocs = [];
@@ -1043,8 +1047,12 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     }
 
     // 마커 관리 파일(CLAUDE.md/AGENTS.md/copilot): 마커 안은 본체 갱신, 마커 밖은 소비자 보존.
-    // 첫 설치(!exists)나 미등록(!managed)은 아래 일반 경로에서 본체(마커 포함)를 그대로 복사한다.
-    if (exists && managed && isMarkerManaged(rel)) {
+    // 첫 설치(!exists)는 아래 일반 경로에서 본체(마커 포함)를 그대로 복사한다.
+    // 파일은 있는데 manifest에 없는 경우(= 프로젝트가 하네스 전부터 갖고 있던 자기 진입점, 2026-09-08 실측:
+    // 첫 설치엔 manifest가 없고 보존된 파일은 기록되지도 않아 매 설치마다 조용히 보존됐다)도 이 분기로 들어와
+    // 마커가 있으면 머지, 없으면 하네스 블록을 위에 얹는다. --force는 미등록 파일에 대해 예전처럼 일반 경로의
+    // 통째 덮어쓰기(동의 가드 포함)를 유지한다.
+    if (exists && isMarkerManaged(rel) && (managed || (!opts.force && !foreignHarnessDir))) {
       const consumerContent = readFileSync(dest, 'utf8');
       const consumerRegion = extractManagedRegion(consumerContent);
       const recorded = manifest?.managedFiles?.[toPosix(rel)] ?? {};
@@ -1073,7 +1081,7 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
       }
 
       // 소비자에 마커 없음 → 옛 버전. 마이그레이션 판정.
-      const unmodified = matchesRecordedSha(dest, recorded.sha256);
+      const unmodified = Boolean(recorded.sha256) && matchesRecordedSha(dest, recorded.sha256);
       if (unmodified) {
         // 소비자가 파일을 전혀 안 건드림 → 마커 버전(본체)으로 통째 교체(자동 마이그레이션).
         if (opts.dryRun) {
@@ -1088,13 +1096,28 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
         continue;
       }
 
-      // 마커 없는 수정본 → 어디까지가 회사/소비자인지 모름 → 보존 + 수동 이전 안내.
-      if (opts.dryRun) {
-        console.log(`[dry-run] preserve(needs-marker-migration) ${rel}`);
+      // 마커 없는 프로젝트 자체 파일(예: 하네스 전부터 있던 CLAUDE.md) → 하네스 블록을 **위에 얹고**
+      // 기존 내용은 한 글자도 바꾸지 않고 아래에 둔다. 결과는 정상 설치본과 같은 모양(마커 안 = 본체,
+      // 마커 밖 = 프로젝트 영역)이 되어 다음 업데이트부터 마커 머지 경로를 탄다.
+      // 0.2.142까지는 통째 보존 + "읽기 순서를 연결할지 검토하세요"였다 — 에이전트 없이 터미널에서
+      // npx로 설치한 개발자는 그 문장을 읽고 무엇을 어디에 쓰라는지 알 수 없었다(2026-09-08 사용자 지적).
+      // 마커 설계상 답은 정해져 있으므로(위 = 본체, 아래 = 프로젝트) 설치기가 직접 한다.
+      const harnessContentForPrepend = readFileSync(src, 'utf8');
+      if (extractManagedBlock(harnessContentForPrepend) === null) {
+        // 본체 원본에 마커가 없으면 얹을 블록이 없다 — 있을 수 없는 상태지만 통째 덮지 않고 보존한다.
+        stats.skipped++;
+        skippedFiles.push(rel);
+        continue;
       }
-      stats.skipped++;
-      skippedFiles.push(rel);
-      needsMarkerMigration.push(rel);
+      const prepended = `${harnessContentForPrepend.trimEnd()}\n\n${consumerContent}`;
+      if (opts.dryRun) {
+        console.log(`[dry-run] prepend(marker) ${rel}`);
+      } else {
+        writeFileSync(dest, prepended);
+      }
+      stats.updated++;
+      copiedFiles.push(rel);
+      prependedMarkerFiles.push(rel);
       continue;
     }
 
@@ -1167,7 +1190,7 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     mergedMarkerFiles,
     overwroteManagedRegion,
     autoMigratedMarkerFiles,
-    needsMarkerMigration,
+    prependedMarkerFiles,
     skippedSeedOnlyDocs,
   };
 }
@@ -2503,7 +2526,7 @@ function main() {
       // 말하면 리더가 없던 과거를 의심한다(백엔드 통합 저장소 실측, 2026-09-04).
       console.log(existsSync(join(TARGET, '.harness'))
         ? '이전에 설치된 하네스 흔적이 있어 기존 파일은 보존하고 누락된 공통 기준만 보강합니다.'
-        : '이미 있는 에이전트 설정(.claude, CLAUDE.md 등)은 그대로 두고 하네스 기준만 보강합니다.');
+        : '이미 있는 에이전트 설정(.claude, CLAUDE.md 등)은 내용을 보존하고 하네스 기준만 보강합니다.');
       console.log('기존 파일을 덮어쓰지 않습니다. 의도적으로 교체하려면 --force를 사용하세요.');
       console.log('');
     }
@@ -2752,16 +2775,17 @@ function main() {
       }
     }
 
-    if (installed.needsMarkerMigration && installed.needsMarkerMigration.length > 0) {
+    if (installed.prependedMarkerFiles && installed.prependedMarkerFiles.length > 0) {
       console.log('');
-      console.log('마커 도입 수동 이전 필요 (소비자가 수정했는데 마커가 없어 자동 분리 불가 — 보존함):');
-      for (const rel of installed.needsMarkerMigration.slice(0, 15)) {
+      console.log('프로젝트가 이미 갖고 있던 진입점 문서 위에 하네스 읽기 순서 블록을 얹었습니다 (기존 내용은 그대로 아래에 남아 프로젝트 영역이 됩니다):');
+      for (const rel of installed.prependedMarkerFiles.slice(0, 15)) {
         console.log(`  - ${rel}`);
       }
-      if (installed.needsMarkerMigration.length > 15) {
-        console.log(`  ... 외 ${installed.needsMarkerMigration.length - 15}건`);
+      if (installed.prependedMarkerFiles.length > 15) {
+        console.log(`  ... 외 ${installed.prependedMarkerFiles.length - 15}건`);
       }
-      console.log('조치: 각 파일에서 프로젝트 고유 내용을 harness-managed:end 마커 아래로 옮기고, 본체 영역에 harness-managed:start/end 마커를 두른 뒤 다시 업데이트하면 이후로는 자동 머지됩니다.');
+      console.log('  할 일은 없습니다. 파일을 열어 위(하네스 블록)·아래(프로젝트 내용) 배치만 확인하세요. 다음 업데이트부터는 블록 안만 갱신됩니다.');
+      console.log('  기존 내용에 규칙 본문(아키텍처 경계·도메인 규칙·커밋 규칙 등)이 있으면 하네스 룰 문서(.harness/project/*)로 옮길 수 있습니다 — 에이전트에게 「CLAUDE.md의 규칙을 하네스 문서로 마이그레이션해줘」라고 하세요. 옮기면 그 폴더를 고칠 때 검사가 해당 규칙을 짚어주고, CLAUDE.md는 "어디를 읽어라"만 남아 가벼워집니다. 시점은 팀이 정합니다.');
     }
 
     // seed-only 문서(0.2.69) 후처리 리포트.
@@ -2820,7 +2844,7 @@ function main() {
       for (const rel of bridgeCandidates) {
         console.log(`  - ${rel}`);
       }
-      console.log('기존 개인/전용 룰을 보존했기 때문에, 위 파일에 .harness 읽기 순서를 연결할지 검토하세요.');
+      console.log('기존 전용 하네스를 보존했기 때문에 위 파일은 건드리지 않았습니다. 하네스 읽기 순서를 연결하려면 에이전트에게 「CLAUDE.md에 하네스 읽기 순서를 연결해줘」라고 하세요(공통 하네스 블록을 위에 얹고 기존 내용은 아래에 둡니다).');
       console.log('기준 계층과 충돌 후보는 .harness/bin/harness scan 결과를 확인하세요.');
     }
 
