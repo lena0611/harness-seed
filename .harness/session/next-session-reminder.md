@@ -2,6 +2,14 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
+## v0.2.143 배포 완료 (2026-09-08)
+
+- 태그 `v0.2.143` = `3d7e210`(표준 문서 coding-conventions 커밋), 양쪽 원격(GitHub main · GitLab master) 동일, CI 초록. CLI `v0.2.39`(base ref v0.2.143) push. 위성(스택 v0.2.48 · 템플릿 v0.2.49)은 손대지 않음(결정 108).
+- 공지 2줄 승인·발송은 사용자(웹훅): 템플릿 package.json 병합 결함픽스 / 기존 CLAUDE.md 위 하네스 읽기 순서 자동 부착 + 규칙 마이그레이션 안내 문장.
+- 릴리스 도중 들어간 것(순서대로): 결함픽스 둘(개인 파일 유출·linked add) → 기존 CLAUDE.md 자동 부착(마커 분기 입구 `managed` 조건이 원인) → 안내 문장이 스킬을 못 불러 트리거 조사 매칭 → 표준 문서 coding-conventions. 태그는 마지막 커밋으로 옮겨 찍었다(앞 커밋들은 이미 push돼 amend 불가).
+- **팀에 전달할 것**: `~/practice/common-test`의 `harness-migration` 4커밋(master에 올릴 실물)과 `pr-multisite`(머지+멀티사이트 준비). `#이슈키` 커밋 형식은 편집기에서 지워지니 `-m` 또는 `commit.cleanup=whitespace`. 허용 목록에서 없는 스크립트 둘 제거·dev-setup.sh 추가. CONVENTIONS.md는 표만 남았으니 지울지 결정. composer install은 각자 PC. 설치 리포트(report:install)는 리더 승인 후.
+- **다음 후보(0.2.144)**: `harness.body-release` 스킬이 소비자 저장소에서도 "하네스" 트리거로 선택됨(audience harness-maintainer인데 seed-mode 판정 없음) · 스킬 표시 상한 4개의 근거 재검토 · package-lock.json version이 0.2.130에 멈춰 있음(무해, 정리 후보) · phpcs 커밋 시점 검사 권고 · 09-04 B·H(기획 소스 경로 범위·gate 전역).
+
 ## PHP 백엔드(common) 하네스 설치·규약 마이그레이션 리허설 — 완료 (2026-09-08)
 
 - **배경(사용자)**: 멀티사이트 백엔드 개발자가 master에서 개발 브랜치를 따려는데, **그 전에 하네스가 master에 설치돼 있기를** 바란다. 그래서 실제 저장소로 리허설해 master에 올릴 커밋 실물을 만들었다.
@@ -13,6 +21,8 @@
 - **새로 찾은 함정**: 팀 커밋 형식 `#이슈키 …`는 **편집기 커밋에서 git이 첫 줄을 주석으로 지운다**(`commit.cleanup=strip`, `git stripspace --strip-comments`로 재현). 하네스가 커밋 템플릿을 연결해 편집기 경로가 실제로 열린다. 규칙·템플릿에 안내(`-m` 사용 또는 `commit.cleanup=whitespace`). 팀에 알릴 것.
 - **팀에 전달할 순서**: master에 ①②를 올리고(리더 결정·push는 팀) → 개발자가 브랜치를 딴다 → pr-multisite에는 머지 또는 cherry-pick(둘 다 깨끗) + ③. `composer install`(tools/php)은 각자 PC. 설치 리포트(`report:install`)는 리더 승인 후.
 - **남은 권고(미적용)**: phpcs를 커밋 시점에도 — `hook-coexistence.md` 자체 훅 폴더 패턴, 도구 없으면 실패시킬 것.
+- **찢기 완주(2026-09-08 오후, 사용자 결정)**: "규칙은 전부 `.harness/project/` 밑으로". 문법 금지표·서식·네이밍이 갈 칸이 없어 **본체에 표준 문서 `coding-conventions.md`를 추가**(0.2.143, 형제 domain-rules가 꿰인 자리 전부에 같이 꿰었다). 리허설은 §1·§4-1·4-2·§6요약 → coding-conventions, §2 전문·§3 불릿 → domain-rules, §4-3 → architecture-rules, §6 명령 → workflow-rules. `CONVENTIONS.md`는 **옛 절 → 정본 표만 남김** — 지울지는 팀이 정한다. 가이드 절차 마무리에 "요약표 보여주고 '원문 지울까요?' 질문 UI로 묻기"를 넣었다(답 전 삭제 금지). 리허설 커밋: harness-migration에 `[공통] 본체 0.2.143 갱신` + `[공통] 개발 규약 나머지 절 전부 이동`, pr-multisite에 머지(충돌 0).
+- **본체 표준 문서 추가 시 꿰는 자리(다음에 또 추가할 때)**: 파일 · init PROJECT_OWNED_PATHS · document-registry · context-registry(키워드!) · policy-registry documents/ownedAreas · scan(읽기 순서·업데이트 대상·작성 안내) · handoff · policy-harness 안내 · init 설치 포인터 2곳 · CLAUDE.md 읽기 목록 + 마커 안·아래 안내 · AGENTS.md · project/README 색인 · local-methodology 읽기 순서 · README 표 · .harness/README 표 · harness-scan 명령 · 배치 지시 문장들(context-protocol·maintenance·업무요약·운영업무·bootstrap) · 스킬 read/records · 가이드 책임 표 · 회귀(cleanInstallCreatesExpectedFiles의 안내 문구 단언이 글자 그대로 잠겨 있다).
 
 ## 연결 프로젝트 양방향 실증 — 통과 (2026-09-08) · 부수 결함 1건 수정
 
