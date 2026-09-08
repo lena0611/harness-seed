@@ -7,7 +7,7 @@
 - 태그 `v0.2.143` = `3d7e210`(표준 문서 coding-conventions 커밋), 양쪽 원격(GitHub main · GitLab master) 동일, CI 초록. CLI `v0.2.39`(base ref v0.2.143) push. 위성(스택 v0.2.48 · 템플릿 v0.2.49)은 손대지 않음(결정 108).
 - 공지 2줄 승인·발송은 사용자(웹훅): 템플릿 package.json 병합 결함픽스 / 기존 CLAUDE.md 위 하네스 읽기 순서 자동 부착 + 규칙 마이그레이션 안내 문장.
 - 릴리스 도중 들어간 것(순서대로): 결함픽스 둘(개인 파일 유출·linked add) → 기존 CLAUDE.md 자동 부착(마커 분기 입구 `managed` 조건이 원인) → 안내 문장이 스킬을 못 불러 트리거 조사 매칭 → 표준 문서 coding-conventions. 태그는 마지막 커밋으로 옮겨 찍었다(앞 커밋들은 이미 push돼 amend 불가).
-- **팀에 전달할 것**: `~/practice/common-test`의 `harness-migration` 4커밋(master에 올릴 실물)과 `pr-multisite`(머지+멀티사이트 준비). `#이슈키` 커밋 형식은 편집기에서 지워지니 `-m` 또는 `commit.cleanup=whitespace`. 허용 목록에서 없는 스크립트 둘 제거·dev-setup.sh 추가. CONVENTIONS.md는 표만 남았으니 지울지 결정. composer install은 각자 PC. 설치 리포트(report:install)는 리더 승인 후.
+- **팀에 전달할 것**: 회신문 아티팩트 https://claude.ai/code/artifact/bf663dcb-f3ae-4e6f-9a60-b0077a57c107 (설치 → 진입점 마이그레이션 → ss/multisite 전용 룰 → 프론트 연결 → 알아둘 것 셋, Node 20.19+ 전제 포함). `~/practice/common-test`의 `harness-migration` 5커밋(master에 올릴 실물)과 `pr-multisite`(머지+멀티사이트 준비). `#이슈키` 커밋 형식은 편집기에서 지워지니 `-m` 또는 `commit.cleanup=whitespace`. 허용 목록에서 없는 스크립트 둘 제거·dev-setup.sh 추가. CONVENTIONS.md는 표만 남았으니 지울지 결정. composer install은 각자 PC. 설치 리포트(report:install)는 리더 승인 후.
 - **다음 후보(0.2.144)**: `harness.body-release` 스킬이 소비자 저장소에서도 "하네스" 트리거로 선택됨(audience harness-maintainer인데 seed-mode 판정 없음) · 스킬 표시 상한 4개의 근거 재검토 · package-lock.json version이 0.2.130에 멈춰 있음(무해, 정리 후보) · phpcs 커밋 시점 검사 권고 · 09-04 B·H(기획 소스 경로 범위·gate 전역).
 
 ## PHP 백엔드(common) 하네스 설치·규약 마이그레이션 리허설 — 완료 (2026-09-08)
