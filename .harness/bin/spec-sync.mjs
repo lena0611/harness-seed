@@ -3094,10 +3094,15 @@ function runStatus() {
     const statusSourceIds = Object.keys(state.lock.sources ?? {})
     const nameOf = (item) => (statusSourceIds.length > 1 ? `[${item.source}] ${item.file}` : item.file)
     for (const item of pending) {
-      const linked = linkedCodePaths(item.source, item.file, state.entries, statusSourceIds)
+      // 링크된 화면(.html 등)은 대표 문서가 매핑 단위다(findUnmappedSpecs와 같은 규칙). 파일별로 매핑을 찾으면
+      // 짝 문서는 "연결 코드"가 있는데 화면은 "(매핑 없음)"으로 갈려 한 명령이 두 규칙을 말했다(멀티사이트 #24).
+      const unit = screenIndexes[item.source]?.unitFor(item.file)
+      const mappingFile = unit && unit.primary !== item.file ? unit.primary : item.file
+      const linked = linkedCodePaths(item.source, mappingFile, state.entries, statusSourceIds)
+      const viaPair = mappingFile !== item.file ? ` (짝 문서 ${path.basename(mappingFile)}의 매핑)` : ''
       const suffix = item.kind === '추가'
         ? ' (매핑 검토 대상)'
-        : linked.length > 0 ? ` → 연결 코드: ${linked.join(', ')}` : ' (매핑 없음)'
+        : linked.length > 0 ? ` → 연결 코드: ${linked.join(', ')}${viaPair}` : ' (매핑 없음)'
       console.log(`  - [${item.kind}] ${nameOf(item)}${suffix}`)
     }
     console.log('')

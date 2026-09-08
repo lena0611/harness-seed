@@ -578,6 +578,7 @@ function parseArgs(argv) {
     ref: 'main',
     sourceRepo: null,
     sourceRef: null,
+    updateFrom: null,
     sourceCommit: null,
   };
 
@@ -674,6 +675,18 @@ function parseArgs(argv) {
           process.exit(1);
         }
         opts.sourceRef = ref;
+        break;
+      }
+      case '--update-from': {
+        // update-harness(0.2.144)가 넘긴다: 이번 업데이트가 시작된 공통 하네스 버전. 2단(스택 init → base init)
+        // 업데이트에서 마지막 base init이 자기 구간(직전 lock 버전 → 새 버전)만 기록해 첫 구간이 사라지던
+        // 결함(scorecard #22)을 막는다. 직전 lock 버전보다 낮을 때만 인정한다(높거나 같으면 무시).
+        const version = args[++i];
+        if (!version || version.startsWith('-')) {
+          console.error('--update-from에는 시작 버전(예: 0.2.137)이 필요합니다.');
+          process.exit(1);
+        }
+        opts.updateFrom = version;
         break;
       }
       case '--source-commit': {
@@ -1804,10 +1817,17 @@ function writeInstallManifest(sourceRoot, target, files, copiedFiles, opts, prev
       // 같은 목표 버전으로 재기록될 때는 from을 보존한다(0.2.138, 멀티사이트 리포트 #6):
       // 스택 init이 내부에서 base init을 한 번 더 돌리면 두 번째 기록의 previousManifest가
       // 이미 새 버전이라 from이 to와 같아졌다(실측: 0.2.133→0.2.137 업데이트가 0.2.137→0.2.137로).
-      let from = previousManifest?.version ?? null
+      let from = pickUpdateFrom(opts, previousManifest?.version ?? null)
       let kind = previousManifest ? 'update' : 'install'
       try {
         const existing = JSON.parse(readFileSync(pendingPath, 'utf8'))
+        // 연속 구간(0.2.144, scorecard #22): 직전 표식이 "…→X"로 끝났고 이번이 X에서 시작하면 한 업데이트의
+        // 다음 단계다(스택 init이 base를 중간 태그까지 올린 뒤 base init이 최신까지). 원래 from을 이어받는다.
+        // 표식은 report:install이 지우므로, 남아 있는 표식은 아직 보고되지 않은 구간 — 잇는 것이 맞다.
+        if (!opts.updateFrom && existing.from && existing.to && existing.to === (previousManifest?.version ?? null) && existing.to !== manifest.version) {
+          kind = existing.kind ?? kind
+          from = existing.from
+        }
         if (existing.to === manifest.version) {
           // 같은 사이클의 재기록(스택 init의 base 재실행 등): 사이클 성격(kind)과
           // 진짜 출발 버전(from)은 첫 기록이 안다 — 재실행 시점의 previousManifest는
@@ -1852,6 +1872,17 @@ function trimBlankLines(lines) {
   while (out.length && !out[0].trim()) out.shift()
   while (out.length && !out[out.length - 1].trim()) out.pop()
   return out
+}
+
+// 이번 업데이트의 시작 버전. update-harness가 --update-from으로 넘긴 값이 있고 그것이 직전 lock 버전보다
+// 낮으면 그 값이 진짜 출발점이다(2단 업데이트에서 직전 lock은 이미 중간 단계까지 올라가 있다 — scorecard #22).
+// 그 외에는 직전 lock 버전. lastUpdate는 영구 기록이라 여기서는 추정하지 않는다.
+function pickUpdateFrom(opts, previousVersion) {
+  const requested = parseSemverLoose(opts?.updateFrom)
+  const previous = parseSemverLoose(previousVersion)
+  if (requested && previous && compareSemverLoose(requested, previous) < 0) return requested.version
+  if (requested && !previous) return requested.version
+  return previousVersion
 }
 
 // 새로 설치되는 공통 하네스 패키지의 CHANGELOG.md에서 (이전버전, 새버전] 구간 항목을 뽑는다.
@@ -1900,7 +1931,7 @@ function writeHarnessLock(sourceRoot, target, installManifest, opts) {
   const lockAbs = join(target, LOCK_PATH)
   const previous = readJson(lockAbs, {})
   const source = installManifest.source ?? {}
-  const delta = computeChangelogDelta(sourceRoot, previous?.baseHarness?.version, installManifest.version)
+  const delta = computeChangelogDelta(sourceRoot, pickUpdateFrom(opts, previous?.baseHarness?.version), installManifest.version)
   const next = {
     version: 1,
     updatedAt: new Date().toISOString(),
@@ -2920,7 +2951,14 @@ ${renderHookStep(TARGET, 7, diagnostics.hooks)}
   - .github/copilot-instructions.md
   - .harness/project/bootstrap.md
 `);
-    printConsumerCommandGuide(TARGET);
+    if (recognizedManifest) {
+      // 출력 다이어트(0.2.139)는 update-harness의 꼬리말만 줄였고 이 블록은 업데이트마다 그대로 찍혔다
+      // (scorecard #22 실측 293줄). 전체 안내는 최초 설치와 런처(무인자)가 담당한다.
+      console.log('');
+      console.log('명령 전체 목록: .harness/bin/harness (인자 없이 실행)');
+    } else {
+      printConsumerCommandGuide(TARGET);
+    }
     printInstallReportPrompt();
   } finally {
     cleanupSource(sourceRoot, sourceIsTemp);

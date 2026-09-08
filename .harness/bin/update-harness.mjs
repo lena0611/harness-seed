@@ -300,6 +300,12 @@ function buildSourceMetadataArgs(harness, opts, targetKind) {
   if (ref) {
     sourceArgs.push('--source-ref', ref)
   }
+  // 이번 업데이트가 시작된 공통 하네스 버전(0.2.144, scorecard #22). 스택 단계가 base를 중간 태그까지
+  // 먼저 올려도 마지막 base 단계가 전체 구간(시작 → 최신)으로 lastUpdate·표식을 기록하게 한다.
+  // lock은 main()이 단계 실행 전에 읽으므로 harness.version이 곧 시작 버전이다.
+  if (harness?.version) {
+    sourceArgs.push('--update-from', String(harness.version))
+  }
 
   return sourceArgs
 }

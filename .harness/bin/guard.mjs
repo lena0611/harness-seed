@@ -796,9 +796,14 @@ if (cacheUsable) {
   console.log(`passedAt: ${cache.passedAt}`)
   console.log('강제 재검증: --no-cache')
   printManagedDriftNotice(managedDrift)
+  // 안내 등급도 캐시 히트에서 낸다(멀티사이트 #24, 2026-09-08): 업데이트 내부 검사가 캐시를 채운 직후
+  // 소비자가 "뭐가 달라졌나" 보려고 돌린 check가 critical path 유령 경로 안내를 삼켰다. 캐시는 "이 tree가
+  // 검증을 통과했는가"의 답이고, 이 리뷰는 통과 여부와 무관한 현재 상태(선언 실존·변경 파일 매칭)라
+  // 드리프트와 같은 사유로 캐시 밖에 둔다. 비용은 파일 읽기와 git diff 한 번이다.
+  const cachedCriticalResult = printCriticalPathReview()
   printConsumerSummary({
     edgeResult: { status: 'ok' },
-    criticalResult: { recommendations: [] },
+    criticalResult: cachedCriticalResult,
     cacheHit: true,
   })
   process.exit(0)

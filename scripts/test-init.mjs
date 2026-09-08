@@ -3320,11 +3320,65 @@ function pendingReportMarkerRemindsUntilReported() {
 
 // 0.2.139 — scorecard #8: 매 실행 동일한 명령 안내 블록이 업데이트 출력의 절반을 차지해
 // 에이전트가 grep 필터를 걸게 만들었다. 업데이트 출력은 "달라진 것 + 해야 할 일"만 남긴다.
+// 2026-09-08 scorecard #22: 그 다이어트는 update-harness의 꼬리말만 줄였고, update가 띄우는
+// `npx … init` 둘은 각자 전체 블록을 그대로 찍었다(293줄). 이 회귀는 존재하지 않는 옛 제목
+// ("업데이트 후 유용한 소비자 명령")을 단언해 항상 통과했다 — 실제 제목으로, 실제 경로(init 재실행)에서 본다.
 function updateOutputSkipsStaticCommandGuide() {
   const target = makeTarget()
-  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const first = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(first.includes('::: 소비자 명령 빠른 안내 :::'), 'a first install may show the full command guide (precondition)')
+  const second = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!second.includes('::: 소비자 명령 빠른 안내 :::'), 'an update (init over an installed project) must not repeat the static command guide')
+  assert(second.includes('명령 전체 목록'), 'the update must leave a one-line pointer to the launcher instead')
   const out = run(nodeBin, [path.join(target, '.harness/bin/update-harness.mjs'), '--base-only', '--dry-run'], { cwd: target })
-  assert(!out.includes('업데이트 후 유용한 소비자 명령'), 'the static command guide must not repeat on every update')
+  assert(!out.includes('::: 소비자 명령 빠른 안내 :::'), 'the update orchestrator must not print it either')
+}
+
+// scorecard #22 (2026-09-08): 여러 버전을 한 번에 올리면 lastUpdate가 마지막 구간만 남았다. update는 2단으로
+// 돈다 — 스택 init이 내부에서 base를 스택이 고정한 태그까지 올리고(137→142), 이어 base init이 최신까지(142→143)
+// 올리며 lastUpdate를 자기 구간으로 덮어썼다. 표식(pending-report)의 from도 같은 이유로 142가 됐다.
+// update가 시작 시점의 base 버전을 --update-from으로 넘기면 마지막 base init이 그 값으로 구간을 기록해야 한다.
+// 표식은 플래그 없이도 "직전 표식의 to == 지금 시작 버전"이면 원래 from을 이어받는다(표식은 report:install이
+// 지우므로 안전하다). lastUpdate는 영구 기록이라 그런 추정을 하지 않고 플래그만 믿는다.
+function chainedUpdateKeepsOriginalFromForChangelogAndReport() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  // 스택 단계가 남긴 상태를 재현: base는 0.2.142에 있고, 그 단계가 0.2.137→0.2.142를 기록해 뒀다.
+  const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
+  lock.baseHarness.version = '0.2.142'
+  lock.lastUpdate = { from: '0.2.137', to: '0.2.142', at: new Date().toISOString(), entries: [{ version: '0.2.142', date: '', lines: [] }] }
+  writeJson(target, '.harness/harness-lock.json', lock)
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  manifest.version = '0.2.142'
+  writeJson(target, '.harness/install-manifest.json', manifest)
+  writeJson(target, '.harness/generated/pending-report.json', { kind: 'update', from: '0.2.137', to: '0.2.142', at: new Date().toISOString() })
+
+  // 마지막 base 단계: update가 시작 버전을 넘겨준다.
+  runInit(target, '--no-scan', '--no-handoff', '--no-check', '--update-from', '0.2.137')
+  const after = JSON.parse(read(target, '.harness/harness-lock.json'))
+  assert(after.lastUpdate.from === '0.2.137', `lastUpdate.from must be the version the whole update started from, got ${after.lastUpdate.from}`)
+  assert(after.lastUpdate.to === packageVersion, 'lastUpdate.to is the newly installed version')
+  const versions = after.lastUpdate.entries.map((e) => e.version)
+  assert(versions.includes('0.2.138') && versions.includes('0.2.142') && versions.includes(packageVersion),
+    `the recorded entries must cover the skipped versions, got ${versions.join(', ')}`)
+  const marker = JSON.parse(read(target, '.harness/generated/pending-report.json'))
+  assert(marker.from === '0.2.137' && marker.to === packageVersion, `the report marker must span the whole update, got ${marker.from}→${marker.to}`)
+
+  // harness changelog가 그 구간을 그대로 다시 보여준다.
+  const replay = run(nodeBin, [path.join(target, '.harness/bin/changelog-delta.mjs')], { cwd: target })
+  assert(replay.includes('0.2.137') && replay.includes('0.2.138'), 'harness changelog must replay the full span including skipped versions')
+
+  // update 오케스트레이터가 실제로 그 플래그를 base 단계에 넘긴다(dry-run이 명령을 찍는다).
+  const plan = run(nodeBin, [path.join(target, '.harness/bin/update-harness.mjs'), '--base-only', '--dry-run'], { cwd: target })
+  assert(plan.includes(`--update-from ${packageVersion}`), 'update must hand the base stage the version it started from')
+
+  // 플래그 없는 재실행(스택 init이 base를 한 번 더 돌리는 경우): 표식은 직전 표식의 to == 시작 버전이면 from을 잇는다.
+  writeJson(target, '.harness/generated/pending-report.json', { kind: 'update', from: '0.2.130', to: packageVersion, at: new Date().toISOString() })
+  const lock2 = JSON.parse(read(target, '.harness/harness-lock.json')); lock2.baseHarness.version = packageVersion; writeJson(target, '.harness/harness-lock.json', lock2)
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const marker2 = JSON.parse(read(target, '.harness/generated/pending-report.json'))
+  assert(marker2.from === '0.2.130', 'a same-cycle re-run must keep the marker\'s original from (existing behaviour, 0.2.138)')
 }
 
 function seedModeTargetKeepsSeedOnlyDocs() {
@@ -3342,9 +3396,15 @@ function seedModeTargetKeepsSeedOnlyDocs() {
 function guardCacheHitSkipsRevalidationOnSameTree() {
   const target = makeTarget()
   runInit(target)
-  runGuard(target) // 1회차: 캐시 미스 → 전체 검증 → 통과 기록
+  // 안내 등급 항목이 캐시 히트에서도 나와야 한다(멀티사이트 #24, 2026-09-08): 업데이트 내부 검사가 캐시를
+  // 채운 뒤 소비자가 "뭐가 달라졌나" 보려고 돌린 check가 critical path 유령 경로 안내를 한 줄도 안 냈다.
+  // 캐시는 "이 tree가 검증을 통과했는가"의 답이고, 안내는 통과 여부와 무관한 현재 상태다 — 드리프트와 같은 사유.
+  fs.writeFileSync(path.join(target, '.harness/project/critical-paths.md'), `# Critical Paths\n\n## 선언 표\n\n| path | 왜 중요한가 | 권장 검증 |\n| --- | --- | --- |\n| \`legacy/ghost/**\` | 없는 경로 | 없음 |\n`)
+  const first = runGuard(target) // 1회차: 캐시 미스 → 전체 검증 → 통과 기록
+  assert(first.includes('실존 대상이 없습니다'), 'a ghost critical path must be reported on a cache miss (precondition)')
   const second = runGuard(target) // 2회차: 같은 tree → 캐시 재사용
   assert(second.includes('캐시 재사용'), 'second guard run on the same git tree should reuse the validation cache')
+  assert(second.includes('실존 대상이 없습니다'), 'advisory notices (ghost critical paths) must still print on a cache hit — the cache answers "did this tree pass", not "is there nothing to tell"')
 }
 
 function guardFullCacheSatisfiesFastRequest() {
@@ -4426,6 +4486,31 @@ function specStatusSeparatesAxesAndFoldsDetectedCount() {
   const context = run(nodeBin, [path.join(target, '.harness/bin/build-context.mjs'), '--stdout', '로그인 기능 수정'], { cwd: target })
   assert(context.includes('기준 이후 원격에서 변경됨 — 확인 전'), 'the context label must speak the remote axis')
   assert(!context.includes('미정산'), 'the context must not borrow the settle-axis word for remote detections')
+}
+
+// 멀티사이트 #24 (2026-09-08): 정산 대기 목록이 파일별로 매핑을 찾아, 매핑된 문서의 짝 화면(.html)에 "(매핑 없음)"을
+// 붙였다. 미매핑 집계(findUnmappedSpecs)는 화면 색인으로 짝을 알아 대표 문서에 묶는데 목록만 다른 규칙을 썼다.
+// 링크된 화면은 대표 문서의 매핑을 따라 표시해야 한다.
+function specStatusLabelsLinkedScreenWithItsDocMapping() {
+  const { target, planning } = setupSpecLinkedTarget()
+  fs.writeFileSync(path.join(target, '.harness/project/spec-map.md'), [
+    '# 기획 문서 매핑', '', '| 기획 문서 | 구현 경로 | 비고 |', '| --- | --- | --- |', '| `features/로그인.md` | `src/**` | |', '',
+  ].join('\n'))
+  gitCommitAll(target, 'baseline')
+
+  fs.appendFileSync(path.join(planning, 'features/로그인.md'), '\n- 정렬 정책 추가.\n')
+  fs.appendFileSync(path.join(planning, 'features/로그인.html'), '<p>정렬 칼럼 추가.</p>\n')
+  gitCommitAll(planning, '기획 수정')
+  specSyncCli(target, ['fetch', '--cache-only'])
+
+  const status = specSyncCli(target, ['status'])
+  const lines = status.split('\n')
+  const html = lines.find((line) => line.includes('features/로그인.html'))
+  assert(html, 'the changed screen must appear in the pending list (precondition)')
+  assert(html.includes('연결 코드') && html.includes('짝 문서'), `a linked screen must show its document's mapping, got: ${html.trim()}`)
+  assert(!html.includes('매핑 없음'), 'a linked screen must not be labelled unmapped while its document is mapped')
+  const md = lines.find((line) => line.includes('features/로그인.md'))
+  assert(md && md.includes('연결 코드'), 'the document line keeps its own mapping')
 }
 
 // yaml 예시는 문구를 만들지 않는다 — 도구의 broadcast 출력을 그대로 전달만 한다.
@@ -7539,6 +7624,7 @@ const tests = [
   reportInstallFailsOpenToFileWithoutToken,
   pendingReportMarkerRemindsUntilReported,
   updateOutputSkipsStaticCommandGuide,
+  chainedUpdateKeepsOriginalFromForChangelogAndReport,
   seedModeTargetKeepsSeedOnlyDocs,
   updateRemovesRetiredManagedCommandDoc,
   freshInstallHasNoRegistryOrphans,
@@ -7575,6 +7661,7 @@ const tests = [
   broadcastDistinguishesJudgedDocsFromUnmapped,
   broadcastWithoutCheckRecordAsksForFetchFirst,
   specStatusSeparatesAxesAndFoldsDetectedCount,
+  specStatusLabelsLinkedScreenWithItsDocMapping,
   ciBackstopExampleDelegatesToBroadcast,
   ciBackstopLeaderChecklistCoversLiveSetup,
   specLinkAdapterRoutesSecondSourceToAddProcedure,
