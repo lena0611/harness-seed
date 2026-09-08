@@ -2,6 +2,12 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
+## PHP 팀 전달 직전 점검 — 회신문 정정 (2026-09-08 저녁)
+
+- **리허설 커밋을 통째로 넘기면 안 되는 이유 둘(실측)**: ① 리허설 설치 lock이 `source.type: bundled`(로컬 시드) — 그대로 올리면 나중 `harness update`가 재설치 안내. ② 리허설 ①(설치 커밋)을 amend할 때 667의 `CONVENTIONS.md·DEV_SETUP.md·tools/php`가 index에 있어 **함께 들어갔다** — 그래서 ②는 그 파일들의 *수정*이고 파일 없는 master에 cherry-pick하면 modify/delete 충돌.
+- **문서에 적은 검증된 순서**: master에서 CLI 설치 커밋 → `git checkout origin/mhryu75-OPDTEAM3-667 -- CONVENTIONS.md DEV_SETUP.md tools/php` 커밋 → cherry-pick `1b32d9361e` → `ab00221327` → `755d647477`. 깨끗한 master worktree(`~/practice/common-test-handover`, 브랜치 `handover-check`)에서 충돌 0, check 통과, 링크 OK, Always Read 자동 확인. 667 머지 시 CONVENTIONS 충돌은 master(표만) 쪽.
+- 회신문(아티팩트 bf663dcb)에 반영·재발행. 버전 표기 0.2.144로. 리허설 `sources` 등록 커밋(`ede27521a8`)은 다음 커밋이 걷어내 상쇄 — cherry-pick 대상에서 제외.
+
 ## 0.2.145 후보 — 쌓이면 릴리스 (사용자 결정 2026-09-08)
 
 - **#25 club-admin(개선 1, 낮음) 수용·커밋 `804af8f`**: 업데이트 출력에서 `다음 단계`·`문서` 32줄도 생략(현재 상태는 유지). #25는 "반영됨, 0.2.145 예정" 코멘트로 **열어둠** — 릴리스 뒤 close.
