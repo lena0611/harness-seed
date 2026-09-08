@@ -16,6 +16,15 @@
 - **문서에 적은 검증된 순서**: master에서 CLI 설치 커밋 → `git checkout origin/mhryu75-OPDTEAM3-667 -- CONVENTIONS.md DEV_SETUP.md tools/php` 커밋 → cherry-pick `1b32d9361e` → `ab00221327` → `755d647477`. 깨끗한 master worktree(`~/practice/common-test-handover`, 브랜치 `handover-check`)에서 충돌 0, check 통과, 링크 OK, Always Read 자동 확인. 667 머지 시 CONVENTIONS 충돌은 master(표만) 쪽.
 - 회신문(아티팩트 bf663dcb)에 반영·재발행. 버전 표기 0.2.144로. 리허설 `sources` 등록 커밋(`ede27521a8`)은 다음 커밋이 걷어내 상쇄 — cherry-pick 대상에서 제외.
 
+## v0.2.145 배포 완료 (2026-09-08 밤)
+
+- **태그 `v0.2.145` = `6d45a84`**, GitHub·GitLab 양쪽. CI 초록(pre-push 풀 250/250 + CI 1회). 공지 3줄은 사용자 승인 후 확정(첫 줄은 "모놀리스에서 CLAUDE.md 진입점을 여러 개 두어야 할 때"로 일반화 — 특정 서비스 경로 언급 제거, 셋째 줄 간결화). **발송은 사용자 몫**(`node scripts/release-notice.mjs [--json]`).
+- **CLI `v0.2.41` = `1edb1d2`** (README ref v0.2.145, check·test 통과, master+태그 push).
+- **#25 close** — "v0.2.145에 반영·배포" 코멘트 후 닫음(http 201/200).
+- **회신문(artifact bf663dcb)**: 버전 표기 v0.2.145로, 4절에 Claude 한 문장 예시(`/연결프로젝트 <주소>` · "프론트 저장소 연결해줘 — …") 추가, 아코디언(절·소절 독립 토글 + 전체 펼치기/접기 위·아래) + OS 테마 추종(`prefers-color-scheme`만, data-theme 무시 — 사용자 요청). 전체 펼치기 "안 됨" 제보는 스크롤 고정 점프였음 → `overflow-anchor:none` + 클릭한 툴바 `scrollIntoView`.
+- **다음**: 사용자가 회신문을 PHP 백엔드(멀티사이트 개발자)에게 전달. 그 뒤 리포트가 오면 보드 규칙대로(정상=즉시 close, 결함·개선=수정 후 "반영됨, vX 예정").
+- 릴리스 절차 중 확인한 사실: **커밋별 풀 테스트는 안 돈다** — pre-commit은 가벼운 검사, pre-push 1회(같은 트리면 둘째 원격·태그는 캐시 히트), CI는 push마다 헤드 1회, 태그 push는 CI 안 돎(main 브랜치 push만). 커밋마다 바로 push하면 결과적으로 커밋별.
+
 ## 0.2.145 후보 — 쌓이면 릴리스 (사용자 결정 2026-09-08)
 
 - **서비스 폴더 CLAUDE.md 결론(사용자 지적 둘, 09-08 밤)**: ① 루트 내용(읽기 순서·공통 규칙 위치) 되풀이 금지 — 루트 CLAUDE.md는 이미 실려 있고 하위는 추가로 실림. ② 모양은 둘: 적을 땐 CLAUDE.md에 전부 / 늘면 유형별 파일 + CLAUDE.md는 목차. "규칙 본문 금지"는 루트 기준 오적용이었음 — 등록만 하면 여느 프로젝트 문서. 가이드·spec-authority·스킬 출력·회신문 정정.
