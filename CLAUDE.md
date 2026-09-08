@@ -45,7 +45,8 @@
 - `.harness/project/issue-adapter.example.md` (커밋·푸시 보고의 이슈 요약 — 프로젝트가 견본을 복사해 만든 실물 파일이 있으면 그 규칙 적용)
 - `.harness/project/bootstrap.md`
 - `.harness/project/new-project-checklist.md` (새 프로젝트 day-0 순서 — 리더용)
-- `.harness/policy/context-protocol.md`
+- `.harness/policy/context-protocol.md` (보고 형식 정본 — 완료 조건을 관찰 가능한 결과로 적는 법, 검증 범위 표기, 완료 보고 전 자체 대조)
+- `.harness/policy/sync-protocol.md` (검사·훅을 추가할 때, 정책·옵션을 폐기할 때, 사용자 파일을 병합·복원할 때 함께 확인할 연결 — 변경 유형별 확인 절차 정본)
 - `.harness/skills/README.md`
 - `.harness/documentation/README.md`
 - `.harness/stacks/README.md`
