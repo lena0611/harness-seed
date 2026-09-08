@@ -3327,9 +3327,15 @@ function updateOutputSkipsStaticCommandGuide() {
   const target = makeTarget()
   const first = runInit(target, '--no-scan', '--no-handoff', '--no-check')
   assert(first.includes('::: 소비자 명령 빠른 안내 :::'), 'a first install may show the full command guide (precondition)')
+  assert(first.includes('::: 다음 단계 :::') && first.includes('::: 문서 :::'), 'a first install shows next steps and the document list (precondition)')
   const second = runInit(target, '--no-scan', '--no-handoff', '--no-check')
   assert(!second.includes('::: 소비자 명령 빠른 안내 :::'), 'an update (init over an installed project) must not repeat the static command guide')
   assert(second.includes('명령 전체 목록'), 'the update must leave a one-line pointer to the launcher instead')
+  // club-admin #25 (2026-09-08): 다이어트가 옆 블록에는 닿지 않았다 — "다음 단계"(스택 확인·훅 활성화·제거 계획…)와
+  // "문서" 32줄이 업데이트마다 그대로 나왔다. 이미 스택·훅이 있는 프로젝트엔 해당 없는 항목이고 제거 안내는 방향이 반대다.
+  // "현재 상태"(버전·갱신/보존 수)는 업데이트에서도 확인 가치가 있어 남긴다(제보자 권고).
+  assert(!second.includes('::: 다음 단계 :::') && !second.includes('::: 문서 :::'), 'an update must not repeat the first-install next-steps and document list')
+  assert(second.includes('::: 현재 상태 :::') && second.includes('설치/갱신된 하네스 관리 파일'), 'the status block (version, updated/preserved counts) must stay on updates — teams read it to confirm project-owned files survived')
   const out = run(nodeBin, [path.join(target, '.harness/bin/update-harness.mjs'), '--base-only', '--dry-run'], { cwd: target })
   assert(!out.includes('::: 소비자 명령 빠른 안내 :::'), 'the update orchestrator must not print it either')
 }

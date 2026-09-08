@@ -2917,7 +2917,13 @@ function main() {
   - package.json 주입 별칭: 0개 (모든 하네스 명령은 .harness/bin/harness 런처)${renderRetiredScriptsNotice(pkg.retired) ? `\n  - ${renderRetiredScriptsNotice(pkg.retired)}` : ''}
   - 스택 기준은 나중에 추가할 수 있습니다.
   - 단순 운영 건이면 지금 상태로 작업을 시작해도 됩니다.
-
+`);
+    if (!recognizedManifest) {
+      // 다음 단계·문서 목록은 최초 설치용이다(club-admin #25, 2026-09-08): 스택 확인·훅 활성화·제거 계획은
+      // 이미 설치된 프로젝트엔 해당 없고 "제거 계획"은 업데이트 직후 안내로는 방향이 반대다. 0.2.144의
+      // 다이어트는 아래 "소비자 명령 빠른 안내"만 감쌌고 이 32줄은 밖에 있었다. 현재 상태(버전·갱신/보존 수)는
+      // 업데이트에서도 확인 가치가 있어 남긴다 — 팀들이 "project-owned가 보존됐나"를 그 줄로 본다.
+      console.log(`
 ::: 다음 단계 :::
 ${renderNodeStep(TARGET)}
   1) 현재 상태를 브라우저로 확인
@@ -2951,6 +2957,7 @@ ${renderHookStep(TARGET, 7, diagnostics.hooks)}
   - .github/copilot-instructions.md
   - .harness/project/bootstrap.md
 `);
+    }
     if (recognizedManifest) {
       // 출력 다이어트(0.2.139)는 update-harness의 꼬리말만 줄였고 이 블록은 업데이트마다 그대로 찍혔다
       // (scorecard #22 실측 293줄). 전체 안내는 최초 설치와 런처(무인자)가 담당한다.
