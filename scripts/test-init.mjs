@@ -2874,6 +2874,10 @@ function sessionStartHookInjectsLinkedProjectPointers() {
   fs.writeFileSync(path.join(back, 'svc/multisite/CLAUDE.md'), '# 서비스 룰\n')
   // 0.2.140: 팀 파일에는 저장소 정체(repo)만, PC 경로는 개발자의 접근 폴더 목록에서 git remote로 찾는다.
   run('git', ['remote', 'add', 'origin', 'https://git.example.com/team/backend.git'], { cwd: back })
+  // 연결은 이 PC의 clone을 가리키므로 "어느 브랜치가 기준인가"는 체크아웃 상태다 — 시작 안내·프롬프트·상태표가
+  // 그 브랜치를 보여줘야 feature 브랜치에 두고 잊은 채 작업하는 일을 막는다(2026-09-08, 선언 필드는 두지 않기로 함).
+  run('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--allow-empty', '-m', 'init'], { cwd: back })
+  run('git', ['checkout', '-q', '-b', 'dev'], { cwd: back })
   writeJson(front, '.claude/settings.local.json', { permissions: { additionalDirectories: [path.relative(front, back)] } })
   const profileRel = '.harness/policy/profile.json'
   const profile = JSON.parse(read(front, profileRel))
@@ -2892,14 +2896,17 @@ function sessionStartHookInjectsLinkedProjectPointers() {
   assert(start.includes('자동 실행되지 않습니다'), 'it must warn that the linked repo hooks do not run in this session (#15)')
   assert(start.includes('유령') && start.includes('못 찾았습니다'), 'a hint path that does not exist must be reported')
   assert(start.includes('미해결') && start.includes('additionalDirectories'), 'an unresolvable repo must tell the developer to add the folder to additionalDirectories')
+  assert(start.includes('(브랜치 dev)'), 'session start must show which branch the linked clone is on')
 
   const prompt = run('/bin/bash', [path.join(front, '.claude/hooks/inject-context.sh')], { cwd: front, env })
   assert(prompt.includes('Linked project 백엔드') && prompt.includes(path.join(back, '.harness/bin/harness')), 'each prompt must carry the linked-project rule line')
   assert(!prompt.includes('유령') && !prompt.includes('미해결'), 'the prompt line skips unresolved entries (session start already reported them)')
+  assert(prompt.includes('[branch dev]'), 'the per-prompt line must carry the linked clone branch')
 
   // 상태 표(harness linked): 해석 방식까지 보인다.
   const status = run(harnessBin(front), ['linked'], { cwd: front, env })
   assert(status.includes('백엔드') && status.includes(back) && status.includes('git remote 일치'), 'harness linked must show where and how each project resolved')
+  assert(status.includes('브랜치: dev'), 'harness linked must show the linked clone branch')
 
   // 선언이 없으면 아무 말도 없다.
   const plain = makeTarget()

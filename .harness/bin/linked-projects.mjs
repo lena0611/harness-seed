@@ -65,6 +65,20 @@ function remoteUrls(dir) {
   }
 }
 
+// 상대 clone이 지금 어느 브랜치인지. 연결은 서버가 아니라 이 PC의 clone을 가리키므로 "어느 브랜치가 기준인가"는
+// 선언이 아니라 체크아웃 상태가 답이다 — 표시만 하고(길라잡이) 선언 필드는 두지 않는다(2026-09-08 사용자 결정:
+// 팀이 관리해야 하는 값이 하나 늘어 낡을 수 있고, 그 비용이 얻는 것보다 크다).
+function currentBranch(dir) {
+  try {
+    const name = execFileSync('git', ['-C', dir, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    if (name && name !== 'HEAD') return name
+    const sha = execFileSync('git', ['-C', dir, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    return sha ? `detached@${sha}` : null
+  } catch {
+    return null
+  }
+}
+
 // 개발자가 이미 열어 둔 접근 폴더 = 연결 저장소 후보. 개인(local) 설정을 먼저, 공유 설정도 본다.
 function candidateDirs() {
   const dirs = []
@@ -110,7 +124,8 @@ function resolveLinkedProjects(projectRoot = root) {
           .split(/\r?\n/).filter((l) => /^## /.test(l)).slice(0, 3).map((h) => h.replace(/^## /, ''))
       } catch {}
     }
-    return { label, repo: item.repo ?? null, focus, hint: item.path ?? null, abs, via, hasHarness, docs, reminderHeads }
+    const branch = abs ? currentBranch(abs) : null
+    return { label, repo: item.repo ?? null, focus, hint: item.path ?? null, abs, via, branch, hasHarness, docs, reminderHeads }
   })
 }
 
@@ -203,7 +218,8 @@ if (mode === 'json') {
   for (const it of items) {
     if (!it.abs) continue
     const focus = it.focus ? ` (focus ${it.focus})` : ''
-    console.log(`Linked project ${it.label}: ${it.abs}${focus} — before touching files there, read its CLAUDE.md${it.focus ? ` and ${it.focus}/CLAUDE.md` : ''}; its write-time hooks do not run in this session; run its harness via ${it.abs}/.harness/bin/harness; commit inside that repo (its own git hooks check).`)
+    const branch = it.branch ? ` [branch ${it.branch}]` : ''
+    console.log(`Linked project ${it.label}: ${it.abs}${branch}${focus} — before touching files there, read its CLAUDE.md${it.focus ? ` and ${it.focus}/CLAUDE.md` : ''}; its write-time hooks do not run in this session; run its harness via ${it.abs}/.harness/bin/harness; commit inside that repo (its own git hooks check).`)
   }
 } else if (mode === 'session') {
   if (items.length > 0) {
@@ -211,7 +227,7 @@ if (mode === 'json') {
     console.log('[harness] 연결 프로젝트 (이 세션에서 함께 다루는 다른 저장소)')
     for (const it of items) {
       if (!it.abs) { console.log(`- ${it.label}: ${unresolvedHint(it)}`); continue }
-      console.log(`- ${it.label}: ${it.abs}${it.focus ? ` (관심 영역 ${it.focus})` : ''}${it.hasHarness ? '' : ' — 하네스 미설치(기준 문서 없음, 파일 작업만)'}`)
+      console.log(`- ${it.label}: ${it.abs}${it.branch ? ` (브랜치 ${it.branch})` : ''}${it.focus ? ` (관심 영역 ${it.focus})` : ''}${it.hasHarness ? '' : ' — 하네스 미설치(기준 문서 없음, 파일 작업만)'}`)
       if (it.docs.length) console.log(`  그쪽 파일을 읽거나 고치기 전에 반드시 먼저 읽기: ${it.docs.join(', ')}`)
       if (it.hasHarness) {
         console.log(`  그쪽 하네스 명령은 ${path.join(it.abs, '.harness/bin/harness')} <명령> 으로 실행합니다(이 저장소 런처가 아님). 커밋·푸시는 그 저장소 안에서 — 그쪽 git 훅이 검사합니다.`)
@@ -231,6 +247,7 @@ if (mode === 'json') {
       console.log(`    저장소: ${it.repo ?? '(repo 미선언)'}${it.hint ? `  힌트 경로: ${it.hint}` : ''}`)
       console.log(it.abs ? `    위치: ${it.abs}  (${it.via === 'path' ? '힌트 경로' : 'additionalDirectories 의 git remote 일치'})` : `    위치: ${unresolvedHint(it)}`)
       if (it.abs) console.log(`    하네스: ${it.hasHarness ? '있음' : '없음'}  기준 문서: ${it.docs.length ? it.docs.join(', ') : '없음'}`)
+      if (it.abs) console.log(`    브랜치: ${it.branch ?? '(알 수 없음)'}`)
     }
   }
 }
