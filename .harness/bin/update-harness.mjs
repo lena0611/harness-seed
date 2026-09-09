@@ -52,13 +52,29 @@ Options:
 // 실증: score-print 결함 보고(2026-08-24) — 안내된 --resync-managed가 스택 단계에서 항상
 // 중단돼 base resync가 시작조차 못 했고, 실패가 옵션 오타처럼 보였다.
 const BASE_ONLY_FLAGS = new Set(['--resync-managed'])
+// 값이 따라오는 공통 하네스 전용 옵션(0.2.146, 훅 충돌 결정). 스택 단계에는 옵션명과 값을 함께 빼고 넘긴다(리뷰 P2-2).
+const BASE_ONLY_VALUE_FLAGS = new Set(['--replace-hook', '--keep-hook'])
 
 function baseOnlyFlagsIn(opts) {
-  return opts.forwarded.filter((flag) => BASE_ONLY_FLAGS.has(flag))
+  const found = []
+  for (let i = 0; i < opts.forwarded.length; i += 1) {
+    const flag = opts.forwarded[i]
+    if (BASE_ONLY_FLAGS.has(flag)) found.push(flag)
+    if (BASE_ONLY_VALUE_FLAGS.has(flag)) { found.push(flag); i += 1 }
+  }
+  return found
 }
 
 function forwardedFor(opts, targetKind) {
-  return targetKind === 'base' ? opts.forwarded : opts.forwarded.filter((flag) => !BASE_ONLY_FLAGS.has(flag))
+  if (targetKind === 'base') return opts.forwarded
+  const kept = []
+  for (let i = 0; i < opts.forwarded.length; i += 1) {
+    const flag = opts.forwarded[i]
+    if (BASE_ONLY_FLAGS.has(flag)) continue
+    if (BASE_ONLY_VALUE_FLAGS.has(flag)) { i += 1; continue } // 옵션명 + 값 둘 다 제외
+    kept.push(flag)
+  }
+  return kept
 }
 
 function parseArgs(argv) {
@@ -107,6 +123,14 @@ function parseArgs(argv) {
       case '--stack-only':
         opts.stackOnly = true
         break
+      // 훅 충돌 해결 플래그(0.2.146): 값이 따라오므로 두 토큰을 그대로 init에 넘긴다.
+      case '--replace-hook':
+      case '--keep-hook': {
+        const value = requireValue(args, i, arg)
+        opts.forwarded.push(arg, value)
+        i += 1
+        break
+      }
       case '--force':
       case '--resync-managed':
       case '--force-stack':

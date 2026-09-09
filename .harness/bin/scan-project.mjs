@@ -486,7 +486,17 @@ function isHarnessGeneratedRulePath(rel) {
     || rel === '.claude/README.md'
 }
 
+// 보관 사본(0.2.146, PHP 백엔드 마이그레이션 실측): 규약을 하네스 문서로 다 옮긴 뒤 원문을 지우지 않고 `CONVENTIONS_BAK.md`처럼
+// 이름을 바꿔 남겨 두는 팀이 있다 — 원작성자가 "이 파일 어디 갔지?" 할 때를 위해. 이름에 bak/backup 토큰이 있으면
+// 룰 후보로 보지 않는다: 연결을 다 끊은 사본이 매 스캔마다 "미등록 룰 후보"로 잡히면 잡음이고, 그 잡음 때문에 지우게 된다.
+const ARCHIVED_COPY_NAME_PATTERN = /(^|[-_.])(bak|backup)([-_.]|$)/i
+
+function isArchivedCopyName(rel) {
+  return ARCHIVED_COPY_NAME_PATTERN.test(path.basename(rel))
+}
+
 function classifyExistingAiRuleDoc(rel) {
+  if (isArchivedCopyName(rel)) return null
   if (isHarnessGeneratedRulePath(rel) || !isMarkdownLikeRuleFile(rel)) return null
 
   const base = path.basename(rel)

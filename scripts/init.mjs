@@ -543,6 +543,8 @@ Options:
   --no-handoff           설치/업데이트 인수인계 요약을 자동 생성하지 않습니다.
   --no-check             설치 후 하네스 기본 검사를 자동 실행하지 않습니다.
   --no-hooks             최초 설치 시 git hook 자동 활성화를 건너뜁니다. (업데이트는 원래 재배선하지 않습니다)
+  --replace-hook <이름>  같은 이름의 기존 .claude/hooks 훅이 하네스 원본과 다를 때: 원본으로 교체하고 기존 파일은 <경로>.harness-bak에 보관 (반복 가능)
+  --keep-hook <이름>     같은 상황에서 기존 파일을 유지(팀 settings.json이 그 파일을 실행 — 프로젝트 책임). 기록·재보고됩니다 (반복 가능)
   --with-package-json    은퇴(0.2.131) — 받아들이지만 아무 동작도 하지 않습니다. 하네스는 package.json을 만들거나 쓰지 않습니다.
   --embedded             스택 하네스 설치 흐름 내부에서 호출될 때 중간 안내를 줄입니다.
   --verbose              설치 내부 명령과 진단 출력을 자세히 표시합니다.
@@ -619,6 +621,18 @@ function parseArgs(argv) {
       case '--no-hooks':
         opts.noHooks = true;
         break;
+      // 훅 이름 충돌 해결(0.2.146, common 후속 ①): 훅별로 명시된 결정만 실행한다. 전체 --force로 풀게 하지 않는다.
+      case '--replace-hook':
+      case '--keep-hook': {
+        const value = args[++i];
+        if (!value || value.startsWith('-')) {
+          console.error(`${arg}에는 훅 이름이 필요합니다. 예: ${arg} block-dangerous`);
+          process.exit(1);
+        }
+        const bucket = arg === '--replace-hook' ? (opts.replaceHooks ??= new Set()) : (opts.keepHooks ??= new Set());
+        bucket.add(hookBaseName(value));
+        break;
+      }
       // 은퇴 플래그: 받아들이지만 아무것도 하지 않는다. 0.2.131에서 별칭 주입이 0개가 되어
       // 용도가 사라졌으나, 스택 하네스의 buildSeedArgs가 이 플래그를 본체 init에 넘긴다
       // (공개 계약 — 결정 83). 거부하면 구버전 스택 하네스의 설치가 전면 실패한다(실측 exit 1).
@@ -1021,6 +1035,161 @@ function backupExisting(target, files, dryRun) {
   return { dir, count: existing.length };
 }
 
+// ── 훅 이름 충돌(0.2.146, smartscore-backend/common 후속 제보 ①, Codex 설계 리뷰) ─────────────────────────────
+// .claude/hooks/<이름>.sh 는 팀 .claude/settings.json 이 **이름으로 부르는 계약**이다. 같은 이름의 파일이 하네스 원본과
+// 다른 내용으로 이미 있으면(개인 훅 등) 예전 설치기는 파일을 보존만 하고 settings.json 에는 그 경로를 등록해 "팀 설정이
+// 개인 훅을 실행"하는 섞임을 만들었고, manifest 어디에도 기록하지 않아 관리 밖이 됐다(제보). 이제 파일 복사·설정 병합
+// 전에 충돌을 찾아 멈추고, 훅별로 명시된 결정(--replace-hook / --keep-hook)만 실행한다. 출처 미확인 파일을 사용자 동의
+// 없이 교체하지 않는다 — 기존 파일에 프로젝트 고유의 보호 규칙이 들어 있을 수 있다.
+function hookBaseName(value) {
+  return String(value).replace(/^\.claude\/hooks\//, '').replace(/\.sh$/, '');
+}
+
+function filesEqual(a, b) {
+  try {
+    return readFileSync(a).equals(readFileSync(b));
+  } catch {
+    return false;
+  }
+}
+
+function detectHookConflicts(sourceRoot, target, files, manifest) {
+  const conflicts = [];
+  for (const rel of files) {
+    if (!rel.startsWith('.claude/hooks/') || !rel.endsWith('.sh')) continue;
+    const src = join(sourceRoot, rel);
+    const dest = join(target, rel);
+    if (!existsSync(src) || !existsSync(dest)) continue;
+    try {
+      if (!statSync(dest).isFile()) continue;
+    } catch {
+      continue;
+    }
+    if (filesEqual(src, dest)) continue; // 내용이 같으면 충돌이 아니다(#28: 팀 훅 3개가 cmp 동일)
+    // 하네스가 설치한 기록이 있는 파일(정상 업데이트·로컬 수정 managed)은 기존 흐름이 다룬다.
+    if (manifest?.managedFiles?.[toPosix(rel)]) continue;
+    conflicts.push({ rel, name: hookBaseName(rel) });
+  }
+  return conflicts;
+}
+
+// 결정은 플래그뿐 아니라 환경변수 HARNESS_HOOK_DECISIONS="replace:<이름>,keep:<이름>" 로도 받는다(0.2.146, 리뷰 P2-2):
+// 0.2.145 이하의 updater 는 새 플래그를 "알 수 없는 옵션"으로 거절하지만 환경변수는 그대로 자식 init 에 전달되므로,
+// 충돌 뒤 기존 `harness update` 명령으로 복구할 수 있다.
+function mergeHookDecisionsFromEnv(opts) {
+  const raw = process.env.HARNESS_HOOK_DECISIONS;
+  if (!raw) return;
+  for (const item of raw.split(',').map((v) => v.trim()).filter(Boolean)) {
+    const m = item.match(/^(replace|keep):(.+)$/);
+    if (!m) {
+      console.error(`HARNESS_HOOK_DECISIONS 항목을 이해할 수 없습니다: '${item}' (형식: replace:<이름> 또는 keep:<이름>)`);
+      process.exit(1);
+    }
+    (m[1] === 'replace' ? (opts.replaceHooks ??= new Set()) : (opts.keepHooks ??= new Set())).add(hookBaseName(m[2]));
+  }
+}
+
+function assertHookDecisionsConsistent(opts) {
+  const both = [...(opts.replaceHooks ?? [])].filter((name) => opts.keepHooks?.has(name));
+  if (both.length > 0) {
+    console.error(`같은 훅에 교체(--replace-hook)와 유지(--keep-hook)를 함께 지정했습니다: ${both.join(', ')} — 하나만 남기고 다시 실행하세요.`);
+    process.exit(1);
+  }
+}
+
+function resolveHookConflicts(conflicts, opts) {
+  mergeHookDecisionsFromEnv(opts);
+  assertHookDecisionsConsistent(opts);
+  const replace = [];
+  const keep = [];
+  const unresolved = [];
+  for (const conflict of conflicts) {
+    if (opts.replaceHooks?.has(conflict.name)) replace.push(conflict);
+    else if (opts.keepHooks?.has(conflict.name)) keep.push(conflict);
+    else unresolved.push(conflict);
+  }
+  return { replace, keep, unresolved };
+}
+
+function printHookConflictsAndExit(unresolved) {
+  console.error('');
+  console.error(`⚠ 같은 이름의 기존 훅 ${unresolved.length}개가 하네스 원본과 내용이 다릅니다 — 설치를 멈췄습니다 (파일·설정은 건드리지 않았습니다).`);
+  for (const c of unresolved) console.error(`  - ${c.rel}`);
+  console.error('왜 멈추나: 팀 .claude/settings.json 은 이 경로들을 이름으로 부릅니다. 그대로 두면 팀 설정이 하네스가 아닌 이 파일을 실행합니다(섞임).');
+  console.error('훅마다 정하세요 — 같은 명령에 플래그를 붙여 다시 실행합니다:');
+  console.error('  --replace-hook <이름>   하네스 원본으로 교체하고 기존 파일은 <경로>.harness-bak 에 보관합니다.');
+  console.error('  --keep-hook <이름>      기존 파일을 유지합니다(팀 설정이 이 파일을 실행 — 프로젝트 책임). manifest에 기록되고 업데이트마다 다시 알립니다.');
+  console.error('  개인 훅으로 계속 쓰려면: 파일을 <이름>.local.sh 로 바꾸고 .claude/settings.local.json 에 등록한 뒤 --replace-hook <이름> 으로 원본을 받으세요.');
+  console.error(`  예: … init ${unresolved.map((c) => `--replace-hook ${c.name}`).join(' ')}`);
+  console.error('업데이트 중이라면(harness update 가 이 설치를 불렀다면): 기존 updater 가 새 플래그를 모를 수 있으니 결정을 환경변수로 넘겨 같은 명령을 다시 실행하세요 —');
+  console.error(`  HARNESS_HOOK_DECISIONS="${unresolved.map((c) => `replace:${c.name}`).join(',')}" .harness/bin/harness update    (유지할 훅은 keep:<이름>)`);
+  console.error('  설치 출처·버전은 기존 설정(.harness/harness-lock.json)에서 그대로 읽으므로 따로 적을 것이 없습니다.');
+  console.error('에이전트(Claude)라면: 훅별로 사용자에게 물어(AskUserQuestion) 결정을 받은 뒤 플래그(또는 환경변수)를 붙여 다시 실행하세요. 임의로 정하지 마세요.');
+  process.exit(1);
+}
+
+// ── 설치 산출물이 git ignore 규칙에 걸리는지(0.2.146, 후속 제보 ②) ────────────────────────────────────────────────
+// 개인 .git/info/exclude(/.claude/*) 때문에 하네스 파일 21개가 커밋에서 빠져, 팀원이 pull 하면 settings.json 이 없는 훅을
+// 부르게 됐다(제보). "공유 대상인데 미추적이고 실제로 ignore 되는" 파일만 경고한다 — 이미 추적된 파일은 ignore 규칙과
+// 무관하고, !패턴으로 재포함된 파일은 무시되지 않으며, 하네스가 스스로 ignore 에 넣는 파일은 의도된 것이다.
+// 규칙 소유자(개인·팀·전역)와 무관하게 같은 강도로 알리되, ignore 를 고치거나 강제 추가하지는 않는다(fail-open).
+const INTENTIONALLY_IGNORED_OUTPUTS = [
+  '.env', '.env.local', '.issue-adapter.env', '.node-version.cache', '.package-json.hash',
+  '.harness/.stack-applied.json', '.harness/generated/',
+  '.harness/session/project-scan-report.md', '.harness/session/handoff.md', '.harness/session/task-context.md',
+];
+
+function collectSettingsReferencedPaths(target) {
+  const file = join(target, '.claude/settings.json');
+  if (!existsSync(file)) return [];
+  const text = readFileSync(file, 'utf8');
+  const found = new Set();
+  // settings.json 은 JSON 이라 명령 안의 따옴표가 \" 로 이스케이프돼 있다 — 역슬래시에서 끊어야 경로 끝에 \ 가 붙지 않는다.
+  for (const m of text.matchAll(/\$CLAUDE_PROJECT_DIR\/([^"'\s\\]+)/g)) found.add(m[1]);
+  return [...found];
+}
+
+function warnIgnoredSharedOutputs(target, installed, previousManifest) {
+  const isRepo = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: target, encoding: 'utf8' });
+  if (isRepo.status !== 0) return [];
+  const candidates = new Set([
+    ...(installed.copiedFiles ?? []),
+    ...Object.keys(previousManifest?.managedFiles ?? {}),
+    ...collectSettingsReferencedPaths(target),
+  ]);
+  const shared = [...candidates].filter((rel) => {
+    if (!existsSync(join(target, rel))) return false;
+    if (PERSONAL_LOCAL_PATHS.includes(rel) || rel.endsWith('.harness-bak')) return false;
+    return !INTENTIONALLY_IGNORED_OUTPUTS.some((p) => rel === p || (p.endsWith('/') && rel.startsWith(p)));
+  }).sort();
+  if (shared.length === 0) return [];
+  const ls = spawnSync('git', ['ls-files', '-z', '--', ...shared], { cwd: target, encoding: 'utf8' });
+  const tracked = new Set((ls.stdout ?? '').split('\0').filter(Boolean));
+  const untracked = shared.filter((rel) => !tracked.has(rel));
+  if (untracked.length === 0) return [];
+  const chk = spawnSync('git', ['check-ignore', '-v', '--stdin'], { cwd: target, encoding: 'utf8', input: `${untracked.join('\n')}\n` });
+  const hits = [];
+  for (const line of (chk.stdout ?? '').split('\n')) {
+    const m = line.match(/^(.*?):(\d+):(.*?)\t(.*)$/);
+    if (!m) continue;
+    if (m[3].startsWith('!')) continue; // 재포함 규칙 — 무시되지 않는다
+    hits.push({ rel: m[4], source: m[1], line: m[2], pattern: m[3] });
+  }
+  if (hits.length === 0) return [];
+  console.warn('');
+  console.warn(`⚠ 설치 산출물 ${hits.length}개가 현재 상태로는 팀 공유에서 누락될 수 있습니다 — git에 추적되지 않았고 ignore 규칙에 걸립니다:`);
+  for (const h of hits.slice(0, 25)) console.warn(`  - ${h.rel}  ← ${h.source}:${h.line}  '${h.pattern}'`);
+  if (hits.length > 25) console.warn(`  ... 외 ${hits.length - 25}건`);
+  console.warn('  팀원이 pull 하면 .claude/settings.json 이 부르는 훅·하네스 파일이 없을 수 있습니다.');
+  console.warn('  규칙이 개인용(.git/info/exclude·전역 ignore)이면 개인 파일만 명시하도록 좁히고, 팀 .gitignore 면 팀과 상의하세요.');
+  console.warn('  하네스는 ignore 규칙을 고치거나 파일을 강제로 추가하지 않습니다.');
+  return hits;
+}
+
+// installFiles 가 마지막으로 계산한 "하네스 원본과 다른 동명 파일" 목록 — manifest 의 현황 기록(preservedForeignFiles)에
+// 쓰인다. 소유권 표시가 아니다: 하네스가 이 파일을 덮어쓰거나 지울 수 있다는 뜻이 아니라 "여기 있다"는 기록이다.
+let lastPreservedForeignFiles = [];
+
 function installFiles(sourceRoot, target, files, opts, manifest) {
   const stats = { added: 0, updated: 0, skipped: 0 };
   const skippedFiles = [];
@@ -1028,6 +1197,8 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
   // 안전망: 로컬 수정 감지된 managed 파일은 기본적으로 보존하고, --force --confirm-overwrite-project-files
   // 동의가 있을 때만 .harness-bak 백업 후 덮어쓴다. 둘 다 후처리에서 명시적으로 보고한다.
   const preservedLocallyModified = [];
+  const replacedHooks = [];            // --replace-hook 으로 교체한 훅(기존 파일은 .harness-bak)
+  const preservedForeignFiles = [];    // 하네스 원본과 다른 동명 파일을 보존한 것(현황 기록)
   const overwroteLocallyModified = [];
   const resyncedManaged = [];       // --resync-managed로 본체 원본에 맞춘 파일
   // 마커 머지(옵션 A, 0.2.67) 후처리 분류.
@@ -1139,6 +1310,19 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
 
     let preservedByGuard = false;
     let backupRel = null;
+    let replacedHook = false;
+
+    // 훅 충돌 해결(0.2.146): 유지(--keep-hook) 결정은 --force 보다 우선한다 — "다른 파일은 강제 갱신, 이 훅은 유지"라는
+    // 구체적 선택이 결과에 반영돼야 한다(리뷰 P2-1). 교체(--replace-hook) 결정만 원본으로 바꾸고 기존 파일을 옆에 보관한다.
+    if (exists && opts.keepHookRels?.has(rel)) {
+      shouldCopy = false;
+    }
+    if (exists && opts.replaceHookRels?.has(rel)) {
+      backupRel = `${rel}.harness-bak`;
+      if (!opts.dryRun) copyFileSync(dest, join(target, backupRel));
+      shouldCopy = true;
+      replacedHook = true;
+    }
 
     if (exists && managed && !projectOwned && isLocallyModifiedManagedFile(target, rel, manifest)) {
       if (opts.resyncManaged) {
@@ -1185,19 +1369,28 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     } else if (shouldCopy) {
       stats.updated++;
       copiedFiles.push(rel);
-      if (backupRel) {
+      if (replacedHook) {
+        replacedHooks.push({ rel, backup: backupRel });
+      } else if (backupRel) {
         overwroteLocallyModified.push({ rel, backup: backupRel });
       }
     } else {
       stats.skipped++;
       skippedFiles.push(rel);
+      // 하네스 원본과 내용이 다른 동명 파일(출처 미확인)은 현황으로 기록한다 — 소유권 표시가 아니다.
+      if (exists && !managed && !projectOwned && !isMarkerManaged(rel) && !filesEqual(src, dest)) {
+        preservedForeignFiles.push(rel);
+      }
     }
   }
+  lastPreservedForeignFiles = preservedForeignFiles;
 
   return {
     ...stats,
     skippedFiles,
     copiedFiles,
+    replacedHooks,
+    preservedForeignFiles,
     preservedLocallyModified,
     overwroteLocallyModified,
     resyncedManaged,
@@ -1764,6 +1957,8 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, prev
     manifestVersion: 3,
     managedFiles,
     projectOwnedFiles: projectOwnedFiles.sort(),
+    // 현황 기록(0.2.146): 하네스 원본과 다른 동명 파일을 보존한 것. 소유권 표시가 아니며 하네스가 덮어쓰거나 지우지 않는다.
+    preservedForeignFiles: [...lastPreservedForeignFiles].sort(),
   }
 }
 
@@ -2579,6 +2774,19 @@ function main() {
       console.warn('');
     }
 
+    // 훅 이름 충돌 사전 검사(0.2.146): 파일 복사·설정 병합·백업 전에 멈춘다. dry-run 은 목록만 보여준다.
+    const hookConflicts = detectHookConflicts(sourceRoot, TARGET, files, recognizedManifest);
+    const hookDecisions = resolveHookConflicts(hookConflicts, opts);
+    if (hookDecisions.unresolved.length > 0) {
+      if (opts.dryRun) {
+        console.log(`[dry-run] 같은 이름의 기존 훅 ${hookDecisions.unresolved.length}개가 하네스 원본과 다릅니다(실제 실행이면 여기서 멈춤): ${hookDecisions.unresolved.map((c) => c.rel).join(', ')}`);
+      } else {
+        printHookConflictsAndExit(hookDecisions.unresolved);
+      }
+    }
+    opts.replaceHookRels = new Set(hookDecisions.replace.map((c) => c.rel));
+    opts.keepHookRels = new Set(hookDecisions.keep.map((c) => c.rel));
+
     if (!opts.noBackup) {
       const backup = backupExisting(TARGET, [...files, ...CONSUMER_PROJECT_STATE_PATHS, ...legacyManagedRootScripts], opts.dryRun);
       if (backup.count > 0) {
@@ -2714,16 +2922,37 @@ function main() {
       console.log('이 내역은 나중에 .harness/bin/harness changelog 로 다시 볼 수 있습니다.');
     }
 
-    if (installed.skippedFiles.length > 0) {
+    const foreignPreserved = installed.preservedForeignFiles ?? [];
+    const ordinarySkipped = installed.skippedFiles.filter((rel) => !foreignPreserved.includes(rel));
+    if (ordinarySkipped.length > 0) {
       console.log('');
       console.log('보존된 프로젝트 소유 파일:');
-      for (const rel of installed.skippedFiles.slice(0, 15)) {
+      for (const rel of ordinarySkipped.slice(0, 15)) {
         console.log(`  - ${rel}`);
       }
-      if (installed.skippedFiles.length > 15) {
-        console.log(`  ... 외 ${installed.skippedFiles.length - 15}건`);
+      if (ordinarySkipped.length > 15) {
+        console.log(`  ... 외 ${ordinarySkipped.length - 15}건`);
       }
       console.log('모두 덮어쓰려면 --force를 사용하세요.');
+    }
+    if (installed.replacedHooks && installed.replacedHooks.length > 0) {
+      console.log('');
+      console.log(`같은 이름의 기존 훅 ${installed.replacedHooks.length}개를 하네스 원본으로 교체했습니다(--replace-hook):`);
+      for (const item of installed.replacedHooks) console.log(`  - ${item.rel}  (기존 파일 → ${item.backup})`);
+      console.log('  개인 훅으로 계속 쓰려면 보관 파일을 <이름>.local.sh 로 옮겨 .claude/settings.local.json 에 등록하세요.');
+    }
+    if (foreignPreserved.length > 0) {
+      // 경고는 stderr — init 이 성공 단계의 stdout 을 접어도 살아남아 에이전트가 "정상"으로 넘기지 못하게(#14 방식).
+      console.warn('');
+      console.warn(`⚠ 하네스 원본과 다른 같은 이름의 기존 파일 ${foreignPreserved.length}개를 보존했습니다 — 하네스가 갱신하지 않으며 manifest 에 현황(preservedForeignFiles)으로 기록됩니다:`);
+      for (const rel of foreignPreserved.slice(0, 15)) {
+        const isHook = rel.startsWith('.claude/hooks/') && rel.endsWith('.sh');
+        console.warn(`  - ${rel}${isHook ? '  ← 훅 자리: 팀 .claude/settings.json 이 이 파일을 실행합니다(--keep-hook 으로 유지). 원본으로 바꾸려면 --replace-hook ' + hookBaseName(rel) : ''}`);
+      }
+      if (foreignPreserved.length > 15) console.warn(`  ... 외 ${foreignPreserved.length - 15}건`);
+    }
+    if (!opts.dryRun) {
+      warnIgnoredSharedOutputs(TARGET, installed, recognizedManifest);
     }
 
     // 안전망 후처리 리포트: 로컬 수정 감지된 managed 파일을 명시적으로 보고한다.
@@ -2913,7 +3142,7 @@ function main() {
   - 이번 선택: 공통 하네스만 설치했습니다.
   - 설치 버전: 공통 하네스 v${writtenLock?.baseHarness?.version ?? sourcePkg.version ?? 'dry-run'}
   - 설치/갱신된 하네스 관리 파일: ${installed.added + installed.updated}개
-  - 보존된 프로젝트 소유/로컬 수정 파일: ${installed.skipped + projectState.preserved}개
+  - 보존된 프로젝트 소유/로컬 수정 파일: ${installed.skipped + projectState.preserved}개${(installed.preservedForeignFiles?.length ?? 0) > 0 ? ` (그중 하네스 원본과 다른 동명 파일 ${installed.preservedForeignFiles.length}개 — 위 ⚠ 참조: ${installed.preservedForeignFiles.join(', ')})` : ''}
   - package.json 주입 별칭: 0개 (모든 하네스 명령은 .harness/bin/harness 런처)${renderRetiredScriptsNotice(pkg.retired) ? `\n  - ${renderRetiredScriptsNotice(pkg.retired)}` : ''}
   - 스택 기준은 나중에 추가할 수 있습니다.
   - 단순 운영 건이면 지금 상태로 작업을 시작해도 됩니다.
