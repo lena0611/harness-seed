@@ -55,14 +55,31 @@ try {
     if (m) {
       // 수신 명령은 `<<` 바로 앞 조각에서 본다(0.2.146, common 후속 ③): `D="…"; cat >> "$D" <<EOF` 처럼 앞에
       // 변수 대입이나 다른 명령이 ; && | 로 붙어 있으면 줄 첫 단어가 cat 이 아니라 본문 제외가 안 걸렸다.
-      let head = line.slice(0, m.index);
-      const segs = head.split(/;|&&|\|\||\|/);
-      head = segs[segs.length - 1].replace(/^\s+/, "");
-      while (/^[A-Za-z_][A-Za-z0-9_]*=[^\s]*\s+/.test(head)) {
-        head = head.replace(/^[A-Za-z_][A-Za-z0-9_]*=[^\s]*\s+/, "");
+      // 조각 경계는 **따옴표·역슬래시 밖의** 실제 구분자만 인정한다(리뷰 P1): `bash -s x\;cat <<EOF` 나
+      // `bash -s "x; cat " <<EOF` 의 수신 명령은 bash 라서 본문은 실행이다. 해석이 불확실하면(백틱·$( , 닫히지
+      // 않은 따옴표, `<<` 자체가 따옴표 안) 본문을 제외하지 않는다 — 검사가 줄어드는 방향은 항상 보수적으로.
+      // (이 스니펫은 bash 단일 인용 안에 있으므로 JS 안에 작은따옴표를 쓰면 안 된다 — \x27·\x22 로 쓴다.)
+      const before = line.slice(0, m.index);
+      let sq = false, dq = false, esc = false, uncertain = false, segStart = 0;
+      for (let i = 0; i < before.length; i++) {
+        const ch = before[i];
+        if (esc) { esc = false; continue; }
+        if (ch === "\\" && !sq) { esc = true; continue; }
+        if (sq) { if (ch === "\x27") sq = false; continue; }
+        if (dq) { if (ch === "\x22") dq = false; else if (ch === "`" || (ch === "$" && before[i + 1] === "(")) uncertain = true; continue; }
+        if (ch === "\x27") { sq = true; continue; }
+        if (ch === "\x22") { dq = true; continue; }
+        if (ch === "`" || (ch === "$" && before[i + 1] === "(")) { uncertain = true; continue; }
+        if (ch === ";" || ch === "&" || ch === "|" || ch === "(" || ch === ")") { segStart = i + 1; continue; }
       }
-      const recv = head.split(/\s+/)[0];
-      if (recv === "cat" || recv === "tee") term = m[2];
+      if (!uncertain && !sq && !dq && !esc) {
+        let head = before.slice(segStart).replace(/^\s+/, "");
+        while (/^[A-Za-z_][A-Za-z0-9_]*=[^\s]*\s+/.test(head)) {
+          head = head.replace(/^[A-Za-z_][A-Za-z0-9_]*=[^\s]*\s+/, "");
+        }
+        const recv = head.split(/\s+/)[0];
+        if (recv === "cat" || recv === "tee") term = m[2];
+      }
     }
   }
   // 첫 줄은 훅 입력의 cwd(실행 폴더) — 셸 스크립트 실행 판정이 상대 경로를 풀 때 쓴다(0.2.146, 리뷰 P1-2).
@@ -71,6 +88,11 @@ try {
 ' 2>/dev/null || true
 )"
 
+# 파서가 죽으면(문법 오류 등) 출력이 통째로 비고, 성공하면 최소 cwd 줄(개행)은 있다. 명령이 있는데 파서가 비었으면
+# 검사를 건너뛰지 않고 막는다 — 안전 훅이 조용히 꺼지는 것이 최악이다(0.2.146 리뷰 중 실측).
+if [ -z "$cmd" ] && printf '%s' "$input" | grep -q '"command"[[:space:]]*:[[:space:]]*"[^"]'; then
+  deny "하네스가 차단함: Bash 명령을 파싱하지 못해 안전 검사를 할 수 없습니다(훅 내부 오류). 하네스 팀에 알려 주세요."
+fi
 hook_cwd="${cmd%%$'\n'*}"
 cmd="${cmd#*$'\n'}"
 [ -z "$cmd" ] && exit 0

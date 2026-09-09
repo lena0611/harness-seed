@@ -3536,6 +3536,13 @@ function dangerousHookAllowsWriterHeredocMentions() {
   assert(denyCount('D="$HOME/notes/기록.md"; cat >> "$D" <<\'EOF\'\n예시: rm -rf ./x 는 금지\nEOF') === 0, 'a cat heredoc after a variable assignment must have its body exempt')
   assert(denyCount('mkdir -p out && tee out/doc.md <<\'EOF\'\nsudo 설명\nEOF') === 0, 'a tee heredoc after && must have its body exempt')
   assert(denyCount('X=1; bash <<\'EOF\'\nrm -rf /\nEOF') === 1, 'a shell heredoc after an assignment is still execution and must stay blocked')
+  // 리뷰 P1(6717f5e): 따옴표·이스케이프 안의 구분자를 경계로 오인해 셸이 실행하는 본문을 제외하면 안 된다.
+  assert(denyCount('bash -s x\\;cat <<\'EOF\'\nrm -rf /\nEOF') === 1, 'an escaped ";" is not a separator — the receiver is bash, the body is execution')
+  assert(denyCount('bash -s \'x; cat \' <<\'EOF\'\nrm -rf /\nEOF') === 1, 'a ";" inside single quotes is not a separator')
+  assert(denyCount('bash -c "echo | cat" <<\'EOF\'\nrm -rf /\nEOF') === 1, 'a "| cat" inside double quotes is not a separator')
+  assert(denyCount('x=$(cat <<\'EOF\'\nrm -rf /\nEOF\n); bash -c "$x"') === 1, 'a heredoc inside a command substitution is uncertain — body stays checked')
+  assert(denyCount('echo \'<<EOF\'; bash <<\'EOF\'\nrm -rf /\nEOF') === 1, 'a quoted "<<" is not a heredoc — the real bash heredoc that follows must stay blocked')
+  assert(denyCount('D="$HOME/notes/기록.md"; cat >> "$D" <<\'EOF\'\n예시: rm -rf ./x 는 금지\nEOF') === 0, 'the documented cat-after-assignment case is still allowed')
 }
 
 // 0.2.146 — smartscore-backend/common 후속 제보 ③ + Codex 설계 리뷰: `bash …/x.sh` 일괄 차단이 팀 절차
