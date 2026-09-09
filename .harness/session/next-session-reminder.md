@@ -16,6 +16,15 @@
 - **문서에 적은 검증된 순서**: master에서 CLI 설치 커밋 → `git checkout origin/mhryu75-OPDTEAM3-667 -- CONVENTIONS.md DEV_SETUP.md tools/php` 커밋 → cherry-pick `1b32d9361e` → `ab00221327` → `755d647477`. 깨끗한 master worktree(`~/practice/common-test-handover`, 브랜치 `handover-check`)에서 충돌 0, check 통과, 링크 OK, Always Read 자동 확인. 667 머지 시 CONVENTIONS 충돌은 master(표만) 쪽.
 - 회신문(아티팩트 bf663dcb)에 반영·재발행. 버전 표기 0.2.144로. 리허설 `sources` 등록 커밋(`ede27521a8`)은 다음 커밋이 걷어내 상쇄 — cherry-pick 대상에서 제외.
 
+## v0.2.146 배포 완료 (2026-09-09 오후)
+
+- **태그 `v0.2.146` = `2cc8412`**, GitHub·GitLab 양쪽. 공지 3줄(래퍼 훅 첫 줄, 사용자 승인 문구 그대로 — 태그 직전 `release-notice.mjs --json`으로 실측)은 태그 push로 GitLab 파이프라인 6824 `release-notice` 잡이 자동 발송(success). CI 초록(pre-push 풀 265/265 + CI 1회). 커밋 4개: `4268f6c`(래퍼·설치기 셋·_BAK) → `6717f5e`(allow context/sync·heredoc 대입 뒤) → `b1776de`(리뷰 P1: 따옴표·이스케이프 스캐너) → `2cc8412`(재리뷰 P1: `<<<` here-string).
+- **릴리스 직전 Codex 커밋 리뷰 2회** — 둘 다 heredoc 본문 제외를 우회해 실제 명령을 검사에서 빼는 틈: (6717f5e) `bash -s x\;cat <<EOF`처럼 따옴표·이스케이프 안 구분자를 경계로 오인 → 상태 스캐너+불확실 시 미제외+파서 실패 시 차단; (b1776de) `cat <<<EOF` 다음 줄을 본문으로 오인 → 연산자 앞·뒤 `<` 인접이면 건너뛰고 같은 줄 뒤쪽 heredoc은 계속 인식. 구 훅에서 재현 3건 뚫림 실측 → 수정 후 회귀 8건. **함정**: 훅의 node 스니펫은 bash 단일 인용 안 — JS에 `'` 넣으면 훅 문법 오류로 모든 Bash 호출이 막힘(`\x27`·`\x22`), 복구는 Edit 도구로. 수정 중인 훅 파일을 `bash <경로>.sh`로 직접 돌리면 "수정된 스크립트"라 차단됨 → node에서 spawn.
+- **CLI `v0.2.42` = `9ff7ecd`** (README ref v0.2.146, check·test 21/21, master+태그 push). 함정: 세션 셸이 zsh라 `PIPESTATUS`가 비어 체인이 커밋 전에 멈췄다 — 파이프 없이 종료코드로 판정할 것.
+- **#28 close** — 답글 note 159949("v0.2.146 배포 — ①·후속 ①②③ 반영", 받기 `/하네스업데이트`, `_BAK`) 후 닫음. 사용자 지시: 저쪽 에이전트가 이 답글을 읽고 따라 하니 **절차 문서를 따로 만들지 말고 짧은 답글로**.
+- **회신문(artifact bf663dcb)**: v0.2.146 표기로 재발행(`_BAK` 보관 선택지 포함, 아코디언·OS 테마 유지).
+- **다음**: 사용자가 PHP 백엔드 에이전트에게 #28 답글을 보게 함. 이후 리포트는 보드 규칙대로(정상=즉시 close, 결함·개선=수정 후 "반영됨, vX 예정"). GitHub 런 감시는 `gh run list --commit`에 짧은 SHA를 주면 빈 결과 — 런 ID나 전체 SHA로.
+
 ## 0.2.146 추가 후보 — PHP 백엔드 설치 후속 제보 3건 (2026-09-09, Codex 설계 리뷰 반영, 사용자 결정: 146에 포함)
 
 - **제보**(common 개발자, 채팅 경유): ① 동명 `.claude/hooks/*.sh`(개인 훅 3개) 보존으로 팀 settings.json이 개인 훅을 실행하는 섞임 + manifest 미기록 + 리포트는 개수만 ② 개인 `.git/info/exclude`(`/.claude/*`) 때문에 하네스 파일 21개가 커밋에서 빠짐 ③ `block-dangerous`의 `bash …/x.sh` 일괄 차단이 팀 절차 `bash tools/php/dev-setup.sh`를 막음. 제보자는 손으로 정리(원본 교체·개인 훅 `.local.sh`·exclude 좁힘).
