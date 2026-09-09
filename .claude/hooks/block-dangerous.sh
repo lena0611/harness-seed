@@ -53,7 +53,11 @@ try {
     out.push(line);
     const m = line.match(/<<-?\s*(["\x27]?)([A-Za-z_][A-Za-z0-9_]*)\1/);
     if (m) {
-      let head = line.replace(/^\s+/, "");
+      // 수신 명령은 `<<` 바로 앞 조각에서 본다(0.2.146, common 후속 ③): `D="…"; cat >> "$D" <<EOF` 처럼 앞에
+      // 변수 대입이나 다른 명령이 ; && | 로 붙어 있으면 줄 첫 단어가 cat 이 아니라 본문 제외가 안 걸렸다.
+      let head = line.slice(0, m.index);
+      const segs = head.split(/;|&&|\|\||\|/);
+      head = segs[segs.length - 1].replace(/^\s+/, "");
       while (/^[A-Za-z_][A-Za-z0-9_]*=[^\s]*\s+/.test(head)) {
         head = head.replace(/^[A-Za-z_][A-Za-z0-9_]*=[^\s]*\s+/, "");
       }

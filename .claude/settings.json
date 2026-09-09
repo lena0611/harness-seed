@@ -26,7 +26,11 @@
       "Bash(.harness/bin/harness handoff*)",
       "Bash(.harness/bin/harness check*)",
       "Bash(.harness/bin/harness impact*)",
-      "Bash(.harness/bin/harness stack:status*)"
+      "Bash(.harness/bin/harness stack:status*)",
+      "Bash(npm run harness:context*)",
+      "Bash(npm run harness:sync*)",
+      "Bash(.harness/bin/harness context*)",
+      "Bash(.harness/bin/harness sync*)"
     ],
     "deny": [
       "Bash(rm -rf /*)",

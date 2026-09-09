@@ -3532,11 +3532,33 @@ function dangerousHookAllowsWriterHeredocMentions() {
   // 넘어 이어 붙어, 서로 무관한 두 줄(읽기 명령 + env 파일명)이 하나로 오탐됐다.
   assert(denyCount('grep OK out.log\nls .issue-adapter.env') === 0, 'unrelated lines must not be stitched into one dangerous match')
   assert(denyCount('head -3 .issue-adapter.env') === 1, 'a genuine env read on one line must stay blocked')
+  // 0.2.146(common 후속 ③): 앞에 변수 대입·다른 명령이 붙은 cat/tee heredoc 도 본문은 데이터다.
+  assert(denyCount('D="$HOME/notes/기록.md"; cat >> "$D" <<\'EOF\'\n예시: rm -rf ./x 는 금지\nEOF') === 0, 'a cat heredoc after a variable assignment must have its body exempt')
+  assert(denyCount('mkdir -p out && tee out/doc.md <<\'EOF\'\nsudo 설명\nEOF') === 0, 'a tee heredoc after && must have its body exempt')
+  assert(denyCount('X=1; bash <<\'EOF\'\nrm -rf /\nEOF') === 1, 'a shell heredoc after an assignment is still execution and must stay blocked')
 }
 
 // 0.2.146 — smartscore-backend/common 후속 제보 ③ + Codex 설계 리뷰: `bash …/x.sh` 일괄 차단이 팀 절차
 // (bash tools/php/dev-setup.sh)를 막았다. 저장소에 커밋된 그대로(HEAD와 동일)인 저장소 안 스크립트만 통과하고,
 // 새로 만든 것(git add만 한 것 포함)·고친 것·저장소 밖·밖을 가리키는 링크는 종전대로 차단한다. -n은 옵션 자리일 때만.
+// 0.2.146 — common 후속 ②: CLAUDE.md 작업 원칙이 쓰라는 `harness context`·`sync` 가 기본 허용 목록에 없어 auto 모드
+// 분류기가 거부했다. 설치가 넣는 settings.json 허용 목록에 두 명령(런처·npm 별칭 둘 다)이 있어야 한다.
+function defaultAllowListCoversContextAndSync() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const allow = JSON.parse(read(target, '.claude/settings.json')).permissions.allow
+  for (const entry of ['Bash(.harness/bin/harness context*)', 'Bash(.harness/bin/harness sync*)', 'Bash(.harness/bin/harness check*)']) {
+    assert(allow.includes(entry), `default allow list must include ${entry}`)
+  }
+  // 기존 settings.json 이 있는 프로젝트에도 병합으로 들어간다.
+  const merged = makeTarget()
+  fs.mkdirSync(path.join(merged, '.claude'), { recursive: true })
+  writeJson(merged, '.claude/settings.json', { permissions: { allow: ['Bash(php tools/php/vendor/bin/phpcs:*)'] } })
+  runInit(merged, '--no-scan', '--no-handoff', '--no-check')
+  const mergedAllow = JSON.parse(read(merged, '.claude/settings.json')).permissions.allow
+  assert(mergedAllow.includes('Bash(.harness/bin/harness context*)') && mergedAllow.includes('Bash(php tools/php/vendor/bin/phpcs:*)'), 'merge must add the new allow entries and keep the team ones')
+}
+
 function dangerousHookAllowsOnlyCommittedUnmodifiedScripts() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -8222,6 +8244,7 @@ const tests = [
   installOutputEndsWithReportPrompt,
   hooksInstallKeepsExistingGitHooksRunning,
   hooksSurviveCheckoutToBranchWithoutHarness,
+  defaultAllowListCoversContextAndSync,
   dangerousHookAllowsOnlyCommittedUnmodifiedScripts,
   installStopsOnForeignHookConflictUntilResolved,
   installWarnsWhenSharedOutputsAreGitIgnored,
