@@ -3543,6 +3543,16 @@ function dangerousHookAllowsWriterHeredocMentions() {
   assert(denyCount('x=$(cat <<\'EOF\'\nrm -rf /\nEOF\n); bash -c "$x"') === 1, 'a heredoc inside a command substitution is uncertain — body stays checked')
   assert(denyCount('echo \'<<EOF\'; bash <<\'EOF\'\nrm -rf /\nEOF') === 1, 'a quoted "<<" is not a heredoc — the real bash heredoc that follows must stay blocked')
   assert(denyCount('D="$HOME/notes/기록.md"; cat >> "$D" <<\'EOF\'\n예시: rm -rf ./x 는 금지\nEOF') === 0, 'the documented cat-after-assignment case is still allowed')
+  // b1776de 재리뷰 P1: `<<<`(here-string)는 heredoc이 아니다 — `cat <<<EOF` 는 완결된 명령이고 다음 줄은 별도의 실제 명령이라
+  // 검사 대상에 남아야 한다. 종전 탐색식은 `<<<EOF` 의 둘째 `<` 부터 `<<EOF` 로 잡아 다음 줄을 본문으로 오인했다.
+  assert(denyCount('cat <<<EOF\nsudo -n true') === 1, 'a here-string is not a heredoc — the next line is a real command and must stay checked')
+  assert(denyCount('tee <<<TEXT\nrm -rf /') === 1, 'same with tee as the here-string receiver')
+  assert(denyCount('cat <<< "EOF"\nsudo -n true') === 1, 'a spaced, quoted here-string is not a heredoc either')
+  assert(denyCount('cat "<<<EOF"\nsudo -n true') === 1, 'a quoted "<<<" is not a heredoc start')
+  assert(denyCount('cat "<<EOF"\nsudo -n true') === 1, 'a quoted "<<" is not a heredoc start')
+  assert(denyCount('cat <<<x; cat <<\'EOF\'\nsudo 설명\nEOF') === 0, 'skipping a here-string must not hide the real cat heredoc later on the same line')
+  assert(denyCount('cat <<\'EOF\'\nsudo 설명\nEOF') === 0 && denyCount('tee doc.md <<\'EOF\'\nrm -rf / 는 금지\nEOF') === 0, 'plain cat/tee heredoc bodies stay exempt')
+  assert(denyCount('cat <<-\'EOF\'\n\tsudo 설명\n\tEOF') === 0, 'a <<- heredoc (tab-indented terminator) stays exempt')
 }
 
 // 0.2.146 — smartscore-backend/common 후속 제보 ③ + Codex 설계 리뷰: `bash …/x.sh` 일괄 차단이 팀 절차

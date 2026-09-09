@@ -51,8 +51,14 @@ try {
       continue;
     }
     out.push(line);
-    const m = line.match(/<<-?\s*(["\x27]?)([A-Za-z_][A-Za-z0-9_]*)\1/);
-    if (m) {
+    // heredoc 연산자 후보를 차례로 본다. `<<<`(here-string)는 heredoc 이 아니다(b1776de 재리뷰 P1): `cat <<<EOF` 는
+    // 문자열 EOF 를 cat 에 넘기는 완결된 명령이고 다음 줄은 별도의 실제 명령이다 — 종전 탐색식은 `<<<EOF` 의 둘째 `<` 부터
+    // `<<EOF` 로 잡아 다음 줄을 본문으로 오인했다. 연산자 바로 앞·뒤에 또 다른 `<` 가 붙어 있으면 건너뛴다(그 줄 뒤쪽에
+    // 진짜 heredoc 이 따로 있으면 그것은 계속 본다). 첫 실제 heredoc 하나만 판정한다(종전과 같음).
+    const re = /<<-?\s*(["\x27]?)([A-Za-z_][A-Za-z0-9_]*)\1/g;
+    let m;
+    while ((m = re.exec(line)) !== null) {
+      if (line[m.index - 1] === "<" || line[m.index + 2] === "<") continue;
       // 수신 명령은 `<<` 바로 앞 조각에서 본다(0.2.146, common 후속 ③): `D="…"; cat >> "$D" <<EOF` 처럼 앞에
       // 변수 대입이나 다른 명령이 ; && | 로 붙어 있으면 줄 첫 단어가 cat 이 아니라 본문 제외가 안 걸렸다.
       // 조각 경계는 **따옴표·역슬래시 밖의** 실제 구분자만 인정한다(리뷰 P1): `bash -s x\;cat <<EOF` 나
@@ -80,6 +86,7 @@ try {
         const recv = head.split(/\s+/)[0];
         if (recv === "cat" || recv === "tee") term = m[2];
       }
+      break;
     }
   }
   // 첫 줄은 훅 입력의 cwd(실행 폴더) — 셸 스크립트 실행 판정이 상대 경로를 풀 때 쓴다(0.2.146, 리뷰 P1-2).
