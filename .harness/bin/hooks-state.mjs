@@ -122,6 +122,62 @@ export function relToRepo(repoRoot, abs) {
   return rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel.split(path.sep).join('/') : abs
 }
 
+// legacy 자동 갱신을 실제로 수행하는 것은 Claude 세션 시작 훅 하나다(#29 ①, multisite 0.2.146 리포트).
+export const CLAUDE_SESSION_START_HOOK = '.claude/hooks/session-start-reminder.sh'
+// 프로젝트 스코프 settings 후보. 훅 등록은 두 파일이 **병합**된다(local이 shared를 덮지 않는다) — 어느 쪽에 있어도 배선이다.
+export const CLAUDE_SETTINGS_FILES = ['.claude/settings.json', '.claude/settings.local.json']
+
+// 이 clone에서 legacy가 스스로 래퍼로 갱신되는지. **틀리는 방향이 비대칭이다**: "자동으로 된다"고 잘못 말하면 개발자가
+// 아무것도 안 해 훅이 예전 배선에 남고, 하네스 없는 브랜치로 옮기는 순간 검사가 조용히 사라진다(#28 그 장면).
+// 반대(자동인데 직접 치라고 말하기)는 성가실 뿐이다. 그래서 조금이라도 불확실하면 false를 낸다(적대적 리뷰 반영):
+//   - 훅 파일이 없거나 실행 권한이 없으면 false (settings의 명령이 맨 경로 실행이라 권한이 없으면 죽는다)
+//   - `disableAllHooks: true`가 어느 후보 파일에든 있으면 false (등록이 남아 있어도 훅이 전부 안 돈다)
+//   - 등록이 `type: "command"`가 아니거나, 주석(`#`)으로 막혔거나, matcher가 세션 시작(startup)을 안 덮으면 false
+// 탐지할 수 없는 것 하나: 이 저장소가 세션 주 폴더가 아니면 프로젝트 settings 자체가 읽히지 않는다(CLAUDE.md "세션 주 폴더
+// 확인"). `CLAUDE_PROJECT_DIR`는 훅이 부를 때만 실려 이 경로에서는 알 수 없으므로, 판정이 아니라 **문구에 조건**을 붙인다.
+export function sessionStartMigrationWired(repoRoot) {
+  const hookPath = path.join(repoRoot, CLAUDE_SESSION_START_HOOK)
+  try {
+    if (!fs.statSync(hookPath).isFile()) return false
+    fs.accessSync(hookPath, fs.constants.X_OK)
+  } catch {
+    return false
+  }
+  const hookName = path.basename(CLAUDE_SESSION_START_HOOK)
+  const parsedFiles = []
+  for (const settings of CLAUDE_SETTINGS_FILES) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(path.join(repoRoot, settings), 'utf8'))
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) parsedFiles.push(parsed)
+    } catch {
+      // 후보 파일이 없거나 JSON이 깨졌으면 건너뛴다 — 판정은 닫힌 쪽에 머문다.
+    }
+  }
+  if (parsedFiles.some((parsed) => parsed.disableAllHooks === true)) return false
+  for (const parsed of parsedFiles) {
+    const groups = parsed.hooks ? parsed.hooks.SessionStart : null
+    if (!Array.isArray(groups)) continue
+    for (const group of groups) {
+      if (!coversSessionStartup(group?.matcher)) continue
+      for (const hook of (Array.isArray(group?.hooks) ? group.hooks : [])) {
+        if (!hook || hook.type !== 'command' || typeof hook.command !== 'string') continue
+        if (hook.command.trim().startsWith('#')) continue
+        if (hook.command.includes(hookName)) return true
+      }
+    }
+  }
+  return false
+}
+
+// SessionStart matcher는 startup/resume/clear/compact/fork 중에서 고르고, 생략하면 전부를 뜻한다. "다음 세션 시작 때"를
+// 약속하려면 startup이 덮여야 한다 — `matcher: "compact"` 만 걸린 등록은 새 세션에서 돌지 않는다.
+function coversSessionStartup(matcher) {
+  if (matcher === undefined || matcher === null || matcher === '' || matcher === '*') return true
+  if (typeof matcher === 'string') return matcher.includes('startup')
+  if (Array.isArray(matcher)) return matcher.some((entry) => typeof entry === 'string' && entry.includes('startup'))
+  return false
+}
+
 export function isWrapper(file) {
   try {
     if (!fs.statSync(file).isFile()) return false
@@ -185,7 +241,7 @@ exit 0
 // core.hooksPath=.githooks) · off(꺼짐 — 미설치, 또는 husky 등 다른 도구가 core.hooksPath를 가져간 상태) ·
 // optout(이 PC의 명시적 끄기) · nogit
 export function detectHooksState(repoRoot) {
-  if (!isGitRepository(repoRoot)) return { state: 'nogit', hooksPath: '', localHooksPath: '', hooksDir: '', missing: [], previousHooksPath: '' }
+  if (!isGitRepository(repoRoot)) return { state: 'nogit', hooksPath: '', localHooksPath: '', hooksDir: '', missing: [], previousHooksPath: '', hooksPathOverride: false, autoMigrates: false }
   const hooksPath = readGitConfig(repoRoot, 'core.hooksPath')
   const localHooksPath = readLocalGitConfig(repoRoot, 'core.hooksPath')
   const autoEnable = readGitConfig(repoRoot, 'harness.hooksAutoEnable')
@@ -203,7 +259,18 @@ export function detectHooksState(repoRoot) {
     state, hooksPath, localHooksPath, hooksDir, missing,
     previousHooksPath: readGitConfig(repoRoot, 'harness.previousHooksPath'),
     hooksPathOverride: Boolean(localHooksPath) && localHooksPath === recordedOverride,
+    // 이 clone이 legacy를 스스로 갱신하는지(#29 ①) — 안내 문구를 환경에 맞춰 가르는 재료다.
+    autoMigrates: sessionStartMigrationWired(repoRoot),
   }
+}
+
+// 선언값이 순진하게 읽히는 곳과 실제로 푸는 곳이 다를 때만 ` → 해석값`을 돌려준다. 같으면 빈 문자열(화살표 없음).
+function previousHooksPathReveal(repoRoot, declared) {
+  if (!declared) return ''
+  const resolved = resolveHooksPath(repoRoot, declared)
+  const naive = resolveGitHooksPath(repoRoot, declared)
+  if (samePath(resolved, naive)) return ''
+  return ` → ${relToRepo(repoRoot, resolved)}`
 }
 
 // 직접 실행 판정: ESM 로더는 심볼릭 링크를 실제 경로로 푼다(/var → /private/var 등)라 argv[1]과 단순 비교하면
@@ -224,7 +291,10 @@ if (isMain) {
   } else if (process.argv.includes('--explain')) {
     const label = {
       installed: '켜짐 (브랜치 무관 래퍼)',
-      legacy: '예전 방식 (core.hooksPath=.githooks) — hooks:install 로 갱신하세요',
+      // #29 ①: 세션 시작 훅이 배선된 프로젝트는 아무것도 안 해도 다음 세션에서 갱신된다 — 공지와 같은 말을 해야 한다.
+      legacy: info.autoMigrates
+        ? '예전 방식 (core.hooksPath=.githooks) — 이 저장소를 주 폴더로 여는 다음 Claude 세션에서 자동 갱신됩니다 (지금 바꾸려면 hooks:install)'
+        : '예전 방식 (core.hooksPath=.githooks) — hooks:install 로 갱신하세요',
       off: '꺼짐',
       optout: '꺼짐 (이 PC의 명시적 선택: harness.hooksAutoEnable=false)',
       nogit: 'git 저장소 아님',
@@ -234,7 +304,11 @@ if (isMain) {
       console.log(`  git 훅 폴더: ${relToRepo(repoRoot, info.hooksDir)}`)
       console.log(`  core.hooksPath: ${info.hooksPath ? `${info.hooksPath}${info.hooksPathOverride ? ' (전역 설정을 덮는 로컬 명시 — 기본 훅 폴더)' : ''}` : '(해제 — git 기본 폴더 사용)'}`)
       console.log(`  래퍼 없는 훅: ${info.missing.length ? info.missing.join(', ') : '없음'}`)
-      console.log(`  이전 훅 체인(harness.previousHooksPath): ${info.previousHooksPath || '없음'}${info.previousHooksPath ? ` → ${relToRepo(repoRoot, resolveHooksPath(repoRoot, info.previousHooksPath))}` : ''}`)
+      // 선언값 → 해석값은 둘이 **다른 곳을 가리킬 때만** 의미가 있다(#29 참고 표시). 비교는 문자열이 아니라 위치로 한다
+      // (적대적 리뷰 P3-4): 문자열 비교로는 `.husky/_/`(뒤 슬래시)·`./.husky/_`·`.husky//_` 처럼 같은 곳을 가리키는 변종이
+      // 그대로 두 번 찍혔다 — 실제 husky 설치 경로에서 나오는 값이다(install-hooks는 git config 값을 그대로 저장한다).
+      // 화살표가 남아야 하는 경우는 `.git/…` 보관함 값이다: 공통 .git 기준이라 연결 워크트리에서 순진한 해석과 갈린다.
+      console.log(`  이전 훅 체인(harness.previousHooksPath): ${info.previousHooksPath || '없음'}${previousHooksPathReveal(repoRoot, info.previousHooksPath)}`)
       console.log(`  이 브랜치의 ${HARNESS_HOOKS_DIR}/: ${fs.existsSync(path.join(repoRoot, HARNESS_HOOKS_DIR)) ? '있음' : '없음 — 커밋·푸시 때 한 줄 알리고 통과합니다'}`)
     }
   } else {

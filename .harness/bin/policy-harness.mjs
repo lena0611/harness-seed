@@ -10,6 +10,15 @@ const repoRoot = path.resolve(__dirname, '..', '..')
 const harnessRootRel = fs.existsSync(path.join(repoRoot, '.harness')) ? '.harness' : '.github'
 const harnessRoot = path.join(repoRoot, harnessRootRel)
 const registryPath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'policy' : 'policy-harness', 'policy-registry.json')
+// 프로젝트가 자기 정책을 등록하는 지점(#31, scorecard-print 0.2.146 리포트). 문서 등록부(document-registry.local.json,
+// 결정 91)와 같은 구조다: managed registry는 본체 골격만 담고, 프로젝트 항목은 이 파일에 둔다 — 관리 파일을 직접 고치면
+// 그 파일이 갱신 대상에서 빠져 공통 정책이 조용히 얼어붙는다(scorecard-print 실측: 공통 정책 2건 누락 + 은퇴한 별칭 12개).
+const localRegistryPath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'policy' : 'policy-harness', 'policy-registry.local.json')
+// 읽는 경로(registryPath/localRegistryPath)와 같은 규칙으로 만든다 — 한쪽만 'policy'로 굳으면
+// .github 레이아웃에서 "읽는 파일"과 "보고하는 경로"가 갈린다(적대적 리뷰 P3).
+const registryDirRel = harnessRootRel === '.harness' ? 'policy' : 'policy-harness'
+const localRegistryRel = `${harnessRootRel}/${registryDirRel}/policy-registry.local.json`
+const registryRel = `${harnessRootRel}/${registryDirRel}/policy-registry.json`
 const profilePath = path.join(harnessRoot, harnessRootRel === '.harness' ? 'policy' : 'policy-harness', 'profile.json')
 const impactSummaryPath = path.join(harnessRoot, 'generated', 'policy-impact-summary.json')
 const stacksRoot = path.join(harnessRoot, 'stacks')
@@ -176,7 +185,10 @@ function escapeRegExp(value) {
   return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&')
 }
 
+// 문자열이 아닌 glob 은 여기까지 오면 안 되지만(스키마 검사가 잡는다), guard 는 runCheck 보다 runImpact 를 먼저
+// 돌려 스키마 검사를 거치지 않는 경로가 있다 — 크래시 대신 아무것도 매칭하지 않는 정규식으로 닫는다(적대적 리뷰 P2-1).
 function globToRegExp(glob) {
+  if (typeof glob !== 'string') return /(?!)/
   const escaped = glob
     .split('**')
     .map((segment) => segment.split('*').map(escapeRegExp).join('[^/]*'))
@@ -229,15 +241,49 @@ function walkDirectory(directoryPath) {
   return files
 }
 
+// 프로젝트 등록부는 **추가만** 한다. id가 base·stack과 겹치면 아래 스키마 검사의 duplicate 규칙이 잡는다 —
+// 프로젝트가 공통 정책을 조용히 덮어쓰는 길을 열면 "얼어붙은 정책"이 이름만 바꿔 돌아온다.
+// 읽기 실패는 삼키지 않는다(문서 등록부와 다른 점): 정책이 조용히 빠지는 것이 #31의 원인이었으므로
+// 깨진 파일은 검사에서 위반으로 드러낸다.
+function readLocalRegistry() {
+  // existsSync 는 끊어진 심볼릭 링크에 false 를 낸다 — 그대로 두면 "파일이 있는데 조용히 무시"가 된다(적대적 리뷰 P3).
+  let present = fs.existsSync(localRegistryPath)
+  if (!present) {
+    try {
+      fs.lstatSync(localRegistryPath)
+      return { policies: [], error: '파일에 접근할 수 없습니다 (끊어진 심볼릭 링크)' }
+    } catch {
+      present = false
+    }
+  }
+  if (!present) return { policies: [], error: null }
+  try {
+    // Windows 편집기가 붙이는 BOM 은 벗긴다 — 손으로 쓰라고 안내하는 파일이라 현실적인 실수다(적대적 리뷰 P3).
+    const parsed = JSON.parse(fs.readFileSync(localRegistryPath, 'utf8').replace(/^\uFEFF/, ''))
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { policies: [], error: 'JSON 최상위가 객체가 아닙니다 — { "policies": [...] } 형태로 적으세요' }
+    }
+    if (parsed.policies !== undefined && !Array.isArray(parsed.policies)) {
+      return { policies: [], error: 'policies 는 배열이어야 합니다' }
+    }
+    return { policies: parsed.policies ?? [], error: null }
+  } catch (error) {
+    return { policies: [], error: `JSON 을 읽지 못했습니다 (${String(error.message ?? error).split('\n')[0]})` }
+  }
+}
+
 function readRegistry() {
   const base = JSON.parse(fs.readFileSync(registryPath, 'utf8'))
   const stack = readActiveStack()
+  const local = readLocalRegistry()
 
   return {
     ...base,
+    __localRegistryError: local.error,
     policies: [
       ...(base.policies ?? []).map((policy) => ({ ...policy, __origin: 'base' })),
       ...stack.policies.map((policy) => ({ ...policy, __origin: 'stack' })),
+      ...local.policies.map((policy) => ({ ...policy, __origin: 'local' })),
     ],
   }
 }
@@ -729,7 +775,18 @@ function printHookInstallNotice() {
   } catch {
     info = { state: 'off', hooksPath: '' }
   }
-  if (info.state === 'installed' || info.state === 'legacy' || info.state === 'nogit') return
+  if (info.state === 'installed' || info.state === 'nogit') return
+  // legacy(예전 방식)는 자동 갱신 배선이 **없을 때만** 알린다(0.2.147, 적대적 리뷰 P1-3): 배선된 프로젝트는
+  // 다음 Claude 세션이 갱신하므로 커밋마다 재촉하면 잡음이고, 터미널·Codex 전용 clone 은 알려 주는 채널이 없었다.
+  if (info.state === 'legacy') {
+    if (info.autoMigrates) return
+    console.log('')
+    console.log('git hook이 예전 방식입니다 (이 clone 기준 — core.hooksPath=.githooks):')
+    console.log('- 이 clone에는 자동으로 갱신해 줄 세션 시작 훅 배선이 없습니다. 브랜치를 바꾸면 검사가 사라질 수 있습니다.')
+    console.log('- 한 번만 실행하면 됩니다:')
+    console.log('    .harness/bin/harness hooks:install')
+    return
+  }
 
   console.log('')
   console.log('git hook 미설치 (이 clone 기준):')
@@ -759,6 +816,16 @@ function collectViolations() {
 function validatePolicyRegistry(registry) {
   const violations = []
   const ids = new Set()
+  // 위반이 가리키는 파일은 그 항목이 실제로 적힌 곳이어야 한다(#31): 프로젝트 등록부 항목의 오류를
+  // 관리 파일 경로로 보고하면, 고칠 수 없는 파일을 고치라는 안내가 된다.
+  const fileOf = (policy) => (policy?.__origin === 'local' ? localRegistryRel : registryRel)
+  if (registry.__localRegistryError) {
+    violations.push({
+      rule: 'policy-registry-schema',
+      file: localRegistryRel,
+      message: `프로젝트 정책 등록부를 읽지 못했습니다: ${registry.__localRegistryError}`,
+    })
+  }
   const validLayers = new Set(['common', 'stack', 'template', 'project', 'personal'])
   const validStatuses = new Set(['draft', 'active', 'deprecated', 'superseded', 'experimental'])
   const validSeverities = new Set(['info', 'warning', 'error', 'blocker'])
@@ -772,7 +839,7 @@ function validatePolicyRegistry(registry) {
       if (policy[field] === undefined || policy[field] === null || policy[field] === '') {
         violations.push({
           rule: 'policy-registry-schema',
-          file: `${harnessRootRel}/policy/policy-registry.json`,
+          file: fileOf(policy),
           message: `policy '${policy.id ?? '(unknown)'}' missing required field '${field}'`,
         })
       }
@@ -782,7 +849,7 @@ function validatePolicyRegistry(registry) {
       if (ids.has(policy.id)) {
         violations.push({
           rule: 'policy-registry-schema',
-          file: `${harnessRootRel}/policy/policy-registry.json`,
+          file: fileOf(policy),
           message: `duplicate policy id '${policy.id}'`,
         })
       }
@@ -790,10 +857,23 @@ function validatePolicyRegistry(registry) {
       ids.add(policy.id)
     }
 
+    // 배열 안 원소 타입까지 본다(적대적 리뷰 P2-1): 종전에는 documents:[null] 이 스키마를 통과한 뒤
+    // runImpact 의 glob 변환에서 TypeError 로 터져, 어느 파일이 문제인지 한 번도 말하지 않고 죽었다.
+    for (const field of ['documents', 'ownedAreas', 'triggerPaths']) {
+      const value = policy[field]
+      if (!Array.isArray(value)) continue
+      if (value.every((entry) => typeof entry === 'string')) continue
+      violations.push({
+        rule: 'policy-registry-schema',
+        file: fileOf(policy),
+        message: `policy '${policy.id ?? '(unknown)'}' ${field} 의 항목은 모두 문자열이어야 합니다`,
+      })
+    }
+
     if (!Array.isArray(policy.documents) || policy.documents.length === 0) {
       violations.push({
         rule: 'policy-registry-schema',
-        file: `${harnessRootRel}/policy/policy-registry.json`,
+        file: fileOf(policy),
         message: `policy '${policy.id ?? '(unknown)'}' documents must be a non-empty array`,
       })
     }
@@ -801,7 +881,7 @@ function validatePolicyRegistry(registry) {
     if (!Array.isArray(policy.ownedAreas) || policy.ownedAreas.length === 0) {
       violations.push({
         rule: 'policy-registry-schema',
-        file: `${harnessRootRel}/policy/policy-registry.json`,
+        file: fileOf(policy),
         message: `policy '${policy.id ?? '(unknown)'}' ownedAreas must be a non-empty array`,
       })
     }
@@ -809,7 +889,7 @@ function validatePolicyRegistry(registry) {
     if (policy.triggerPaths !== undefined && (!Array.isArray(policy.triggerPaths) || policy.triggerPaths.length === 0)) {
       violations.push({
         rule: 'policy-registry-v3-schema',
-        file: `${harnessRootRel}/policy/policy-registry.json`,
+        file: fileOf(policy),
         message: `policy '${policy.id ?? '(unknown)'}' triggerPaths must be a non-empty array when provided`,
       })
     }
@@ -817,12 +897,14 @@ function validatePolicyRegistry(registry) {
     if (policy.syncEnforcement !== undefined && !validSyncEnforcement.has(policy.syncEnforcement)) {
       violations.push({
         rule: 'policy-registry-v3-schema',
-        file: `${harnessRootRel}/policy/policy-registry.json`,
+        file: fileOf(policy),
         message: `policy '${policy.id ?? '(unknown)'}' has invalid syncEnforcement '${policy.syncEnforcement}'`,
       })
     }
 
-    if (registry.version < 3 || policy.__origin !== 'base') {
+    // 프로젝트 항목도 검사한다(적대적 리뷰 P2-2): 문서가 "관리 registry의 항목과 같은 형식"이라고 약속하고,
+    // 손으로 쓰는 파일이라 오타가 가장 잦다. 스택 항목은 스택 하네스가 소유하므로 종전대로 제외한다.
+    if (registry.version < 3 || policy.__origin === 'stack') {
       continue
     }
 
@@ -832,7 +914,7 @@ function validatePolicyRegistry(registry) {
       if (policy[field] === undefined || policy[field] === null || policy[field] === '') {
         violations.push({
           rule: 'policy-registry-v3-schema',
-          file: `${harnessRootRel}/policy/policy-registry.json`,
+          file: fileOf(policy),
           message: `policy '${policy.id}' missing v3 field '${field}'`,
         })
       }
@@ -841,7 +923,7 @@ function validatePolicyRegistry(registry) {
     if (policy.layer && !validLayers.has(policy.layer)) {
       violations.push({
         rule: 'policy-registry-v3-schema',
-        file: `${harnessRootRel}/policy/policy-registry.json`,
+        file: fileOf(policy),
         message: `policy '${policy.id}' has invalid layer '${policy.layer}'`,
       })
     }
@@ -849,7 +931,7 @@ function validatePolicyRegistry(registry) {
     if (policy.status && !validStatuses.has(policy.status)) {
       violations.push({
         rule: 'policy-registry-v3-schema',
-        file: `${harnessRootRel}/policy/policy-registry.json`,
+        file: fileOf(policy),
         message: `policy '${policy.id}' has invalid status '${policy.status}'`,
       })
     }
@@ -857,7 +939,7 @@ function validatePolicyRegistry(registry) {
     if (policy.severity && !validSeverities.has(policy.severity)) {
       violations.push({
         rule: 'policy-registry-v3-schema',
-        file: `${harnessRootRel}/policy/policy-registry.json`,
+        file: fileOf(policy),
         message: `policy '${policy.id}' has invalid severity '${policy.severity}'`,
       })
     }
@@ -865,7 +947,7 @@ function validatePolicyRegistry(registry) {
     if (policy.enforcement && !validEnforcement.has(policy.enforcement)) {
       violations.push({
         rule: 'policy-registry-v3-schema',
-        file: `${harnessRootRel}/policy/policy-registry.json`,
+        file: fileOf(policy),
         message: `policy '${policy.id}' has invalid enforcement '${policy.enforcement}'`,
       })
     }
@@ -873,7 +955,7 @@ function validatePolicyRegistry(registry) {
     if (typeof policy.waiverAllowed !== 'boolean') {
       violations.push({
         rule: 'policy-registry-v3-schema',
-        file: `${harnessRootRel}/policy/policy-registry.json`,
+        file: fileOf(policy),
         message: `policy '${policy.id}' waiverAllowed must be boolean`,
       })
     }
@@ -881,7 +963,7 @@ function validatePolicyRegistry(registry) {
     if (!Array.isArray(policy.checks)) {
       violations.push({
         rule: 'policy-registry-v3-schema',
-        file: `${harnessRootRel}/policy/policy-registry.json`,
+        file: fileOf(policy),
         message: `policy '${policy.id}' checks must be an array`,
       })
     }

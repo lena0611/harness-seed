@@ -99,6 +99,9 @@ const PROJECT_OWNED_PATHS = new Set([
   // 프로젝트가 만든 문서는 이 파일에 등록한다 — 업데이트가 덮지 않으므로 매 업데이트마다
   // resync→재등록 한 바퀴가 필요 없어진다.
   '.harness/documentation/document-registry.local.json',
+  // 프로젝트 정책 등록 지점(0.2.147, scorecard-print #31 수용). 문서 등록부와 같은 이유다: 프로젝트가 자기 정책을
+  // 관리 파일(policy-registry.json)에 직접 넣으면 그 파일이 갱신 대상에서 빠져 공통 정책이 조용히 얼어붙는다.
+  '.harness/policy/policy-registry.local.json',
   '.harness/project/project-charter.md',
   '.harness/project/scope-contract.md',
   '.harness/project/config-contract.md',
@@ -2306,6 +2309,57 @@ function mergeGitignore(target, opts) {
   return missing.length;
 }
 
+// .cmd/.bat 는 cmd.exe 의 label/goto 가 LF 에서 깨질 수 있어 **의도적으로 CRLF 로 배포한다**(0.2.136, writeInstalledFile).
+// 그런데 소비자 저장소에 그 의도를 알려 줄 속성이 없어, git 이 매번 "CRLF will be replaced by LF" 경고를 냈다
+// (smartscore-backend/common #32, macOS). 속성 한 줄이면 git 이 인덱스에는 LF, 작업본에는 CRLF 로 다루어 경고가 사라지고
+// Windows 안전성도 그대로다. 패턴은 하네스 경로로 좁힌다 — 프로젝트가 가진 자기 .cmd 파일에 정책을 강요하지 않는다.
+const HARNESS_GITATTRIBUTES_ENTRIES = ['.harness/bin/*.cmd text eol=crlf'];
+
+// 이 속성이 실제로 필요한 파일들 — 패턴이 아니라 **파일**로 판정한다. git 은 마지막에 매칭되는 줄이 이기므로,
+// 패턴 문자열만 비교하면 팀이 `*.cmd text eol=lf` 처럼 다른 모양으로 정해 둔 선택을 우리 줄이 조용히 덮는다
+// (적대적 리뷰 P2-5: 문자열 비교로는 세 가지 팀 표기 중 셋 다 덮였다). git 에게 해석 결과를 물어 판정한다.
+const HARNESS_CRLF_SAMPLE_FILES = ['.harness/bin/harness.cmd'];
+
+function resolvedEolAttribute(target, rel) {
+  const result = spawnSync('git', ['check-attr', 'eol', '--', rel], {
+    cwd: target,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  // git 이 없거나 저장소가 아니면 판정 불가 → null 을 내고 문자열 비교 폴백으로 떨어진다.
+  if (result.status !== 0 || typeof result.stdout !== 'string') return null;
+  const match = result.stdout.trim().match(/eol:\s*(\S+)$/);
+  return match ? match[1] : null;
+}
+
+function mergeGitattributes(target, opts) {
+  const gitattributesPath = join(target, '.gitattributes');
+  let current = '';
+  if (existsSync(gitattributesPath)) {
+    current = readFileSync(gitattributesPath, 'utf8');
+  }
+
+  // 이미 누군가(팀이든 우리든) 이 파일들의 eol 을 정해 뒀으면 손대지 않는다 — 이미 crlf 면 할 일이 없고,
+  // 다른 값이면 팀의 명시적 선택이라 덮지 않는다. unspecified 일 때만 우리 줄을 넣는다.
+  const decided = HARNESS_CRLF_SAMPLE_FILES.map((rel) => resolvedEolAttribute(target, rel));
+  if (decided.length > 0 && decided.every((value) => value && value !== 'unspecified')) return 0;
+
+  // git 판정이 불가한 환경(git 없음·저장소 아님)을 위한 폴백: 같은 패턴 문자열이 이미 있으면 넣지 않는다.
+  const lines = current.split(/\r?\n/).map((line) => line.trim());
+  const missing = HARNESS_GITATTRIBUTES_ENTRIES.filter((entry) => {
+    const pattern = entry.split(/\s+/)[0];
+    return !lines.some((line) => line && !line.startsWith('#') && line.split(/\s+/)[0] === pattern);
+  });
+  if (missing.length === 0) return 0;
+
+  if (!opts.dryRun) {
+    const prefix = current.trim() ? `${current.replace(/\s*$/, '')}\n\n` : '';
+    writeFileSync(gitattributesPath, `${prefix}# harness-seed: cmd.exe 배치는 CRLF 로 배포된다 (LF 에서 label/goto 가 깨질 수 있음)\n${missing.join('\n')}\n`);
+  }
+
+  return missing.length;
+}
+
 function findEslintConfig(target) {
   // create-vue 등 최신 스캐폴딩은 eslint.config.ts를 쓴다. 목록에서 빠지면 그 프로젝트의 설정을
   // 아예 못 보고 조용히 넘어간다 — 실증: multisite(2026-08-11).
@@ -2808,12 +2862,21 @@ function main() {
     const pkg = mergePackageJson(TARGET);
     const claudeSettings = mergeClaudeSettings(sourceRoot, TARGET, opts);
     const gitignoreAdded = mergeGitignore(TARGET, opts);
+    const gitattributesAdded = mergeGitattributes(TARGET, opts);
     const eslintPatch = patchEslintConfigForHarness(TARGET, opts);
     const lintIgnorePatches = patchLintIgnoreFiles(TARGET, opts);
     ensureExecutable(TARGET, opts);
     const writtenManifest = writeInstallManifest(sourceRoot, TARGET, files, installed.copiedFiles, opts, recognizedManifest);
     const lockResult = writtenManifest ? writeHarnessLock(sourceRoot, TARGET, writtenManifest, opts) : null;
     const writtenLock = lockResult?.lock ?? null;
+    // 일회성 사건이라 verbose 가 아니어도 알린다(적대적 리뷰 P3·P2-4): 이 줄을 넣으면 git 이 인덱스를 정규화해
+    // `.harness/bin/harness.cmd` 가 한 번 "수정됨"으로 보인다 — 내용은 그대로다. 미리 말해 두면 놀라지 않는다.
+    if (gitattributesAdded > 0 && !opts.dryRun) {
+      console.log('');
+      console.log(`.gitattributes: cmd 줄바꿈 속성 ${gitattributesAdded}건을 넣었습니다 (git의 "CRLF will be replaced by LF" 경고 제거).`);
+      console.log('  이 때문에 .harness/bin/harness.cmd 가 한 번 수정된 것으로 보일 수 있습니다 — 내용은 그대로이니 그대로 커밋하면 됩니다.');
+    }
+
     const diagnostics = runPostInstallDiagnostics(TARGET, opts, { freshInstall: !recognizedManifest });
     const existingAiRuleCandidates = readExistingAiRuleCandidates(TARGET);
     const harnessEffectSummary = readHarnessEffectSummary(TARGET);

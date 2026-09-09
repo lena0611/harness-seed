@@ -3124,6 +3124,276 @@ function crossHookCallRunsTheRealHook() {
 
 // 외부 리뷰 P2-3: 예전 방식은 .githooks/의 어떤 이름이든 실행했다. 래퍼가 고정 8개만 덮으면 post-rewrite 같은 기존 팀 훅이
 // 업데이트 뒤 조용히 꺼진다. 클라이언트 훅 전부를 덮어야 한다.
+// #29(multisite 0.2.146 업데이트 리포트) ①: legacy 판정 문구가 환경과 무관하게 "hooks:install 로 갱신하세요"라고
+// 사람에게 명령을 시켜, "다음 세션에서 자동으로 바뀝니다"라는 같은 릴리스의 공지와 갈렸다. 상태만 보려고 치는 명령이
+// 지시를 주는데 그 지시가 공지와 다르면 지금 뭘 해야 하는지 갈린다. 세션 시작 훅이 실제로 배선돼 있으면 자동 갱신을
+// 안내하고, 배선이 없으면(터미널만 쓰는 PC·어댑터 미설치·등록 누락) 종전 문구를 낸다 — 판정은 사람 안내 쪽으로 닫는다.
+// #29 참고 표시: previousHooksPath는 선언값과 해석값이 같으면 한 번만 찍는다.
+function hooksStatusNoticeSuitsTheEnvironment() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const explain = (cwd = target) => run(nodeBin, [path.join(cwd, '.harness/bin/hooks-state.mjs'), '--explain'], { cwd })
+  const headline = (out) => out.split('\n')[0]
+  const prevLineOf = (out) => (out.split('\n').find((line) => line.includes('이전 훅 체인')) ?? '(이전 훅 체인 줄 없음)').trim()
+  // runInit은 --no-hooks로 도므로 optout 표식이 남는다 — 그 표식이 legacy 판정을 덮지 않게 지운다.
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
+  // 워크트리 비교용 커밋을 먼저 만든다(아직 core.hooksPath를 세우지 않아 훅이 돌지 않는다).
+  run('git', ['add', '.'], { cwd: target })
+  run('git', ['commit', '-q', '-m', 'base'], { cwd: target })
+  // 0.2.145 이전 설치 상태를 흉내 낸다: core.hooksPath=.githooks + husky 체인.
+  run('git', ['config', 'core.hooksPath', '.githooks'], { cwd: target })
+  run('git', ['config', 'harness.previousHooksPath', '.husky/_'], { cwd: target })
+
+  const auto = explain()
+  assert(headline(auto).includes('예전 방식'), `precondition: the state must read legacy (got: ${headline(auto)})`)
+  assert(headline(auto).includes('자동 갱신됩니다'), `with the session-start hook wired the legacy notice must say it migrates itself (got: ${headline(auto)})`)
+  // 적대적 리뷰 P1-2: 세션 주 폴더가 아니면 프로젝트 settings 가 읽히지 않아 자동 갱신이 안 되는데 그것은 탐지할 수 없다.
+  // 그래서 문구가 조건 없는 사실 주장이면 안 된다 — 모놀리스에서 거짓이 된다.
+  assert(headline(auto).includes('주 폴더'), `the auto-migration wording must state the condition it depends on (got: ${headline(auto)})`)
+  assert(!headline(auto).includes('hooks:install 로 갱신하세요'), 'the manual-only wording must not be the headline when auto migration is wired')
+  assert(headline(auto).includes('hooks:install'), 'the auto-migration notice must still offer hooks:install for developers who want it now')
+  // #29 참고: `.husky/_`는 그대로 풀리므로 한 번만.
+  assert(prevLineOf(auto) === '이전 훅 체인(harness.previousHooksPath): .husky/_', `a previous-hooks value that resolves to itself must be printed once (got: ${prevLineOf(auto)})`)
+
+  // 해석이 실제로 달라지는 경우(보관함 값은 공통 .git 기준)는 계속 둘 다 보여야 한다 — 연결 워크트리에서 확인.
+  run('git', ['config', 'harness.previousHooksPath', '.git/hooks/harness-prev'], { cwd: target })
+  assert(prevLineOf(explain()) === '이전 훅 체인(harness.previousHooksPath): .git/hooks/harness-prev', `in a normal repository the parked path resolves to itself and must print once (got: ${prevLineOf(explain())})`)
+  // 같은 곳을 가리키는 변종(뒤 슬래시·./·중복 슬래시)도 한 번만 찍혀야 한다 — 실제 husky 설치에서 나오는 값들이다
+  // (적대적 리뷰 P3-4: install-hooks 는 git config 값을 그대로 저장하므로 `.husky/_/` 가 그대로 기록된다).
+  for (const variant of ['.husky/_/', './.husky/_', '.husky//_']) {
+    run('git', ['config', 'harness.previousHooksPath', variant], { cwd: target })
+    assert(!prevLineOf(explain()).includes(' → '), `'${variant}' points at the same place as it reads and must print once (got: ${prevLineOf(explain())})`)
+  }
+
+  const wt = `${target}-hswt`
+  run('git', ['worktree', 'add', '-q', wt, '-b', 'hs-branch'], { cwd: target })
+  try {
+    // 화살표가 **가리키는 곳**을 단언한다(적대적 리뷰 P2-2): `.includes(' → ')` 만 보면 해석이 워크트리 전용 gitdir로
+    // 깨져도(공통 .git 규약 위반, 보관함이 딴 곳을 가리키는 그 결함) 화살표는 여전히 붙어 초록불이 된다 — 실측 확인됨.
+    run('git', ['config', 'harness.previousHooksPath', '.git/hooks/harness-prev'], { cwd: target })
+    const wtPrev = prevLineOf(explain(wt))
+    // macOS 임시 폴더는 심볼릭 링크다(/var → /private/var) — git 이 돌려주는 공통 .git 은 실제 경로라 양쪽을 맞춘다.
+    const expected = path.join(fs.realpathSync(target), '.git/hooks/harness-prev')
+    assert(wtPrev.endsWith(` → ${expected}`), `from a linked worktree the parked path must resolve to the COMMON .git (expected to end with ' → ${expected}', got: ${wtPrev})`)
+  } finally {
+    try { run('git', ['worktree', 'remove', '--force', wt], { cwd: target }) } catch {}
+  }
+  run('git', ['config', 'harness.previousHooksPath', '.husky/_'], { cwd: target })
+
+  // 적대적 리뷰 P1-1/P2: 등록이 남아 있어도 훅이 실제로 못 도는 스위치들은 자동 갱신이 아니다.
+  const settingsPath = path.join(target, '.claude/settings.json')
+  const pristine = JSON.parse(fs.readFileSync(settingsPath, 'utf8'))
+  const writeSettings = (mutate) => {
+    const next = JSON.parse(JSON.stringify(pristine))
+    mutate(next)
+    fs.writeFileSync(settingsPath, `${JSON.stringify(next, null, 2)}\n`)
+  }
+  const manualCases = [
+    ['disableAllHooks: true (훅 전부 꺼짐)', (next) => { next.disableAllHooks = true }],
+    ['matcher가 세션 시작을 안 덮음', (next) => { next.hooks.SessionStart[0].matcher = 'compact' }],
+    ['등록이 command 타입이 아님', (next) => { next.hooks.SessionStart[0].hooks[0].type = 'prompt' }],
+    ['명령이 주석으로 막힘', (next) => { next.hooks.SessionStart[0].hooks[0].command = `# ${next.hooks.SessionStart[0].hooks[0].command}` }],
+    ['SessionStart 등록 자체가 없음', (next) => { delete next.hooks.SessionStart }],
+  ]
+  for (const [label, mutate] of manualCases) {
+    writeSettings(mutate)
+    assert(headline(explain()).includes('hooks:install 로 갱신하세요'), `${label}: the notice must fall back to the manual instruction (got: ${headline(explain())})`)
+    assert(!headline(explain()).includes('자동 갱신'), `${label}: a clone that will not migrate itself must not be promised an automatic migration`)
+  }
+  // 두 파일은 병합된다 — shared 에서 등록을 지우고 local 에만 두어도 배선이다(주석이 약속하는 성질).
+  writeSettings((next) => { delete next.hooks.SessionStart })
+  fs.writeFileSync(path.join(target, '.claude/settings.local.json'), `${JSON.stringify({ hooks: pristine.hooks }, null, 2)}\n`)
+  assert(headline(explain()).includes('자동 갱신됩니다'), `a registration that lives only in settings.local.json must still count as wired (got: ${headline(explain())})`)
+  fs.rmSync(path.join(target, '.claude/settings.local.json'))
+
+  // matcher 는 생략·'*'·startup 포함이면 세션 시작을 덮는다.
+  for (const matcher of [undefined, '*', 'startup', 'startup|resume', ['startup', 'compact']]) {
+    writeSettings((next) => {
+      if (matcher === undefined) delete next.hooks.SessionStart[0].matcher
+      else next.hooks.SessionStart[0].matcher = matcher
+    })
+    assert(headline(explain()).includes('자동 갱신됩니다'), `matcher ${JSON.stringify(matcher)} covers session startup and must count as wired (got: ${headline(explain())})`)
+  }
+
+  // settings.local.json 의 disableAllHooks 도 같은 효과다(두 파일은 병합된다).
+  writeSettings(() => {})
+  fs.writeFileSync(path.join(target, '.claude/settings.local.json'), `${JSON.stringify({ disableAllHooks: true }, null, 2)}\n`)
+  assert(headline(explain()).includes('hooks:install 로 갱신하세요'), 'disableAllHooks in settings.local.json must also fall back to the manual instruction')
+  fs.rmSync(path.join(target, '.claude/settings.local.json'))
+  // 실행 권한이 없으면 settings 의 맨 경로 실행이 죽으므로 자동 갱신이 아니다.
+  writeSettings(() => {})
+  fs.chmodSync(path.join(target, '.claude/hooks/session-start-reminder.sh'), 0o644)
+  assert(headline(explain()).includes('hooks:install 로 갱신하세요'), 'a non-executable session-start hook must fall back to the manual instruction')
+  fs.chmodSync(path.join(target, '.claude/hooks/session-start-reminder.sh'), 0o755)
+  assert(headline(explain()).includes('자동 갱신됩니다'), 'restoring the executable bit must restore the auto-migration notice')
+  writeSettings((next) => { delete next.hooks.SessionStart })
+
+  // 세션 시작 훅 파일이 아예 없는 PC(터미널만 쓰는 환경): 종전 문구.
+  fs.rmSync(path.join(target, '.claude/hooks/session-start-reminder.sh'))
+  assert(headline(explain()).includes('hooks:install 로 갱신하세요'), 'without the session-start hook the notice must tell the developer to run hooks:install')
+  assert(!headline(explain()).includes('자동 갱신'), 'a terminal-only clone must not be promised an automatic migration')
+}
+
+// #31(scorecard-print 0.2.146 업데이트 리포트) ①: 프로젝트가 자기 정책을 관리 파일(policy-registry.json)에 직접
+// 넣자 그 파일이 갱신 대상에서 빠져 공통 정책이 조용히 얼어붙었다 — 공통 정책 2건 누락, checks 가 은퇴한 별칭 12개를
+// 가리키는 상태로 0.2.131 이전에 멈춰 있었고 0.2.146 전까지 아무 신호도 없었다. 문서 등록부(결정 91)와 같은 구조로
+// 프로젝트 등록 지점을 만든다: 추가만 하고, 업데이트가 덮지 않고, 오류는 그 항목이 적힌 파일을 가리킨다.
+function localPolicyRegistryIsMergedAndProjectOwned() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const localRel = '.harness/policy/policy-registry.local.json'
+  const localPath = path.join(target, localRel)
+  const managedRel = '.harness/policy/policy-registry.json'
+  const check = () => {
+    try {
+      return run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'check'], { cwd: target })
+    } catch (error) {
+      return `${error.stdout ?? ''}${error.stderr ?? ''}`
+    }
+  }
+  const projectPolicy = (overrides = {}) => ({
+    id: 'project.spec.scorecard-sync',
+    title: 'Scorecard spec stays in sync',
+    layer: 'project',
+    category: 'domain',
+    status: 'active',
+    severity: 'warning',
+    enforcement: 'inform',
+    waiverAllowed: true,
+    owner: 'scorecard-print',
+    source: { type: 'local', path: localRel },
+    documents: ['.harness/project/domain-rules.md'],
+    ownedAreas: ['src/'],
+    checks: [],
+    conflictsWith: [],
+    supersedes: [],
+    tags: [],
+    ...overrides,
+  })
+  const writeLocal = (value) => fs.writeFileSync(localPath, typeof value === 'string' ? value : `${JSON.stringify(value, null, 2)}\n`)
+
+  // 부재가 정상이다 — 파일이 없어도 검사는 통과한다.
+  assert(check().includes('Policy registry/schema check passed'), 'the check must pass when the project registry is absent')
+
+  // 유효한 프로젝트 정책은 추가되고 검사는 계속 통과한다.
+  writeLocal({ version: 3, policies: [projectPolicy()] })
+  assert(check().includes('Policy registry/schema check passed'), `a valid project policy must be accepted (got: ${check()})`)
+
+  // 필수 필드가 빠지면 위반이고, 위반이 가리키는 파일은 **그 항목이 적힌 곳**이어야 한다.
+  writeLocal({ version: 3, policies: [projectPolicy({ documents: [] })] })
+  const missingField = check()
+  assert(missingField.includes(localRel), `a violation in the project registry must name the project registry (got: ${missingField})`)
+  assert(!missingField.includes(`${managedRel}:`) && !missingField.includes(`  ${managedRel}`), `the violation must not point at the managed file the project cannot fix (got: ${missingField})`)
+
+  // 공통 정책 id 를 덮으려 하면 duplicate 로 막힌다 — 프로젝트가 공통 정책을 조용히 무력화할 길을 열지 않는다.
+  const commonId = JSON.parse(read(target, managedRel)).policies[0].id
+  writeLocal({ version: 3, policies: [projectPolicy({ id: commonId })] })
+  const duplicate = check()
+  assert(duplicate.includes('duplicate policy id') && duplicate.includes(commonId), `a project entry reusing a common policy id must be rejected (got: ${duplicate})`)
+  // 어느 파일을 가리키는지가 이 기능의 핵심 약속이다(적대적 리뷰 P2-7): 병합 순서를 뒤집으면 위반이 관리 파일을
+  // 가리키는데, 그 파일은 프로젝트가 고칠 수 없다. 메시지만 보는 단언은 그 회귀를 놓쳤다.
+  assert(duplicate.includes(localRel), `the duplicate must be reported against the file the project can actually fix (got: ${duplicate})`)
+
+  // 손으로 쓰는 파일이라 오타가 잦다 — 배열 원소 타입 오류는 크래시가 아니라 그 파일을 가리키는 위반이어야 한다
+  // (적대적 리뷰 P2-1: 종전에는 스키마를 통과한 뒤 glob 변환에서 TypeError 로 죽어 파일명을 한 번도 말하지 않았다).
+  writeLocal({ version: 3, policies: [projectPolicy({ ownedAreas: [null] })] })
+  const badElement = check()
+  assert(badElement.includes(localRel) && badElement.includes('문자열이어야 합니다'), `a non-string glob element must be reported against the project registry (got: ${badElement})`)
+  try {
+    const guardOut = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'impact'], { cwd: target })
+    assert(!guardOut.includes('TypeError'), 'impact must not crash on a non-string glob element')
+  } catch (error) {
+    assert(!String(error.stderr ?? '').includes('TypeError'), `impact must not crash on a non-string glob element (got: ${String(error.stderr ?? '').slice(0, 200)})`)
+  }
+
+  // 프로젝트 항목도 v3 스키마 검사를 받는다(적대적 리뷰 P2-2: 문서가 "같은 형식"이라고 약속하는데 면제됐다).
+  writeLocal({ version: 3, policies: [projectPolicy({ layer: 'NOT_A_LAYER' })] })
+  const badLayer = check()
+  assert(badLayer.includes(localRel) && badLayer.includes('layer'), `an invalid layer in the project registry must be caught (got: ${badLayer})`)
+
+  // 깨진 파일은 조용히 무시하지 않는다 — 정책이 조용히 빠지는 것이 이 결함의 원인이었다.
+  writeLocal('{ this is not json')
+  const broken = check()
+  assert(broken.includes(localRel) && broken.includes('읽지 못했습니다'), `a malformed project registry must be reported, not silently ignored (got: ${broken})`)
+
+  // 업데이트가 덮지 않는다(프로젝트 소유). 재설치 후에도 내용이 그대로여야 한다.
+  writeLocal({ version: 3, policies: [projectPolicy()] })
+  const before = read(target, localRel)
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(read(target, localRel) === before, 'reinstall must not overwrite the project-owned registry')
+  // manifest 취급은 문서 등록부와 같다: 본체가 배포하지 않는 파일이라 managed 목록에 없고 업데이트가 손대지 않는다.
+  // (적대적 리뷰 P2-6: 이 성질은 PROJECT_OWNED_PATHS 등록과 무관하게 성립하므로 그 등록을 지워도 단언이 통과했다.
+  //  등록은 방어층으로 남기고, 여기서는 하네스가 실제로 보장하는 것 — 소유 판정 자체 — 을 본다.)
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  assert(!manifest.managedFiles?.[localRel], 'the project registry must not be recorded as a managed file')
+  // 소유 판정의 실질은 "덮어쓰기를 명시해도 보존된다"는 것이다 — 그것을 직접 확인한다.
+  runInit(target, '--no-scan', '--no-handoff', '--no-check', '--force', '--confirm-overwrite-project-files')
+  assert(read(target, localRel) === before, 'even a forced reinstall must preserve the project-owned registry')
+
+  // 관리 파일을 직접 고친 상태(=이 결함의 그 상태)는 드리프트 안내가 잡고 옮길 자리를 알려준다.
+  // 판정을 여기 두는 이유는 이 경로가 **줄바꿈 정규화 sha**로 비교하기 때문이다 — 원시 바이트로 비교하면
+  // CRLF 체크아웃(Windows)에서 손대지 않은 프로젝트에도 발동한다(적대적 리뷰 P1). 캐시 히트에서도 나오고,
+  // 다른 위반에 가려지지 않는다 — 문서 등록부 안내가 이미 있던 자리다.
+  writeLocal({ version: 3, policies: [projectPolicy()] })
+  const drift = () => runGuard(target, '--no-cache', '--fast')
+  assert(!drift().includes('policy-registry.local.json(프로젝트 소유)'), 'an untouched managed registry must not trigger the relocation hint')
+  const managedPath = path.join(target, managedRel)
+  const pristineManaged = fs.readFileSync(managedPath, 'utf8')
+  const managed = JSON.parse(pristineManaged)
+  managed.policies.push(projectPolicy({ id: 'project.frozen.example' }))
+  fs.writeFileSync(managedPath, `${JSON.stringify(managed, null, 2)}\n`)
+  const hinted = drift()
+  assert(hinted.includes('policy-registry.local.json(프로젝트 소유)'), `editing the managed registry must be surfaced with the place to move entries to (got: ${hinted})`)
+  assert(hinted.includes('--resync-managed'), 'the hint must name the command that restores the managed file')
+  // 줄바꿈만 다른 체크아웃(Windows autocrlf)은 드리프트가 아니다 — 판정이 원시 바이트 비교로 돌아가면 여기서 걸린다.
+  fs.writeFileSync(managedPath, pristineManaged.replaceAll('\n', '\r\n'))
+  assert(!drift().includes('policy-registry.local.json(프로젝트 소유)'), 'a CRLF-only checkout must not be reported as drift (that would false-alarm every Windows consumer)')
+  fs.writeFileSync(managedPath, pristineManaged)
+}
+
+// #32(smartscore-backend/common 0.2.146 업데이트 리포트) ①: `.cmd` 는 cmd.exe 의 label/goto 가 LF 에서 깨질 수 있어
+// 일부러 CRLF 로 배포하는데(0.2.136), 소비자 저장소에 그 의도를 알려 줄 속성이 없어 git 이 매번
+// "CRLF will be replaced by LF" 경고를 냈다. 속성 한 줄로 경고를 없애고 Windows 안전성은 유지한다.
+function installDeclaresCmdLineEndingsSoGitStopsWarning() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const attributes = read(target, '.gitattributes')
+  assert(attributes.includes('.harness/bin/*.cmd text eol=crlf'), `install must declare the cmd line endings (got: ${attributes})`)
+  // 배포본이 실제로 CRLF 인지 — 속성이 그 사실과 맞아야 의미가 있다.
+  const cmd = fs.readFileSync(path.join(target, '.harness/bin/harness.cmd'), 'utf8')
+  assert(cmd.includes('\r\n'), 'the shipped .cmd must really be CRLF (that is what the attribute declares)')
+  // git 이 그 경로에 eol=crlf 를 실제로 적용하는지 확인한다(패턴 오타·범위 오류를 잡는다).
+  const attr = run('git', ['check-attr', 'text', 'eol', '--', '.harness/bin/harness.cmd'], { cwd: target })
+  assert(attr.includes('eol: crlf') && attr.includes('text: set'), `git must resolve the attribute for the shipped cmd file (got: ${attr})`)
+  // 프로젝트 자기 .cmd 에는 정책을 강요하지 않는다.
+  const otherAttr = run('git', ['check-attr', 'eol', '--', 'tools/deploy.cmd'], { cwd: target })
+  assert(otherAttr.includes('eol: unspecified'), `the harness pattern must not cover the project own cmd files (got: ${otherAttr})`)
+
+  // 멱등: 다시 설치해도 줄이 늘지 않는다.
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const lines = read(target, '.gitattributes').split('\n').filter((line) => line.includes('*.cmd'))
+  assert(lines.length === 1, `reinstall must not duplicate the attribute (got ${lines.length} lines)`)
+
+  // 기존 .gitattributes 는 보존하고 뒤에 덧붙인다.
+  const withExisting = makeTarget()
+  fs.writeFileSync(path.join(withExisting, '.gitattributes'), '*.png binary\n')
+  runInit(withExisting, '--no-scan', '--no-handoff', '--no-check')
+  const merged = read(withExisting, '.gitattributes')
+  assert(merged.includes('*.png binary') && merged.includes('.harness/bin/*.cmd text eol=crlf'), `merge must keep the team entries and add ours (got: ${merged})`)
+
+  // 팀이 그 파일의 eol 을 이미 정해 뒀으면 표기가 어떻든 덮지 않는다. git 은 마지막에 매칭되는 줄이 이기므로,
+  // 패턴 문자열만 비교하면 아래 세 표기 모두 우리 줄에 조용히 덮였다(적대적 리뷰 P2-5 실측).
+  for (const teamLine of ['.harness/bin/*.cmd text eol=lf', '/.harness/bin/*.cmd text eol=lf', '.harness/bin/harness.cmd text eol=lf', '*.cmd text eol=lf']) {
+    const teamChoice = makeTarget()
+    fs.writeFileSync(path.join(teamChoice, '.gitattributes'), `${teamLine}\n`)
+    runInit(teamChoice, '--no-scan', '--no-handoff', '--no-check')
+    const kept = read(teamChoice, '.gitattributes')
+    assert(!kept.includes('eol=crlf'), `'${teamLine}': an explicit team decision must not be overridden (got: ${kept})`)
+    const resolved = run('git', ['check-attr', 'eol', '--', '.harness/bin/harness.cmd'], { cwd: teamChoice })
+    assert(resolved.includes('eol: lf'), `'${teamLine}': git must still resolve the team value (got: ${resolved})`)
+  }
+}
+
 function wrapperCoversAllClientHookNames() {
   const target = makeTarget()
   runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
@@ -8272,6 +8542,9 @@ const tests = [
   parkedSymlinkHookKeepsWorking,
   globalHooksPathIsOverriddenLocallyNotUnset,
   wrapperCoversAllClientHookNames,
+  hooksStatusNoticeSuitsTheEnvironment,
+  localPolicyRegistryIsMergedAndProjectOwned,
+  installDeclaresCmdLineEndingsSoGitStopsWarning,
   globalHooksPathOverrideWorksFromLinkedWorktree,
   crossHookCallRunsTheRealHook,
   reportInstallHelpWritesNothing,

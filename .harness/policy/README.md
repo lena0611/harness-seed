@@ -19,7 +19,7 @@
 6. [강제 강도 기준](./enforcement-ladder.md)
 7. [자동화 커버리지](./automation-coverage.md)
 8. [Waiver 가이드](./waiver-guidelines.md)
-9. `policy-registry.json`
+9. `policy-registry.json` (+ 프로젝트 정책은 `policy-registry.local.json`)
 10. `waivers.json`
 
 ## 실행 명령
@@ -60,7 +60,9 @@ npm run docs:check
 | downstream `check` / `test:init` / `test` | 스택/CLI 본체 개발 | 사용 안 함 | 스택 하네스와 CLI 저장소 자체를 검증합니다. |
 
 ## 구성 요소
-- `policy-registry.json`: 개발 기준 문서와 코드 영역의 연결 정보. v3부터 DB화 전 필수 메타데이터를 포함합니다.
+- `policy-registry.json`: 개발 기준 문서와 코드 영역의 연결 정보. v3부터 DB화 전 필수 메타데이터를 포함합니다. **하네스가 갱신하는 파일이라 프로젝트가 직접 고치면 안 됩니다** — 고치면 그 파일이 갱신 대상에서 빠져 공통 정책이 예전 버전에 멈춥니다(0.2.147, scorecard-print 실측: 공통 정책 2건 누락 + 은퇴한 명령 별칭 12개를 가리키는 checks).
+- `policy-registry.local.json`: **프로젝트가 자기 정책을 등록하는 자리**(0.2.147). 없으면 만들면 되고, 업데이트가 덮지 않습니다. 형식은 `{ "policies": [ … ] }`로 위 registry의 항목과 같습니다. 규칙 셋: ① 추가만 합니다 — 공통 정책과 같은 `id`를 쓰면 검사가 중복으로 막습니다(공통 정책을 조용히 무력화하는 길을 두지 않습니다) ② 항목 오류는 이 파일 경로로 보고됩니다 ③ JSON이 깨지면 조용히 무시하지 않고 검사에서 드러냅니다. 문서 쪽의 같은 자리는 `.harness/documentation/document-registry.local.json`입니다.
+  - 이미 `policy-registry.json`에 직접 넣어 둔 항목이 있으면: ① 그 항목을 `policy-registry.local.json`으로 옮기고 ② `.harness/bin/harness update --resync-managed`로 관리 파일을 원본으로 되돌립니다. `harness check`의 "하네스 파일이 설치 기록과 다릅니다" 안내가 이 상태를 발견하면 같은 순서를 알려줍니다(문서 등록부와 같은 자리).
 - `policy-db-readiness.md`: 정책을 DB로 옮기기 전 원자 정책 단위, 필수 필드, weak point 기준
 - `ai-standard-guiding-policy.md`: `ai-standard` 그룹 전체 작업의 최상위 판단 기준
 - `context-protocol.md`: 항상 읽는 기준, 에이전트 판단 컨텍스트, 생성 산출물, 실행 도구의 분리 원칙

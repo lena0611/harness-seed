@@ -753,6 +753,14 @@ function printManagedDriftNotice(drift) {
     console.log('  document-registry.json은 프로젝트 문서를 등록하려다 달라졌을 수 있습니다 — 그 등록은')
     console.log('  document-registry.local.json(프로젝트 소유)으로 옮기면 업데이트에서 제외되지 않습니다.')
   }
+  // 같은 클래스(0.2.147, scorecard-print #31): 프로젝트 정책을 등록하려다 달라진 경우다. 실측에서는 공통 정책 2건이
+  // 누락되고 checks 가 은퇴한 명령 별칭 12개를 가리키는 상태로 여러 릴리스를 지나갔다. 판정을 여기 두는 이유는
+  // 이 함수가 **줄바꿈 정규화 sha**로 비교하기 때문이다 — 원시 바이트로 비교하면 CRLF 체크아웃(Windows)에서
+  // 손대지 않은 프로젝트에도 발동한다(적대적 리뷰 P1). 캐시 히트 경로에서도 나오고, 다른 위반에 가려지지 않는다.
+  if (drift.drifted.some((rel) => rel.split(path.sep).join('/').endsWith('policy/policy-registry.json'))) {
+    console.log('  policy-registry.json은 프로젝트 정책을 등록하려다 달라졌을 수 있습니다 — 그 등록은')
+    console.log('  policy-registry.local.json(프로젝트 소유)으로 옮기면 업데이트에서 제외되지 않습니다.')
+  }
   // 2단계 설치(공통 → 스택)의 정상 결과를 lint 오염으로 오진하지 않는다(2026-08-27 신규 설치 실측).
   // 스택 적용은 공통 설치가 manifest를 기록한 뒤에 profile.json(activeStack)과
   // stack-preset-rules.md를 쓰므로, 스택을 쓰는 프로젝트에서 이 두 파일의 드리프트는 당연하다.

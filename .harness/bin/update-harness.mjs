@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawnSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -387,6 +387,26 @@ function run(command, args) {
   return result.status ?? 1
 }
 
+// 업데이트 직후 훅 배선 안내(#31 참고, scorecard-print): "기존 설치는 다음 Claude 세션에서 자동으로 바뀝니다"는
+// **이미 시작된 세션에는 오지 않는다** — 업데이트를 세션 도중에 돌리므로 대부분이 이 경우다. 제보자는 hooks:status 를
+// 직접 확인해서 알았고, 확인하지 않았다면 다음 세션까지 예전 방식으로 남았을 것이라고 적었다. 그래서 바뀐 자리에서 말한다.
+function printHookWiringNotice() {
+  let info = null
+  try {
+    info = JSON.parse(execFileSync(process.execPath, [path.join(repoRoot, '.harness/bin/hooks-state.mjs'), '--json'], {
+      cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }))
+  } catch {
+    return
+  }
+  if (info?.state !== 'legacy') return
+  console.log('')
+  console.log('git hook 배선: 아직 예전 방식입니다 (core.hooksPath=.githooks — 이 clone 기준, 커밋 대상 아님).')
+  console.log(info.autoMigrates
+    ? '  이 저장소를 주 폴더로 여는 다음 Claude 세션에서 자동으로 갱신됩니다. 지금 바꾸려면: .harness/bin/harness hooks:install'
+    : '  이 clone에는 자동 갱신 배선이 없습니다. 한 번 실행하세요: .harness/bin/harness hooks:install')
+}
+
 function printConsumerCommandGuide() {
   // 출력 다이어트(0.2.139, scorecard #8): 매 실행 동일한 명령 안내 10여 줄이 업데이트
   // 출력의 절반을 차지해 에이전트가 grep 필터를 걸게 만들었다(신호 대 잡음). 업데이트
@@ -460,6 +480,7 @@ function main() {
   }
 
   printConsumerCommandGuide()
+  printHookWiringNotice()
 
   // 결과 리포트 안내(결정 98): 에이전트 절차를 밟지 않고 이 스크립트만 직접 돌린 경우에도
   // 마지막 줄에서 보고 경로를 보게 한다 — 강제가 아니라 안내(유실 창 축소).

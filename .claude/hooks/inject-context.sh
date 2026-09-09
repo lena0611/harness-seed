@@ -21,10 +21,15 @@ fi
 # 훅 미설치 감지(결정 94): 훅 설정은 clone으로 공유되지 않으므로 새로 받은 clone은 관문이 꺼져 있다.
 # 매 세션 한 줄로 알려 에이전트가 사용자에게 안내하고, 요청 시 켜줄 수 있게 한다. fail-open.
 if [ -f "$root/.harness/bin/hooks-state.mjs" ] && git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  # 판정 정본은 hooks-state.mjs(0.2.146). off 일 때만 상기한다 — legacy(예전 방식)는 세션 시작 훅이 갱신하고, optout은 존중.
+  # 판정 정본은 hooks-state.mjs(0.2.146). off 는 항상 상기하고, optout 은 존중한다.
+  # legacy(예전 방식)는 **자동 갱신 배선이 없을 때만** 알린다(0.2.147, 적대적 리뷰): Claude 세션 시작 훅이
+  # 배선된 프로젝트는 그 세션이 알아서 갱신하지만, 터미널·Codex 전용 clone 은 알려 주는 채널이 여기뿐이었다.
   hooks_state="$(cd "$root" && node .harness/bin/hooks-state.mjs 2>/dev/null || printf 'off')"
   if [ "$hooks_state" = "off" ]; then
     printf 'Harness hooks are OFF in this clone (hook config does not travel with git clone; the team already opted in by adding the harness). Turn them on NOW by running .harness/bin/harness hooks:install and tell the user in one line.\n'
+  elif [ "$hooks_state" = "legacy" ] \
+    && [ "$(cd "$root" && node .harness/bin/hooks-state.mjs --json 2>/dev/null | node -e 'let s="";process.stdin.on("data",function(d){s+=d}).on("end",function(){try{process.stdout.write(String(JSON.parse(s).autoMigrates))}catch(e){process.stdout.write("true")}})' 2>/dev/null || printf 'true')" = "false" ]; then
+    printf 'Harness hooks in this clone still use the pre-0.2.146 wiring and nothing will migrate them automatically here. Run .harness/bin/harness hooks:install once and tell the user in one line.\n'
   fi
 fi
 

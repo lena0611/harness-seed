@@ -95,6 +95,8 @@ const dynamicArtifactPaths = new Set([
   '.harness/project/issue-adapter.md',
   // 프로젝트 문서 등록 지점(0.2.131): 프로젝트가 필요할 때 만드는 파일이라 부재가 정상이다.
   '.harness/documentation/document-registry.local.json',
+  // 프로젝트 정책 등록 지점(0.2.147, #31): 같은 이유로 부재가 정상이다.
+  '.harness/policy/policy-registry.local.json',
   // npx init 진입점은 사용자 프로젝트에 복사하지 않는다. 시드 결정 로그의
   // 역사적 참조는 사용자 프로젝트에서도 broken reference로 취급하지 않는다.
   'scripts/init.mjs',

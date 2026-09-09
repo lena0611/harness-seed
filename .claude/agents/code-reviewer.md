@@ -17,7 +17,7 @@ Read these first:
 5. `.harness/stacks/README.md`
 
 ## Review focus
-- Changed source paths must still satisfy the mapped policies in `.harness/policy/policy-registry.json`.
+- Changed source paths must still satisfy the mapped policies in `.harness/policy/policy-registry.json` (plus `policy-registry.local.json` when the project registered its own).
 - Policy or stack document changes must be reflected in the opposite side: code, checks, or documentation.
 - Stack-specific work must respect `.harness/policy/profile.json`.
 - Findings should cite exact files and lines when possible.
