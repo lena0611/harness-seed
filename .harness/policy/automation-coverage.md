@@ -26,7 +26,7 @@
 | `spec-latest-exact-set` | 읽어볼 최신 사본(`spec-latest/<source>/`)은 그 기록(`.manifest.json`)과 **정확히 같은 집합**. 기록을 디렉터리 안에 두어 **rename 한 번으로 본문과 기록이 함께 확정**되므로 중간에 죽어도 어긋난 상태가 남지 않는다. 정산 소비도 같은 방식으로 교체 | 자동 실행 (`harness:spec:fetch -- --cache-only`, `harness:spec:settle`) |
 | `spec-path-safety` | 기획 저장소가 주는 경로로 캐시 밖에 쓰거나 읽지 못하게 함(절대경로·`..`·NUL 거부, **보호 루트 자신부터** leaf까지 심볼릭 링크 차단, 읽기·쓰기·삭제가 같은 API를 사용, 쓰기는 임시 파일+rename) | 자동 검사 (모든 수화·최신 사본·읽기 경로) |
 | `spec-freshness-at-task-start` | 작업 컨텍스트 생성 시 짧은 예산의 비파괴 최신 확인. 기준 문서 / 기준 이후 변경 / 신규·미정산을 구분해 표시하고, 실패 시 "최신 확인 못함"을 명시 | 자동 실행 (TTL 재사용, 기준 이동 없음, 실패해도 진행) |
-| `hook-installation` | `core.hooksPath`는 clone으로 공유되지 않으므로 PC마다 꺼진 채 시작한다. **세션 시작 훅이 자동으로 켜고 한 줄 알린다**(0.2.131+, `harness.hooksAutoEnable=false` 옵트아웃은 존중). 그 밖의 경로에서는 검사가 미설치를 감지해 안내 | 자동 복원 + 안내 (세션 시작·커밋 검증·`harness:check`) |
+| `hook-installation` | 훅 설정은 clone으로 공유되지 않으므로 PC마다 꺼진 채 시작한다(0.2.146부터 자리는 `.git/hooks`의 브랜치 무관 래퍼, 판정은 `hooks-state.mjs`). **세션 시작 훅이 자동으로 켜고 한 줄 알린다**(0.2.131+, `harness.hooksAutoEnable=false` 옵트아웃은 존중). 그 밖의 경로에서는 검사가 미설치를 감지해 안내 | 자동 복원 + 안내 (세션 시작·커밋 검증·`harness:check`) |
 | `harness-mode-validity` | `profile.json`의 harnessMode가 허용 값인지, JSON이 읽히는지. 오타는 strict 차단이 조용히 꺼지는 원인이 된다 | 자동 검사 (**fail-closed** — 값 오류·JSON 오류 시 검사 실패) |
 
 커밋 검증(`policy-harness`)은 본문 자동 수화를 실행하지 않습니다. 캐시 부재를 안내만 하며(비차단), 본문 준비의 보장은 pull 훅과 작업 컨텍스트 단계에 있습니다 — 커밋 시점 수화는 작업이 끝난 뒤라 늦습니다.

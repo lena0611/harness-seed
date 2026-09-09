@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { MIN_NODE, hasNvm, isSupportedNode, readNvmrc, resolveHarnessNodeBest, resolveInstalledForSpec } from './node-env.mjs'
+import { HARNESS_HOOKS_DIR, LEGACY_HOOKS_PATH, OLD_DEFAULT_MARKER, OVERRIDE_KEY, PARKED_HOOKS_PATH, PREV_DIR_NAME, WRAPPED_HOOKS, effectiveGitHooksDir, gitHooksDir, isWrapper, readLocalGitConfig, relToRepo, resolveHooksPath, samePath, wrapperSource } from './hooks-state.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -51,77 +52,148 @@ if (!isGitRepository()) {
   process.exit(1)
 }
 
+// 유효 값(전역·시스템 포함)과 로컬 값(.git/config)을 구분한다 — 전역 core.hooksPath는 우리가 지울 대상이 아니다(외부 리뷰 P2-2).
 const previousHooksPath = readGitConfig('core.hooksPath')
+const localHooksPath = readLocalGitConfig(repoRoot, 'core.hooksPath')
 const storedPreviousHooksPath = readGitConfig('harness.previousHooksPath')
 const previousCommitTemplate = readGitConfig('commit.template')
-const legacyHookFiles = [
-  '.git/hooks/pre-commit',
-  '.git/hooks/pre-push',
-  '.git/hooks/post-merge',
-].filter(exists)
-// #14(백엔드 common, 2026-09-02): core.hooksPath를 .githooks로 돌리면 .git/hooks/ 안의 훅은
-// 파일이 남아 있어도 git이 더 이상 부르지 않는다. 하네스가 배포하는 세 훅(pre-commit/pre-push/
-// post-merge)은 체인으로 이어 주지만, 그 밖의 이름(commit-msg 등)은 이어 줄 상대가 없어 조용히
-// 죽는다 — 실패가 아니라 "부재"로 나타나 아무 데도 안 보이므로, 설치 순간에 이름을 불러 말한다.
-const HARNESS_SHIPPED_HOOKS = new Set(['pre-commit', 'pre-push', 'post-merge'])
-function listGitHooksThatStopRunning() {
-  if (previousHooksPath) return [] // 이미 다른 hooksPath를 쓰던 저장소면 .git/hooks는 원래 비활성 — 새로 잃는 게 없다
-  const dir = path.join(repoRoot, '.git/hooks')
-  let names = []
-  try {
-    names = fs.readdirSync(dir)
-  } catch {
-    return []
-  }
-  return names
-    .filter((name) => !name.endsWith('.sample') && !HARNESS_SHIPPED_HOOKS.has(name))
-    .filter((name) => {
-      try {
-        return fs.statSync(path.join(dir, name)).isFile()
-      } catch {
-        return false
-      }
-    })
-    .sort()
-}
-const gitHooksThatStopRunning = listGitHooksThatStopRunning()
-const shouldStoreCustomHooksPath = previousHooksPath && previousHooksPath !== '.githooks'
-const shouldStoreDefaultGitHooks = !previousHooksPath && !storedPreviousHooksPath && legacyHookFiles.length > 0
 
-if (shouldStoreCustomHooksPath) {
-  // 체인 교체 경고(0.2.135, clubadm D): 보관함은 한 칸이라 새 값이 오면 옛 체인이 실행에서
-  // 빠진다(예: .git/hooks 체인 중에 husky를 나중에 얹는 표준 경로). 파일은 그대로지만
-  // 기능이 조용히 사라지므로, 덮어쓰는 순간만큼은 무엇이 밀려나는지 말한다.
+// 0.2.146(smartscore-backend/common #28): 훅 자리를 브랜치와 무관한 clone 안 — git 기본 훅 폴더(<공통 .git>/hooks) —
+// 로 옮긴다. 예전 방식(core.hooksPath=.githooks)은 하네스 없는 브랜치로 checkout하면 폴더가 사라져 git이
+// 아무 말 없이 훅을 건너뛰었다(사흘간 훅 0개 커밋, 제보). 이제 그 폴더의 <훅>은 하네스 래퍼이고, 래퍼가
+// 현재 브랜치의 .githooks/<훅>에 위임한다. 브랜치에 .githooks가 없으면 이전 훅 체인만 돌리고 한 줄 알린다.
+const hooksDir = gitHooksDir(repoRoot)
+const hooksDirRel = relToRepo(repoRoot, hooksDir)
+const prevDir = path.join(hooksDir, PREV_DIR_NAME)
+const prevDirRel = relToRepo(repoRoot, prevDir)
+// core.hooksPath는 git이 푸는 방식(상대 = 이 작업 폴더 기준)으로 본다. 우리가 전역을 덮기 위해 적은 로컬 값은 별도 키에
+// 기록돼 있어 그 값과 같으면 "우리 것"이다 — 연결 워크트리에서는 옛 상대 값 `.git/hooks`가 아무것도 가리키지 않으므로
+// 재설치가 절대 경로로 교정한다(외부 리뷰 2차 P1).
+const recordedOverride = readLocalGitConfig(repoRoot, OVERRIDE_KEY)
+// 기록 키와 같으면 우리 것. 키가 없어도 값이 "기본 훅 폴더"를 뜻하면(`.git/hooks` 같은 상대 값 — 이전 후보가 키 없이
+// 남긴 상태, 또는 팀이 기본 폴더를 명시한 경우) 우리 것으로 본다: 어느 쪽이든 뜻은 같은 폴더라 이전 훅 체인을 덮어쓸
+// 이유가 없다(외부 리뷰 3차 P2-1 — 이걸 팀 설정으로 오판하면 전역 팀 훅 연결이 사라진다).
+const localIsOurOverride = Boolean(localHooksPath) && (localHooksPath === recordedOverride || samePath(resolveHooksPath(repoRoot, localHooksPath), hooksDir))
+const hooksPathIsDefaultDir = Boolean(previousHooksPath) && samePath(effectiveGitHooksDir(repoRoot, previousHooksPath), hooksDir)
+const legacyHarnessHooksPath = previousHooksPath === LEGACY_HOOKS_PATH
+const customHooksPath = Boolean(previousHooksPath) && !legacyHarnessHooksPath && !hooksPathIsDefaultDir && !localIsOurOverride // husky·전역 등 다른 주인
+
+// 래퍼가 들어갈 자리에 원래 있던 프로젝트 훅 파일은 지우지 않고 harness-prev/ 로 옮겨 체인한다.
+// - 심볼릭 링크는 링크째 옮기면 상대 기준이 바뀌어 끊어진다(외부 리뷰 P2-1) → 대상을 새 위치 기준으로 다시 잇는다.
+// - 같은 이름이 이미 보관돼 있으면 **새 파일이 실행 자리**(harness-prev/<이름>)를 차지하고 옛 것은 <이름>.<시각>.old로
+//   물린다(외부 리뷰 P1-2: 다른 도구가 훅을 갱신한 뒤 재설치해도 최신 규칙이 실행에서 빠지지 않아야 한다).
+// - 예전 방식에서는 이 파일들이 "hooksPath 전환으로 조용히 죽는" 대상이었다(#14) — 이제는 계속 실행된다.
+fs.mkdirSync(hooksDir, { recursive: true })
+function archiveParked(name) {
+  const dest = path.join(prevDir, name)
+  try {
+    fs.lstatSync(dest)
+  } catch {
+    return null
+  }
+  const archived = `${dest}.${Date.now()}.old`
+  fs.renameSync(dest, archived)
+  return path.basename(archived)
+}
+function parkHook(name) {
+  const file = path.join(hooksDir, name)
+  let stat
+  try {
+    stat = fs.lstatSync(file)
+  } catch {
+    return null
+  }
+  if (stat.isSymbolicLink()) {
+    if (isWrapper(file)) return null
+    const target = fs.readlinkSync(file)
+    const absTarget = path.isAbsolute(target) ? target : path.resolve(path.dirname(file), target)
+    fs.mkdirSync(prevDir, { recursive: true })
+    const archived = archiveParked(name)
+    const dest = path.join(prevDir, name)
+    fs.symlinkSync(path.isAbsolute(target) ? target : path.relative(prevDir, absTarget), dest)
+    fs.unlinkSync(file)
+    return { name, kind: 'symlink', archived }
+  }
+  if (!stat.isFile() || isWrapper(file)) return null
+  fs.mkdirSync(prevDir, { recursive: true })
+  const archived = archiveParked(name)
+  fs.renameSync(file, path.join(prevDir, name))
+  return { name, kind: 'file', archived }
+}
+const movedHookFiles = []
+for (const name of WRAPPED_HOOKS) {
+  const moved = parkHook(name)
+  if (moved) movedHookFiles.push(moved)
+}
+const prevDirHasHooks = fs.existsSync(prevDir) && fs.readdirSync(prevDir).some((name) => WRAPPED_HOOKS.includes(name))
+
+// 이전 훅 체인 기록(harness.previousHooksPath). 보관함은 한 칸이다. 보관함 값은 공통 .git 기준(.git/…)으로 적는다 —
+// 연결 워크트리에서도 같은 파일을 가리켜야 한다(외부 리뷰 P1-1).
+let chainedHooksPath = storedPreviousHooksPath
+if (customHooksPath) {
+  // 체인 교체 경고(0.2.135, clubadm D): 새 값이 오면 옛 체인이 실행에서 빠진다.
   if (storedPreviousHooksPath && storedPreviousHooksPath !== previousHooksPath) {
     console.log(`⚠ 이전 훅 체인 '${storedPreviousHooksPath}' 가 '${previousHooksPath}' 로 교체됩니다.`)
     console.log(`  '${storedPreviousHooksPath}' 의 훅은 더 이상 실행되지 않습니다 — 필요하면 새 훅에서 직접 호출하세요.`)
   }
   runGit(['config', 'harness.previousHooksPath', previousHooksPath])
-} else if (shouldStoreDefaultGitHooks) {
-  runGit(['config', 'harness.previousHooksPath', '.git/hooks'])
+  chainedHooksPath = previousHooksPath
+} else if (!storedPreviousHooksPath || storedPreviousHooksPath === OLD_DEFAULT_MARKER || storedPreviousHooksPath === PARKED_HOOKS_PATH) {
+  // 예전 마커('.git/hooks')는 이제 래퍼 자리라 그대로 두면 자기 자신을 체인한다 → 보관함 경로로 바꾼다.
+  if (prevDirHasHooks) {
+    if (storedPreviousHooksPath !== PARKED_HOOKS_PATH) runGit(['config', 'harness.previousHooksPath', PARKED_HOOKS_PATH])
+    chainedHooksPath = PARKED_HOOKS_PATH
+  } else if (storedPreviousHooksPath) {
+    runGit(['config', '--unset', 'harness.previousHooksPath'])
+    chainedHooksPath = ''
+  }
 }
 
-// commit.template도 hooksPath와 대칭으로 저장한다 — uninstall이 설치 전 템플릿으로 복원할 수 있게.
+// 래퍼 설치(멱등: 같은 내용으로 덮어쓴다).
+for (const name of WRAPPED_HOOKS) {
+  const file = path.join(hooksDir, name)
+  fs.writeFileSync(file, wrapperSource())
+  fs.chmodSync(file, 0o755)
+}
+
+// commit.template도 대칭으로 저장한다 — uninstall이 설치 전 템플릿으로 복원할 수 있게.
 const shouldStoreCustomCommitTemplate = Boolean(previousCommitTemplate && previousCommitTemplate !== '.github/commit-template.txt')
 
 if (shouldStoreCustomCommitTemplate) {
   runGit(['config', 'harness.previousCommitTemplate', previousCommitTemplate])
 }
 
-runGit(['config', 'core.hooksPath', '.githooks'])
+// git이 기본 훅 폴더(래퍼)를 보게 한다. 로컬 core.hooksPath(예전 하네스 값·husky 값)는 해제하고, 그래도 전역·시스템에서
+// 값이 내려오면 **전역은 건드리지 않고** 로컬에 기본 훅 폴더를 명시해 덮는다(외부 리뷰 P2-2). 그 전역 훅은 이전 훅
+// 체인(위)에 저장돼 계속 실행된다.
+if (localHooksPath) {
+  runGit(['config', '--unset', 'core.hooksPath'])
+}
+if (recordedOverride) {
+  runGit(['config', '--unset', OVERRIDE_KEY])
+}
+const inheritedHooksPath = readGitConfig('core.hooksPath')
+let hooksPathOverride = ''
+if (inheritedHooksPath && !samePath(effectiveGitHooksDir(repoRoot, inheritedHooksPath), hooksDir)) {
+  // 절대 경로로 적는다 — 로컬 git 설정은 모든 워크트리가 공유하는데, 상대 값은 연결 워크트리(.git이 파일)에서 아무것도
+  // 가리키지 않는다. 저장소를 옮기면 판정이 off가 되어 세션 시작이 재설치·교정한다.
+  hooksPathOverride = hooksDir
+  runGit(['config', 'core.hooksPath', hooksPathOverride])
+  runGit(['config', OVERRIDE_KEY, hooksPathOverride])
+}
 runGit(['config', 'commit.template', '.github/commit-template.txt'])
 
-const chainedHooksPath = shouldStoreCustomHooksPath
-  ? previousHooksPath
-  : shouldStoreDefaultGitHooks
-    ? '.git/hooks'
-    : storedPreviousHooksPath
-
 console.log('')
-console.log('하네스 git hook 설치 완료')
+console.log(legacyHarnessHooksPath ? '하네스 git hook 갱신 완료 — 예전 방식(core.hooksPath=.githooks)에서 브랜치 무관 래퍼로 옮겼습니다' : '하네스 git hook 설치 완료')
 console.log('')
 console.log('설치된 git 설정:')
-console.log('  - core.hooksPath: .githooks')
+if (hooksPathOverride) {
+  console.log(`  - core.hooksPath: '${hooksPathOverride}' (로컬 명시, 절대 경로 — 전역 설정 '${inheritedHooksPath}'은 그대로 두고 기본 훅 폴더로 덮었습니다. 연결 워크트리에서도 같은 폴더를 가리킵니다)`)
+} else {
+  console.log(`  - core.hooksPath: 해제 (git 기본 훅 폴더 ${hooksDirRel} 사용)`)
+}
+console.log(`  - ${hooksDirRel}/<훅> (클라이언트 훅 ${WRAPPED_HOOKS.length}종): 하네스 래퍼 — 현재 브랜치의 ${HARNESS_HOOKS_DIR}/<훅>에 위임합니다.`)
+console.log(`      브랜치에 ${HARNESS_HOOKS_DIR}/가 없으면 이전 훅 체인만 돌리고 한 줄 알린 뒤 통과합니다 (브랜치를 바꿔도 훅이 사라지지 않습니다, 0.2.146).`)
 console.log('  - commit.template: .github/commit-template.txt')
 console.log('')
 console.log('활성화되는 hook:')
@@ -141,38 +213,30 @@ console.log('커밋 메시지 템플릿:')
 console.log('  - .github/commit-template.txt')
 console.log('      한글 요약, 하이픈 상세, 검증 목록 형식을 안내합니다.')
 
-if (previousHooksPath && previousHooksPath !== '.githooks') {
+if (customHooksPath) {
   console.log('')
   console.log('기존 hooksPath 안내:')
   console.log(`  - 이전 core.hooksPath는 '${previousHooksPath}'였습니다.`)
-  console.log('  - 이번 설치로 Git은 .githooks를 기준 hook 디렉터리로 사용합니다.')
-  console.log(`  - 기존 hook은 harness.previousHooksPath='${previousHooksPath}'로 저장했으며, .githooks에서 먼저 실행됩니다.`)
+  console.log(`  - 이번 설치로 git은 기본 훅 폴더(${hooksDirRel})의 래퍼를 보고, 래퍼가 .githooks를 거쳐 기존 hook을 먼저 실행합니다.`)
+  console.log(`  - 기존 hook 경로는 harness.previousHooksPath='${previousHooksPath}'로 저장했으며, 하네스 없는 브랜치에서도 래퍼가 그 hook을 계속 실행합니다.`)
 }
 
-if (!previousHooksPath && legacyHookFiles.length > 0) {
+if (movedHookFiles.length > 0) {
   console.log('')
-  console.log('기존 .git/hooks 안내:')
-  for (const file of legacyHookFiles) {
-    console.log(`  - ${file}`)
+  console.log(`기존 ${hooksDirRel} 훅 안내:`)
+  for (const moved of movedHookFiles) {
+    console.log(`  - ${hooksDirRel}/${moved.name} → ${prevDirRel}/${moved.name} (보관, 계속 실행됨${moved.kind === 'symlink' ? ' — 링크 대상을 새 위치 기준으로 다시 이었습니다' : ''})`)
+    if (moved.archived) console.log(`      이전에 보관돼 있던 같은 이름은 ${prevDirRel}/${moved.archived} 로 물렸습니다 — 새 파일이 실행됩니다.`)
   }
-  console.log("  - 기존 hook 경로를 harness.previousHooksPath='.git/hooks'로 저장했습니다.")
-  console.log('  - .githooks/pre-commit 또는 .githooks/pre-push가 기존 hook을 먼저 실행한 뒤 하네스 검사를 실행합니다.')
+  console.log(`  - 래퍼가 그 자리를 쓰므로 원본은 ${prevDirRel}/ 로 옮겼고, harness.previousHooksPath='${chainedHooksPath || PARKED_HOOKS_PATH}'로 체인해 먼저 실행합니다.`)
+  console.log('  - 이름이 다른 훅(commit-msg 등)도 래퍼가 이어 주므로 계속 실행됩니다. 하네스 제거 시 원래 자리로 돌려놓습니다.')
 }
 
-if (gitHooksThatStopRunning.length > 0) {
-  // 경고는 stderr로 — init이 성공 단계의 stdout은 요약 한 단어로 접지만 stderr 경고는 그대로 보여준다.
-  console.warn('')
-  console.warn(`⚠ 기존 .git/hooks 훅 ${gitHooksThatStopRunning.length}개가 더 이상 실행되지 않습니다: ${gitHooksThatStopRunning.join(', ')}`)
-  console.warn('  - Git은 이제 .githooks만 봅니다. 하네스는 pre-commit/pre-push/post-merge만 기존 훅을 이어 주고, 그 밖의 이름은 파일만 남고 호출되지 않습니다.')
-  console.warn('  - 계속 쓰려면 같은 이름으로 .githooks/ 에 옮기세요. 예: cp .git/hooks/commit-msg .githooks/commit-msg')
-  console.warn('  - 주의: .git/hooks는 내 PC 전용이고 .githooks는 저장소에 추적됩니다 — 옮기면 개인 규칙이 팀 규칙이 됩니다.')
-}
-
-if (chainedHooksPath && !shouldStoreCustomHooksPath && !shouldStoreDefaultGitHooks) {
+if (chainedHooksPath && !customHooksPath && movedHookFiles.length === 0) {
   console.log('')
   console.log('기존 hook 체인 안내:')
   console.log(`  - harness.previousHooksPath='${chainedHooksPath}'를 유지합니다.`)
-  console.log('  - 해당 경로에 pre-commit/pre-push가 있으면 .githooks에서 먼저 실행합니다.')
+  console.log('  - 해당 경로에 같은 이름의 hook이 있으면 .githooks(또는 래퍼)에서 먼저 실행합니다.')
 }
 
 if (previousCommitTemplate && previousCommitTemplate !== '.github/commit-template.txt') {

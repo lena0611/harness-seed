@@ -16,9 +16,29 @@
 - **문서에 적은 검증된 순서**: master에서 CLI 설치 커밋 → `git checkout origin/mhryu75-OPDTEAM3-667 -- CONVENTIONS.md DEV_SETUP.md tools/php` 커밋 → cherry-pick `1b32d9361e` → `ab00221327` → `755d647477`. 깨끗한 master worktree(`~/practice/common-test-handover`, 브랜치 `handover-check`)에서 충돌 0, check 통과, 링크 OK, Always Read 자동 확인. 667 머지 시 CONVENTIONS 충돌은 master(표만) 쪽.
 - 회신문(아티팩트 bf663dcb)에 반영·재발행. 버전 표기 0.2.144로. 리허설 `sources` 등록 커밋(`ede27521a8`)은 다음 커밋이 걷어내 상쇄 — cherry-pick 대상에서 제외.
 
+## 0.2.146 추가 후보 — PHP 백엔드 설치 후속 제보 3건 (2026-09-09, Codex 설계 리뷰 반영, 사용자 결정: 146에 포함)
+
+- **제보**(common 개발자, 채팅 경유): ① 동명 `.claude/hooks/*.sh`(개인 훅 3개) 보존으로 팀 settings.json이 개인 훅을 실행하는 섞임 + manifest 미기록 + 리포트는 개수만 ② 개인 `.git/info/exclude`(`/.claude/*`) 때문에 하네스 파일 21개가 커밋에서 빠짐 ③ `block-dangerous`의 `bash …/x.sh` 일괄 차단이 팀 절차 `bash tools/php/dev-setup.sh`를 막음. 제보자는 손으로 정리(원본 교체·개인 훅 `.local.sh`·exclude 좁힘).
+- **Codex 설계 리뷰(보완 필요) 반영한 확정 설계**:
+  - ① 자동 교체 **안 함**. 설치·업데이트 전에 충돌(하네스 훅 이름 + 내용 다름) 사전 검사 → 파일 복사·settings 병합 **전에 중단**, 훅별로 물음(교체=`.harness-bak` 백업 후 원본 / 유지=개인 책임, 기록·재보고 / 이름 바꿔 `.local.sh`+settings.local.json). 비대화형은 충돌 목록+해결법 출력 후 **실패 종료**. 전체 `--force`로 풀게 하지 않음(훅별 플래그). manifest `preservedForeignFiles`는 **현황 기록**일 뿐 소유권 아님. 기존 섞인 설치본도 업데이트에서 같은 검사.
+  - ② `git check-ignore -v`(`--no-index` 없이 — 추적 파일은 대상 아님), `!pattern` 재포함은 제외, 전역 ignore 포함. 대상 = "공유 대상인데 미추적이고 실제로 ignore되는 파일"(설치 파일 + 기존 settings가 참조하는 훅 경로). 원인 파일:줄:패턴 표시, 자동 수정 없음, 문구 "현재 상태로는 팀 공유에서 누락될 수 있습니다".
+  - ③ "추적되면 허용" **폐기**. 허용 조건 = HEAD에 존재 + 인덱스·작업 파일이 HEAD와 동일 + 저장소 안 일반 파일(링크는 realpath 확인) — 의미는 "기존 버전 그대로인 진입점"일 뿐 안전 증명 아님. 신규·수정 스크립트는 종전 차단. `-n`은 sh/bash 옵션 위치일 때만(`sh file.sh -n`은 인자). 이 패턴만 건너뛰고 나머지 위험 검사는 유지.
+  - ④ 릴리스 범위: Codex는 147 분리를 권고했지만 **사용자 결정으로 146에 포함**(소비자 업데이트 1회, PHP 팀이 지금 겪는 문제). 승인분을 체크포인트로 먼저 커밋 → 그 위에 구현 → 구현 리뷰 → 146.
+- 회귀 계획: 동의 없는 충돌 → 파일·설정 불변·성공 보고 안 함 / 동의한 훅만 백업·교체 / 이전 설치의 보존 훅도 업데이트에서 충돌 발견 / exclude·.gitignore 미추적 필수 파일 경고, 추적·`!` 재포함·의도된 개인·생성 파일은 무경고 / 미스테이징 수정·스테이징 수정·git add 신규 실행 차단, 저장소 밖 링크 비허용, `-n` 위치 구분, 원격 다운로드를 셸로 넘기는 패턴 차단 유지.
+
+## 0.2.146 후보 — 훅 자리를 브랜치 무관 래퍼로 (common #28 ①, 2026-09-09)
+
+- **#28**: PHP 백엔드 0.2.145 첫 설치 리포트(정상 + 개선 2). ② `commit-msg` 없음은 하네스 결함 아님(팀 자체 훅, #14 안내대로 옮긴 파일이 그 브랜치에만) — 코멘트로 답함. ① 하네스 없는 브랜치로 가면 훅이 조용히 사라짐 — **수용, 구현 완료(미커밋)**: `hooks-state.mjs`(판정 정본+래퍼 원본) · install/uninstall/run-previous-hook · 세션·프롬프트 훅(Claude·Codex) · policy-harness · 런처 `hooks:status` · 문서 7곳 · 회귀(#14 테스트를 "계속 실행된다"로 재작성 + 브랜치 전환 회귀) · CHANGELOG 0.2.146 절(공지 1줄). 251/251.
+- 스모크: 새 clone init → 래퍼 8개, core.hooksPath 해제, 팀 `.git/hooks/pre-commit·commit-msg` → `harness-prev/`로 보관·체인(둘 다 실제 실행 확인). 하네스 없는 orphan 브랜치 커밋 → "하네스 검사 없이 진행합니다" 한 줄 + 성공 + 팀 훅 계속 실행.
+- **외부 리뷰(Codex) 1차: 보완 필요(P1 3·P2 3) → 전부 수용·회귀 잠금(2026-09-09)**: P1-1 보관함 경로를 공통 .git 기준으로(`resolveHooksPath`, 워크트리 회귀) · P1-2 같은 이름 재등장 시 새 파일이 실행 자리, 옛 것은 `.old`(재설치·uninstall 회귀) · P1-3 래퍼 재진입 가드(옛 안내대로 husky가 `.git/hooks/pre-commit`을 불러도 보관 원본만 실행, 양쪽 브랜치 회귀) + 공존 가이드 정정 · P2-1 심볼릭 링크 보관·복원 시 대상 재계산 · P2-2 전역 hooksPath는 로컬 명시로 덮고 제거 때 전역이 같은 값 주면 로컬 미기록 · P2-3 래퍼를 클라이언트 훅 16종으로. 테스트 헬퍼 `run()`이 GIT_* 환경을 걷어내므로 전역 설정 회귀는 HOME을 바꿔 흉내.
+- **Codex 2차: 보완 필요(P1 1·P2 1) → 수용**: (P1) 전역 덮기 로컬 값을 절대 경로 + `harness.hooksPathOverride` 기록, core.hooksPath 판정은 git 의미(`resolveGitHooksPath`)로 분리 — 회귀 `globalHooksPathOverrideWorksFromLinkedWorktree`(전역+워크트리 실행·실패 전달·옛 상대 값 교정). (P2) 재진입 가드를 `<공통 .git>|<훅>` 토큰(`HARNESS_HOOK_WRAPPER_ACTIVE`)으로 — 회귀 `crossHookCallRunsTheRealHook`(pre-merge-commit → `git hook run pre-commit`이 실제 검사 실행·병합 차단).
+- **Codex 3차: 보완 필요(P2 2) → 수용**: (P2-1) 기록 키 없는 옛 상대 값 `.git/hooks`도 우리 것으로 인식(`resolveHooksPath`로 기본 훅 폴더를 뜻하면) — 재설치가 전역 팀 훅 체인을 덮어쓰지 않음; 회귀는 키를 빼고 previousHooksPath 유지·전역 훅 실행·실패 전달까지. (P2-2) 교차 호출 회귀의 실패 지점을 실제 `.githooks/pre-commit`으로(보관 원본 없음) + 옛 결함 흉내 대조군(토큰 선주입). 4차는 이 둘만.
+- **Codex 4차: 승인 가능**(2026-09-09, 두 지적 해소·추가 지적 없음. 정적 검토, 커밋·배포 승인은 아님). 다음: 사용자 "커밋" → 커밋·push → #28에 "반영됨, 0.2.146 예정" 코멘트 → 릴리스는 사용자가 잡음(공지 1줄 승인 → 태그 = CI 자동 발송) → #28 close → 회신문 버전 표기 146으로.
+- 주의: `rev-parse --git-path hooks`는 core.hooksPath를 따라가므로 기본 훅 폴더는 `--git-common-dir`/hooks로 잡는다. hooks-state의 직접 실행 판정은 realpath 비교(임시 폴더 심볼릭 링크).
+
 ## v0.2.145 배포 완료 (2026-09-08 밤)
 
-- **태그 `v0.2.145` = `6d45a84`**, GitHub·GitLab 양쪽. CI 초록(pre-push 풀 250/250 + CI 1회). 공지 3줄은 사용자 승인 후 확정(첫 줄은 "모놀리스에서 CLAUDE.md 진입점을 여러 개 두어야 할 때"로 일반화 — 특정 서비스 경로 언급 제거, 셋째 줄 간결화). **발송은 사용자 몫**(`node scripts/release-notice.mjs [--json]`).
+- **태그 `v0.2.145` = `6d45a84`**, GitHub·GitLab 양쪽. CI 초록(pre-push 풀 250/250 + CI 1회). 공지 3줄은 사용자 승인 후 확정(첫 줄은 "모놀리스에서 CLAUDE.md 진입점을 여러 개 두어야 할 때"로 일반화 — 특정 서비스 경로 언급 제거, 셋째 줄 간결화). **발송은 태그 push 시 GitLab CI `release-notice` 잡이 자동으로 했다**(17:32 채널 확인) — 내가 "발송은 사용자 몫"이라고 두 번 잘못 안내함. 체크리스트 6-2 문구를 실제 경로대로 고침(태그 = 발송, 그래서 승인은 태그 전).
 - **CLI `v0.2.41` = `1edb1d2`** (README ref v0.2.145, check·test 통과, master+태그 push).
 - **#25 close** — "v0.2.145에 반영·배포" 코멘트 후 닫음(http 201/200).
 - **회신문(artifact bf663dcb)**: 버전 표기 v0.2.145로, 4절에 Claude 한 문장 예시(`/연결프로젝트 <주소>` · "프론트 저장소 연결해줘 — …") 추가, 아코디언(절·소절 독립 토글 + 전체 펼치기/접기 위·아래) + OS 테마 추종(`prefers-color-scheme`만, data-theme 무시 — 사용자 요청). 전체 펼치기 "안 됨" 제보는 스크롤 고정 점프였음 → `overflow-anchor:none` + 클릭한 툴바 `scrollIntoView`.

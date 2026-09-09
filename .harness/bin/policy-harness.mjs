@@ -720,21 +720,23 @@ function printHookInstallNotice() {
   if (harnessRootRel !== '.harness') return
   if (!fs.existsSync(path.join(repoRoot, '.githooks'))) return
 
-  let hooksPath = ''
+  // 판정 정본은 hooks-state.mjs(0.2.146): installed(래퍼) · legacy(예전 방식, 세션 시작이 갱신) · off · optout · nogit
+  let info = { state: 'off', hooksPath: '' }
   try {
-    hooksPath = execFileSync('git', ['config', '--get', 'core.hooksPath'], {
+    info = JSON.parse(execFileSync(process.execPath, [path.join(repoRoot, '.harness/bin/hooks-state.mjs'), '--json'], {
       cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim()
+    }))
   } catch {
-    hooksPath = ''
+    info = { state: 'off', hooksPath: '' }
   }
-  if (hooksPath === '.githooks') return
+  if (info.state === 'installed' || info.state === 'legacy' || info.state === 'nogit') return
 
   console.log('')
   console.log('git hook 미설치 (이 clone 기준):')
-  console.log(hooksPath
-    ? `- core.hooksPath가 '${hooksPath}'로 설정되어 있어 하네스 훅이 실행되지 않습니다.`
-    : '- core.hooksPath가 설정되어 있지 않아 커밋·push 검사가 실행되지 않습니다.')
+  console.log(info.hooksPath
+    ? `- core.hooksPath가 '${info.hooksPath}'로 설정되어 있어 하네스 훅이 실행되지 않습니다.`
+    : '- git 기본 훅 폴더에 하네스 래퍼가 없어 커밋·push 검사가 실행되지 않습니다.')
+  if (info.state === 'optout') console.log('- 이 PC는 명시적으로 끈 상태입니다(harness.hooksAutoEnable=false). 되돌리기: git config --unset harness.hooksAutoEnable')
   console.log('- 훅 설정은 clone으로 공유되지 않습니다. 저장소를 새로 받은 사람은 각자 한 번 실행해야 합니다:')
   console.log('    .harness/bin/harness hooks:install')
 }

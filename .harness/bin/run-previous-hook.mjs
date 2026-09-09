@@ -38,9 +38,23 @@ function readGitConfig(key) {
   }
 }
 
+// `.git/…` 값은 공통 .git 기준으로 푼다 — 연결 워크트리의 .git은 파일이라 작업 폴더 기준으로는 보관함
+// (harness.previousHooksPath=.git/hooks/harness-prev)을 못 찾는다(0.2.146, 외부 리뷰 P1-1).
+function gitCommonDir() {
+  try {
+    return path.resolve(repoRoot, execFileSync('git', ['rev-parse', '--git-common-dir'], {
+      cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim())
+  } catch {
+    return path.join(repoRoot, '.git')
+  }
+}
+
 function toAbs(value) {
   if (!value) return ''
-  return path.isAbsolute(value) ? value : path.resolve(repoRoot, value)
+  if (path.isAbsolute(value)) return value
+  if (value === '.git' || value.startsWith('.git/')) return path.join(gitCommonDir(), value.slice(4).replace(/^\//, ''))
+  return path.resolve(repoRoot, value)
 }
 
 function samePath(a, b) {
@@ -88,6 +102,12 @@ if (samePath(previousHooksAbs, harnessHooksAbs)) {
 
 const previousHook = path.join(previousHooksAbs, hookName)
 if (!fs.existsSync(previousHook) || fs.statSync(previousHook).isDirectory()) {
+  process.exit(0)
+}
+
+// 0.2.146: 이전 훅 자리가 하네스 래퍼(.git/hooks의 위임 스크립트)이면 자기 자신을 다시 부르는 것이다 —
+// 옛 마커('.git/hooks')가 남은 clone에서 생길 수 있는 구성이라, 순환으로 죽이지 않고 조용히 건너뛴다.
+if (fs.readFileSync(previousHook, 'utf8').includes('harness-hook-wrapper')) {
   process.exit(0)
 }
 

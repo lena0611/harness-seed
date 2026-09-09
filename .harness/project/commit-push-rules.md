@@ -31,12 +31,12 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 - 본문을 이 문서에 두지 않는 이유: 이 문서는 project-owned라 기존 소비자에게 업데이트로 전파되지 않습니다(결정 81).
 
 ## hook 설치 기준
-- `.harness/bin/harness hooks:install`은 `core.hooksPath`를 `.githooks`로 설정합니다.
+- `.harness/bin/harness hooks:install`은 git 기본 훅 폴더(`.git/hooks`)에 하네스 래퍼를 두고 `core.hooksPath`를 해제합니다(0.2.146). 래퍼가 현재 브랜치의 `.githooks/*`에 위임하므로 하네스 없는 브랜치로 옮겨도 훅이 남고, 그 브랜치에서는 한 줄 알린 뒤 통과합니다. 래퍼는 git 클라이언트 훅 전부를 덮어 `.githooks/`의 어떤 이름이든 예전처럼 실행됩니다.
 - git 저장소가 아닌 디렉터리에서는 hook을 설치하지 않고, `git init` 후 다시 실행하라는 짧은 안내로 실패합니다. 이때 Node stack trace를 출력하지 않습니다.
 - 기존 `.git/hooks/*` 또는 기존 `core.hooksPath`의 hook은 삭제하지 않습니다.
-- 기존 hook 경로는 `harness.previousHooksPath`에 저장하고, `.githooks/*`에서 먼저 체인 실행합니다.
+- 기존 hook 경로는 `harness.previousHooksPath`에 저장하고, `.githooks/*`(없으면 래퍼)에서 먼저 체인 실행합니다. 래퍼 자리에 있던 기존 `.git/hooks/<훅>` 파일은 `.git/hooks/harness-prev/`로 옮겨 계속 실행합니다.
 - `.github/commit-template.txt`를 git commit template로 연결합니다.
-- hook 설치 여부는 `git config core.hooksPath`가 `.githooks`이고 `.githooks/pre-commit`, `.githooks/pre-push`, `.githooks/post-merge`가 존재하는지로 판단합니다.
+- hook 설치 여부는 `.harness/bin/harness hooks:status`로 판단합니다(`켜짐 (브랜치 무관 래퍼)`). 판정 정본은 `hooks-state.mjs`이며, `core.hooksPath`가 `.githooks`로 남아 있으면 예전 방식이라 세션 시작 훅이 자동으로 갱신합니다.
 
 ## pre-commit
 - 사용자가 커밋을 승인하고 실제 `git commit`이 실행될 때 동작합니다.

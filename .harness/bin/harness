@@ -62,6 +62,7 @@ Commands:
   report:install             설치·업데이트 결과를 본체 이슈보드에 등록 (토큰 없으면 파일로)
   linked                     연결 프로젝트(다른 저장소) 상태 표. linked add --repo <주소|폴더> [--focus …] [--label …] 로 선언·개인 접근 폴더를 대신 씀
   hooks:install              git hook/커밋 템플릿 연결  (hooks:install)
+  hooks:status               git hook 상태(켜짐/예전 방식/꺼짐)와 이 브랜치의 .githooks 유무  (hooks:status)
   standards:list             스택 하네스 후보 조회      (standards:list)
   templates:list             scaffold 템플릿 후보 조회  (templates:list)
   stack:apply | stack:reset | stack:status
@@ -98,6 +99,7 @@ case "$cmd" in
   report:install)  exec node .harness/bin/report-install.mjs "$@" ;;
   linked)          exec node .harness/bin/linked-projects.mjs "$@" ;;
   hooks:install)   exec node .harness/bin/install-hooks.mjs "$@" ;;
+  hooks:status)    exec node .harness/bin/hooks-state.mjs --explain "$@" ;;
   standards:list)  exec node .harness/bin/list-stack-standards.mjs "$@" ;;
   templates:list)  exec node .harness/bin/list-templates.mjs "$@" ;;
   stack:apply)     exec node .harness/bin/apply-stack.mjs "$@" ;;

@@ -34,6 +34,7 @@ if "%CMD%"=="prune:aliases"   set "SCRIPT=prune-aliases.mjs"
 if "%CMD%"=="report:install"  set "SCRIPT=report-install.mjs"
 if "%CMD%"=="linked"  set "SCRIPT=linked-projects.mjs"
 if "%CMD%"=="hooks:install"   set "SCRIPT=install-hooks.mjs"
+if "%CMD%"=="hooks:status"    set "SCRIPT=hooks-state.mjs" & set "PRE=--explain"
 if "%CMD%"=="standards:list"  set "SCRIPT=list-stack-standards.mjs"
 if "%CMD%"=="templates:list"  set "SCRIPT=list-templates.mjs"
 if "%CMD%"=="stack:apply"     set "SCRIPT=apply-stack.mjs"
@@ -99,6 +100,7 @@ echo   prune:aliases              prune retired npm aliases (preview; --write to
 echo   report:install             post install/update report to the body issue board
 echo   linked                     linked projects status; linked add --repo ^<url^|dir^> [--focus ..] [--label ..] writes the declaration
 echo   hooks:install              git hooks + template    (hooks:install)
+echo   hooks:status               git hooks state         (hooks:status)
 echo   standards:list             stack harness catalog   (standards:list)
 echo   templates:list             scaffold templates      (templates:list)
 echo   stack:apply ^| stack:reset ^| stack:status

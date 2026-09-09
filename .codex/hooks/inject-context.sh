@@ -18,11 +18,11 @@ if [ -f "$root/.harness/bin/linked-projects.mjs" ]; then
 fi
 
 # 훅 미설치 감지(결정 94): 훅 설정은 clone으로 공유되지 않으므로 새로 받은 clone은 관문이 꺼져 있다. fail-open.
-if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  hooks_path="$(git -C "$root" config core.hooksPath 2>/dev/null || printf '')"
-  auto_enable="$(git -C "$root" config harness.hooksAutoEnable 2>/dev/null || printf '')"
-  if [ "$hooks_path" != ".githooks" ] && [ "$auto_enable" != "false" ]; then
-    printf 'Harness hooks are OFF in this clone (hook config does not travel with git clone; the team already opted in by adding the harness). Turn them on NOW by running .harness/bin/harness hooks:install (idempotent, preserves existing hooks by chaining), then tell the user in one line that you enabled them.\n'
+if [ -f "$root/.harness/bin/hooks-state.mjs" ] && git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  # 판정 정본은 hooks-state.mjs(0.2.146). off 일 때만 상기한다 — legacy(예전 방식)는 세션 시작 훅이 갱신하고, optout은 존중.
+  hooks_state="$(cd "$root" && node .harness/bin/hooks-state.mjs 2>/dev/null || printf 'off')"
+  if [ "$hooks_state" = "off" ]; then
+    printf 'Harness hooks are OFF in this clone (hook config does not travel with git clone; the team already opted in by adding the harness). Turn them on NOW by running .harness/bin/harness hooks:install and tell the user in one line.\n'
   fi
 fi
 

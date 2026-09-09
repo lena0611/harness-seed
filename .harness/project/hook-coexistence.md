@@ -11,7 +11,7 @@ husky, lefthook처럼 `core.hooksPath`를 쓰는 git 훅 도구와 하네스 훅
 
 ## 공존은 이미 설계되어 있다
 
-- `.harness/bin/harness hooks:install`(`install-hooks.mjs`)은 기존 hook 경로를 `harness.previousHooksPath`에 저장하고 `core.hooksPath`를 `.githooks`로 설정합니다. 기존 훅 도구의 파일은 삭제하거나 수정하지 않습니다.
+- `.harness/bin/harness hooks:install`(`install-hooks.mjs`)은 기존 hook 경로를 `harness.previousHooksPath`에 저장하고, `core.hooksPath`를 **해제**한 뒤 git 기본 훅 폴더(`.git/hooks`)에 하네스 **래퍼**를 둡니다(0.2.146). 래퍼는 현재 브랜치의 `.githooks/<훅>`에 위임하므로 브랜치를 바꿔도 훅이 사라지지 않습니다 — 예전 방식(`core.hooksPath=.githooks`)은 하네스 없는 브랜치에서 훅이 조용히 0개가 됐습니다(smartscore-backend/common #28). 기존 훅 도구의 파일은 삭제하거나 수정하지 않습니다.
 - 커밋/푸시 시 `.githooks/*`가 기존 hook(husky 등)을 먼저 체인 실행하고(`run-previous-hook.mjs`, 전환 전 프로젝트 PATH인 `HARNESS_PREV_PATH` 사용), 그다음 하네스 검사를 실행합니다.
 - 따라서 husky 쪽 훅(lint-staged 등)은 그대로 동작하고, 실패하면 하네스 검사 전에 커밋이 막힙니다.
 
@@ -31,10 +31,10 @@ husky, lefthook처럼 `core.hooksPath`를 쓰는 git 훅 도구와 하네스 훅
 - 순서가 지켜져야 하는 이유(실측): husky 9.1.7은 실행 시 `core.hooksPath`를 **조건 없이** 자기 경로로 덮어씁니다. 따라서 하네스 설치는 항상 husky *뒤에* 와야 하며, 두 패턴 모두 그 순서를 보장합니다.
 - 프로젝트 쪽 검사(lint·test·build)를 어떻게 구성할지는 이 문서의 범위가 아닙니다 — 견본 정본은 회사 툴킷 `ai-standard/toolkits/quality-gates`(https://git.smartscore.kr/ai-standard/toolkits/quality-gates)이고, 에이전트에게 요청하면 조달해 설치합니다(`/검증게이트설치`). 이 문서는 그 구성과 하네스 깃훅이 **공존하는 배선**만 정합니다.
 - 하한선(실측 2026-08-26): `postprepare`는 **npm 7부터** 생명주기로 인정됩니다. npm 6(Node 12·14 동봉분)은 `prepare`가 있어도 `postprepare`를 실행하지 않습니다. husky 9 자체가 Node 18+를 요구하므로 이 공존 패턴을 쓸 프로젝트는 하한선이 자동 충족되고, husky 없이 하네스 훅만 쓰는 프로젝트는 `prepare` 직행이면 npm 6에서도 동작합니다. 덤: npm 7+에서는 `prepare`를 지워도 `postprepare`가 단독으로 실행되므로, husky를 걷어내도 하네스 훅 설치는 살아남습니다.
-- 멱등입니다: husky가 자기 경로로 설정 → `install-hooks.mjs`가 그 경로를 저장·체인하고 `.githooks`로 재설정. `npm install`을 반복해도 같은 상태로 수렴합니다.
+- 멱등입니다: husky가 자기 경로로 설정 → `install-hooks.mjs`가 그 경로를 저장·체인하고 `core.hooksPath`를 해제(래퍼가 husky 훅을 이어 실행). `npm install`을 반복해도 같은 상태로 수렴합니다.
 - 부수 이점: 훅 설치는 git 로컬 설정이라 clone으로 공유되지 않는데, prepare에 물리면 팀원이 `npm install`만 해도 husky 훅과 하네스 훅이 함께 장착됩니다(별도 온보딩 단계 불필요).
 - 적용 후 확인:
-  - `git config core.hooksPath` → `.githooks`
+  - `.harness/bin/harness hooks:status` → `켜짐 (브랜치 무관 래퍼)` (`core.hooksPath`는 해제 상태가 정상)
   - `git config harness.previousHooksPath` → husky 경로(버전에 따라 `.husky` 또는 `.husky/_`)이면 체인 연결 완료
 
 ## lint 이중 실행은 없다 — 하네스는 lint를 실행하지 않는다 (0.2.131)
@@ -58,12 +58,22 @@ husky 훅은 잘 돌지만, **옛 `.git/hooks` 훅들은 실행 경로에서 조
 "삭제하지 않는다"는 약속은 지켜지지만 기능은 사라지므로, 0.2.135부터 교체가 일어나는 순간
 `hooks:install`이 무엇이 밀려나는지 경고 1줄을 출력합니다.
 
-밀려난 훅이 여전히 필요하면 **새 체인(husky) 쪽에서 직접 호출**하세요:
+밀려난 훅이 여전히 필요하면 **보관된 원본을 새 체인(husky) 쪽에서 직접 호출**하세요. 하네스 설치 뒤 `.git/hooks/<훅>`은 하네스 **래퍼**이고, 옛 원본은 `<공통 .git>/hooks/harness-prev/<훅>`에 있습니다(0.2.146):
 
 ```sh
 # .husky/pre-commit 등에서
-sh "$(git rev-parse --show-toplevel)/.git/hooks/pre-commit"
+sh "$(git rev-parse --git-common-dir)/hooks/harness-prev/pre-commit"
 ```
+
+> 0.2.145 이전 안내대로 `.git/hooks/pre-commit`을 직접 부르던 구성도 그대로 동작합니다. 래퍼는 하네스 체인 안에서 다시 불리면(재진입) 하네스로 되돌아가지 않고 **보관된 원본만** 실행합니다 — 순환은 생기지 않습니다. 새로 쓸 때는 위처럼 보관 경로를 직접 부르는 편이 뜻이 분명합니다.
+
+## 래퍼가 다루는 훅 이름과 알아둘 것 (0.2.146)
+
+- 래퍼는 git **클라이언트 훅 전부**를 덮습니다(`applypatch-msg`·`pre-applypatch`·`post-applypatch`·`pre-commit`·`pre-merge-commit`·`prepare-commit-msg`·`commit-msg`·`post-commit`·`pre-rebase`·`post-checkout`·`post-merge`·`pre-push`·`pre-auto-gc`·`post-rewrite`·`post-index-change`·`sendemail-validate`). 예전 방식(`core.hooksPath=.githooks`)에서 실행되던 `.githooks/*`는 이름이 무엇이든 그대로 실행됩니다. 서버 측 훅과 `fsmonitor-watchman`·`p4-*`·`reference-transaction`은 대상이 아닙니다.
+- 래퍼 자리에 있던 프로젝트 훅은 `harness-prev/`로 옮겨 계속 실행합니다. 심볼릭 링크는 대상을 새 위치 기준으로 다시 잇습니다. 같은 이름이 다시 나타나면(다른 도구가 훅을 갱신) **새 파일이 실행 자리**를 차지하고 옛 것은 `<이름>.<시각>.old`로 남습니다 — 제거 시 실행 자리의 것이 원래 자리로 돌아가고 `.old`는 남으니 필요 없으면 지우세요.
+- 전역(`~/.gitconfig`) `core.hooksPath`가 있는 PC에서는 전역을 건드리지 않고 저장소 로컬에 기본 훅 폴더를 명시해 덮습니다. 전역 훅 폴더의 훅은 이전 훅 체인으로 계속 실행됩니다.
+- 워크트리는 공통 `.git`의 훅 폴더 하나를 나눠 쓰므로 어느 워크트리에서 커밋해도 같은 래퍼·같은 보관함이 동작합니다.
+- **Claude 세션이 없는 PC(Codex·Copilot·터미널만)**: 예전 방식 설치가 자동으로 갱신될 계기가 없습니다. 동작은 종전과 같고, `.harness/bin/harness hooks:install` 한 번이면 래퍼 방식으로 넘어옵니다.
 
 ## husky가 없는 프로젝트(PHP 등)의 자체 훅 폴더 (0.2.141)
 
@@ -80,7 +90,7 @@ Node가 아닌 프로젝트(PHP 모놀리스 등)가 자기 커밋 검사(예: P
   }
   ```
   composer를 쓰지 않으면 각자 한 번 `git config core.hooksPath scripts/git-hooks && node .harness/bin/install-hooks.mjs`.
-- **확인**: `git config core.hooksPath` → `.githooks`, `git config harness.previousHooksPath` → 자기 훅 폴더(예: scripts/git-hooks).
+- **확인**: `.harness/bin/harness hooks:status` → `켜짐 (브랜치 무관 래퍼)`, `git config harness.previousHooksPath` → 자기 훅 폴더(예: scripts/git-hooks). `core.hooksPath`는 해제된 상태가 정상입니다(0.2.146) — 래퍼가 그 폴더의 훅을 먼저 실행합니다.
 - **훅 스크립트가 지킬 것**: 입력은 `git diff --cached --name-only`(이번 커밋의 파일), 검사 대상은 `git show ":$f"`(스테이징된 내용), 실패는 `exit 1`. 필요한 실행 파일이 없을 때 조용히 통과시키지 말고 실패시킵니다 — 검사가 빠지는 것이 이 게이트가 막으려는 사고입니다. 2번째 줄에 `# scope: project`를 적어 두면 다중 저장소 세션 안내가 정확히 가리킵니다.
 - **왜 Claude 세션 훅이 아니라 git 훅인가**: 세션 훅은 그 저장소를 주 폴더로 연 창에서만 돕니다. 연결 프로젝트(다른 저장소 창에서 이 저장소를 고치는 경우)나 사람·Codex 커밋에는 닿지 않습니다. git 훅은 커밋이 그 저장소에서 일어나는 한 항상 돕니다. 규칙 본문은 `domain-rules.md`에(에이전트가 읽음), 물리 차단은 git 훅에.
 - 회사 quality-gates 툴킷에 PHP 스택 견본은 아직 없습니다(2026-09-03). 위 패턴으로 만든 훅이 자리 잡으면 `stacks/php/` MR로 역제안하세요.

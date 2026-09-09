@@ -168,7 +168,7 @@ features/사이트전환.md → src/views/SiteSwitch.vue, src/store/site.js
 
 기획 연동은 안내 장치입니다. 커밋 검증이 관련 기획과 미정산 변경을 알려주고, 작업 컨텍스트가 관련 문서를 먼저 읽게 합니다. push를 막던 차단 모드는 0.2.142에서 제거했습니다 — 실사용 0이었고, 기획 저장소에 접근 못 하면 통과시키는 fail-open이라 "막힌다"는 약속을 지키지 못했습니다.
 
-- **git hook은 clone으로 공유되지 않습니다.** `core.hooksPath`는 로컬 설정이라 저장소를 새로 받은 사람은 각자 `.harness/bin/harness hooks:install`을 한 번 실행해야 합니다(최초 설치는 init이 자동 활성화, 새 clone은 세션 시작 훅이 자동 복원).
+- **git hook은 clone으로 공유되지 않습니다.** 훅 자리(`.git/hooks`의 하네스 래퍼)는 로컬 설정이라 저장소를 새로 받은 사람은 각자 `.harness/bin/harness hooks:install`을 한 번 실행해야 합니다(최초 설치는 init이 자동 활성화, 새 clone은 세션 시작 훅이 자동 복원).
 - 강제가 필요하면 서버 쪽(CI·push rule)이 맞는 자리입니다. 하네스는 길라잡이지 감독관이 아닙니다(결정 75).
 
 ## 4. 이미 연동된 프로젝트의 업데이트

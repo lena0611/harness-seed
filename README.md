@@ -181,7 +181,7 @@ CLI 기본 설치는 기술 스택을 적용한 뒤 그 스택과 호환되는 �
 
 npm 프로젝트는 package.json의 `prepare`(husky 공존 시 `postprepare`)에 걸어 clone마다 자동화할 수 있습니다(`.harness/project/hook-coexistence.md`). 이 명령은 `.githooks/`와 함께 `.github/commit-template.txt`를 git commit template로 연결합니다. hook은 작업 완료 시점을 결정하지 않고, 사용자가 commit/push를 승인한 뒤 실행되는 최종 안전장치입니다. 커밋 메시지는 아래 형식을 기준으로 씁니다.
 
-`hooks:install`은 기존 `.git/hooks/*` 파일을 삭제하거나 덮어쓰지 않습니다. 기존 `.git/hooks/pre-commit`, `.git/hooks/pre-push` 또는 기존 `core.hooksPath`의 hook이 있으면 그 경로를 `harness.previousHooksPath`에 저장하고, `.githooks/pre-commit`/`.githooks/pre-push`가 기존 hook을 먼저 실행한 뒤 하네스 검사를 실행합니다.
+`hooks:install`은 `core.hooksPath`를 해제하고 git 기본 훅 폴더(`.git/hooks`)에 하네스 래퍼를 둡니다(0.2.146). 래퍼는 현재 브랜치의 `.githooks/<훅>`에 위임하므로 하네스 없는 브랜치로 옮겨도 훅이 사라지지 않습니다. 기존 `.git/hooks/*` 파일은 삭제하지 않고 `.git/hooks/harness-prev/`로 옮겨 계속 실행하며, 기존 `core.hooksPath`(husky 등)의 hook은 `harness.previousHooksPath`에 저장해 먼저 체인 실행합니다. 상태 확인: `.harness/bin/harness hooks:status`.
 
 ```text
 변경 요약

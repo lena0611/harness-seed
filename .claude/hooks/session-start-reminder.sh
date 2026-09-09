@@ -13,13 +13,17 @@ printf '[harness] session-start\n'
 # clone 직후의 "꺼짐"은 누가 끈 선택이 아니라 물리 기본값이다 — 팀은 하네스를 저장소에
 # 넣으며 이미 이 검사를 쓰기로 했으므로, 세션 시작이 그 상태를 복원한다.
 # 멱등·fail-open: 이미 켜져 있으면 침묵, 실패해도 세션은 계속된다.
-if [ -d "$ROOT/.git" ] || git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  HOOKS_PATH="$(git -C "$ROOT" config core.hooksPath 2>/dev/null || printf '')"
-  AUTO_ENABLE="$(git -C "$ROOT" config harness.hooksAutoEnable 2>/dev/null || printf '')"
-  # harness.hooksAutoEnable=false 는 이 PC의 명시적 옵트아웃(init --no-hooks가 기록) — 존중한다.
-  if [ "$HOOKS_PATH" != ".githooks" ] && [ "$AUTO_ENABLE" != "false" ] && [ -f "$ROOT/.harness/bin/install-hooks.mjs" ]; then
+if [ -f "$ROOT/.harness/bin/hooks-state.mjs" ] && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  # 판정은 hooks-state.mjs가 정본이다(0.2.146): installed(래퍼 방식) · legacy(예전 core.hooksPath=.githooks) ·
+  # off · optout(harness.hooksAutoEnable=false — 이 PC의 명시적 선택, 존중) · nogit
+  HOOKS_STATE="$(cd "$ROOT" && node .harness/bin/hooks-state.mjs 2>/dev/null || printf 'off')"
+  if [ "$HOOKS_STATE" = "off" ] || [ "$HOOKS_STATE" = "legacy" ]; then
     if (cd "$ROOT" && node .harness/bin/install-hooks.mjs >/dev/null 2>&1); then
-      printf '[harness] 커밋·푸시 검사가 꺼져 있어 자동으로 켰습니다. (이 설정은 PC마다 따로라 clone에는 따라오지 않습니다 — 사용자에게 이 사실을 한 줄로 알려주세요)\n'
+      if [ "$HOOKS_STATE" = "legacy" ]; then
+        printf '[harness] 커밋·푸시 훅을 브랜치 무관 래퍼 방식으로 갱신했습니다 (0.2.146) — 하네스 없는 브랜치로 옮겨도 훅이 사라지지 않고, 그 브랜치에서는 한 줄 알린 뒤 통과합니다.\n'
+      else
+        printf '[harness] 커밋·푸시 검사가 꺼져 있어 자동으로 켰습니다. (이 설정은 PC마다 따로라 clone에는 따라오지 않습니다 — 사용자에게 이 사실을 한 줄로 알리세요.)\n'
+      fi
     else
       printf '[harness] 커밋·푸시 검사가 꺼져 있는데 자동으로 켜지 못했습니다. .harness/bin/harness hooks:install 을 직접 실행해 원인을 확인하세요.\n'
     fi

@@ -23,6 +23,20 @@
 - **공지에 남는 항목은 개념 이름 없이 상황으로 씁니다.** 하네스 개념을 하나도 모르는 사람이 읽어도 문장이 성립해야 합니다. "등록 안 된 문서 안내가…"(개념을 알아야 함) 대신 "설치 때 딸려온 예시 설정이 그대로 남아 안전장치가 헛돌던 경우를 알려줍니다"(상황만으로 성립).
 - 결과적으로 공지는 릴리스당 0~3줄이 정상입니다. 길어지면 레인을 잘못 나눈 것입니다.
 
+## 0.2.146 - 미배포
+
+### 공지
+- 커밋·푸시 훅이 브랜치를 바꿔도 사라지지 않습니다: 훅 자리를 `core.hooksPath=.githooks`에서 git 기본 폴더(`.git/hooks`)의 **위임 래퍼**로 옮겼습니다. 하네스가 없는 브랜치로 checkout해도 훅이 남고, 그 브랜치에서는 "하네스 검사 없이 진행합니다" 한 줄을 알린 뒤 통과합니다. 기존 설치는 다음 Claude 세션 시작 때 자동으로 갱신됩니다 — Claude 세션이 없는 PC(Codex·터미널만)는 `harness hooks:install` 한 번(smartscore-backend/common #28).
+
+### 상세
+- **[결함픽스] 하네스 없는 브랜치로 이동하면 커밋 훅이 조용히 사라진다 (smartscore-backend/common #28, 2026-09-09)** — `core.hooksPath`는 clone 전역 설정이고 `.githooks/`는 브랜치 소속 파일이라 수명이 다르다. 하네스 없는 브랜치에서는 폴더가 사라지고 git은 훅 파일이 없으면 아무 말 없이 통과했다(제보: 사흘간 훅 0개, 세션 시작 요약이 잡음). 고침: 훅 자리를 브랜치와 무관한 git 기본 훅 폴더(`<공통 .git>/hooks`)로 옮기고 `core.hooksPath`를 **해제**한다. 그 자리의 하네스 래퍼(`hooks-state.mjs`가 정본, 마커 `harness-hook-wrapper`)가 현재 브랜치의 `.githooks/<훅>`에 위임하고, 없으면 이전 훅 체인(`harness.previousHooksPath`)만 돌린 뒤 pre-commit·pre-push에서 한 줄 알리고 통과한다(fail-open). 래퍼 이름은 하네스 셋 + 팀이 `.githooks/`에 둘 수 있는 흔한 이름(prepare-commit-msg·commit-msg·post-commit·post-checkout·pre-rebase). 워크트리도 공통 .git이라 하나다.
+  - 래퍼 자리에 있던 프로젝트 훅 파일(`.git/hooks/pre-commit` 등)은 지우지 않고 `.git/hooks/harness-prev/`로 옮겨 체인한다 — 예전 방식에서 "hooksPath 전환으로 조용히 죽던" 다른 이름의 훅(#14의 commit-msg)도 이제 계속 실행된다. 옛 마커(`harness.previousHooksPath=.git/hooks`)는 자기 자신을 체인하게 되므로 보관함 경로로 바꾼다.
+  - **외부 리뷰(Codex, 2026-09-09) 반영**: (P1-1) 보관함 경로 `.git/hooks/harness-prev`는 공통 .git 기준으로 해석 — 연결 워크트리에서도 보관 훅이 실행되고 실패가 전달된다. (P1-2) 같은 이름이 다시 나타나면 새 파일이 실행 자리를 차지하고 옛 것은 `<이름>.<시각>.old`로 물린다 — 다른 도구가 훅을 갱신한 뒤 재설치해도 최신 규칙이 실행되고 uninstall도 최신을 복원. (P1-3) 래퍼 재진입 가드: 옛 공존 안내대로 husky가 `.git/hooks/pre-commit`을 직접 부르면 보관 원본만 실행하고 하네스로 되돌아가지 않는다(순환 없음, 하네스 유무 양쪽 브랜치); 안내는 보관 경로를 부르도록 정정. (P2-1) 심볼릭 링크 훅은 대상을 새 위치 기준으로 다시 이어 보관·복원. (P2-2) 전역 `core.hooksPath`는 건드리지 않고 로컬에 기본 훅 폴더를 명시해 덮으며, 제거 때는 전역이 같은 값을 주면 로컬에 다시 적지 않는다. (P2-3) 래퍼 이름을 git 클라이언트 훅 전부(16종)로 — 예전 방식에서 돌던 `.githooks/post-rewrite` 등이 업데이트 뒤에도 그대로 실행된다.
+  - **외부 리뷰 2차(같은 날) 반영**: (P1) 전역 hooksPath를 덮는 로컬 값이 상대 `.git/hooks`면 연결 워크트리(.git이 파일)에서 아무것도 가리키지 않아 래퍼·팀 훅이 모두 빠지는데 installed로 판정했다 → 덮는 값은 **공통 훅 폴더의 절대 경로**로 쓰고 `harness.hooksPathOverride`에 기록(우리 것임을 재설치·uninstall이 알아봄), `core.hooksPath` 판정은 git 의미(상대 = 이 작업 폴더 기준)로 분리(`resolveGitHooksPath`) — 하네스 표식 해석(`resolveHooksPath`, `.git/` = 공통)은 보관함 값에만 쓴다. 옛 상대 값이 남은 clone은 워크트리에서 off로 읽혀 재설치가 교정 — 기록 키가 없어도 값이 기본 훅 폴더를 뜻하면(`.git/hooks`) 우리 것으로 보아 이전 훅 체인(전역 팀 훅)을 덮어쓰지 않는다(3차 P2-1). (P2) 재진입 가드가 훅 이름을 가리지 않는 깊이 값이라 `.githooks/pre-merge-commit → git hook run pre-commit` 같은 정상 호출까지 건너뛰었다 → 실행 중 토큰 `<공통 .git>|<훅 이름>` 목록(`HARNESS_HOOK_WRAPPER_ACTIVE`)으로 **같은 저장소의 같은 훅 이름**에만 걸리게 좁혔다(husky 동일 훅 재진입 호환 유지). 회귀는 실패 지점을 실제 `.githooks/pre-commit`에 두고, 옛 결함 상태를 흉내 낸 대조군(토큰 선주입 → 검사 생략·병합 통과)으로 재발을 잡는지 자체 증명(3차 P2-2).
+  - 판정 정본 `hooks-state.mjs`(installed/legacy/off/optout/nogit)를 세션 시작 훅·프롬프트 훅(Claude·Codex)·검사기(`policy-harness`)·uninstall이 함께 쓴다. **legacy(core.hooksPath=.githooks)는 세션 시작 때 자동 갱신**하고 한 줄 알린다. 새 명령 `harness hooks:status`.
+  - uninstall은 래퍼만 지우고(래퍼 아닌 파일은 절대 안 건드림) 보관함 원본을 제자리로, husky 등 저장된 이전 hooksPath는 복원한다.
+  - 문서: hook-coexistence·commit-push-rules·README·automation-coverage·spec-authority-workflow·스킬 명령·가이드에서 "core.hooksPath=.githooks" 표현을 래퍼 방식으로 바꿨다.
+
 ## 0.2.145 - 2026-09-08
 
 ### 공지

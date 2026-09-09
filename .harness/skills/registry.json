@@ -755,7 +755,7 @@
         ".harness/session/decision-log.md"
       ],
       "commands": [
-        "git config --get core.hooksPath",
+        ".harness/bin/harness hooks:status  # 켜짐(브랜치 무관 래퍼)인지 — 판정 정본 hooks-state.mjs",
         "test -x .githooks/pre-commit && test -x .githooks/pre-push",
         ".harness/bin/harness impact",
         ".harness/bin/harness check  # 최종 검증만 요청했거나 hook 미설치/우회 환경일 때",

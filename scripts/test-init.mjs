@@ -262,7 +262,7 @@ function cleanInstallCreatesExpectedFiles() {
 
   const commitPushRules = read(target, '.harness/project/commit-push-rules.md')
   assert(commitPushRules.includes('## 요청별 검증 경로'), 'commit/push rules should explain request-specific verification paths')
-  assert(commitPushRules.includes('hook 설치 여부는 `git config core.hooksPath`가 `.githooks`'), 'commit/push rules should explain hook installation detection')
+  assert(commitPushRules.includes('hook 설치 여부는 `.harness/bin/harness hooks:status`로 판단'), 'commit/push rules should explain hook installation detection')
   assert(commitPushRules.includes('commit hook에서 같은 검증이 다시 실행될 수 있음'), 'commit/push rules should warn about intentional manual check duplication')
 
   const skillRegistry = JSON.parse(read(target, '.harness/skills/registry.json'))
@@ -284,7 +284,7 @@ function cleanInstallCreatesExpectedFiles() {
   assert(commitPushSkill.audience.includes('consumer'), 'commit/push finalization skill should be consumer-facing')
   assert(commitPushSkill.read.includes('.harness/project/commit-push-rules.md'), 'commit/push finalization skill should read commit/push rules')
   assert(commitPushSkill.triggers.includes('커밋하고 푸시'), 'commit/push finalization skill should trigger on combined commit and push requests')
-  assert(commitPushSkill.commands.some((command) => command.includes('git config --get core.hooksPath')), 'commit/push finalization skill should check hook installation')
+  assert(commitPushSkill.commands.some((command) => command.includes('harness hooks:status')), 'commit/push finalization skill should check hook installation')
   assert(commitPushSkill.outputs.includes('중복 검증 생략 여부'), 'commit/push finalization skill should report duplicate check avoidance')
   assert(updateSkill, 'consumer skill registry should include harness update flow')
   assert(updateSkill.audience.includes('consumer'), 'harness update flow should be consumer-facing')
@@ -527,40 +527,37 @@ function installExcludesSessionWorktrees() {
   }
 }
 
+
+// 0.2.146: 훅 "켜짐"은 core.hooksPath 값이 아니라 git 기본 훅 폴더의 하네스 래퍼로 판정한다.
+function hooksState(target) {
+  return run(nodeBin, [path.join(target, '.harness/bin/hooks-state.mjs')], { cwd: target }).trim()
+}
+function hasWrapper(target, name) {
+  const file = path.join(target, '.git/hooks', name)
+  return fs.existsSync(file) && fs.readFileSync(file, 'utf8').includes('harness-hook-wrapper')
+}
 function freshInstallAutoActivatesGitHooks() {
   // 결정 94: 하네스 설치가 곧 관문 동의 — 최초 설치는 hooks:install을 자동 실행한다.
   // 업데이트는 재배선하지 않는다(기존 clone의 선택 존중). --no-hooks는 옵트아웃.
   const target = makeTarget()
   const out = runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
 
-  const hooksPath = run('git', ['config', 'core.hooksPath'], { cwd: target }).trim()
-  assert(hooksPath === '.githooks', `fresh install must auto-activate hooks (got '${hooksPath}')`)
+  assert(hooksState(target) === 'installed' && hasWrapper(target, 'pre-commit'), `fresh install must auto-activate hooks (got '${hooksState(target)}')`)
+  assert(readTargetGitConfig(target, 'core.hooksPath') === '', 'wrapper mode leaves core.hooksPath unset (git default hooks dir)')
   const template = run('git', ['config', 'commit.template'], { cwd: target }).trim()
   assert(template === '.github/commit-template.txt', 'fresh install must set commit template')
   assert(out.includes('자동으로 완료됨'), 'next-steps guidance must reflect auto activation')
   assert(out.includes('자동으로 켜고'), 'guidance must say new clones get hooks restored automatically at session start (0.2.131+), not ask for a manual hooks:install')
 
   // 사용자가 의도적으로 훅을 끈 뒤 업데이트(manifest 존재) — 재배선하지 않아야 한다.
-  run('git', ['config', '--unset', 'core.hooksPath'], { cwd: target })
+  for (const name of ['pre-commit', 'pre-push']) fs.rmSync(path.join(target, '.git/hooks', name), { force: true })
   runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
-  let rewired = '.githooks'
-  try {
-    rewired = run('git', ['config', 'core.hooksPath'], { cwd: target }).trim()
-  } catch {
-    rewired = ''
-  }
-  assert(rewired !== '.githooks', 'update must not re-wire hooks the project turned off')
+  assert(hooksState(target) === 'off', 'update must not re-wire hooks the project turned off')
 
   // 옵트아웃: --no-hooks 최초 설치는 훅을 건드리지 않는다.
   const optOut = makeTarget()
   runInitDefaultHooks(optOut, '--no-hooks', '--no-scan', '--no-handoff', '--no-check')
-  let optOutPath = ''
-  try {
-    optOutPath = run('git', ['config', 'core.hooksPath'], { cwd: optOut }).trim()
-  } catch {
-    optOutPath = ''
-  }
-  assert(optOutPath === '', '--no-hooks fresh install must leave hooksPath unset')
+  assert(hooksState(optOut) === 'optout' && !hasWrapper(optOut, 'pre-commit'), 'init --no-hooks must leave hooks off on this PC')
   const optOutMarker = run('git', ['config', 'harness.hooksAutoEnable'], { cwd: optOut }).trim()
   assert(optOutMarker === 'false', '--no-hooks must record the opt-out marker so session auto-heal respects it')
 }
@@ -601,21 +598,25 @@ function sessionStartHookAutoEnablesGitHooks() {
   // (1) 꺼진 상태(clone 직후와 동일) → 자동으로 켜고 알린다.
   const first = run('/bin/sh', [hook], { cwd: target, env })
   assert(first.includes('자동으로 켰습니다'), 'session start must auto-enable hooks and say so')
-  const hooksPath = run('git', ['config', 'core.hooksPath'], { cwd: target }).trim()
-  assert(hooksPath === '.githooks', `auto-heal must actually set core.hooksPath (got '${hooksPath}')`)
+  assert(hooksState(target) === 'installed', `auto-heal must actually install the wrappers (got '${hooksState(target)}')`)
 
   // (2) 이미 켜진 상태 → 침묵(같은 안내 반복 없음).
   const second = run('/bin/sh', [hook], { cwd: target, env })
   assert(!second.includes('자동으로 켰습니다'), 'session start must stay quiet when hooks are already on')
 
   // (3) 명시적 옵트아웃(init --no-hooks가 남기는 표식)은 자동 복원이 존중한다.
-  run('git', ['config', '--unset', 'core.hooksPath'], { cwd: target })
+  for (const name of ['pre-commit', 'pre-push']) fs.rmSync(path.join(target, '.git/hooks', name), { force: true })
   run('git', ['config', 'harness.hooksAutoEnable', 'false'], { cwd: target })
   const optedOut = run('/bin/sh', [hook], { cwd: target, env })
   assert(!optedOut.includes('자동으로 켰습니다'), 'explicit opt-out must not be overridden by auto-heal')
-  let stillOff = ''
-  try { stillOff = run('git', ['config', 'core.hooksPath'], { cwd: target }).trim() } catch { stillOff = '' }
-  assert(stillOff === '', 'opt-out clone must stay off after session start')
+  assert(hooksState(target) === 'optout', 'opt-out clone must stay off after session start')
+  // (3b) 예전 방식(core.hooksPath=.githooks)으로 남은 clone은 세션 시작이 래퍼 방식으로 갱신하고 알린다(0.2.146).
+  run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target })
+  run('git', ['config', 'core.hooksPath', '.githooks'], { cwd: target })
+  const migrated = run('/bin/sh', [hook], { cwd: target, env })
+  assert(migrated.includes('래퍼 방식으로 갱신'), 'session start must migrate a legacy core.hooksPath=.githooks clone and say so')
+  assert(hooksState(target) === 'installed' && readTargetGitConfig(target, 'core.hooksPath') === '', 'migration must unset core.hooksPath and install wrappers')
+  run('git', ['config', 'harness.hooksAutoEnable', 'false'], { cwd: target })
   run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target })
 
   // (4) git 저장소가 아니어도 죽지 않는다(fail-open).
@@ -667,16 +668,18 @@ function uninstallUnsetsHarnessGitConfigWhenNothingPreceded() {
   fs.writeFileSync(path.join(target, '.git/hooks/pre-commit'), '#!/bin/sh\nexit 0\n')
   fs.chmodSync(path.join(target, '.git/hooks/pre-commit'), 0o755)
   run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target })
-  assert(readTargetGitConfig(target, 'core.hooksPath') === '.githooks', 'precondition: install must point hooks at .githooks')
-  assert(readTargetGitConfig(target, 'harness.previousHooksPath') === '.git/hooks', 'precondition: legacy hooks are recorded with the default-dir marker')
+  assert(readTargetGitConfig(target, 'core.hooksPath') === '', 'precondition: wrapper mode leaves core.hooksPath unset')
+  assert(readTargetGitConfig(target, 'harness.previousHooksPath') === '.git/hooks/harness-prev', 'precondition: the parked legacy hook is chained from the harness-prev dir')
+  assert(hasWrapper(target, 'pre-commit') && exists(target, '.git/hooks/harness-prev/pre-commit'), 'the legacy hook file must be parked, not overwritten')
 
   // dry-run(무 --confirm)은 복원 계획만 보여주고 설정을 건드리지 않는다.
   const planOut = run(nodeBin, [path.join(target, '.harness/bin/uninstall-harness.mjs')], { cwd: target })
   assert(planOut.includes('복원할 git 설정'), 'dry-run must announce the git config restore plan')
-  assert(readTargetGitConfig(target, 'core.hooksPath') === '.githooks', 'dry-run must not touch git config')
+  assert(hasWrapper(target, 'pre-commit'), 'dry-run must not remove the wrappers')
 
   run(nodeBin, [path.join(target, '.harness/bin/uninstall-harness.mjs'), '--confirm'], { cwd: target })
-  assert(readTargetGitConfig(target, 'core.hooksPath') === '', "the '.git/hooks' marker means no previous hooksPath config existed — uninstall must unset, not restore the marker literally")
+  assert(readTargetGitConfig(target, 'core.hooksPath') === '', "a parked-dir chain means no previous hooksPath config existed — uninstall must leave core.hooksPath unset")
+  assert(!hasWrapper(target, 'pre-commit') && !exists(target, '.git/hooks/harness-prev/pre-commit'), 'uninstall must remove the wrapper and move the parked hook back')
   assert(readTargetGitConfig(target, 'commit.template') === '', 'uninstall must unset the harness commit.template when none preceded it')
   assert(readTargetGitConfig(target, 'harness.previousHooksPath') === '', 'uninstall must clean up its own bookkeeping key')
   assert(exists(target, '.git/hooks/pre-commit'), 'legacy default-dir hooks must survive uninstall and become active again')
@@ -826,8 +829,7 @@ function gitHooksRunWithoutNpm() {
 
   // 런처 경유 hooks:install 도 동작해야 한다.
   run(path.join(target, '.harness/bin/harness'), ['hooks:install'], { cwd: target })
-  const hooksPath = run('git', ['config', '--get', 'core.hooksPath'], { cwd: target }).trim()
-  assert(hooksPath === '.githooks', 'launcher hooks:install should set core.hooksPath')
+  assert(hooksState(target) === 'installed', 'launcher hooks:install should install the wrappers')
 
   // 실제 hook 스크립트를 직접 실행해 npm 없이 통과하는지 e2e 확인
   // (consumer: previous hook 없음, seed-mode 없음, activeStack=none → 일반 검사 통과).
@@ -2820,29 +2822,342 @@ function orphanNoticePointsToLocalRegistryExit() {
 
 // 0.2.135 — clubadm D: 이전 훅 보관함은 한 칸이라 새 값이 오면 옛 체인이 실행에서 빠진다.
 // 파일은 그대로지만 기능이 사라지므로, 교체 순간의 경고 1줄을 잠근다.
-// #14 (smartscore-backend/common, 2026-09-02): core.hooksPath 전환은 .git/hooks/ 안의 다른 이름 훅
-// (commit-msg 등)을 조용히 죽인다 — 파일은 남고 실행만 사라져 어디에도 나타나지 않는다.
-// 설치 순간 이름을 불러 경고해야 한다. 하네스가 이어 주는 세 훅과 .sample은 대상이 아니다.
-function hooksInstallWarnsAboutGitHooksThatStopRunning() {
-  // 리포터가 밟은 경로 그대로: 실동작 훅이 있는 저장소에 init(훅 자동 활성화). init은 성공 단계의
-  // stdout을 "완료" 한 단어로 접으므로, 경고가 stderr로 나와 요약에 실리는지까지 여기서 본다.
+// #14 (smartscore-backend/common, 2026-09-02) → #28 (2026-09-09, 0.2.146): 예전 방식(core.hooksPath=.githooks)은
+// .git/hooks/ 안의 다른 이름 훅(commit-msg 등)을 조용히 죽였고, 하네스 없는 브랜치에서는 훅 전체가 조용히 0개가
+// 됐다. 래퍼 방식은 둘 다 닫는다: 래퍼 자리의 프로젝트 훅은 harness-prev/로 옮겨 체인하고(계속 실행),
+// 다른 이름의 훅도 래퍼가 이어 준다. "실행되지 않는다" 경고는 더 이상 참이 아니므로 나오지 않아야 한다.
+function hooksInstallKeepsExistingGitHooksRunning() {
   const target = makeTarget()
   for (const name of ['commit-msg', 'pre-commit']) {
-    fs.writeFileSync(path.join(target, `.git/hooks/${name}`), '#!/bin/sh\nexit 0\n')
+    fs.writeFileSync(path.join(target, `.git/hooks/${name}`), `#!/bin/sh\necho ${name} >> "$(git rev-parse --show-toplevel)/.hook-ran"\nexit 0\n`)
     fs.chmodSync(path.join(target, `.git/hooks/${name}`), 0o755)
   }
   const out = runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
-  const warning = out.split('\n').find((line) => line.includes('더 이상 실행되지 않습니다')) ?? ''
-  assert(warning.includes('commit-msg'), `init must surface the orphaned commit-msg warning (got: ${warning || out.slice(-400)})`)
-  assert(!warning.includes('pre-commit'), 'hooks the harness chains must not be listed as stopping')
-  assert(!warning.includes('.sample'), 'sample files are not hooks and must not be listed')
-  assert(out.includes('.githooks/commit-msg'), 'the warning must show how to move the hook')
-  assert(out.includes('팀 규칙'), 'the warning must mention the local→tracked scope change')
+  assert(!out.includes('더 이상 실행되지 않습니다'), 'wrapper mode must not claim that existing hooks stop running — they keep running')
+  assert(exists(target, '.git/hooks/harness-prev/pre-commit') && exists(target, '.git/hooks/harness-prev/commit-msg'), 'existing hook files at wrapper slots must be parked, not overwritten')
+  assert(hasWrapper(target, 'pre-commit') && hasWrapper(target, 'commit-msg'), 'wrappers must occupy the git hook slots')
+  assert(readTargetGitConfig(target, 'harness.previousHooksPath') === '.git/hooks/harness-prev', 'the parked dir must be the chained previous-hooks path')
+  assert(readTargetGitConfig(target, 'core.hooksPath') === '', 'wrapper mode unsets core.hooksPath')
 
-  // 이미 .githooks로 전환된 저장소에서 재실행: 새로 잃는 것이 없으니 경고를 반복하지 않는다.
+  // e2e: 하네스 브랜치에서 커밋 → 두 훅 모두 실제로 돈다(pre-commit은 .githooks 체인으로, commit-msg는 래퍼 체인으로).
+  fs.writeFileSync(path.join(target, 'work.txt'), 'x\n')
+  gitCommitAll(target, 'wrapper e2e')
+  const ran = fs.readFileSync(path.join(target, '.hook-ran'), 'utf8')
+  assert(ran.includes('pre-commit') && ran.includes('commit-msg'), `both parked hooks must run on commit (got: ${ran.trim()})`)
+
+  // 재실행은 멱등: 보관함을 다시 옮기거나 경고를 내지 않는다.
   const script = path.join(target, '.harness/bin/install-hooks.mjs')
   const out2 = run('sh', ['-c', `"${nodeBin}" "${script}" 2>&1`], { cwd: target })
-  assert(!out2.includes('더 이상 실행되지 않습니다'), 'a re-run on an already-switched repo must stay quiet')
+  assert(!out2.includes('더 이상 실행되지 않습니다') && !out2.includes('보관, 계속 실행됨'), 'a re-run must stay quiet and must not re-park the parked files')
+  assert(fs.readdirSync(path.join(target, '.git/hooks/harness-prev')).length === 2, 'the parked dir must hold exactly the two originals after a re-run')
+}
+
+// 0.2.146 업그레이드 경로: ≤0.2.145 clone은 core.hooksPath=.githooks + (legacy 파일이 있었다면) previousHooksPath='.git/hooks'
+// 마커 상태다. 갱신 시 마커를 그대로 두면 래퍼가 자기 자신을 체인하므로, 원본을 harness-prev/로 옮기고 마커를 그 경로로
+// 바꿔야 한다. 결과: 팀 훅은 계속 돌고, core.hooksPath는 해제, 커밋은 정상.
+function legacyInstallWithDefaultDirMarkerMigratesToWrappers() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  // runInit은 --no-hooks 경로라 옵트아웃 표식이 남는다 — 실제 ≤0.2.145 clone에는 없으므로 지운다.
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
+  fs.writeFileSync(path.join(target, '.git/hooks/pre-commit'), '#!/bin/sh\necho team >> "$(git rev-parse --show-toplevel)/.hook-ran"\nexit 0\n')
+  fs.chmodSync(path.join(target, '.git/hooks/pre-commit'), 0o755)
+  // ≤0.2.145 설치 상태를 그대로 재현
+  run('git', ['config', 'core.hooksPath', '.githooks'], { cwd: target })
+  run('git', ['config', 'harness.previousHooksPath', '.git/hooks'], { cwd: target })
+  assert(hooksState(target) === 'legacy', 'precondition: the clone reads as legacy')
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target })
+  assert(out.includes('갱신 완료'), 'migration must announce itself as an upgrade, not a fresh install')
+  assert(readTargetGitConfig(target, 'core.hooksPath') === '', 'migration must unset the legacy core.hooksPath')
+  assert(readTargetGitConfig(target, 'harness.previousHooksPath') === '.git/hooks/harness-prev', 'the old default-dir marker must be rewritten to the parked dir (it would chain the wrapper into itself)')
+  assert(exists(target, '.git/hooks/harness-prev/pre-commit') && hasWrapper(target, 'pre-commit'), 'the legacy team hook must be parked and the slot taken by the wrapper')
+  assert(hooksState(target) === 'installed', 'after migration the clone reads as installed')
+
+  fs.writeFileSync(path.join(target, 'work.txt'), 'x\n')
+  gitCommitAll(target, 'after migration')
+  assert(fs.existsSync(path.join(target, '.hook-ran')), 'the parked team hook must still run after migration')
+}
+
+// 외부 리뷰 P1-1 (2026-09-09): 보관함 경로(.git/hooks/harness-prev)를 작업 폴더 기준으로 풀면 연결 워크트리(.git이 파일)에서
+// 보관 훅을 못 찾아 팀 검사가 조용히 빠진다. 공통 .git 기준으로 풀어야 하고, 실패도 그대로 전달돼야 한다.
+function parkedTeamHooksRunFromLinkedWorktree() {
+  const target = makeTarget()
+  fs.writeFileSync(path.join(target, '.git/hooks/pre-commit'), '#!/bin/sh\necho team >> "$(git rev-parse --show-toplevel)/.hook-ran"\nexit 0\n')
+  fs.chmodSync(path.join(target, '.git/hooks/pre-commit'), 0o755)
+  runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
+  gitCommitAll(target, 'main worktree')
+  const wt = `${target}-wt`
+  run('git', ['worktree', 'add', '-q', wt, '-b', 'wt-branch'], { cwd: target })
+  try {
+    fs.writeFileSync(path.join(wt, 'wt.txt'), 'x\n')
+    gitCommitAll(wt, 'from linked worktree')
+    assert(fs.existsSync(path.join(wt, '.hook-ran')), 'the parked team hook must run when committing from a linked worktree (common-dir resolution)')
+    // 실패 전달: 보관 훅이 실패하면 워크트리 커밋도 막힌다.
+    fs.writeFileSync(path.join(target, '.git/hooks/harness-prev/pre-commit'), '#!/bin/sh\necho blocked >&2\nexit 1\n')
+    fs.writeFileSync(path.join(wt, 'wt2.txt'), 'y\n')
+    let blocked = false
+    try { gitCommitAll(wt, 'must be blocked') } catch { blocked = true }
+    assert(blocked, 'a failing parked team hook must block the commit in the linked worktree too')
+  } finally {
+    try { run('git', ['worktree', 'remove', '--force', wt], { cwd: target }) } catch {}
+  }
+}
+
+// 외부 리뷰 P1-2: 다른 도구가 .git/hooks/pre-commit을 새 훅 B로 갈아 쓴 뒤 재설치하면, 보관함에 A가 있다는 이유로 B가
+// 사본으로 밀리고 옛 A가 계속 실행됐다. 최신이 실행 자리를 차지해야 하고 제거도 최신을 복원해야 한다.
+function reinstallPrefersNewestTeamHookAndUninstallRestoresIt() {
+  const target = makeTarget()
+  fs.writeFileSync(path.join(target, '.git/hooks/pre-commit'), '#!/bin/sh\n# HOOK-A\nexit 0\n')
+  fs.chmodSync(path.join(target, '.git/hooks/pre-commit'), 0o755)
+  runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(fs.readFileSync(path.join(target, '.git/hooks/harness-prev/pre-commit'), 'utf8').includes('HOOK-A'), 'precondition: A is parked')
+  fs.writeFileSync(path.join(target, 'a.txt'), 'a\n')
+  gitCommitAll(target, 'A passes')
+
+  // 다른 도구가 래퍼 자리를 새 훅 B(차단)로 덮어썼다.
+  fs.writeFileSync(path.join(target, '.git/hooks/pre-commit'), '#!/bin/sh\n# HOOK-B\necho B-blocks >&2\nexit 1\n')
+  fs.chmodSync(path.join(target, '.git/hooks/pre-commit'), 0o755)
+  const out = run('sh', ['-c', `"${nodeBin}" "${path.join(target, '.harness/bin/install-hooks.mjs')}" 2>&1`], { cwd: target })
+  assert(out.includes('.old'), 'reinstall must say the older parked copy was archived')
+  assert(fs.readFileSync(path.join(target, '.git/hooks/harness-prev/pre-commit'), 'utf8').includes('HOOK-B'), 'the newest team hook must take the executing slot')
+  assert(fs.readdirSync(path.join(target, '.git/hooks/harness-prev')).some((f) => f.startsWith('pre-commit.') && f.endsWith('.old')), 'the older hook must be kept as an archived copy')
+  fs.writeFileSync(path.join(target, 'b.txt'), 'b\n')
+  let blocked = false
+  try { gitCommitAll(target, 'B must block') } catch { blocked = true }
+  assert(blocked, 'after reinstall the newest team hook (B) must run and block the commit')
+
+  run(nodeBin, [path.join(target, '.harness/bin/uninstall-harness.mjs'), '--confirm'], { cwd: target })
+  assert(fs.readFileSync(path.join(target, '.git/hooks/pre-commit'), 'utf8').includes('HOOK-B'), 'uninstall must restore the newest team hook to the git hook slot')
+}
+
+// 외부 리뷰 P1-3: 옛 공존 안내는 husky 훅에서 `.git/hooks/pre-commit`을 직접 부르라고 했다. 0.2.146에서 그 파일은 래퍼라
+// 래퍼 → 하네스 → husky → 래퍼로 돌 수 있다. 재진입한 래퍼는 보관 원본만 실행하고 하네스로 되돌아가지 않아야 한다 —
+// 하네스가 있는 브랜치와 없는 브랜치 양쪽에서.
+function wrapperReentryFromHuskyRunsParkedOriginalOnly() {
+  const target = makeTarget()
+  fs.writeFileSync(path.join(target, '.git/hooks/pre-commit'), '#!/bin/sh\necho orig >> "$(git rev-parse --show-toplevel)/.hook-ran"\nexit 0\n')
+  fs.chmodSync(path.join(target, '.git/hooks/pre-commit'), 0o755)
+  fs.mkdirSync(path.join(target, '.husky/_'), { recursive: true })
+  fs.writeFileSync(path.join(target, '.husky/_/pre-commit'), '#!/bin/sh\necho husky >> "$(git rev-parse --show-toplevel)/.hook-ran"\nsh "$(git rev-parse --show-toplevel)/.git/hooks/pre-commit"\n')
+  fs.chmodSync(path.join(target, '.husky/_/pre-commit'), 0o755)
+  run('git', ['config', 'core.hooksPath', '.husky/_'], { cwd: target })
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
+  run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target })
+  assert(readTargetGitConfig(target, 'harness.previousHooksPath') === '.husky/_', 'precondition: husky is the chained previous hooks path')
+
+  fs.writeFileSync(path.join(target, 'a.txt'), 'a\n')
+  gitCommitAll(target, 'harness branch — no cycle')
+  let ran = fs.readFileSync(path.join(target, '.hook-ran'), 'utf8').trim().split('\n')
+  assert(ran.filter((l) => l === 'husky').length === 1 && ran.filter((l) => l === 'orig').length === 1, `husky and the parked original must each run exactly once on the harness branch (got: ${ran.join(',')})`)
+
+  // 하네스 없는 브랜치: 래퍼 → husky → 래퍼(재진입) → 보관 원본. 순환·중복 없이 끝나야 한다.
+  run('git', ['checkout', '-q', '--orphan', 'legacy-branch'], { cwd: target })
+  run('git', ['rm', '-rq', '--cached', '.'], { cwd: target })
+  for (const rel of ['.harness', '.githooks', '.claude', '.codex', '.github', 'AGENTS.md', 'CLAUDE.md', '.hook-ran']) fs.rmSync(path.join(target, rel), { recursive: true, force: true })
+  fs.writeFileSync(path.join(target, 'legacy.txt'), 'y\n')
+  gitCommitAll(target, 'legacy branch — no cycle')
+  ran = fs.readFileSync(path.join(target, '.hook-ran'), 'utf8').trim().split('\n')
+  assert(ran.filter((l) => l === 'husky').length === 1 && ran.filter((l) => l === 'orig').length === 1, `on the branch without the harness husky and the parked original must each run exactly once (got: ${ran.join(',')})`)
+}
+
+// 외부 리뷰 P2-1: 상대 심볼릭 링크로 설치된 팀 훅(.git/hooks/pre-commit → ../../scripts/team-precommit)은 링크째 옮기면
+// 기준 폴더가 바뀌어 끊어진다. 대상을 새 위치 기준으로 다시 잇고, 제거 때 원래 자리 기준으로 되돌려야 한다.
+function parkedSymlinkHookKeepsWorking() {
+  const target = makeTarget()
+  fs.mkdirSync(path.join(target, 'scripts'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'scripts/team-precommit'), '#!/bin/sh\necho link >> "$(git rev-parse --show-toplevel)/.hook-ran"\nexit 0\n')
+  fs.chmodSync(path.join(target, 'scripts/team-precommit'), 0o755)
+  fs.symlinkSync('../../scripts/team-precommit', path.join(target, '.git/hooks/pre-commit'))
+  runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
+  const parked = path.join(target, '.git/hooks/harness-prev/pre-commit')
+  assert(fs.lstatSync(parked).isSymbolicLink() && fs.existsSync(fs.realpathSync(parked)), 'the parked hook must stay a symlink that still resolves')
+  fs.writeFileSync(path.join(target, 'a.txt'), 'a\n')
+  gitCommitAll(target, 'symlinked team hook')
+  assert(fs.existsSync(path.join(target, '.hook-ran')), 'the symlinked team hook must run through the parked chain')
+
+  run(nodeBin, [path.join(target, '.harness/bin/uninstall-harness.mjs'), '--confirm'], { cwd: target })
+  const restored = path.join(target, '.git/hooks/pre-commit')
+  assert(fs.lstatSync(restored).isSymbolicLink() && fs.realpathSync(restored) === fs.realpathSync(path.join(target, 'scripts/team-precommit')), 'uninstall must restore a working symlink at the original slot')
+}
+
+// 외부 리뷰 P2-2: 전역 core.hooksPath가 있으면 `git config --unset`은 로컬만 지워 실패하거나, 로컬을 지운 뒤 전역이 되살아나
+// 래퍼가 실행되지 않는데 설치 완료를 안내했다. 전역은 건드리지 않고 로컬에 기본 훅 폴더를 명시해 덮고, 전역 훅은 체인한다.
+function globalHooksPathIsOverriddenLocallyNotUnset() {
+  const target = makeTarget()
+  const globalHooks = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-global-hooks-'))
+  fs.writeFileSync(path.join(globalHooks, 'pre-commit'), '#!/bin/sh\necho global >> "$(git rev-parse --show-toplevel)/.hook-ran"\nexit 0\n')
+  fs.chmodSync(path.join(globalHooks, 'pre-commit'), 0o755)
+  // run()은 호출자의 GIT_* 환경을 걷어내므로 GIT_CONFIG_GLOBAL 대신 HOME을 바꿔 전역 설정(~/.gitconfig)을 흉내 낸다.
+  const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-global-home-'))
+  const globalConfig = path.join(fakeHome, '.gitconfig')
+  fs.writeFileSync(globalConfig, `[core]\n\thooksPath = ${globalHooks}\n`)
+  const env = { ...process.env, HOME: fakeHome, XDG_CONFIG_HOME: path.join(fakeHome, '.config') }
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
+
+  const out = run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target, env })
+  assert(out.includes('전역 설정'), 'install must say it overrode the global hooksPath locally instead of removing it')
+  assert(fs.readFileSync(globalConfig, 'utf8').includes(globalHooks), 'the user global config must be left untouched')
+  const localOverride = run('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: target, env }).trim()
+  assert(path.isAbsolute(localOverride) && fs.realpathSync(localOverride) === fs.realpathSync(path.join(target, '.git/hooks')), `the local override must be the absolute default hooks dir so every worktree resolves it (got '${localOverride}')`)
+  assert(readTargetGitConfig(target, 'harness.hooksPathOverride') === localOverride, 'the override must be recorded under its own key so reinstall/uninstall recognise it as ours')
+  assert(run(nodeBin, [path.join(target, '.harness/bin/hooks-state.mjs')], { cwd: target, env }).trim() === 'installed', 'state must read installed with the local override')
+  assert(readTargetGitConfig(target, 'harness.previousHooksPath') === globalHooks, 'the global hooks dir must be chained as the previous hooks path')
+  fs.writeFileSync(path.join(target, 'a.txt'), 'a\n')
+  run('git', ['add', '.'], { cwd: target, env })
+  run('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'with global hooks'], { cwd: target, env })
+  assert(fs.existsSync(path.join(target, '.hook-ran')), 'the global hook must keep running through the chain')
+
+  run(nodeBin, [path.join(target, '.harness/bin/uninstall-harness.mjs'), '--confirm'], { cwd: target, env })
+  let local = ''
+  try { local = run('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: target, env }).trim() } catch { local = '' }
+  assert(local === '', 'uninstall must drop the local override and not re-write the global value locally')
+  assert(fs.readFileSync(globalConfig, 'utf8').includes(globalHooks), 'uninstall must leave the global config untouched')
+}
+
+// 외부 리뷰 2차 P1: 전역 core.hooksPath를 덮는 로컬 값이 상대 '.git/hooks'면 연결 워크트리(.git이 파일)에서 아무것도
+// 가리키지 않아 래퍼·팀 훅이 모두 빠지는데 판정은 installed였다. 덮는 값은 절대 경로여야 하고, 판정은 git 의미로,
+// 옛 상대 값이 남은 clone은 재설치가 교정해야 한다.
+function globalHooksPathOverrideWorksFromLinkedWorktree() {
+  const target = makeTarget()
+  const globalHooks = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-global-hooks-wt-'))
+  fs.writeFileSync(path.join(globalHooks, 'pre-commit'), '#!/bin/sh\necho global >> "$(git rev-parse --show-toplevel)/.hook-ran"\nexit 0\n')
+  fs.chmodSync(path.join(globalHooks, 'pre-commit'), 0o755)
+  const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-global-home-wt-'))
+  fs.writeFileSync(path.join(fakeHome, '.gitconfig'), `[core]\n\thooksPath = ${globalHooks}\n`)
+  const env = { ...process.env, HOME: fakeHome, XDG_CONFIG_HOME: path.join(fakeHome, '.config') }
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
+  run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target, env })
+  run('git', ['add', '.'], { cwd: target, env })
+  run('git', ['commit', '-q', '-m', 'main'], { cwd: target, env })
+
+  const wt = `${target}-gwt`
+  run('git', ['worktree', 'add', '-q', wt, '-b', 'gwt-branch'], { cwd: target, env })
+  try {
+    assert(run(nodeBin, [path.join(wt, '.harness/bin/hooks-state.mjs')], { cwd: wt, env }).trim() === 'installed', 'the linked worktree must see the wrappers through the absolute local override')
+    fs.writeFileSync(path.join(wt, 'wt.txt'), 'x\n')
+    run('git', ['add', '.'], { cwd: wt, env })
+    run('git', ['commit', '-q', '-m', 'from worktree'], { cwd: wt, env })
+    assert(fs.existsSync(path.join(wt, '.hook-ran')), 'the chained global team hook must run when committing from the linked worktree')
+    // 실패 전달: 전역 훅이 실패하면 워크트리 커밋도 막힌다.
+    fs.writeFileSync(path.join(globalHooks, 'pre-commit'), '#!/bin/sh\nexit 1\n')
+    fs.writeFileSync(path.join(wt, 'wt2.txt'), 'y\n')
+    run('git', ['add', '.'], { cwd: wt, env })
+    let blocked = false
+    try { run('git', ['commit', '-q', '-m', 'must block'], { cwd: wt, env }) } catch { blocked = true }
+    assert(blocked, 'a failing chained hook must block the worktree commit — i.e. the wrapper actually ran there')
+
+    // 이전 후보가 남긴 상태 그대로: 상대 '.git/hooks' + 기록 키 **없음** + previousHooksPath는 전역 팀 훅 경로.
+    // 판정은 off여야 하고, 워크트리에서 재설치하면 절대 경로로 교정되되 전역 팀 훅 연결은 그대로여야 한다(외부 리뷰 3차 P2-1).
+    run('git', ['config', 'core.hooksPath', '.git/hooks'], { cwd: target, env })
+    try { run('git', ['config', '--unset', 'harness.hooksPathOverride'], { cwd: target, env }) } catch {}
+    assert(readTargetGitConfig(target, 'harness.previousHooksPath') === globalHooks, 'precondition: the chain still points at the global team hooks')
+    assert(run(nodeBin, [path.join(wt, '.harness/bin/hooks-state.mjs')], { cwd: wt, env }).trim() === 'off', "a relative '.git/hooks' override must read as off from a linked worktree (git resolves it against the worktree, where .git is a file)")
+    run(nodeBin, [path.join(wt, '.harness/bin/install-hooks.mjs')], { cwd: wt, env })
+    const repaired = run('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: wt, env }).trim()
+    assert(path.isAbsolute(repaired) && fs.realpathSync(repaired) === fs.realpathSync(path.join(target, '.git/hooks')), `reinstall from the worktree must repair the override to the absolute common hooks dir (got '${repaired}')`)
+    assert(readTargetGitConfig(target, 'harness.hooksPathOverride') === repaired, 'the repaired value must now be recorded under the override key')
+    assert(run(nodeBin, [path.join(wt, '.harness/bin/hooks-state.mjs')], { cwd: wt, env }).trim() === 'installed', 'after repair the worktree reads installed')
+    assert(readTargetGitConfig(target, 'harness.previousHooksPath') === globalHooks, "repair must not overwrite the previous-hooks chain with the stale '.git/hooks' value — the global team hooks stay chained")
+    // 전역 팀 훅이 실제로 다시 돈다: 지금은 exit 1 이므로 차단, 통과로 바꾸면 표식을 남기고 성공.
+    fs.writeFileSync(path.join(wt, 'wt3.txt'), 'z\n')
+    run('git', ['add', '.'], { cwd: wt, env })
+    let blockedAfterRepair = false
+    try { run('git', ['commit', '-q', '-m', 'must block after repair'], { cwd: wt, env }) } catch { blockedAfterRepair = true }
+    assert(blockedAfterRepair, 'after repair the chained global team hook must still run (and block) from the linked worktree')
+    fs.writeFileSync(path.join(globalHooks, 'pre-commit'), '#!/bin/sh\necho global-after-repair >> "$(git rev-parse --show-toplevel)/.hook-ran"\nexit 0\n')
+    run('git', ['commit', '-q', '-m', 'passes after repair'], { cwd: wt, env })
+    assert(fs.readFileSync(path.join(wt, '.hook-ran'), 'utf8').includes('global-after-repair'), 'the global team hook must leave its mark on the worktree commit after repair')
+  } finally {
+    try { run('git', ['worktree', 'remove', '--force', wt], { cwd: target, env }) } catch {}
+  }
+}
+
+// 외부 리뷰 2차 P2 / 3차 P2-2: 재진입 가드가 훅 이름을 가리지 않는 단일 깊이 값이면, 팀의 .githooks/pre-merge-commit이
+// `git hook run pre-commit`으로 pre-commit 검사를 재사용하는 정상 패턴에서 안쪽 pre-commit 래퍼가 재진입으로 오인해
+// **실제 .githooks/pre-commit**을 건너뛴다. 그래서 실패 지점은 보관 원본이 아니라 .githooks/pre-commit 자체여야 한다 —
+// 보관 원본은 없다. 옛 가드로 되돌리면 표식이 안 남고 병합이 통과해 이 회귀가 빨개진다(아래 대조군이 그 상태를 흉내 낸다).
+function crossHookCallRunsTheRealHook() {
+  const target = makeTarget()
+  runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!exists(target, '.git/hooks/harness-prev/pre-commit'), 'precondition: no parked original — only the real .githooks/pre-commit can leave the mark')
+  const realPreCommit = path.join(target, '.githooks/pre-commit')
+  // 기준·feature 커밋은 통과하는 pre-commit으로 만든다.
+  fs.writeFileSync(realPreCommit, '#!/bin/sh\nexit 0\n')
+  // 팀의 .githooks/pre-merge-commit → pre-commit 검사 재사용 (git 기본 훅 견본과 같은 패턴)
+  fs.writeFileSync(path.join(target, '.githooks/pre-merge-commit'), '#!/bin/sh\ngit hook run pre-commit -- "$@"\n')
+  fs.chmodSync(path.join(target, '.githooks/pre-merge-commit'), 0o755)
+  gitCommitAll(target, 'base with pre-merge-commit hook')
+  run('git', ['checkout', '-q', '-b', 'feature'], { cwd: target })
+  fs.writeFileSync(path.join(target, 'feature.txt'), 'f\n')
+  gitCommitAll(target, 'feature work')
+  run('git', ['checkout', '-q', '-'], { cwd: target })
+  // 이제 실제 pre-commit만 표식을 남기고 실패한다.
+  fs.writeFileSync(realPreCommit, '#!/bin/sh\necho real-precommit >> "$(git rev-parse --show-toplevel)/.hook-ran"\nexit 1\n')
+  fs.rmSync(path.join(target, '.hook-ran'), { force: true })
+
+  const mergeArgs = ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'merge', '--no-ff', '-q', '-m', 'merge feature', 'feature']
+  let blocked = false
+  try { run('git', mergeArgs, { cwd: target }) } catch { blocked = true }
+  assert(fs.existsSync(path.join(target, '.hook-ran')), 'pre-merge-commit → git hook run pre-commit must run the real .githooks/pre-commit (the mark is written only there)')
+  assert(blocked, 'the failing real pre-commit must block the merge commit — a different hook name is not re-entry')
+  try { run('git', ['merge', '--abort'], { cwd: target }) } catch {}
+
+  // 대조군: 옛 결함(안쪽 래퍼가 재진입으로 오인) 상태를 흉내 낸다 — pre-commit 토큰이 이미 있는 것처럼 환경을 주면
+  // 래퍼는 재진입으로 보고 .githooks/pre-commit을 건너뛴다. 그러면 표식이 없고 병합이 통과한다. 즉 위 두 단언은
+  // 정확히 그 결함을 잡는다.
+  fs.rmSync(path.join(target, '.hook-ran'), { force: true })
+  // 래퍼는 `git rev-parse --show-toplevel`(실제 경로) 기준으로 토큰을 만든다 — 임시 폴더의 심볼릭 링크(/var → /private/var)를 맞춘다.
+  const commonDir = run('git', ['rev-parse', '--git-common-dir'], { cwd: target }).trim()
+  const preCommitToken = `${fs.realpathSync(path.resolve(target, commonDir))}|pre-commit`
+  let mergedDespiteFailingHook = false
+  try {
+    run('git', mergeArgs, { cwd: target, env: { ...process.env, HARNESS_HOOK_WRAPPER_ACTIVE: preCommitToken } })
+    mergedDespiteFailingHook = true
+  } catch {}
+  assert(mergedDespiteFailingHook && !fs.existsSync(path.join(target, '.hook-ran')), 'control: when the inner wrapper believes it is re-entered, the real pre-commit is skipped — proving the positive assertions above would catch the old depth-guard defect')
+  run('git', ['reset', '-q', '--hard', 'HEAD~1'], { cwd: target })
+}
+
+// 외부 리뷰 P2-3: 예전 방식은 .githooks/의 어떤 이름이든 실행했다. 래퍼가 고정 8개만 덮으면 post-rewrite 같은 기존 팀 훅이
+// 업데이트 뒤 조용히 꺼진다. 클라이언트 훅 전부를 덮어야 한다.
+function wrapperCoversAllClientHookNames() {
+  const target = makeTarget()
+  runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
+  fs.writeFileSync(path.join(target, '.githooks/post-rewrite'), '#!/bin/sh\necho rewrite >> "$(git rev-parse --show-toplevel)/.hook-ran"\nexit 0\n')
+  fs.chmodSync(path.join(target, '.githooks/post-rewrite'), 0o755)
+  assert(hasWrapper(target, 'post-rewrite') && hasWrapper(target, 'pre-merge-commit') && hasWrapper(target, 'applypatch-msg'), 'wrappers must exist for every client hook name')
+  fs.writeFileSync(path.join(target, 'a.txt'), 'a\n')
+  gitCommitAll(target, 'first')
+  run('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '--amend', '--no-edit'], { cwd: target })
+  assert(fs.existsSync(path.join(target, '.hook-ran')), 'a team .githooks/post-rewrite must run through the wrapper on amend')
+}
+
+// #28 (smartscore-backend/common, 2026-09-09): 하네스 없는 브랜치로 checkout하면 .githooks/가 사라져 훅이 조용히
+// 0개가 됐다(사흘). 래퍼는 clone 안(.git/hooks)에 남아, 그 브랜치에서 한 줄 알린 뒤 통과하고 이전 훅 체인은 계속 돈다.
+function hooksSurviveCheckoutToBranchWithoutHarness() {
+  const target = makeTarget()
+  fs.writeFileSync(path.join(target, '.git/hooks/pre-commit'), '#!/bin/sh\necho team >> "$(git rev-parse --show-toplevel)/.hook-ran"\nexit 0\n')
+  fs.chmodSync(path.join(target, '.git/hooks/pre-commit'), 0o755)
+  runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
+  gitCommitAll(target, 'with harness')
+  assert(hooksState(target) === 'installed', 'precondition: wrappers installed')
+
+  // 하네스가 없는 브랜치: orphan으로 만들고 하네스 파일을 모두 지운다(팀의 하네스 이전 브랜치와 같은 상태).
+  run('git', ['checkout', '-q', '--orphan', 'legacy-branch'], { cwd: target })
+  run('git', ['rm', '-rq', '--cached', '.'], { cwd: target })
+  for (const rel of ['.harness', '.githooks', '.claude', '.codex', '.github', 'AGENTS.md', 'CLAUDE.md']) fs.rmSync(path.join(target, rel), { recursive: true, force: true })
+  fs.rmSync(path.join(target, '.hook-ran'), { force: true })
+  assert(!exists(target, '.githooks'), 'precondition: the branch has no harness hooks dir')
+  fs.writeFileSync(path.join(target, 'legacy.txt'), 'y\n')
+  const out = run('sh', ['-c', 'git add -A && git -c user.name=t -c user.email=t@example.com commit -q -m "on legacy branch" 2>&1'], { cwd: target })
+  assert(out.includes('하네스 검사 없이 진행합니다'), `a commit on a branch without .githooks must announce the skip (got: ${out.trim().slice(0, 200)})`)
+  assert(run('git', ['log', '--oneline', '-1'], { cwd: target }).includes('on legacy branch'), 'the commit must still succeed (fail-open)')
+  assert(fs.existsSync(path.join(target, '.hook-ran')), 'the previous (team) hook chain must keep running on the branch without the harness')
+  assert(hasWrapper(target, 'pre-commit'), 'the wrapper must survive the branch switch')
 }
 
 // #14: `report:install --help`가 인자로 인식되지 않아 그대로 실행돼 리포트 파일이 생겼다.
@@ -7158,19 +7473,15 @@ function specUnlinkedScreenIsSurfacedRegardlessOfInclude() {
 function specGuardNoticesMissingHookInstall() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
-  // init이 훅을 설치하지 않았을 수도 있다(--no-check 경로) — 없으면 그대로 미설치 상태다.
-  try {
-    run('git', ['config', '--unset', 'core.hooksPath'], { cwd: target })
-  } catch {
-    // 설정 자체가 없음
-  }
+  // 미설치 상태로 만든다(래퍼 제거).
+  for (const name of ['pre-commit', 'pre-push']) fs.rmSync(path.join(target, '.git/hooks', name), { force: true })
 
   const out = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
   assert(out.includes('git hook 미설치'), 'a clone without hooks must be told')
   assert(out.includes('.harness/bin/harness hooks:install'), 'the install command must be shown')
   assert(!out.includes('harness:hooks:install'), 'the command must be the one that actually exists')
 
-  run('git', ['config', 'core.hooksPath', '.githooks'], { cwd: target })
+  run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target })
   const after = run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard'], { cwd: target })
   assert(!after.includes('git hook 미설치'), 'an installed clone must not be nagged')
 }
@@ -7692,7 +8003,17 @@ const tests = [
   linkedAddWritesProfileAndLocalSettings,
   linkedAddDeclaresWithoutLocalFolder,
   installOutputEndsWithReportPrompt,
-  hooksInstallWarnsAboutGitHooksThatStopRunning,
+  hooksInstallKeepsExistingGitHooksRunning,
+  hooksSurviveCheckoutToBranchWithoutHarness,
+  legacyInstallWithDefaultDirMarkerMigratesToWrappers,
+  parkedTeamHooksRunFromLinkedWorktree,
+  reinstallPrefersNewestTeamHookAndUninstallRestoresIt,
+  wrapperReentryFromHuskyRunsParkedOriginalOnly,
+  parkedSymlinkHookKeepsWorking,
+  globalHooksPathIsOverriddenLocallyNotUnset,
+  wrapperCoversAllClientHookNames,
+  globalHooksPathOverrideWorksFromLinkedWorktree,
+  crossHookCallRunsTheRealHook,
   reportInstallHelpWritesNothing,
   updateRefreshesStaleHarnessModeNotes,
   bootstrapModeAlwaysRelaxesSyncCandidates,
