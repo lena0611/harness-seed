@@ -18,14 +18,38 @@ if [ -f "$ROOT/.harness/bin/hooks-state.mjs" ] && git -C "$ROOT" rev-parse --is-
   # off · optout(harness.hooksAutoEnable=false — 이 PC의 명시적 선택, 존중) · nogit
   HOOKS_STATE="$(cd "$ROOT" && node .harness/bin/hooks-state.mjs 2>/dev/null || printf 'off')"
   if [ "$HOOKS_STATE" = "off" ] || [ "$HOOKS_STATE" = "legacy" ]; then
-    if (cd "$ROOT" && node .harness/bin/install-hooks.mjs >/dev/null 2>&1); then
+    # 성공·실패는 종료코드가 아니라 **결과 상태**로 가른다(multisite #35, 0.2.148). "켜졌는가"를 묻는 자리에서
+    # "명령이 0으로 끝났는가"를 대신 묻고 있었다 — 전환은 끝났는데 "켜지 못했다"고 알린 실측. 같은 구조로는 반대 방향
+    # (실패를 성공으로 알리는 것)도 막지 못한다. 실패로 갈릴 때만 설치기의 stderr 를 남긴다 — 버리면 재현이 안 되는
+    # 순간 증거가 통째로 사라진다(그 리포트가 정확히 그 경우였다).
+    # 종료코드는 성공 판정에 쓰지 않지만(아래) 버리지도 않는다 — 비정상 종료면 stderr 를 항상 남긴다(적대적 리뷰 C-1:
+    # 상태만 보면 래퍼 2/16개만 깔린 부분 설치를 성공으로 알리고 그 이유를 버린다). set -e 를 타지 않게 || 로 받는다.
+    INSTALL_RC=0
+    INSTALL_ERR="$(cd "$ROOT" && node .harness/bin/install-hooks.mjs 2>&1 >/dev/null)" || INSTALL_RC=$?
+    # 판정 정본(hooks-state.mjs)이 계산한 missing 까지 본다: installed 는 pre-commit·pre-push 둘만 보는 요약이라
+    # 나머지 14개가 빠진 부분 설치도 installed 다 — 팀이 체인한 commit-msg 같은 훅이 조용히 멈추는 상태다.
+    HOOKS_JSON="$(cd "$ROOT" && node .harness/bin/hooks-state.mjs --json 2>/dev/null || printf '{}')"
+    HOOKS_AFTER="$(printf '%s' "$HOOKS_JSON" | node -e 'var s="";process.stdin.on("data",function(d){s+=d}).on("end",function(){try{var j=JSON.parse(s);process.stdout.write(String(j.state||"off"))}catch(e){process.stdout.write("off")}})' 2>/dev/null || printf 'off')"
+    MISSING_AFTER="$(printf '%s' "$HOOKS_JSON" | node -e 'var s="";process.stdin.on("data",function(d){s+=d}).on("end",function(){try{var j=JSON.parse(s);process.stdout.write(String((j.missing||[]).length))}catch(e){process.stdout.write("99")}})' 2>/dev/null || printf '99')"
+    if [ "$HOOKS_AFTER" = "installed" ] && [ "$MISSING_AFTER" = "0" ]; then
       if [ "$HOOKS_STATE" = "legacy" ]; then
         printf '[harness] 커밋·푸시 훅을 브랜치 무관 래퍼 방식으로 갱신했습니다 (0.2.146) — 하네스 없는 브랜치로 옮겨도 훅이 사라지지 않고, 그 브랜치에서는 한 줄 알린 뒤 통과합니다.\n'
       else
         printf '[harness] 커밋·푸시 검사가 꺼져 있어 자동으로 켰습니다. (이 설정은 PC마다 따로라 clone에는 따라오지 않습니다 — 사용자에게 이 사실을 한 줄로 알리세요.)\n'
       fi
+      if [ "$INSTALL_RC" != "0" ] && [ -n "$INSTALL_ERR" ]; then
+        printf '[harness] 다만 설치기가 경고를 남겼습니다(종료코드 %s) — 내용을 사용자에게 전하세요:\n' "$INSTALL_RC"
+        printf '%s\n' "$INSTALL_ERR" | head -n 5 | sed 's/^/         설치기: /'
+      fi
     else
-      printf '[harness] 커밋·푸시 검사가 꺼져 있는데 자동으로 켜지 못했습니다. .harness/bin/harness hooks:install 을 직접 실행해 원인을 확인하세요.\n'
+      if [ "$HOOKS_AFTER" = "installed" ]; then
+        printf '[harness] 커밋·푸시 훅이 일부만 설치됐습니다 (래퍼 %s개 누락 — 팀이 체인한 훅이 멈출 수 있습니다). .harness/bin/harness hooks:install 을 직접 실행해 원인을 확인하세요.\n' "$MISSING_AFTER"
+      else
+        printf '[harness] 커밋·푸시 검사가 꺼져 있는데 자동으로 켜지 못했습니다 (지금 상태: %s). .harness/bin/harness hooks:install 을 직접 실행해 원인을 확인하세요.\n' "$HOOKS_AFTER"
+      fi
+      if [ -n "$INSTALL_ERR" ]; then
+        printf '%s\n' "$INSTALL_ERR" | head -n 5 | sed 's/^/         설치기: /'
+      fi
     fi
   fi
 fi

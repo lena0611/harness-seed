@@ -3394,6 +3394,371 @@ function installDeclaresCmdLineEndingsSoGitStopsWarning() {
   }
 }
 
+// #22 ①(scorecard-print) 2단 체인 검증 잔여분(0.2.148, ~/practice/two-stage-lab 픽스처 실측). 스택 init이 공통을
+// 중간 태그까지 올린 뒤 공통 init이 최신까지 올리면 구간이 둘로 쪼개진다. 0.2.144의 `--update-from`은 **프로젝트에
+// 이미 깔려 있는 업데이터**가 넘기므로, 그보다 낮은 버전에 머문 프로젝트에서는 그 신호가 오지 않아 lock의
+// lastUpdate가 중간값으로 좁아졌다(리포트 표식은 0.2.138부터 연속 구간을 이어받아 맞았다 — 두 기록이 갈렸다).
+// 이제 lock이 표식이 해결해 둔 출발 버전을 재사용한다. 픽스처 실측: from 0.2.142(좁음) → 0.2.140(맞음),
+// 구간에 0.2.141·0.2.142가 되살아났다.
+function twoStageUpdateRecordsTheRealStartVersion() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const current = JSON.parse(read(target, '.harness/install-manifest.json')).version
+  const lockOf = () => JSON.parse(read(target, '.harness/harness-lock.json'))
+  const markerPath = path.join(target, '.harness/generated/pending-report.json')
+  // 1단계가 남긴 상태를 흉내 낸다: 설치 기록·lock 은 중간 버전, 표식은 진짜 출발점을 들고 있다.
+  // 버전은 CHANGELOG 의 실제 절 목록에서 고른다(적대적 리뷰: 하드코딩은 옛 절이 아카이브되면 깨진다).
+  const released = (read(repoRoot, 'CHANGELOG.md').match(/^## (\d+\.\d+\.\d+) /gm) ?? []).map((line) => line.slice(3).trim().split(' ')[0])
+  assert(released[0] === current && released.length >= 5, `precondition: CHANGELOG top must be the installed version with at least 4 older sections (got ${released.slice(0, 5).join(', ')})`)
+  const middle = released[2]   // 두 릴리스 전 = 스택 단계가 올린 중간 태그
+  const start = released[4]    // 네 릴리스 전 = 진짜 출발점
+  const between = released[3]  // 좁아지면 이 구간이 빠진다
+  const stageOne = () => {
+    const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+    manifest.version = middle
+    fs.writeFileSync(path.join(target, '.harness/install-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+    const lock = lockOf()
+    lock.baseHarness.version = middle
+    fs.writeFileSync(path.join(target, '.harness/harness-lock.json'), `${JSON.stringify(lock, null, 2)}\n`)
+    fs.mkdirSync(path.dirname(markerPath), { recursive: true })
+    fs.writeFileSync(markerPath, `${JSON.stringify({ kind: 'update', from: start, to: middle, at: new Date().toISOString() }, null, 2)}\n`)
+  }
+
+  stageOne()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const chained = lockOf().lastUpdate
+  const marker = JSON.parse(read(target, '.harness/generated/pending-report.json'))
+  assert(marker.from === start, `precondition: the report marker must carry the real start (got: ${marker.from})`)
+  assert(chained?.from === start, `the lock must record the real start version, not the intermediate one (got: ${chained?.from})`)
+  assert(chained?.to === current, `the lock must record the installed version as the target (got: ${chained?.to})`)
+  // 중간 구간이 되살아났는지 — 좁아지면 이 두 버전이 빠진다.
+  const versions = (chained?.entries ?? []).map((entry) => entry.version)
+  assert(versions.includes(between) && versions.includes(middle), `the changelog delta must span the full range including ${between} and ${middle} (got: ${versions.join(', ')})`)
+
+  // 표식이 없으면(연속 구간이 아니면) 종전 규칙 그대로 직전 lock 버전에서 시작한다 — 없는 구간을 지어내지 않는다.
+  const plain = makeTarget()
+  runInit(plain, '--no-scan', '--no-handoff', '--no-check')
+  const plainManifest = JSON.parse(read(plain, '.harness/install-manifest.json'))
+  plainManifest.version = middle
+  fs.writeFileSync(path.join(plain, '.harness/install-manifest.json'), `${JSON.stringify(plainManifest, null, 2)}\n`)
+  const plainLock = JSON.parse(read(plain, '.harness/harness-lock.json'))
+  plainLock.baseHarness.version = middle
+  fs.writeFileSync(path.join(plain, '.harness/harness-lock.json'), `${JSON.stringify(plainLock, null, 2)}\n`)
+  fs.rmSync(path.join(plain, '.harness/generated/pending-report.json'), { force: true })
+  runInit(plain, '--no-scan', '--no-handoff', '--no-check')
+  const plainUpdate = JSON.parse(read(plain, '.harness/harness-lock.json')).lastUpdate
+  assert(plainUpdate?.from === middle, `without a chained marker the start must stay the previous lock version (got: ${plainUpdate?.from})`)
+}
+
+// #34(scorecard-print 0.2.147 리포트): 이관 안내가 정작 제보한 프로젝트에는 오지 않았다. 0.2.146의 동명 파일 처리가
+// 관리 파일을 덮지 않고 preservedForeignFiles 로 기록하므로, 이 결함을 겪은 프로젝트는 모두 이미 managed 밖이고 관리 파일만
+// 대조하는 드리프트 안내는 그들을 보지 못했다. 보존 기록에서 같은 안내를 내고, 되돌릴 길(--replace-file)을 준다. 그리고
+// 손으로 원본과 같게 만든 파일은 다음 업데이트가 다시 관리 대상으로 들인다 — 종전에는 copiedFiles 에도 승계에도 없어
+// 영원히 관리 밖이었다(제보자의 "다음 업데이트에서 재편입될 것으로 기대"는 현 코드로는 거짓이었다).
+function preservedForeignRegistryIsGuidedAndReadopted() {
+  const rel = '.harness/policy/policy-registry.json'
+  const original = fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+  const modified = JSON.parse(original)
+  modified.policies.push({ ...modified.policies[0], id: 'project.frozen.example', layer: 'project' })
+  const seedForeign = (target) => {
+    fs.mkdirSync(path.join(target, '.harness/policy'), { recursive: true })
+    fs.writeFileSync(path.join(target, rel), `${JSON.stringify(modified, null, 2)}\n`)
+  }
+  const manifestOf = (target) => JSON.parse(read(target, '.harness/install-manifest.json'))
+  const guardOut = (target) => {
+    try {
+      return runGuard(target, '--no-cache', '--fast')
+    } catch (error) {
+      return `${error.stdout ?? ''}${error.stderr ?? ''}`
+    }
+  }
+
+  const target = makeTarget()
+  seedForeign(target)
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  let manifest = manifestOf(target)
+  assert(manifest.preservedForeignFiles?.includes(rel) && !manifest.managedFiles?.[rel], 'precondition: a pre-existing differing registry must be recorded as preserved-foreign, not managed')
+
+  // 드리프트 안내는 관리 파일만 보므로 이 파일은 시야 밖이었다 — 보존 기록에서 같은 안내가 나와야 한다.
+  const guarded = guardOut(target)
+  assert(guarded.includes('policy-registry.local.json') && guarded.includes(`--replace-file ${rel}`), `a preserved-foreign policy registry must get the relocation hint with the recovery command (got: ${guarded})`)
+
+  // 복구 ①: --replace-file → 원본으로 교체(기존 파일은 .harness-bak), 관리 대상으로 복귀, 안내 소멸.
+  runInit(target, '--no-scan', '--no-handoff', '--no-check', '--replace-file', rel)
+  assert(fs.existsSync(path.join(target, `${rel}.harness-bak`)), 'the replaced file must be kept as a .harness-bak sidecar')
+  assert(read(target, rel) === original, 'the registry must equal the harness original after --replace-file')
+  manifest = manifestOf(target)
+  assert(manifest.managedFiles?.[rel] && !manifest.preservedForeignFiles?.includes(rel), 'after --replace-file the registry must be managed again')
+  const afterReplace = guardOut(target)
+  assert(!afterReplace.includes(`--replace-file ${rel}`), 'the preserved-foreign hint must disappear once the file is back under management')
+
+  // 복구 ②: 손으로 원본과 같게 되돌린 파일은 다음 업데이트가 다시 관리 대상으로 들인다(재편입).
+  const restored = makeTarget()
+  seedForeign(restored)
+  runInit(restored, '--no-scan', '--no-handoff', '--no-check')
+  assert(manifestOf(restored).preservedForeignFiles?.includes(rel), 'precondition: preserved-foreign')
+  fs.writeFileSync(path.join(restored, rel), original)
+  const readoptOut = runInit(restored, '--no-scan', '--no-handoff', '--no-check')
+  const after = manifestOf(restored)
+  assert(after.managedFiles?.[rel] && !after.preservedForeignFiles?.includes(rel), 'a hand-restored file identical to the harness original must be re-adopted as managed on the next update')
+  assert(read(restored, rel) === original, 're-adoption must not touch the file bytes')
+  // 재편입 목록에 실리고, 보존 목록에는 실리지 않아야 한다(적대적 리뷰 B-2: 같은 파일이 두 목록에 동시에 찍혔다).
+  assert(/다시 관리 대상으로 들였습니다[^\n]*\n(?:  - [^\n]+\n)*?  - \.harness\/policy\/policy-registry\.json\n/.test(readoptOut), `re-adoption must list the file under the re-adoption header (got: ${readoptOut.split('\n').filter((line) => line.includes(rel) || line.includes('관리 대상')).join(' | ')})`)
+  assert((readoptOut.match(new RegExp(`  - ${rel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\n`, 'g')) ?? []).length === 1, 'a re-adopted file must appear in exactly one list, not also under the preserved list')
+  // 줄바꿈만 다른 사본도 "같은 내용"이다(적대적 리뷰 B-1): 설치기 자신이 .cmd 를 CRLF 로 쓰고, Windows 체크아웃은 전부 CRLF 다.
+  const crlfTarget = makeTarget()
+  fs.mkdirSync(path.join(crlfTarget, '.harness/project'), { recursive: true })
+  const termRel = '.harness/project/terminology.md'
+  fs.writeFileSync(path.join(crlfTarget, termRel), fs.readFileSync(path.join(repoRoot, termRel), 'utf8').replaceAll('\n', '\r\n'))
+  runInit(crlfTarget, '--no-scan', '--no-handoff', '--no-check')
+  const crlfManifest = manifestOf(crlfTarget)
+  assert(crlfManifest.managedFiles?.[termRel] && !crlfManifest.preservedForeignFiles?.includes(termRel), 'a CRLF-only copy of a harness file must be adopted as managed, not recorded as foreign')
+
+  // --replace-file 은 프로젝트 소유 파일을 거절한다 — 팀 설정(profile.json 등)을 템플릿으로 덮는 사고를 막는다.
+  let refused = ''
+  try {
+    runInit(restored, '--no-scan', '--no-handoff', '--no-check', '--replace-file', '.harness/policy/profile.json')
+  } catch (error) {
+    refused = `${error.stdout ?? ''}${error.stderr ?? ''}`
+  }
+  assert(refused.includes('프로젝트 소유 파일입니다'), `--replace-file on a project-owned file must be refused with a clear reason (got: ${refused.slice(0, 300)})`)
+
+  // 적대적 리뷰 P1: 마커 진입점은 거절해야 한다 — 설치 기록이 없는 외래 .harness/ 상태에선 통째로 덮여 팀 문서가 사라졌다.
+  const foreignHarness = makeTarget()
+  fs.mkdirSync(path.join(foreignHarness, '.harness'), { recursive: true })
+  fs.writeFileSync(path.join(foreignHarness, 'CLAUDE.md'), '# 팀 문서\n\n팀만 아는 규칙 한 줄\n')
+  let markerRefused = ''
+  try {
+    runInit(foreignHarness, '--no-scan', '--no-handoff', '--no-check', '--replace-file', 'CLAUDE.md')
+  } catch (error) {
+    markerRefused = `${error.stdout ?? ''}${error.stderr ?? ''}`
+  }
+  assert(markerRefused.includes('마커'), `--replace-file on a marker-managed entry point must be refused (got: ${markerRefused.slice(0, 300)})`)
+  assert(fs.readFileSync(path.join(foreignHarness, 'CLAUDE.md'), 'utf8').includes('팀만 아는 규칙'), 'the team CLAUDE.md must be untouched after the refusal')
+
+  // 적대적 리뷰 P2: 하네스가 배포하지 않는 경로(오타)는 조용히 넘기지 않고 멈춘다.
+  let typoRefused = ''
+  try {
+    runInit(restored, '--no-scan', '--no-handoff', '--no-check', '--replace-file', '.harness/policy/policy-registry.jsonn')
+  } catch (error) {
+    typoRefused = `${error.stdout ?? ''}${error.stderr ?? ''}`
+  }
+  assert(typoRefused.includes('배포하는 파일이 아닙니다'), `a typo in --replace-file must fail loudly, not succeed silently (got: ${typoRefused.slice(0, 300)})`)
+
+  // 적대적 리뷰: !replacedFile 가드는 관리 파일이 로컬 수정된 경우에만 의미가 있는데 그 경로가 무단언이었다.
+  const managedRel = '.harness/policy/README.md'
+  const managedOriginal = fs.readFileSync(path.join(repoRoot, managedRel), 'utf8')
+  fs.writeFileSync(path.join(restored, managedRel), `${managedOriginal}\n로컬 메모\n`)
+  runInit(restored, '--no-scan', '--no-handoff', '--no-check', '--replace-file', managedRel)
+  assert(read(restored, managedRel) === managedOriginal, '--replace-file on a locally modified managed file must restore the original (the preserve guard must not undo it)')
+  assert(read(restored, `${managedRel}.harness-bak`).includes('로컬 메모'), 'the sidecar must hold the local edit')
+
+  // Codex 1R #1: 심볼릭 링크 대상은 경고만 하고 두면 managed 파일의 일반 복사 경로가 링크 너머를 그대로 덮었다(경고가 거짓).
+  // 복사도 꺼야 하고, 재편입도 링크는 들이지 않아야 한다(들이면 다음 업데이트가 링크 너머를 쓴다).
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-outside-'))
+  const outsideFile = path.join(outside, 'terminology.md')   // termRel 은 위 CRLF 케이스에서 선언한 것을 그대로 쓴다
+  fs.writeFileSync(outsideFile, fs.readFileSync(path.join(repoRoot, termRel), 'utf8'))
+  const linked = makeTarget()
+  runInit(linked, '--no-scan', '--no-handoff', '--no-check')
+  fs.rmSync(path.join(linked, termRel))
+  fs.symlinkSync(outsideFile, path.join(linked, termRel))
+  const outsideBefore = fs.readFileSync(outsideFile, 'utf8')
+  const symlinkOut = runInit(linked, '--no-scan', '--no-handoff', '--no-check', '--replace-file', termRel)
+  assert(symlinkOut.includes('일반 파일이 아니라'), `a symlinked --replace-file target must be reported as skipped (got: ${symlinkOut.split('\n').filter((line) => line.includes(termRel)).join(' | ')})`)
+  assert(fs.readFileSync(outsideFile, 'utf8') === outsideBefore && fs.lstatSync(path.join(linked, termRel)).isSymbolicLink(), 'the file beyond the symlink must be untouched and the link must remain')
+  // Codex 3R #2: 차단된 대상은 전용 블록으로 보고되고, "--force 로 덮으세요"가 붙는 일반 보존 목록에는 안 나와야 한다(--force 로 풀리지 않는다).
+  assert(symlinkOut.includes('일반 파일이 아니라 건너뛴 대상'), `blocked non-regular targets must get their own report block (got: ${symlinkOut.split('\n').filter((line) => line.includes('건너뛴') || line.includes('보존된')).join(' | ')})`)
+  const preservedBlock = symlinkOut.split('보존된 프로젝트 소유 파일:')[1]?.split('\n\n')[0] ?? ''
+  assert(!preservedBlock.includes(termRel), 'a blocked non-regular target must not be listed as a preserved project-owned file')
+  // 재편입 경로: 관리 기록이 없는 링크(내용은 원본과 동치)는 관리 대상으로 들이지 않는다.
+  const linkedFresh = makeTarget()
+  fs.mkdirSync(path.join(linkedFresh, '.harness/project'), { recursive: true })
+  fs.symlinkSync(outsideFile, path.join(linkedFresh, termRel))
+  runInit(linkedFresh, '--no-scan', '--no-handoff', '--no-check')
+  assert(!manifestOf(linkedFresh).managedFiles?.[termRel], 'a symlink must not be re-adopted as a managed file')
+  assert(fs.readFileSync(outsideFile, 'utf8') === outsideBefore, 'installing next to a symlink must not write through it')
+
+  const hookRel = '.claude/hooks/block-dangerous.sh'   // 아래 여러 라운드의 훅 케이스가 공유한다(선언은 첫 사용 앞에)
+  // Codex 1R #2: 줄바꿈만 다른 훅은 충돌(원시 바이트)로 잡혀 --keep-hook 으로 유지되는데, 재편입(정규화 동치)이 그 파일을
+  // 관리 대상으로 들여 다음 업데이트가 덮었다. 유지 결정이 재편입보다 우선해야 한다.
+  const keptCrlf = makeTarget()
+  fs.mkdirSync(path.join(keptCrlf, '.claude/hooks'), { recursive: true })
+  fs.writeFileSync(path.join(keptCrlf, hookRel), fs.readFileSync(path.join(repoRoot, hookRel), 'utf8').replaceAll('\n', '\r\n'))
+  runInit(keptCrlf, '--no-scan', '--no-handoff', '--no-check', '--keep-hook', 'block-dangerous')
+  const keptManifest = manifestOf(keptCrlf)
+  assert(!keptManifest.managedFiles?.[hookRel], 'a hook the user chose to keep must not be re-adopted as managed even when it differs only by line endings')
+  assert(keptManifest.preservedForeignFiles?.includes(hookRel), 'the kept hook must stay recorded as preserved-foreign')
+  assert(fs.readFileSync(path.join(keptCrlf, hookRel), 'utf8').includes('\r\n'), 'the kept file must be untouched')
+
+  // Codex 2R #1: 비정규 판정은 최종이어야 한다 — --resync-managed 가 로컬 수정 가드에서 shouldCopy 를 다시 켜 링크 너머를 덮었다.
+  const resyncLinked = makeTarget()
+  runInit(resyncLinked, '--no-scan', '--no-handoff', '--no-check')
+  const outsideDiff = path.join(outside, 'terminology-diff.md')
+  fs.writeFileSync(outsideDiff, '# 밖의 파일 — 원본과 다른 내용\n')
+  fs.rmSync(path.join(resyncLinked, termRel))
+  fs.symlinkSync(outsideDiff, path.join(resyncLinked, termRel))
+  runInit(resyncLinked, '--no-scan', '--no-handoff', '--no-check', '--replace-file', termRel, '--resync-managed')
+  assert(fs.readFileSync(outsideDiff, 'utf8').startsWith('# 밖의 파일'), '--resync-managed must not re-enable the copy that the non-regular check refused (the file beyond the link must be untouched)')
+  assert(fs.lstatSync(path.join(resyncLinked, termRel)).isSymbolicLink(), 'the link must remain in place')
+
+  // Codex 2R #2: 훅 경로로 매핑된 --replace-file(= --replace-hook 결정)도 같은 비정규 파일 차단을 받아야 한다.
+  const hookLinked = makeTarget()
+  const outsideHook = path.join(outside, 'personal-hook.sh')
+  fs.writeFileSync(outsideHook, '#!/bin/sh\necho outside\n')
+  fs.mkdirSync(path.join(hookLinked, '.claude/hooks'), { recursive: true })
+  fs.symlinkSync(outsideHook, path.join(hookLinked, hookRel))
+  const hookLinkOut = runInit(hookLinked, '--no-scan', '--no-handoff', '--no-check', '--replace-file', hookRel)
+  assert(fs.readFileSync(outsideHook, 'utf8').includes('echo outside'), 'a symlinked foreign hook replaced via --replace-file must not have the file beyond the link overwritten')
+  assert(hookLinkOut.includes('일반 파일이 아니라'), `the skip must be reported (got: ${hookLinkOut.split('\n').filter((line) => line.includes(hookRel)).join(' | ')})`)
+  // Codex 3R #3: 교체를 골랐는데 차단된 훅을 "--keep-hook 으로 유지"했다고 보고하면 안 된다.
+  assert(!hookLinkOut.includes('--keep-hook 으로 유지'), `a blocked replace must not be reported as a keep decision (got: ${hookLinkOut.split('\n').filter((line) => line.includes('keep-hook')).join(' | ')})`)
+  assert(!manifestOf(hookLinked).preservedForeignFiles?.includes(hookRel), 'a blocked non-regular hook must not be recorded as preserved-foreign (it is neither kept nor replaced)')
+
+  // Codex 3R #1: 끊어진 심볼릭 링크는 existsSync 에 "없음"으로 보여 새 파일로 취급되고, writeFileSync 가 링크를 따라 밖에 파일을 만들었다.
+  const dangling = makeTarget()
+  const ghost = path.join(outside, 'ghost-dir', 'terminology.md')
+  fs.mkdirSync(path.dirname(ghost), { recursive: true })   // 부모는 있고 파일은 없다 — 쓰기가 가능한 조건
+  fs.mkdirSync(path.join(dangling, '.harness/project'), { recursive: true })
+  fs.symlinkSync(ghost, path.join(dangling, termRel))
+  const danglingDry = runInit(dangling, '--no-scan', '--no-handoff', '--no-check', '--dry-run')
+  assert(danglingDry.includes(`[dry-run] skip ${termRel} (끊어진 심볼릭 링크)`), `dry-run must show the dangling link as skipped, not as add (got: ${danglingDry.split('\n').filter((line) => line.includes(termRel)).join(' | ')})`)
+  const danglingOut = runInit(dangling, '--no-scan', '--no-handoff', '--no-check')
+  assert(!fs.existsSync(ghost), 'installing over a dangling symlink must not create the file beyond the link')
+  assert(fs.lstatSync(path.join(dangling, termRel)).isSymbolicLink(), 'the dangling link must be left in place for the user to clean up')
+  assert(danglingOut.includes('일반 파일이 아니라 건너뛴 대상') && danglingOut.includes(termRel), `the dangling link must be listed in the non-regular report block (got: ${danglingOut.split('\n').filter((line) => line.includes('건너뛴') || line.includes(termRel)).join(' | ')})`)
+  assert(!manifestOf(dangling).managedFiles?.[termRel], 'a dangling link must not be recorded as a managed file')
+
+  // 사용자 결정 A(Codex 4R): 원칙을 한 곳에서 닫는다 — 링크 자리에는 어떤 경로로도 쓰지 않는다. 종전엔 자리별로 막아서
+  // 한 자리를 막으면 다음 자리(백업·후처리·승계·--force)가 열렸다.
+  // (a) 살아 있는 링크 + --force 동의: 종전엔 일반 복사가 링크 너머를 덮었다.
+  const liveLinked = makeTarget()
+  runInit(liveLinked, '--no-scan', '--no-handoff', '--no-check')
+  const outsideLive = path.join(outside, 'live-target.md')
+  fs.writeFileSync(outsideLive, '# 링크 너머의 내 파일\n')
+  fs.rmSync(path.join(liveLinked, termRel))
+  fs.symlinkSync(outsideLive, path.join(liveLinked, termRel))
+  const forcedOut = runInit(liveLinked, '--no-scan', '--no-handoff', '--no-check', '--force', '--confirm-overwrite-project-files')
+  assert(fs.readFileSync(outsideLive, 'utf8').startsWith('# 링크 너머'), 'even --force must not write through a live symlink')
+  assert(forcedOut.includes('일반 파일이 아니라 건너뛴 대상') && forcedOut.includes(termRel), `the live-link skip must be listed in the non-regular report block (got: ${forcedOut.split('\n').filter((line) => line.includes('건너뛴') || line.includes(termRel)).join(' | ')})`)
+  assert(!manifestOf(liveLinked).managedFiles?.[termRel], 'a symlinked path must not be inherited or recorded as managed (Codex 4R #3)')
+  // (b) 백업 자리가 링크: 교체를 건너뛰고 링크 너머를 백업 내용으로 덮지 않는다 (Codex 4R #2).
+  const bakLinked = makeTarget()
+  runInit(bakLinked, '--no-scan', '--no-handoff', '--no-check')
+  const outsideBak = path.join(outside, 'bak-target.json')
+  fs.writeFileSync(outsideBak, '{"mine":true}\n')
+  const bakRel = `${rel}.harness-bak`
+  fs.symlinkSync(outsideBak, path.join(bakLinked, bakRel))
+  const registryBefore = read(bakLinked, rel)
+  const edited = JSON.parse(registryBefore)
+  edited.policies.push({ ...edited.policies[0], id: 'project.bak.example', layer: 'project' })
+  fs.writeFileSync(path.join(bakLinked, rel), `${JSON.stringify(edited, null, 2)}\n`)
+  const bakOut = runInit(bakLinked, '--no-scan', '--no-handoff', '--no-check', '--replace-file', rel)
+  assert(fs.readFileSync(outsideBak, 'utf8') === '{"mine":true}\n', 'the backup must not be written through a symlinked .harness-bak')
+  assert(read(bakLinked, rel).includes('project.bak.example'), 'the replacement must be skipped when its backup cannot be written safely')
+  assert(bakOut.includes('일반 파일이 아니라 건너뛴 대상') && bakOut.includes(rel), `the backup-link skip must be listed in the non-regular report block (got: ${bakOut.split('\n').filter((line) => line.includes('건너뛴') || line.includes(rel)).join(' | ')})`)
+  // (c) 후처리(work-history 연도 폴더)도 링크 너머에 파일을 만들지 않는다 (Codex 4R #1).
+  const whLinked = makeTarget()
+  const year = String(new Date().getFullYear())
+  const whRel = `.harness/maintenance/work-history/${year}/.gitkeep`
+  const outsideKeep = path.join(outside, 'wh-ghost', '.gitkeep')
+  fs.mkdirSync(path.dirname(outsideKeep), { recursive: true })
+  fs.mkdirSync(path.join(whLinked, path.dirname(whRel)), { recursive: true })
+  fs.symlinkSync(outsideKeep, path.join(whLinked, whRel))
+  runInit(whLinked, '--no-scan', '--no-handoff', '--no-check')
+  assert(!fs.existsSync(outsideKeep), 'the work-history post-processing must not create a file beyond a dangling link')
+
+  // Codex 5R #1: 후처리 쓰기(.claude/settings.json 병합)는 루프의 차단을 모르고 링크 너머를 썼다 — 같은 게이트.
+  const settingsLinked = makeTarget()
+  const outsideSettings = path.join(outside, 'settings.json')
+  fs.writeFileSync(outsideSettings, '{}\n')
+  fs.mkdirSync(path.join(settingsLinked, '.claude'), { recursive: true })
+  fs.symlinkSync(outsideSettings, path.join(settingsLinked, '.claude/settings.json'))
+  const settingsOut = runInit(settingsLinked, '--no-scan', '--no-handoff', '--no-check', '--verbose')
+  assert(fs.readFileSync(outsideSettings, 'utf8') === '{}\n', 'the settings merge must not write through a symlinked .claude/settings.json')
+  assert(settingsOut.includes('심볼릭 링크라 하네스 훅 병합을 건너뜀'), `the skipped merge must be reported (got: ${settingsOut.split('\n').filter((line) => line.includes('settings.json')).join(' | ')})`)
+
+  // Codex 1R #3: 외래 훅에 --replace-file 을 주면 훅 교체 결정으로 읽혀 교체된다(종전엔 충돌 사전 검사가 먼저 멈춰 닿지 못했다).
+  const viaFile = makeTarget()
+  fs.mkdirSync(path.join(viaFile, '.claude/hooks'), { recursive: true })
+  fs.writeFileSync(path.join(viaFile, hookRel), '#!/bin/sh\necho personal\n')
+  runInit(viaFile, '--no-scan', '--no-handoff', '--no-check', '--replace-file', hookRel)
+  assert(read(viaFile, hookRel) === fs.readFileSync(path.join(repoRoot, hookRel), 'utf8'), '--replace-file on a foreign hook must replace it with the harness original')
+  assert(read(viaFile, `${hookRel}.harness-bak`).includes('personal'), 'the personal hook must be kept as a .harness-bak sidecar')
+
+  // 적대적 리뷰 P2: 같은 파일에 --keep-hook 과 --replace-file 을 함께 주면 모순이다 — 훅 결정 검사와 같이 멈춘다.
+  const conflicted = makeTarget()
+  fs.mkdirSync(path.join(conflicted, '.claude/hooks'), { recursive: true })
+  fs.writeFileSync(path.join(conflicted, '.claude/hooks/block-dangerous.sh'), '#!/bin/sh\necho personal\n')
+  let contradiction = ''
+  try {
+    runInit(conflicted, '--no-scan', '--no-handoff', '--no-check', '--keep-hook', 'block-dangerous', '--replace-file', '.claude/hooks/block-dangerous.sh')
+  } catch (error) {
+    contradiction = `${error.stdout ?? ''}${error.stderr ?? ''}`
+  }
+  assert(contradiction.includes('함께 지정'), `keep-hook + replace-file on the same file must be refused as a contradiction (got: ${contradiction.slice(0, 300)})`)
+  assert(fs.readFileSync(path.join(conflicted, '.claude/hooks/block-dangerous.sh'), 'utf8').includes('personal'), 'the kept hook must be untouched after the refusal')
+}
+
+// #35(multisite 0.2.147 리포트, 중간): 훅 자동 전환에 성공했는데 세션 시작 훅이 "켜지 못했습니다"라고 알렸다.
+// 판정이 install-hooks.mjs 의 **종료코드**였다 — "켜졌는가"를 묻는 자리에서 "명령이 0으로 끝났는가"를 대신 물었다.
+// 같은 구조로는 반대 방향(실패를 성공으로)도 막지 못한다. 이제 설치 뒤 상태(hooks-state)로 가르고, 실패 때만 stderr 를 남긴다.
+function sessionStartJudgesHookMigrationByStateNotExitCode() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
+  const hook = path.join(target, '.claude/hooks/session-start-reminder.sh')
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: target }
+  const installer = path.join(target, '.harness/bin/install-hooks.mjs')
+  const realInstaller = fs.readFileSync(installer, 'utf8')
+  const resetToOff = () => {
+    for (const name of ['pre-commit', 'pre-push']) fs.rmSync(path.join(target, '.git/hooks', name), { force: true })
+    try { run('git', ['config', '--unset', 'core.hooksPath'], { cwd: target }) } catch {}
+    assert(hooksState(target) === 'off', `precondition: state must be off (got '${hooksState(target)}')`)
+  }
+
+  // (A) 설치기가 아무것도 하지 않고 0으로 끝난다 → 상태는 여전히 off → 실패로 알려야 한다(종전엔 성공이라 했다: 위험한 방향).
+  resetToOff()
+  fs.writeFileSync(installer, 'process.exit(0)\n')
+  const falsePositive = run('/bin/sh', [hook], { cwd: target, env })
+  assert(falsePositive.includes('켜지 못했습니다'), `exit 0 without an installed state must be reported as failure (got: ${falsePositive})`)
+  assert(!falsePositive.includes('자동으로 켰습니다'), 'a no-op installer must not be reported as success')
+  assert(falsePositive.includes('지금 상태: off'), 'the failure notice must show the resulting state')
+
+  // (B) 설치기가 제대로 설치하고 1로 끝난다 → 상태는 installed → 성공으로 알려야 한다(#35 실측 장면).
+  resetToOff()
+  fs.writeFileSync(path.join(target, '.harness/bin/install-hooks.real.mjs'), realInstaller)
+  fs.writeFileSync(installer, "await import('./install-hooks.real.mjs')\nprocess.exit(1)\n")
+  const falseNegative = run('/bin/sh', [hook], { cwd: target, env })
+  assert(hooksState(target) === 'installed', 'precondition: the wrappers were really installed by the wrapped installer')
+  assert(falseNegative.includes('자동으로 켰습니다') && !falseNegative.includes('켜지 못했습니다'), `a successful install with a non-zero exit must be reported as success (got: ${falseNegative})`)
+
+  // (C) 실패로 갈릴 때는 설치기의 stderr 를 버리지 않는다 — 재현이 안 되는 순간의 유일한 증거다.
+  resetToOff()
+  fs.writeFileSync(installer, "console.error('installer-said-why')\nprocess.exit(1)\n")
+  const withReason = run('/bin/sh', [hook], { cwd: target, env })
+  assert(withReason.includes('켜지 못했습니다') && withReason.includes('installer-said-why'), `the failure notice must carry the installer stderr (got: ${withReason})`)
+
+  // (D) 적대적 리뷰 C-1: 래퍼가 pre-commit·pre-push 둘만 깔리고 14개가 빠진 부분 설치는 state 가 installed 라도 성공이 아니다 —
+  // 팀이 체인한 commit-msg 같은 훅이 조용히 멈춘다. 종전 상태 판정은 이것을 성공으로 알리고 설치기의 이유를 버렸다.
+  resetToOff()
+  fs.writeFileSync(installer, [
+    "await import('./install-hooks.real.mjs')",
+    "const fs = await import('node:fs')",
+    "const path = await import('node:path')",
+    "const dir = path.join(process.cwd(), '.git/hooks')",
+    "for (const name of fs.readdirSync(dir)) if (!['pre-commit', 'pre-push', 'harness-prev'].includes(name) && !name.endsWith('.sample')) fs.rmSync(path.join(dir, name), { force: true })",
+    "console.error('EACCES: 나머지 래퍼를 쓰지 못했습니다')",
+    "process.exit(1)",
+    '',
+  ].join('\n'))
+  const partial = run('/bin/sh', [hook], { cwd: target, env })
+  assert(!partial.includes('자동으로 켰습니다'), `a partial install (2 of 16 wrappers) must not be reported as plain success (got: ${partial})`)
+  assert(partial.includes('일부만 설치') && partial.includes('EACCES'), `the partial-install notice must name the gap and carry the installer stderr (got: ${partial})`)
+
+  fs.writeFileSync(installer, realInstaller)
+  fs.rmSync(path.join(target, '.harness/bin/install-hooks.real.mjs'), { force: true })
+}
+
 function wrapperCoversAllClientHookNames() {
   const target = makeTarget()
   runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
@@ -8545,6 +8910,9 @@ const tests = [
   hooksStatusNoticeSuitsTheEnvironment,
   localPolicyRegistryIsMergedAndProjectOwned,
   installDeclaresCmdLineEndingsSoGitStopsWarning,
+  twoStageUpdateRecordsTheRealStartVersion,
+  preservedForeignRegistryIsGuidedAndReadopted,
+  sessionStartJudgesHookMigrationByStateNotExitCode,
   globalHooksPathOverrideWorksFromLinkedWorktree,
   crossHookCallRunsTheRealHook,
   reportInstallHelpWritesNothing,

@@ -31,6 +31,10 @@ Options:
                             --force 덮어쓰기 위험을 인지했음을 명시합니다.
   --resync-managed          설치 기록과 달라진 하네스 파일(managed)만 본체 원본으로 되돌립니다.
                             프로젝트 소유 파일은 건드리지 않습니다.
+  --replace-hook <이름>     같은 이름의 기존 .claude/hooks 훅이 하네스 원본과 다를 때 원본으로 교체합니다(기존 파일은 .harness-bak). 공통 단계 전용
+  --keep-hook <이름>        같은 상황에서 기존 파일을 유지합니다(프로젝트 책임). 공통 단계 전용
+  --replace-file <경로>     하네스가 배포하는 파일 하나를 원본으로 교체합니다(기존 파일은 .harness-bak). 관리 밖으로 나간(보존된) 파일과
+                            로컬 수정된 관리 파일이 대상이고, 프로젝트 소유 파일·마커 진입점은 거절합니다. 공통 단계 전용
   --force-stack             다른 스택 기준이 적용되어 있어도 reset 후 적용합니다.
   --allow-mismatch          스택 호환성 불일치를 명시적으로 허용합니다.
   --migration-mode          --allow-mismatch alias입니다.
@@ -53,7 +57,7 @@ Options:
 // 중단돼 base resync가 시작조차 못 했고, 실패가 옵션 오타처럼 보였다.
 const BASE_ONLY_FLAGS = new Set(['--resync-managed'])
 // 값이 따라오는 공통 하네스 전용 옵션(0.2.146, 훅 충돌 결정). 스택 단계에는 옵션명과 값을 함께 빼고 넘긴다(리뷰 P2-2).
-const BASE_ONLY_VALUE_FLAGS = new Set(['--replace-hook', '--keep-hook'])
+const BASE_ONLY_VALUE_FLAGS = new Set(['--replace-hook', '--keep-hook', '--replace-file'])
 
 function baseOnlyFlagsIn(opts) {
   const found = []
@@ -123,9 +127,10 @@ function parseArgs(argv) {
       case '--stack-only':
         opts.stackOnly = true
         break
-      // 훅 충돌 해결 플래그(0.2.146): 값이 따라오므로 두 토큰을 그대로 init에 넘긴다.
+      // 훅 충돌 해결 플래그(0.2.146)와 파일 교체 플래그(0.2.148, #34): 값이 따라오므로 두 토큰을 그대로 init에 넘긴다.
       case '--replace-hook':
-      case '--keep-hook': {
+      case '--keep-hook':
+      case '--replace-file': {
         const value = requireValue(args, i, arg)
         opts.forwarded.push(arg, value)
         i += 1

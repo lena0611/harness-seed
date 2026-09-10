@@ -772,6 +772,31 @@ function printManagedDriftNotice(drift) {
   console.log('     (managed 파일만 되돌립니다. 프로젝트 소유 파일은 건드리지 않습니다.)')
 }
 
+// 관리 밖으로 나간 등록부 안내(0.2.148, scorecard-print #34). 0.2.146의 동명 파일 처리는 하네스 원본과 다른 파일을 덮지 않고
+// preservedForeignFiles 로 기록한다 — 그래서 "관리 파일을 직접 고친" 결함을 겪은 프로젝트는 모두 이미 managed 밖이고,
+// 관리 파일만 대조하는 드리프트 안내는 그들을 보지 못했다(제보자 실측: 안내 0줄). 이 결함을 겪은 인구가 정확히 여기다.
+// 되돌리는 길: --replace-file 로 원본 교체(기존 파일은 .harness-bak), 또는 손으로 원본과 같게 만들면 다음 업데이트가
+// 다시 관리 대상으로 들인다(재편입, 같은 릴리스).
+const RELOCATABLE_REGISTRIES = [
+  { suffix: 'policy/policy-registry.json', local: 'policy-registry.local.json', what: '프로젝트 정책을' },
+  { suffix: 'documentation/document-registry.json', local: 'document-registry.local.json', what: '프로젝트 문서를' },
+]
+
+function printPreservedForeignRegistryNotice() {
+  const manifest = readJson(path.join(harnessRoot, 'install-manifest.json'))
+  const preserved = Array.isArray(manifest?.preservedForeignFiles) ? manifest.preservedForeignFiles : []
+  for (const rel of preserved) {
+    const posix = String(rel).split(path.sep).join('/')
+    const registry = RELOCATABLE_REGISTRIES.find((entry) => posix.endsWith(entry.suffix))
+    if (!registry) continue
+    console.log('')
+    console.log(`⚠ ${posix} 이 하네스 원본과 달라 관리 밖에 있습니다 — 이 상태로는 공통 항목이 예전 버전에 멈춥니다.`)
+    console.log(`  ${registry.what} 등록하려다 달라졌다면: ① 그 항목을 ${path.posix.dirname(posix)}/${registry.local}(프로젝트 소유)으로 옮기고`)
+    console.log(`  ② .harness/bin/harness update --replace-file ${posix} 으로 원본을 되돌리세요(기존 파일은 ${posix}.harness-bak 에 보관).`)
+    console.log('     원본과 같은 내용으로 손수 되돌려도 다음 업데이트가 다시 관리 대상으로 들입니다.')
+  }
+}
+
 // P1(2026-06-09): 비-Node 프로젝트(package.json 없음)에서도 `node .harness/bin/guard.mjs`가
 // 동작해야 한다. 없으면 빈 객체로 보고 edge 검증 스크립트가 없는 것으로 처리한다.
 // package.json이 있는 기존 소비자는 거동이 동일하다.
@@ -804,6 +829,7 @@ if (cacheUsable) {
   console.log(`passedAt: ${cache.passedAt}`)
   console.log('강제 재검증: --no-cache')
   printManagedDriftNotice(managedDrift)
+  printPreservedForeignRegistryNotice()
   // 안내 등급도 캐시 히트에서 낸다(멀티사이트 #24, 2026-09-08): 업데이트 내부 검사가 캐시를 채운 직후
   // 소비자가 "뭐가 달라졌나" 보려고 돌린 check가 critical path 유령 경로 안내를 삼켰다. 캐시는 "이 tree가
   // 검증을 통과했는가"의 답이고, 이 리뷰는 통과 여부와 무관한 현재 상태(선언 실존·변경 파일 매칭)라
@@ -825,6 +851,7 @@ run('node', ['.harness/bin/doc-link-check.mjs', ...forwardedArgs])
 run('node', ['.harness/bin/check-template-contract.mjs', ...(strictMode ? ['--strict'] : [])])
 checkHarnessVersionLock()
 printManagedDriftNotice(managedDrift)
+printPreservedForeignRegistryNotice()
 
 // 본체 2단계 게이트(0.2.134): 회귀 201종은 본체에서만 돌고 릴리스마다 4~5회 반복돼
 // 30분을 넘겼다(2026-08-31 실측). 커밋 단계(HARNESS_GUARD_STAGE=commit, seed 전용)는

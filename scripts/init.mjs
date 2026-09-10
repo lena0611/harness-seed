@@ -548,6 +548,7 @@ Options:
   --no-hooks             최초 설치 시 git hook 자동 활성화를 건너뜁니다. (업데이트는 원래 재배선하지 않습니다)
   --replace-hook <이름>  같은 이름의 기존 .claude/hooks 훅이 하네스 원본과 다를 때: 원본으로 교체하고 기존 파일은 <경로>.harness-bak에 보관 (반복 가능)
   --keep-hook <이름>     같은 상황에서 기존 파일을 유지(팀 settings.json이 그 파일을 실행 — 프로젝트 책임). 기록·재보고됩니다 (반복 가능)
+  --replace-file <경로>  하네스가 배포하는 파일 하나를 원본으로 교체하고 기존 파일은 <경로>.harness-bak에 보관 (반복 가능). 관리 밖으로 나간(보존된) 파일과 로컬 수정된 관리 파일 둘 다 대상. 프로젝트 소유 파일·마커 진입점(CLAUDE.md 등)은 거절합니다
   --with-package-json    은퇴(0.2.131) — 받아들이지만 아무 동작도 하지 않습니다. 하네스는 package.json을 만들거나 쓰지 않습니다.
   --embedded             스택 하네스 설치 흐름 내부에서 호출될 때 중간 안내를 줄입니다.
   --verbose              설치 내부 명령과 진단 출력을 자세히 표시합니다.
@@ -634,6 +635,16 @@ function parseArgs(argv) {
         }
         const bucket = arg === '--replace-hook' ? (opts.replaceHooks ??= new Set()) : (opts.keepHooks ??= new Set());
         bucket.add(hookBaseName(value));
+        break;
+      }
+      // 보존된(관리 밖) 하네스 파일을 원본으로 되돌리는 명시 결정(0.2.148, scorecard-print #34). 훅 교체와 같은 모양이다.
+      case '--replace-file': {
+        const value = args[++i];
+        if (!value || value.startsWith('-')) {
+          console.error(`${arg}에는 저장소 기준 경로가 필요합니다. 예: ${arg} .harness/policy/policy-registry.json`);
+          process.exit(1);
+        }
+        (opts.replaceFiles ??= new Set()).add(toPosix(value).replace(/^\.\//, ''));
         break;
       }
       // 은퇴 플래그: 받아들이지만 아무것도 하지 않는다. 0.2.131에서 별칭 주입이 0개가 되어
@@ -989,10 +1000,15 @@ function matchesRecordedSha(absPath, recordedSha) {
 // 텍스트는 LF로 통일하되, cmd.exe 배치(.cmd/.bat)는 label/goto가 LF에서 깨질 수 있어 CRLF로 쓴다
 // (sha는 위 정규화 덕에 줄바꿈과 무관). 바이너리는 그대로 복사한다.
 function writeInstalledFile(src, dest, rel) {
+  // 방어선(사용자 결정 A): 호출자가 걸러야 하지만, 어떤 경로로 링크가 여기까지 오면 쓰지 않는다 — 링크 너머를 덮는 일은 없어야 한다.
+  if (isSymlinkPath(dest)) {
+    console.warn(`'${rel}' 자리가 심볼릭 링크라 쓰지 않습니다 — 하네스는 링크 너머를 쓰지 않습니다.`);
+    return false;
+  }
   const buffer = readFileSync(src);
   if (buffer.includes(0)) {
     copyFileSync(src, dest);
-    return;
+    return true;
   }
   let text = buffer.toString('utf8').replaceAll('\r\n', '\n');
   if (/\.(cmd|bat)$/i.test(rel)) {
@@ -1051,6 +1067,41 @@ function hookBaseName(value) {
 function filesEqual(a, b) {
   try {
     return readFileSync(a).equals(readFileSync(b));
+  } catch {
+    return false;
+  }
+}
+
+// "하네스 원본과 같은 내용"인지 — 줄바꿈 차이는 같은 것으로 본다(managed 무결성 판정 normalizeEolForHash 와 같은 규칙,
+// 0.2.148 적대적 리뷰 P2). 원시 바이트로 비교하면 설치기 자신이 CRLF 로 쓰는 .cmd 가 영원히 "다른 파일"이 되고(설치 기록을
+// 잃은 뒤 재편입 불가), CRLF 체크아웃(Windows)에서는 손대지 않은 파일이 전부 외래로 잡힌다. 바이트 동일 ⊂ 정규화 동일이라
+// 이 완화는 "더 많이 같다고 보는" 방향으로만 움직인다 — 잘못 다르다고 보는 경우가 사라질 뿐이다.
+// 대상이 일반 파일인지(심볼릭 링크·디렉터리 아님). 링크 너머를 덮거나 링크를 관리 대상으로 들이지 않기 위한 판정(Codex 1R #1).
+// 경로 자체가 심볼릭 링크인가(끊어진 링크 포함). existsSync 는 링크를 따라가 끊어진 링크를 "없음"으로 보기 때문에 따로 본다(Codex 3R #1).
+function isSymlinkPath(abs) {
+  try {
+    return fs.lstatSync(abs).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+// 백업 목적지(<rel>.harness-bak)가 심볼릭 링크(끊어진 것 포함)면 쓰지 않는다 — copyFileSync 는 링크를 따라 밖의 파일을 덮는다(Codex 4R #2).
+function backupTargetBlocked(target, backupRel) {
+  return isSymlinkPath(join(target, backupRel));
+}
+
+function isRegularFile(abs) {
+  try {
+    return !fs.lstatSync(abs).isSymbolicLink() && statSync(abs).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function filesEquivalent(a, b) {
+  try {
+    return normalizeEolForHash(readFileSync(a)).equals(normalizeEolForHash(readFileSync(b)));
   } catch {
     return false;
   }
@@ -1201,6 +1252,9 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
   // 동의가 있을 때만 .harness-bak 백업 후 덮어쓴다. 둘 다 후처리에서 명시적으로 보고한다.
   const preservedLocallyModified = [];
   const replacedHooks = [];            // --replace-hook 으로 교체한 훅(기존 파일은 .harness-bak)
+  const replacedFiles = [];            // --replace-file 로 원본으로 교체한 파일(기존 파일은 .harness-bak) — 0.2.148, #34
+  const readoptedFiles = [];           // 하네스 원본과 같은 내용이 되어 다시 관리 대상으로 들인 파일 — 0.2.148, #34
+  const nonRegularSkipped = [];        // 심볼릭 링크·디렉터리·끊어진 링크라 어떤 경로로도 쓰지 않은 대상 — Codex 3R #1·#2·#3
   const preservedForeignFiles = [];    // 하네스 원본과 다른 동명 파일을 보존한 것(현황 기록)
   const overwroteLocallyModified = [];
   const resyncedManaged = [];       // --resync-managed로 본체 원본에 맞춘 파일
@@ -1223,6 +1277,20 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     const exists = existsSync(dest);
     const projectOwned = isProjectOwned(rel);
     const managed = isManagedByManifest(manifest, rel);
+
+    // 원칙을 한 곳에서 닫는다(Codex 3R #1·4R #1·#3, 사용자 결정 A): 설치 대상 자리가 심볼릭 링크면 — 살아 있든 끊어졌든 —
+    // 어떤 경로로도 쓰지 않는다. existsSync 는 링크를 따라가 끊어진 링크를 "없음", 살아 있는 링크를 "있음"으로 보므로 lstat 로
+    // 링크 자체를 본다. 마커 병합·일반 복사·교체·--resync-managed·--force 가 모두 이 아래에 있어 여기서 멈추면 전부 멈춘다.
+    // 자리별로 막던 코드(isRegularFile 등)는 디렉터리 같은 나머지 비정규 케이스를 위해 남는다.
+    if (isSymlinkPath(dest)) {
+      const dangling = !exists;
+      console.warn(`'${rel}' 자리가 ${dangling ? '끊어진 심볼릭 링크' : '심볼릭 링크'}라 건너뜁니다 — 하네스는 링크 너머를 쓰지 않습니다. 링크를 정리한 뒤 다시 실행하세요.`);
+      if (opts.dryRun) console.log(`[dry-run] skip ${rel} (${dangling ? '끊어진 심볼릭 링크' : '심볼릭 링크'})`);
+      stats.skipped++;
+      skippedFiles.push(rel);
+      nonRegularSkipped.push(rel);
+      continue;
+    }
 
     // seed-only 문서와 본체 세션 이력 아카이브는 소비자(마커 없음) 타깃에 배포하지 않는다.
     // 기존 설치본 제거는 removeSeedOnlyDocs가 담당. 본체(마커 있음) 타깃에는 그대로 복사한다(본체 개발에 필요).
@@ -1255,6 +1323,17 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
         );
         const backupRel = regionModified ? `${rel}.harness-bak` : null;
 
+        // 백업 자리 차단은 dry-run 앞에서 판정한다(Codex 5R #2): else 안에 두면 dry-run 이 merge·백업 예정을 출력하고
+        // updated/copied 로 집계해 실제 실행(skipped)과 어긋났다. 판정·집계는 공통, 쓰기만 실제 실행 분기에.
+        if (backupRel && backupTargetBlocked(target, backupRel)) {
+          // 회사 영역 수정을 백업 없이 덮지 않는다 — 백업 자리가 링크면 병합 자체를 건너뛴다(사용자 결정 A).
+          console.warn(`'${backupRel}' 자리가 심볼릭 링크라 '${rel}' 병합을 건너뜁니다 — 백업 없이 회사 영역 수정을 덮지 않습니다.`);
+          if (opts.dryRun) console.log(`[dry-run] skip ${rel} (백업 자리가 심볼릭 링크)`);
+          stats.skipped++;
+          skippedFiles.push(rel);
+          nonRegularSkipped.push(rel);
+          continue;
+        }
         if (opts.dryRun) {
           console.log(`[dry-run] merge(marker) ${rel}${backupRel ? ` [backup → ${backupRel}]` : ''}`);
         } else {
@@ -1314,6 +1393,8 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     let preservedByGuard = false;
     let backupRel = null;
     let replacedHook = false;
+    let replacedFile = false;
+    let nonRegularTarget = false;   // 명시 교체 대상이 심볼릭 링크·디렉터리 — 이 판정은 최종이다(Codex 2R #1·#2)
 
     // 훅 충돌 해결(0.2.146): 유지(--keep-hook) 결정은 --force 보다 우선한다 — "다른 파일은 강제 갱신, 이 훅은 유지"라는
     // 구체적 선택이 결과에 반영돼야 한다(리뷰 P2-1). 교체(--replace-hook) 결정만 원본으로 바꾸고 기존 파일을 옆에 보관한다.
@@ -1321,13 +1402,49 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
       shouldCopy = false;
     }
     if (exists && opts.replaceHookRels?.has(rel)) {
-      backupRel = `${rel}.harness-bak`;
-      if (!opts.dryRun) copyFileSync(dest, join(target, backupRel));
-      shouldCopy = true;
-      replacedHook = true;
+      if (!isRegularFile(dest)) {
+        // 충돌 판정(detectHookConflicts)은 statSync 라 링크 너머를 일반 파일로 보지만, 교체는 링크 너머를 덮는 일이다(Codex 2R #2).
+        console.warn(`--replace-hook 대상 '${rel}'은 일반 파일이 아니라(디렉터리·심볼릭 링크) 건너뜁니다.`);
+        shouldCopy = false;
+        nonRegularTarget = true;
+        nonRegularSkipped.push(rel);
+      } else if (backupTargetBlocked(target, `${rel}.harness-bak`)) {
+        console.warn(`'${rel}.harness-bak' 자리가 심볼릭 링크라 교체를 건너뜁니다 — 백업을 링크 너머에 쓰지 않습니다. 링크를 정리한 뒤 다시 실행하세요.`);
+        shouldCopy = false;
+        nonRegularTarget = true;
+        nonRegularSkipped.push(rel);
+      } else {
+        backupRel = `${rel}.harness-bak`;
+        if (!opts.dryRun) copyFileSync(dest, join(target, backupRel));
+        shouldCopy = true;
+        replacedHook = true;
+      }
+    }
+    // --replace-file(0.2.148, #34): 보존돼 관리 밖으로 나간 파일(또는 로컬 수정된 managed 파일 하나)을 원본으로 되돌린다.
+    if (exists && !projectOwned && opts.replaceFiles?.has(rel) && !opts.replaceHookRels?.has(rel)) {
+      if (!isRegularFile(dest)) {
+        // 심볼릭 링크를 따라 저장소 밖 파일을 덮는 사고를 막는다(적대적 리뷰 P3). 경고만 하고 두면 managed 파일은
+        // 일반 복사 경로(1337의 shouldCopy)가 그대로 링크 너머를 쓴다 — 경고가 거짓이 된다(Codex 1R #1). 복사도 끈다.
+        console.warn(`--replace-file 대상 '${rel}'은 일반 파일이 아니라(디렉터리·심볼릭 링크) 건너뜁니다.`);
+        shouldCopy = false;
+        nonRegularTarget = true;
+        nonRegularSkipped.push(rel);
+      } else if (backupTargetBlocked(target, `${rel}.harness-bak`)) {
+        console.warn(`'${rel}.harness-bak' 자리가 심볼릭 링크라 교체를 건너뜁니다 — 백업을 링크 너머에 쓰지 않습니다. 링크를 정리한 뒤 다시 실행하세요.`);
+        shouldCopy = false;
+        nonRegularTarget = true;
+        nonRegularSkipped.push(rel);
+      } else {
+        backupRel = `${rel}.harness-bak`;
+        if (!opts.dryRun) copyFileSync(dest, join(target, backupRel));
+        shouldCopy = true;
+        replacedFile = true;
+      }
     }
 
-    if (exists && managed && !projectOwned && isLocallyModifiedManagedFile(target, rel, manifest)) {
+    // 비정규 대상 판정은 최종이다(Codex 2R #1): 아래 로컬 수정 가드는 --resync-managed 로 shouldCopy 를 다시 켤 수 있는데,
+    // isLocallyModifiedManagedFile 은 링크를 따라 해시를 비교하므로 링크 너머를 "수정된 managed" 로 보고 덮었다.
+    if (exists && managed && !projectOwned && !replacedFile && !nonRegularTarget && isLocallyModifiedManagedFile(target, rel, manifest)) {
       if (opts.resyncManaged) {
         // 설치 기록과 달라진 managed 파일을 본체 원본으로 되돌린다. 대상은 managed이면서 프로젝트 소유가
         // 아닌 파일뿐이라 spec-map.md·profile.json 같은 소비자 산출물은 사정거리 밖이다(--force와 다른 점).
@@ -1339,9 +1456,16 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
         preservedByGuard = true;
       } else if (opts.confirmOverwriteProjectFiles) {
         // 명시적 동의가 있으면 덮어쓴다. .harness-bak 사이드카로 직전 소비자본을 같은 디렉터리에 남긴다.
-        backupRel = `${rel}.harness-bak`;
-        if (!opts.dryRun) {
-          copyFileSync(dest, join(target, backupRel));
+        if (backupTargetBlocked(target, `${rel}.harness-bak`)) {
+          console.warn(`'${rel}.harness-bak' 자리가 심볼릭 링크라 '${rel}' 덮어쓰기를 건너뜁니다 — 백업 없이 덮지 않습니다.`);
+          shouldCopy = false;
+          nonRegularTarget = true;
+          nonRegularSkipped.push(rel);
+        } else {
+          backupRel = `${rel}.harness-bak`;
+          if (!opts.dryRun) {
+            copyFileSync(dest, join(target, backupRel));
+          }
         }
       }
       // --force만 있고 --confirm 미동의면 collectForceOverwriteTargets 가드가 차단한다.
@@ -1350,11 +1474,13 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     if (opts.dryRun) {
       const action = !exists
         ? 'add'
-        : preservedByGuard
-          ? 'preserve(locally-modified-managed)'
-          : shouldCopy
-            ? 'update'
-            : 'preserve';
+        : nonRegularTarget
+          ? 'skip(non-regular: 심볼릭 링크·디렉터리)'
+          : preservedByGuard
+            ? 'preserve(locally-modified-managed)'
+            : shouldCopy
+              ? 'update'
+              : 'preserve';
       const suffix = backupRel ? ` [backup → ${backupRel}]` : '';
       console.log(`[dry-run] ${action} ${rel}${suffix}`);
     } else if (shouldCopy) {
@@ -1374,15 +1500,32 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
       copiedFiles.push(rel);
       if (replacedHook) {
         replacedHooks.push({ rel, backup: backupRel });
+      } else if (replacedFile) {
+        replacedFiles.push({ rel, backup: backupRel });
       } else if (backupRel) {
         overwroteLocallyModified.push({ rel, backup: backupRel });
       }
     } else {
       stats.skipped++;
       skippedFiles.push(rel);
-      // 하네스 원본과 내용이 다른 동명 파일(출처 미확인)은 현황으로 기록한다 — 소유권 표시가 아니다.
-      if (exists && !managed && !projectOwned && !isMarkerManaged(rel) && !filesEqual(src, dest)) {
-        preservedForeignFiles.push(rel);
+      // 유지(--keep-hook) 결정된 파일은 재편입하지 않는다(Codex 1R #2): 충돌 판정은 원시 바이트라 줄바꿈만 다른 훅을 충돌로
+      // 보고 사용자가 "유지"를 골랐는데, 재편입은 정규화 동치라 같은 파일을 관리 대상으로 들여 다음 업데이트가 덮었다 —
+      // 사람의 결정이 자동 판정 위에 있어야 한다(유지 > 강제 규칙과 같다). 충돌 판정을 정규화로 통일하는 것은 의도적으로 보류:
+      // 셸 훅은 CRLF 면 실제로 깨지는 파일이라 "줄바꿈만 다름"이 무해하지 않고, 충돌로 잡아 원본으로 바꿀 기회를 주는 쪽이 안전하다.
+      if (exists && !managed && !projectOwned && !isMarkerManaged(rel)) {
+        // 유지 결정은 재편입만 막는다 — 보존 현황(preservedForeignFiles) 기록은 남아야 한다(Codex 2R #3: 바깥 조건에
+        // 두면 유지한 훅의 현황이 manifest 에서 사라지고 후처리도 일반 보존 목록으로 분류했다).
+        if (!opts.keepHookRels?.has(rel) && isRegularFile(dest) && filesEquivalent(src, dest)) {
+          // 하네스 원본과 **같은** 동명 파일은 관리 대상으로 들인다(0.2.148, scorecard-print #34): 보존됐던 파일을 손으로
+          // 원본으로 되돌려도 종전에는 copiedFiles 에도 승계에도 없어 영원히 관리 밖이었다 — 다음 릴리스에 다시 얼어붙는다.
+          // 바이트가 같으니 디스크는 그대로고 기록(manifest)만 바뀐다.
+          copiedFiles.push(rel);
+          readoptedFiles.push(rel);
+        } else if (!nonRegularTarget) {
+          // 하네스 원본과 내용이 다른 동명 파일(출처 미확인)은 현황으로 기록한다 — 소유권 표시가 아니다.
+          // 비정규 차단 대상은 여기 넣지 않는다(Codex 3R #3): 넣으면 훅 화살표 문구가 "--keep-hook 으로 유지"라고 잘못 보고한다.
+          preservedForeignFiles.push(rel);
+        }
       }
     }
   }
@@ -1393,6 +1536,9 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     skippedFiles,
     copiedFiles,
     replacedHooks,
+    replacedFiles,
+    readoptedFiles,
+    nonRegularSkipped,
     preservedForeignFiles,
     preservedLocallyModified,
     overwroteLocallyModified,
@@ -1419,6 +1565,10 @@ const CURRENT_HARNESS_MODE_NOTE = 'harnessMode는 기준 동기화 신호의 등
 
 function migrateStaleProfileNotes(target, opts) {
   const profilePath = join(target, '.harness/policy/profile.json')
+  if (isSymlinkPath(profilePath)) {
+    console.warn(`'.harness/policy/profile.json' 자리가 심볼릭 링크라 안내문 정정을 건너뜁니다 — 하네스는 링크 너머를 쓰지 않습니다.`)
+    return false
+  }
   if (!existsSync(profilePath)) {
     return false
   }
@@ -1760,6 +1910,12 @@ function ensureCurrentWorkHistoryYear(target, opts) {
   const rel = `.harness/maintenance/work-history/${year}/.gitkeep`;
   const abs = join(target, rel);
 
+  // 링크 자리에는 쓰지 않는다(Codex 4R #1, 사용자 결정 A): 루프에서 걸러도 이 후처리는 existsSync 만 보고 끊어진 링크 너머에 파일을 만들었다.
+  if (isSymlinkPath(abs)) {
+    console.warn(`'${rel}' 자리가 심볼릭 링크라 건너뜁니다 — 하네스는 링크 너머를 쓰지 않습니다.`);
+    return { rel, created: false, skipped: 'symlink' };
+  }
+
   if (opts.dryRun) {
     console.log(`[dry-run] ensure work history year folder ${rel}`);
     return { rel, created: !existsSync(abs) };
@@ -1922,7 +2078,9 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, prev
     const abs = join(target, normalized)
     // 은퇴한 관리 파일은 승계하지 않는다(0.2.134) — 제거되면 엔트리도 함께 사라지고,
     // 수정 흔적으로 보존된 파일은 managed에서 이탈해 소비자 소유로 재분류된다.
-    if (!isProjectOwned(normalized) && !RETIRED_MANAGED_PATHS.has(normalized) && existsSync(abs) && statSync(abs).isFile()) {
+    // 링크 자리는 managed 로 이어받지 않는다(Codex 4R #3): 이어받으면 다음 일반 업데이트가 링크 너머를 쓴다 — 루프 게이트가
+    // 막긴 하지만 기록도 사실과 맞아야 한다(링크는 하네스가 관리하는 파일이 아니다).
+    if (!isProjectOwned(normalized) && !RETIRED_MANAGED_PATHS.has(normalized) && existsSync(abs) && statSync(abs).isFile() && !isSymlinkPath(abs)) {
       managedFiles[normalized] = entry
     }
   }
@@ -1936,7 +2094,7 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, prev
       continue
     }
     const abs = join(target, rel)
-    if (!existsSync(abs) || !statSync(abs).isFile()) {
+    if (!existsSync(abs) || !statSync(abs).isFile() || isSymlinkPath(abs)) {
       continue
     }
 
@@ -2123,13 +2281,43 @@ function computeChangelogDelta(sourceRoot, fromVersion, toVersion) {
   return entries.length ? { from: from.version, to: to.version, entries } : null
 }
 
+// 보고 표식이 이미 해결해 둔 출발 버전(연속 구간 이어받기 포함)을 읽는다. 표식은 이 함수보다 먼저
+// 기록되므로(writeInstallManifest → writeHarnessLock) 여기서는 완성된 값이다. 추정이 아니라 재사용이다.
+function readResolvedUpdateFrom(target, toVersion) {
+  try {
+    const marker = JSON.parse(readFileSync(join(target, '.harness/generated/pending-report.json'), 'utf8'))
+    if (marker?.to === toVersion && typeof marker.from === 'string' && marker.from) return marker.from
+  } catch {
+    // 표식이 없거나 깨졌으면 폴백 없음 — 아래에서 종전 규칙을 쓴다.
+  }
+  return null
+}
+
+// 두 후보 중 **더 낮은** 버전이 진짜 출발점이다(0.2.148, 2단 체인 픽스처 실측). 2단 업데이트에서는
+// 직전 lock이 이미 중간 단계까지 올라가 있어 그 값만 보면 구간이 잘린다. `--update-from`은 0.2.144부터
+// 업데이터가 넘기므로, 그보다 낮은 버전에 머문 프로젝트에서는 그 신호가 아예 오지 않았다 —
+// 그때도 표식(0.2.138부터)이 진짜 출발점을 들고 있어 리포트만 맞고 lock 기록은 좁아졌다.
+function lowerVersion(left, right) {
+  if (!left) return right ?? null
+  if (!right) return left
+  const a = parseSemverLoose(left)
+  const b = parseSemverLoose(right)
+  if (!a) return right
+  if (!b) return left
+  return compareSemverLoose(a, b) <= 0 ? left : right
+}
+
 function writeHarnessLock(sourceRoot, target, installManifest, opts) {
   if (opts.dryRun) return null
 
   const lockAbs = join(target, LOCK_PATH)
   const previous = readJson(lockAbs, {})
   const source = installManifest.source ?? {}
-  const delta = computeChangelogDelta(sourceRoot, pickUpdateFrom(opts, previous?.baseHarness?.version), installManifest.version)
+  const startVersion = lowerVersion(
+    pickUpdateFrom(opts, previous?.baseHarness?.version),
+    readResolvedUpdateFrom(target, installManifest.version),
+  )
+  const delta = computeChangelogDelta(sourceRoot, startVersion, installManifest.version)
   const next = {
     version: 1,
     updatedAt: new Date().toISOString(),
@@ -2193,6 +2381,11 @@ function mergeClaudeSettings(sourceRoot, target, opts) {
     try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; }
   };
 
+  // 링크 자리에는 쓰지 않는다(Codex 5R #1, 결정 A): 루프는 이 파일(프로젝트 소유)을 건드리지 않지만 이 병합은 따로 쓴다.
+  if (isSymlinkPath(destAbs)) {
+    console.warn(`'${rel}' 자리가 심볼릭 링크라 하네스 설정 병합을 건너뜁니다 — 하네스는 링크 너머를 쓰지 않습니다. 링크를 정리한 뒤 다시 실행하세요.`);
+    return { ...result, skipped: 'symlink' };
+  }
   if (!existsSync(srcAbs)) return result;
   const harness = readSafe(srcAbs);
   if (!harness) return result;
@@ -2264,6 +2457,10 @@ function mergeClaudeSettings(sourceRoot, target, opts) {
 
 function mergeGitignore(target, opts) {
   const gitignorePath = join(target, '.gitignore');
+  if (isSymlinkPath(gitignorePath)) {
+    console.warn(`'.gitignore' 자리가 심볼릭 링크라 하네스 항목 병합을 건너뜁니다 — 하네스는 링크 너머를 쓰지 않습니다.`);
+    return 0;
+  }
   // P5(2026-06-09): node_modules/dist는 Node 프로젝트 전용 항목이므로 package.json이 있을 때만 주입한다.
   // 비-Node 프로젝트(PHP/Java 등)의 .gitignore를 프론트 항목으로 오염시키지 않는다.
   const isNodeProject = existsSync(join(target, 'package.json'));
@@ -2334,6 +2531,10 @@ function resolvedEolAttribute(target, rel) {
 
 function mergeGitattributes(target, opts) {
   const gitattributesPath = join(target, '.gitattributes');
+  if (isSymlinkPath(gitattributesPath)) {
+    console.warn(`'.gitattributes' 자리가 심볼릭 링크라 줄바꿈 속성 병합을 건너뜁니다 — 하네스는 링크 너머를 쓰지 않습니다.`);
+    return 0;
+  }
   let current = '';
   if (existsSync(gitattributesPath)) {
     current = readFileSync(gitattributesPath, 'utf8');
@@ -2502,6 +2703,9 @@ function patchEslintConfigForHarness(target, opts) {
     }
   }
 
+  if (next !== content && isSymlinkPath(abs)) {
+    return { status: 'manual', message: `${rel} 자리가 심볼릭 링크라 하네스가 쓰지 않습니다 — 직접 편집하세요` };
+  }
   if (next !== content && !opts.dryRun) {
     writeFileSync(abs, next);
   }
@@ -2538,7 +2742,11 @@ function patchLintIgnoreFiles(target, opts) {
 
   const oxlintRel = '.oxlintrc.json';
   const oxlintAbs = join(target, oxlintRel);
-  if (existsSync(oxlintAbs)) {
+  if (isSymlinkPath(oxlintAbs)) {
+    // 링크 자리에는 쓰지 않는다(Codex 5R #1, 결정 A) — 끊어진 링크는 existsSync 가 "없음"으로 보므로 먼저 본다.
+    console.warn(`'${oxlintRel}' 자리가 심볼릭 링크라 .harness 제외 반영을 건너뜁니다 — 직접 편집하세요.`);
+    results.push({ rel: oxlintRel, status: 'manual' });
+  } else if (existsSync(oxlintAbs)) {
     try {
       const raw = readFileSync(oxlintAbs, 'utf8');
       const config = JSON.parse(raw);
@@ -2575,7 +2783,10 @@ function patchLintIgnoreFiles(target, opts) {
     'prettier.config.cjs',
   ].some((rel) => existsSync(join(target, rel)));
 
-  if (existsSync(prettierIgnoreAbs)) {
+  if (isSymlinkPath(prettierIgnoreAbs)) {
+    console.warn(`'${prettierIgnoreRel}' 자리가 심볼릭 링크라 .harness 제외 반영을 건너뜁니다 — 직접 편집하세요.`);
+    results.push({ rel: prettierIgnoreRel, status: 'manual' });
+  } else if (existsSync(prettierIgnoreAbs)) {
     const current = readFileSync(prettierIgnoreAbs, 'utf8');
     if (current.split(/\r?\n/).some((line) => line.trim() === '.harness/' || line.trim() === HARNESS_LINT_IGNORE)) {
       results.push({ rel: prettierIgnoreRel, status: 'already' });
@@ -2830,6 +3041,11 @@ function main() {
 
     // 훅 이름 충돌 사전 검사(0.2.146): 파일 복사·설정 병합·백업 전에 멈춘다. dry-run 은 목록만 보여준다.
     const hookConflicts = detectHookConflicts(sourceRoot, TARGET, files, recognizedManifest);
+    // --replace-file 로 훅 경로를 지정하면 훅 교체 결정으로도 읽는다(Codex 1R #3): 충돌 사전 검사가 먼저 멈춰 새 플래그가
+    // 닿지 못했다. 한 파일에 대한 결정은 한 곳(훅 결정)으로 모은다 — 유지(--keep-hook)와의 모순도 그 검사가 잡는다.
+    for (const rel of opts.replaceFiles ?? []) {
+      if (rel.startsWith('.claude/hooks/') && rel.endsWith('.sh')) (opts.replaceHooks ??= new Set()).add(hookBaseName(rel));
+    }
     const hookDecisions = resolveHookConflicts(hookConflicts, opts);
     if (hookDecisions.unresolved.length > 0) {
       if (opts.dryRun) {
@@ -2838,8 +3054,33 @@ function main() {
         printHookConflictsAndExit(hookDecisions.unresolved);
       }
     }
+    // --replace-file(0.2.148, #34) 대상 검증 — 조용히 넘기는 경우가 없어야 한다(적대적 리뷰 P1·P2):
+    //  ① 프로젝트 소유 파일 거절 — 팀 설정(profile.json 등)을 템플릿으로 덮는 사고 방지
+    //  ② 마커 진입점(CLAUDE.md·AGENTS.md·copilot-instructions) 거절 — 정상 설치에선 마커 병합 경로가 먼저라 조용히 무시되지만,
+    //     설치 기록이 없는 외래 .harness/ 상태에선 통째로 덮여 팀 문서가 사라진다(리뷰 P1, --force 동의 관문도 우회)
+    //  ③ 하네스가 배포하지 않는 경로는 오타일 확률이 높다 — 안내를 따라 친 한 글자 오타가 "복원됐다"는 믿음으로 끝나면 안 된다
+    for (const rel of opts.replaceFiles ?? []) {
+      if (isProjectOwned(rel)) {
+        console.error(`--replace-file 대상 '${rel}'은 프로젝트 소유 파일입니다 — 하네스 원본으로 덮을 수 없습니다(팀 설정이 사라집니다). 되돌리려면 직접 편집하세요.`);
+        process.exit(1);
+      }
+      if (isMarkerManaged(rel)) {
+        console.error(`--replace-file 대상 '${rel}'은 마커로 병합하는 진입점입니다 — 통째로 교체할 수 없습니다(프로젝트 영역이 사라집니다). 하네스 블록은 그냥 업데이트하면 마커 안만 갱신됩니다.`);
+        process.exit(1);
+      }
+      if (!files.includes(rel)) {
+        console.error(`--replace-file 대상 '${rel}'은 하네스가 배포하는 파일이 아닙니다 — 경로를 확인하세요(예: .harness/policy/policy-registry.json).`);
+        process.exit(1);
+      }
+    }
     opts.replaceHookRels = new Set(hookDecisions.replace.map((c) => c.rel));
     opts.keepHookRels = new Set(hookDecisions.keep.map((c) => c.rel));
+    //  ④ 같은 파일에 유지(--keep-hook)와 교체(--replace-file)를 함께 주면 모순 — 훅 결정 검사와 같은 규칙으로 멈춘다(리뷰 P2)
+    const keptAndReplaced = [...(opts.replaceFiles ?? [])].filter((rel) => opts.keepHookRels.has(rel));
+    if (keptAndReplaced.length > 0) {
+      console.error(`같은 파일에 유지(--keep-hook)와 교체(--replace-file)를 함께 지정했습니다: ${keptAndReplaced.join(', ')} — 하나만 남기고 다시 실행하세요.`);
+      process.exit(1);
+    }
 
     if (!opts.noBackup) {
       const backup = backupExisting(TARGET, [...files, ...CONSUMER_PROJECT_STATE_PATHS, ...legacyManagedRootScripts], opts.dryRun);
@@ -2896,7 +3137,9 @@ function main() {
         if (retiredNotice) console.log(`package.json: ${retiredNotice}`);
       }
       console.log(`.gitignore: harness entry ${gitignoreAdded}개 추가`);
-      if (claudeSettings.skipped === 'parse-error') {
+      if (claudeSettings.skipped === 'symlink') {
+        console.log('.claude/settings.json: 자리가 심볼릭 링크라 하네스 훅 병합을 건너뜀 — 하네스는 링크 너머를 쓰지 않습니다. 링크를 정리한 뒤 다시 실행하세요.');
+      } else if (claudeSettings.skipped === 'parse-error') {
         console.log('.claude/settings.json: 파싱 실패로 하네스 훅 병합을 건너뜀 (수동 확인 필요)');
       } else if (claudeSettings.changed) {
         console.log(`.claude/settings.json: 기존 설정 보존하고 하네스 안전 표면 병합 (hooks ${claudeSettings.hooksAdded}, deny ${claudeSettings.denyAdded}, allow ${claudeSettings.allowAdded}, env ${claudeSettings.envAdded}${claudeSettings.statusLineSet ? ', statusLine' : ''})`);
@@ -2936,7 +3179,9 @@ function main() {
       for (const patch of lintIgnorePatches.filter((item) => item.status !== 'already')) {
         console.log(`  - lint ignore: ${patch.rel} ${patch.status === 'manual' ? '자동 수정 불가 — .harness/** 수동 추가 필요' : '.harness 제외 반영'}`);
       }
-      if (claudeSettings.skipped === 'parse-error') {
+      if (claudeSettings.skipped === 'symlink') {
+        console.log('.claude/settings.json: 자리가 심볼릭 링크라 하네스 훅 병합을 건너뜀 — 하네스는 링크 너머를 쓰지 않습니다. 링크를 정리한 뒤 다시 실행하세요.');
+      } else if (claudeSettings.skipped === 'parse-error') {
         console.log('  - .claude/settings.json JSON 손상으로 하네스 안전 훅 병합을 건너뛰었습니다. 파일을 고친 뒤 init/update를 다시 실행하세요.');
       }
       if (migration.removed > 0) {
@@ -2986,7 +3231,9 @@ function main() {
     }
 
     const foreignPreserved = installed.preservedForeignFiles ?? [];
-    const ordinarySkipped = installed.skippedFiles.filter((rel) => !foreignPreserved.includes(rel));
+    const readopted = installed.readoptedFiles ?? [];
+    const nonRegular = installed.nonRegularSkipped ?? [];
+    const ordinarySkipped = installed.skippedFiles.filter((rel) => !foreignPreserved.includes(rel) && !readopted.includes(rel) && !nonRegular.includes(rel));
     if (ordinarySkipped.length > 0) {
       console.log('');
       console.log('보존된 프로젝트 소유 파일:');
@@ -3004,13 +3251,36 @@ function main() {
       for (const item of installed.replacedHooks) console.log(`  - ${item.rel}  (기존 파일 → ${item.backup})`);
       console.log('  개인 훅으로 계속 쓰려면 보관 파일을 <이름>.local.sh 로 옮겨 .claude/settings.local.json 에 등록하세요.');
     }
+    if (installed.replacedFiles && installed.replacedFiles.length > 0) {
+      console.log('');
+      console.log(`기존 파일 ${installed.replacedFiles.length}개를 하네스 원본으로 ${opts.dryRun ? '교체합니다(dry-run — 실제 실행 시)' : '교체했습니다'}(--replace-file):`);
+      for (const item of installed.replacedFiles) console.log(`  - ${item.rel}  (기존 파일 → ${item.backup})`);
+    }
+    if (nonRegular.length > 0) {
+      console.log('');
+      console.log(`일반 파일이 아니라 건너뛴 대상 ${nonRegular.length}개 (심볼릭 링크·디렉터리·끊어진 링크) — 하네스는 링크 너머를 쓰지 않습니다:`);
+      for (const rel of nonRegular) console.log(`  - ${rel}`);
+      console.log('  링크나 폴더를 직접 정리한 뒤 다시 실행하세요. --force 나 --replace-file 로는 풀리지 않습니다.');
+    }
+    if (installed.readoptedFiles && installed.readoptedFiles.length > 0) {
+      console.log('');
+      console.log(`하네스 원본과 같은 내용이 된 파일 ${installed.readoptedFiles.length}개를 다시 관리 대상으로 들였습니다(내용 변경 없음 — 다음 업데이트부터 함께 갱신됩니다):`);
+      for (const rel of installed.readoptedFiles) console.log(`  - ${rel}`);
+    }
     if (foreignPreserved.length > 0) {
       // 경고는 stderr — init 이 성공 단계의 stdout 을 접어도 살아남아 에이전트가 "정상"으로 넘기지 못하게(#14 방식).
       console.warn('');
       console.warn(`⚠ 하네스 원본과 다른 같은 이름의 기존 파일 ${foreignPreserved.length}개를 보존했습니다 — 하네스가 갱신하지 않으며 manifest 에 현황(preservedForeignFiles)으로 기록됩니다:`);
       for (const rel of foreignPreserved.slice(0, 15)) {
         const isHook = rel.startsWith('.claude/hooks/') && rel.endsWith('.sh');
-        console.warn(`  - ${rel}${isHook ? '  ← 훅 자리: 팀 .claude/settings.json 이 이 파일을 실행합니다(--keep-hook 으로 유지). 원본으로 바꾸려면 --replace-hook ' + hookBaseName(rel) : ''}`);
+        const registryLocal = rel.endsWith('policy/policy-registry.json') ? 'policy-registry.local.json'
+          : rel.endsWith('documentation/document-registry.json') ? 'document-registry.local.json' : null;
+        const arrow = isHook
+          ? '  ← 훅 자리: 팀 .claude/settings.json 이 이 파일을 실행합니다(--keep-hook 으로 유지). 원본으로 바꾸려면 --replace-hook ' + hookBaseName(rel)
+          : registryLocal
+            ? `  ← 프로젝트 항목은 ${registryLocal}(프로젝트 소유)으로 옮기고, 원본으로 되돌리려면 --replace-file ${rel}`
+            : '';
+        console.warn(`  - ${rel}${arrow}`);
       }
       if (foreignPreserved.length > 15) console.warn(`  ... 외 ${foreignPreserved.length - 15}건`);
     }
