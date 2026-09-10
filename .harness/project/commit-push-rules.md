@@ -36,6 +36,7 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 - 기존 `.git/hooks/*` 또는 기존 `core.hooksPath`의 hook은 삭제하지 않습니다.
 - 기존 hook 경로는 `harness.previousHooksPath`에 저장하고, `.githooks/*`(없으면 래퍼)에서 먼저 체인 실행합니다. 래퍼 자리에 있던 기존 `.git/hooks/<훅>` 파일은 `.git/hooks/harness-prev/`로 옮겨 계속 실행합니다.
 - `.github/commit-template.txt`를 git commit template로 연결합니다.
+- **세션이 열린 뒤에 하네스가 들어오면 그 세션은 훅을 실행하지 않습니다.** Claude Code 는 시작 시점에 훅 구성을 잡아 두므로, `.claude/settings.json` 이 없던 상태로 연 창은 pull 로 하네스를 받아도 아무 훅이 돌지 않습니다(스크립트 **내용** 변경은 즉시 반영됩니다 — 이미 하네스가 있던 저장소는 pull 직후 다음 프롬프트부터 새 동작이 돕니다). 리더가 설치해 커밋하고 팀원이 pull 로 받는 흐름에서 자주 생기므로, **하네스를 새로 받은 사람에게는 대화창을 한 번 새로 열라고 안내합니다.**
 - hook 설치 여부는 `.harness/bin/harness hooks:status`로 판단합니다(`켜짐 (브랜치 무관 래퍼)`). 판정 정본은 `hooks-state.mjs`이며, `core.hooksPath`가 `.githooks`로 남아 있으면 예전 방식입니다 — **이 저장소를 주 폴더로 여는 Claude 세션**에서만 세션 시작 훅이 자동으로 갱신하고, 그 배선이 없는 곳(터미널만 쓰는 PC·Codex 전용·상위/하위 폴더를 주 폴더로 연 세션)에서는 각자 `hooks:install`을 한 번 실행해야 합니다. `hooks:status`가 그 환경에 맞는 쪽만 안내합니다(0.2.147).
 
 ## pre-commit
