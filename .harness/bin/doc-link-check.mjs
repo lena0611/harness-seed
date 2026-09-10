@@ -109,6 +109,9 @@ const dynamicArtifactPrefixes = [
   '.harness/generated/',
   '.github/stacks/.applied/',
   '.github/templates/.applied/',
+  // 회귀 스위트 본문(0.2.150 분리). 위 `scripts/test-init.mjs`와 같은 이유로 사용자 프로젝트에는
+  // 복사되지 않으므로, 문서가 영역별 모듈을 가리켜도 소비자에서 broken으로 보지 않는다.
+  'scripts/test-init/',
 ]
 
 // 본체(seed-mode) 전용 문서. 소비자 프로젝트에는 배포되지 않으므로 document-registry에 등록하지 않는다.

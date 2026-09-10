@@ -165,6 +165,32 @@ done <<< "$cmd"
 #     새로 만든 스크립트(git add만 한 것 포함)·고친 스크립트는 종전대로 차단 → 사용자 확인 절차로.
 #   - 예외: 인터프리터 옵션 자리의 -n(문법 검사만)은 실행이 아니므로 통과. `sh file.sh -n`은 인자라 예외가 아니다.
 # 이 판정은 해당 패턴 하나만 건너뛴다 — 같은 줄의 다른 위험 패턴(sudo, curl|sh 등)은 계속 검사한다.
+# 차단된 스크립트가 **하네스 업데이트가 방금 설치한 관리 파일**인지 본다(#40·#41·#42, 세 팀이 같은 자리를 짚었다).
+# 새 파일은 정의상 HEAD 에 없으므로 이 게이트에 항상 걸린다 — 동작은 옳지만, 문구가 "새로 만들거나 고친
+# 스크립트"라고만 말해 "업데이트가 훅을 망가뜨렸나"로 읽힌다. 판정은 두 조건: HEAD 에 없고 + 설치 manifest 의
+# managedFiles 에 있다. 훅의 node 스니펫은 bash 단일 인용 안이라 JS 에 작은따옴표를 쓰지 않는다(0.2.146 함정).
+# manifest 에 이름이 있는 것만으로는 부족하다 — 설치 뒤 사람이 고치거나 통째로 갈아치웠어도 이름은 그대로 남아,
+# "설치가 잘못된 게 아니라 커밋만 안 된 것"이라는 문장이 거짓이 된다(Codex 교차 리뷰). 기록된 sha256 과
+# 디스크 내용이 **같을 때만** 붙인다 — 그때만 "설치가 놓고 간 그대로"가 확인된 사실이다.
+harness_new_managed_file() {
+  local rel="$1" root="$2"
+  [ -n "$rel" ] || return 1
+  git -C "$root" cat-file -e "HEAD:./$rel" 2>/dev/null && return 1
+  HARNESS_REL="$rel" HARNESS_ROOT="$root" node -e '
+const fs = require("fs");
+const crypto = require("crypto");
+try {
+  const root = process.env.HARNESS_ROOT;
+  const rel = process.env.HARNESS_REL;
+  const manifest = JSON.parse(fs.readFileSync(root + "/.harness/install-manifest.json", "utf8"));
+  const entry = (manifest.managedFiles || {})[rel];
+  if (!entry || !entry.sha256) process.exit(1);
+  const actual = crypto.createHash("sha256").update(fs.readFileSync(root + "/" + rel)).digest("hex");
+  process.exit(actual === entry.sha256 ? 0 : 1);
+} catch (error) { process.exit(1); }
+' 2>/dev/null
+}
+
 script_exec_allowed() {
   local seg="$1" before="$2"
   local -a toks
@@ -212,7 +238,11 @@ try {
 } catch { process.exit(1); }
 ' 2>/dev/null)" || return 1
   [ -n "$rel" ] || return 1
-  git -C "$root" cat-file -e "HEAD:$rel" 2>/dev/null || return 1
+  denied_rel="$rel"
+  # `HEAD:<경로>` 는 **저장소 루트 기준**이라, 프로젝트가 저장소의 하위 폴더면 루트의 동명 파일로
+  # 존재 확인이 통과해 미추적 스크립트가 게이트를 그냥 빠져나간다(Codex 교차 리뷰에서 재현).
+  # `./` 를 붙이면 cwd 기준으로 읽혀 저장소 루트에서도 하위 폴더에서도 같은 파일을 본다.
+  git -C "$root" cat-file -e "HEAD:./$rel" 2>/dev/null || return 1
   git -C "$root" diff --quiet HEAD -- "$rel" 2>/dev/null || return 1
   git -C "$root" diff --quiet --cached HEAD -- "$rel" 2>/dev/null || return 1
   return 0
@@ -260,13 +290,18 @@ while IFS= read -r line; do
       case "$pattern" in
         *'\.sh('*)
           denied_segment=""
+          denied_rel=""
           if script_execs_all_allowed "$line" "$pattern" "$seen_lines"; then
             continue
           fi
           if [ "$profile" = "permissive" ]; then
             warn "$pattern"
           fi
-          deny "하네스가 차단함: 셸 스크립트 실행 '$(printf '%s' "$denied_segment" | cut -c1-120)' — 저장소에 커밋된 그대로(HEAD와 동일)인 저장소 안 스크립트만, 실행 폴더를 확정할 수 있을 때(같은 명령에 앞선 cd 없음) 통과합니다. 새로 만들거나 고친 스크립트, 저장소 밖 스크립트는 사용자에게 목적과 영향 범위를 확인한 뒤 진행하세요. 문법 검사만 하려면 sh -n <파일>."
+          managed_hint=""
+          if harness_new_managed_file "${denied_rel:-}" "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"; then
+            managed_hint=" 이 파일은 하네스 업데이트가 방금 설치한 관리 파일입니다 — 설치가 잘못된 것이 아니라 아직 커밋되지 않았을 뿐이고, 커밋하면 통과합니다."
+          fi
+          deny "하네스가 차단함: 셸 스크립트 실행 '$(printf '%s' "$denied_segment" | cut -c1-120)' — 저장소에 커밋된 그대로(HEAD와 동일)인 저장소 안 스크립트만, 실행 폴더를 확정할 수 있을 때(같은 명령에 앞선 cd 없음) 통과합니다. 새로 만들거나 고친 스크립트, 저장소 밖 스크립트는 사용자에게 목적과 영향 범위를 확인한 뒤 진행하세요. 문법 검사만 하려면 sh -n <파일>.${managed_hint}"
           ;;
       esac
       if [ "$profile" = "permissive" ]; then

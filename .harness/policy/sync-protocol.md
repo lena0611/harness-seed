@@ -5,7 +5,10 @@
 - `.harness/policy/**`가 바뀔 때
 - 업무 코드가 바뀔 때
 - 구조, 데이터 흐름, 책임 경계에 영향을 줄 수 있는 리팩터링을 할 때
-- `scripts/init.mjs`, `scripts/test-init.mjs`, `.harness/bin/scan-project.mjs`, `.harness/bin/handoff.mjs` 또는 문서 검사 스크립트가 바뀔 때
+- `scripts/init.mjs`, `scripts/test-init.mjs`, `scripts/test-init/**`, `.harness/bin/scan-project.mjs`, `.harness/bin/handoff.mjs` 또는 문서 검사 스크립트가 바뀔 때
+  - 설치기 회귀 스위트는 0.2.150부터 두 층입니다. `scripts/test-init.mjs`는 **등록과 실행**만 갖고(`tests` 배열이 회귀 목록의 정본, 그 뒤가 샤드 러너),
+    회귀 본문은 `scripts/test-init/<영역>.mjs`, 공용 픽스처·단언은 `scripts/test-init/helpers.mjs`에 있습니다.
+    아래 규칙들이 "`scripts/test-init.mjs`의 <이름> 회귀를 함께 갱신합니다"라고 적을 때, **찾는 키는 회귀 이름**입니다 — 이름으로 잡고 본문 파일에서 고칩니다.
 
 ## 기본 실행 순서
 1. 일반 프로젝트에서는 먼저 `.harness/bin/harness impact`로 영향 범위를 봅니다.

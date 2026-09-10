@@ -26,6 +26,7 @@ const {
 } = fs;
 import { tmpdir, homedir } from 'os';
 import {
+  basename,
   dirname,
   join,
   relative,
@@ -542,6 +543,7 @@ Options:
                          프로젝트 소유 파일은 건드리지 않습니다. lint/formatter가 .harness/를 고쳐
                          업데이트에서 제외된 파일을 복구할 때 씁니다.
   --no-backup            백업을 만들지 않습니다. 기존 항목이 있으면 --force가 필요합니다.
+  --keep-all-backups     오래된 .harness-backup 세트를 정리하지 않고 전부 남깁니다(기본은 최근 2개만).
   --no-scan              설치 후 프로젝트 스캔 리포트를 자동 생성하지 않습니다.
   --no-handoff           설치/업데이트 인수인계 요약을 자동 생성하지 않습니다.
   --no-check             설치 후 하네스 기본 검사를 자동 실행하지 않습니다.
@@ -573,6 +575,7 @@ function parseArgs(argv) {
     force: false,
     confirmOverwriteProjectFiles: process.env.AI_STANDARD_CONFIRM_OVERWRITE_PROJECT_FILES === '1',
     noBackup: false,
+    keepAllBackups: false,
     noScan: false,
     noHandoff: false,
     noCheck: false,
@@ -609,6 +612,9 @@ function parseArgs(argv) {
       case '--confirm-overwrite-project-files':
       case '--confirm-overwrite-project-state':
         opts.confirmOverwriteProjectFiles = true;
+        break;
+      case '--keep-all-backups':
+        opts.keepAllBackups = true;
         break;
       case '--no-backup':
         opts.noBackup = true;
@@ -1032,26 +1038,154 @@ function isoStamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
 }
 
+// git 이 이미 들고 있는 파일은 백업하지 않는다(0.2.150). 되돌릴 수 있는 것을 또 복사하면
+// `.harness-backup` 이 설치할 때마다 커지는데 정리·복원 코드는 없었다(멀티사이트 30세트 75MB 실측,
+// 실제 하네스의 4.4배). 추적 중이고 작업본·인덱스가 HEAD 와 같은 파일은 `git show HEAD:./<경로>` 로
+// 언제든 꺼낼 수 있으므로 사본을 또 만들 이유가 없다(하위 폴더에서도 되도록 `HEAD:./<경로>` 형태로 안내한다 —
+// `./` 가 없으면 git 은 저장소 루트 기준으로 읽어 하위 폴더에서 실패한다). 판정이 불확실하면 **백업하는 쪽으로** 실패한다.
+// 이 파일은 execFileSync 를 import 하지 않는다 — spawnSync 로 쓴다.
+function gitRecoverablePaths(target, rels) {
+  if (rels.length === 0) return new Set();
+  const run = (args, input) => {
+    const result = spawnSync('git', ['-C', target, ...args], { encoding: 'utf8', input, maxBuffer: 32 * 1024 * 1024 });
+    if (result.status !== 0 || typeof result.stdout !== 'string') return null;
+    return result.stdout;
+  };
+  if (run(['rev-parse', '--is-inside-work-tree']) === null) return new Set();
+
+  // 판정은 **디스크 내용을 직접 해싱해 HEAD blob 지문과 대조**한다. `git status` 로는 안 된다(Codex 교차 리뷰):
+  // `--assume-unchanged`/`--skip-worktree` 가 걸린 파일은 고쳐도 status 가 통째로 숨겨, "고쳤는데 깨끗하다"로
+  // 읽혀 되돌릴 수 없는 파일이 백업에서 빠진다. hash-object 는 인덱스 플래그와 무관하게 디스크를 읽는다.
+  //
+  // 해싱에 `--no-filters` 는 쓰지 않는다. 하네스 자신이 `.cmd` 에 `eol=crlf` 를 선언하므로(0.2.x) 원시 바이트로
+  // 대조하면 정상적으로 정규화된 파일이 전부 "되돌릴 수 없음"으로 잡혀 매번 백업이 쌓인다 — 고치려던 문제로
+  // 되돌아간다. checkout 이 그 바이트를 그대로 복원하므로 필터를 적용한 지문이 맞는 기준이다.
+  // 남는 한 가지: 내용을 지우는 **커스텀 clean 필터**가 걸린 파일은 git 이 그 바이트를 애초에 저장하지 않아
+  // 여기서도 "같다"로 나온다. 하네스 관리 파일에 그런 필터를 거는 구성은 확인된 바 없어 감수한다.
+  //
+  // ls-tree 의 출력 경로는 pathspec 과 같은 cwd 기준이라 rels 와 그대로 대조된다.
+  const tree = run(['ls-tree', '-z', 'HEAD', '--', ...rels]);
+  if (tree === null) return new Set();   // 커밋이 없으면(HEAD 부재) 되돌릴 수단이 없다 → 전부 백업
+  const headOid = new Map();
+  for (const entry of tree.split('\0')) {
+    if (!entry) continue;
+    const tab = entry.indexOf('\t');
+    if (tab < 0) continue;
+    const [, type, oid] = entry.slice(0, tab).split(' ');
+    if (type === 'blob') headOid.set(entry.slice(tab + 1), oid);
+  }
+  const candidates = rels.filter((rel) => headOid.has(rel));
+  if (candidates.length === 0) return new Set();
+
+  // --stdin-paths 는 git 의 -C 와 무관하게 프로세스 cwd 기준으로 열므로 절대 경로로 넘긴다.
+  // 출력은 입력 순서 그대로 한 줄에 하나라 인덱스로 짝지을 수 있다.
+  const hashed = run(['hash-object', '--stdin-paths'], `${candidates.map((rel) => join(target, rel)).join('\n')}\n`);
+  if (hashed === null) return new Set();
+  const worktreeOid = hashed.split('\n').filter(Boolean);
+  if (worktreeOid.length !== candidates.length) return new Set();   // 짝이 안 맞으면 판정하지 않는다
+
+  const recoverable = new Set();
+  candidates.forEach((rel, index) => {
+    if (headOid.get(rel) === worktreeOid[index]) recoverable.add(rel);
+  });
+  return recoverable;
+}
+
+// 우리가 만든 타임스탬프 폴더만 센다 — 사람이 손으로 넣어 둔 것은 건드리지 않는다.
+// 남길 세트 수. 되돌릴 일은 방금 한 설치를 물릴 때뿐이라 둘이면 충분하다.
+const BACKUP_KEEP_SETS = 2;
+const BACKUP_STAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
+
+function dirSizeBytes(dir) {
+  let total = 0;
+  const walk = (current) => {
+    let entries;
+    try {
+      entries = readdirSync(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = join(current, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else {
+        try { total += statSync(full).size; } catch {}
+      }
+    }
+  };
+  walk(dir);
+  return total;
+}
+
+// 최근 keep 세트만 남긴다. 정리한 것은 반드시 보고한다 — 조용히 지우면 "왜 없어졌지"가 된다.
+// `protect` 는 이번 설치가 방금 만든 세트다. 이름 정렬만 믿으면 시계가 어긋나 미래 이름 세트가 남아 있을 때
+// **방금 만든 백업이 가장 오래된 것으로 몰려 즉시 지워진다**(Codex 교차 리뷰 — 미래 세트 2개로 재현).
+// 이번 수정본의 유일한 사본이라 무슨 일이 있어도 살린다.
+function pruneOldBackupSets(target, keep, dryRun, protect) {
+  const root = join(target, '.harness-backup');
+  let entries;
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return { removed: [], bytes: 0 };
+  }
+  const sets = entries
+    .filter((entry) => entry.isDirectory() && BACKUP_STAMP_RE.test(entry.name))
+    .map((entry) => entry.name)
+    .sort()
+    .reverse();
+  const survivors = new Set();
+  if (protect && sets.includes(protect)) survivors.add(protect);
+  for (const name of sets) {
+    if (survivors.size >= keep) break;
+    survivors.add(name);
+  }
+  const doomed = sets.filter((name) => !survivors.has(name));
+  const removed = [];
+  let bytes = 0;
+  for (const name of doomed) {
+    const full = join(root, name);
+    const size = dirSizeBytes(full);
+    if (!dryRun) {
+      // 지우지 못한 것을 지웠다고 보고하지 않는다 — 회수 용량이 실제와 다르면 다음 사람이 안 맞는 수를 쫓는다.
+      try { rmSync(full, { recursive: true, force: true }); } catch { continue; }
+    }
+    removed.push(name);
+    bytes += size;
+  }
+  return { removed, bytes };
+}
+
 function backupExisting(target, files, dryRun) {
   const existing = files.filter((rel) => existsSync(join(target, rel)));
   if (existing.length === 0) {
-    return { dir: null, count: 0 };
+    return { dir: null, count: 0, skipped: 0 };
+  }
+
+  // git 이 되돌릴 수 있는 파일은 뺀다. 폴더는 판정 대상이 아니므로 그대로 백업한다.
+  const fileRels = existing.filter((rel) => {
+    try { return statSync(join(target, rel)).isFile(); } catch { return false; }
+  });
+  const recoverable = gitRecoverablePaths(target, fileRels);
+  const doomed = existing.filter((rel) => !recoverable.has(rel));
+  if (doomed.length === 0) {
+    return { dir: null, count: 0, skipped: recoverable.size };
   }
 
   const dir = join(target, '.harness-backup', isoStamp());
   if (dryRun) {
-    return { dir, count: existing.length };
+    return { dir, count: doomed.length, skipped: recoverable.size };
   }
 
   mkdirSync(dir, { recursive: true });
-  for (const rel of existing) {
+  for (const rel of doomed) {
     const src = join(target, rel);
     const dst = join(dir, rel);
     mkdirSync(dirname(dst), { recursive: true });
     cpSync(src, dst, { recursive: true, dereference: false });
   }
 
-  return { dir, count: existing.length };
+  return { dir, count: doomed.length, skipped: recoverable.size };
 }
 
 // ── 훅 이름 충돌(0.2.146, smartscore-backend/common 후속 제보 ①, Codex 설계 리뷰) ─────────────────────────────
@@ -3085,11 +3219,21 @@ function main() {
     if (!opts.noBackup) {
       const backup = backupExisting(TARGET, [...files, ...CONSUMER_PROJECT_STATE_PATHS, ...legacyManagedRootScripts], opts.dryRun);
       if (backup.count > 0) {
-        console.log(`backup: ${backup.dir} (${backup.count}개 기존 파일)`);
+        console.log(`backup: ${backup.dir} (${backup.count}개 기존 파일${backup.skipped > 0 ? `, git 이 되돌릴 수 있는 ${backup.skipped}개는 생략` : ''})`);
+      } else if (backup.skipped > 0) {
+        console.log(`backup: 생략 — 기존 파일 ${backup.skipped}개는 모두 git 이 되돌릴 수 있습니다(git show HEAD:./<경로>).`);
       } else if (opts.verbose || opts.dryRun) {
         console.log('backup: 기존 하네스 파일 없음');
       }
-      if (backup.count > 0 || opts.verbose || opts.dryRun) {
+      // 회전(0.2.150): 최근 세트만 남긴다. 정리 결과는 반드시 한 줄로 보고한다 — 조용히 지우지 않는다.
+      if (!opts.keepAllBackups) {
+        const pruned = pruneOldBackupSets(TARGET, BACKUP_KEEP_SETS, opts.dryRun, backup.dir ? basename(backup.dir) : null);
+        if (pruned.removed.length > 0) {
+          const mb = (pruned.bytes / (1024 * 1024)).toFixed(1);
+          console.log(`${opts.dryRun ? '[dry-run] ' : ''}backup: 오래된 세트 ${pruned.removed.length}개 정리(약 ${mb} MB 회수) — 최근 ${BACKUP_KEEP_SETS}개만 남깁니다. 전부 남기려면 --keep-all-backups.`);
+        }
+      }
+      if (backup.count > 0 || backup.skipped > 0 || opts.verbose || opts.dryRun) {
         console.log('');
       }
     }
