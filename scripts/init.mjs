@@ -435,7 +435,7 @@ function printDualRuntimeDiagnostics(projectValue, parsedSpec, envInfo) {
   console.log(`project node: .nvmrc ${projectValue}는 하네스 최소 Node 20.19.0 미만 → dual-runtime 모드로 설치합니다.`);
   console.log('  - git hook과 .harness/bin/harness <command>는 nvm 설치본 중 20.19 이상 최신 Node로 자동 전환되어 실행됩니다.');
   console.log('  - 참고: 활성 Node가 낮은 셸에서 `npm run harness:*`는 Node 게이트에서 멈춥니다. 저버전 셸에서는 `.harness/bin/harness <command>`를 쓰거나 먼저 상위 Node로 `nvm use` 하세요.');
-  console.log('  - lint/test/build 등 프로젝트 검증은 .nvmrc Node로 실행됩니다. 프로젝트 Node를 올릴 필요가 없습니다.');
+  console.log('  - 프로젝트 코드·빌드는 .nvmrc Node 그대로입니다. 하네스는 lint/test/build를 실행하지 않으므로(0.2.131) 프로젝트 Node를 올릴 필요가 없습니다.');
 
   if (!envInfo.nvmAvailable) {
     console.error('');
@@ -456,7 +456,7 @@ function printDualRuntimeDiagnostics(projectValue, parsedSpec, envInfo) {
     if (projectInstalled) {
       console.log(`  - 프로젝트 Node(${projectValue}): ${projectInstalled.name} 설치됨`);
     } else {
-      console.warn(`  - 프로젝트 Node(${projectValue}): nvm에 없음 → nvm install ${projectValue} 후 프로젝트 검증(lint/test/build)이 동작합니다.`);
+      console.warn(`  - 프로젝트 Node(${projectValue}): nvm에 없음 → nvm install ${projectValue} 로 설치하세요. 프로젝트 코드·빌드용이며 하네스는 이 Node를 쓰지 않습니다.`);
     }
   } else {
     console.warn(`  - 프로젝트 Node(${projectValue}): 버전 표기를 해석하지 못했습니다. nvm 별칭 대신 숫자 버전 사용을 권장합니다.`);
@@ -517,7 +517,7 @@ function ensureProjectNodeContract(target, opts) {
       console.error(`  - ${candidate.source}: ${candidate.value}${candidate.low ? '' : ' (20.19+로 만족 가능 — 비저버전 신호)'}`);
     }
     console.error('');
-    console.error('이 프로젝트의 검증(lint/test/build)을 어떤 Node로 실행할지 확정해야 dual-runtime이 동작합니다.');
+    console.error('이 프로젝트의 코드·빌드를 어떤 Node로 돌리는지 확정해야 dual-runtime 설치가 됩니다(하네스가 그 Node를 쓰지는 않습니다).');
     console.error('프로젝트 Node 버전을 확인한 뒤 같은 init 명령에 --project-node를 붙여 다시 실행하세요.');
     console.error(`  예: init --project-node ${low.parsed ? low.parsed.major : 12}`);
     console.error('(.nvmrc를 직접 만들어도 됩니다. 하네스는 프로젝트 Node 버전을 추측으로 확정하지 않습니다.)');

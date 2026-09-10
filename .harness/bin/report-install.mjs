@@ -177,7 +177,9 @@ if (!token) {
   process.exit(0)
 }
 
-const apiBase = 'https://git.smartscore.kr/api/v4'
+// 주소는 사내 GitLab 하나지만, 회귀가 실제 등록 경로(태그 조회 → 현황판 갱신)를 밟으려면
+// 가짜 서버를 가리킬 수 있어야 한다. 설정 파일이 우선이고 환경변수는 시험용이다.
+const apiBase = adapterEnv.HARNESS_BODY_API_BASE || process.env.HARNESS_BODY_API_BASE || 'https://git.smartscore.kr/api/v4'
 const projectPath = adapterEnv.HARNESS_BODY_PROJECT || 'ai-standard/harnesses/harness-seed'
 const encodedProject = encodeURIComponent(projectPath)
 
@@ -191,6 +193,83 @@ async function gitlab(method, apiPath, body) {
     throw new Error(`GitLab API ${method} ${apiPath} 실패: ${response.status}`)
   }
   return response.json()
+}
+
+// ── 현황판 머리말: 지금 최신 릴리스 (2026-09-10 사용자 지시) ─────────────────────────────
+// 값의 출처는 본체 저장소의 릴리스 태그 하나뿐이다. 표의 행(= 소비자가 받은 버전)에서 최대값을
+// 고르는 방식은 쓰지 않는다 — 아무도 아직 올리지 않은 릴리스를 놓쳐 "최신"이 거짓이 된다.
+const HEADLINE_PREFIX = '**현재 최신 릴리스: '
+const STALE_PREFIX = '**마지막으로 확인된 릴리스: '
+
+function pickLatestReleaseTag(tags) {
+  const versions = []
+  for (const tag of tags ?? []) {
+    const match = /^v(\d+)\.(\d+)\.(\d+)$/.exec(tag?.name ?? '')
+    if (!match) continue
+    versions.push({
+      name: tag.name,
+      // GitLab 태그 payload 의 날짜는 **대상 커밋의 날짜**다(태그 생성일이 아니다). 그래서 그렇게 부른다.
+      commitDate: typeof tag.commit?.created_at === 'string' ? tag.commit.created_at.slice(0, 10) : '',
+      order: [Number(match[1]), Number(match[2]), Number(match[3])],
+    })
+  }
+  // API 기본 정렬은 믿지 않는다 — 정렬 기준이 바뀌면 옛 태그를 조용히 "최신"이라 부른다.
+  versions.sort((a, b) => (b.order[0] - a.order[0]) || (b.order[1] - a.order[1]) || (b.order[2] - a.order[2]))
+  return versions[0] ?? null
+}
+
+function renderHeadline(latest) {
+  return latest.commitDate
+    ? `${HEADLINE_PREFIX}${latest.name}** (커밋 ${latest.commitDate})`
+    : `${HEADLINE_PREFIX}${latest.name}**`
+}
+
+// 확인하지 못한 값에 "현재 최신"이라고 단정하지 않는다(코덱스 리뷰 P1-3). 직전 값은 버리지 않되,
+// 그것이 **이번에 확인된 값이 아니라는 사실**을 머리말 자신이 말한다.
+function staleHeadline(previousDescription) {
+  const line = carriedHeadline(previousDescription)
+  if (!line) return null
+  if (line.startsWith(STALE_PREFIX)) return line
+  return `${STALE_PREFIX}${line.slice(HEADLINE_PREFIX.length)} — 이번 갱신에서는 최신 태그를 확인하지 못했습니다`
+}
+
+// 조회가 실패하면 지어내지 않는다. 직전에 그려 둔 줄을 그대로 이어 쓰고, 그것도 없으면 줄을 빼고
+// 표만 그린다 — 틀린 최신 버전을 적는 쪽이 머리말 한 줄이 비는 쪽보다 나쁘다(거짓 안내 금지).
+function carriedHeadline(previousDescription) {
+  const lines = (previousDescription ?? '').split('\n')
+  const fresh = lines.find((line) => line.startsWith(HEADLINE_PREFIX))
+  if (fresh) return fresh
+  // 이미 "마지막으로 확인된" 형태로 바뀐 줄도 이어받는다 — 아니면 두 번째 실패에서 머리말이 사라진다.
+  const stale = lines.find((line) => line.startsWith(STALE_PREFIX))
+  return stale ? `${HEADLINE_PREFIX}${stale.slice(STALE_PREFIX.length).replace(' — 이번 갱신에서는 최신 태그를 확인하지 못했습니다', '')}` : null
+}
+
+// 태그를 전부 받는다. 한 페이지만 받으면 "어느 100개가 오는가"를 API 기본 정렬에 맡기는 셈이라,
+// 정렬을 직접 하는 방어가 한 층 위에서 뚫린다(태그 149개 실측). 상한은 안전장치다.
+async function fetchAllTags() {
+  const tags = []
+  for (let page = 1; page <= 20; page += 1) {
+    const chunk = await gitlab('GET', `/projects/${encodedProject}/repository/tags?per_page=100&page=${page}`)
+    // 불완전한 조회를 완료처럼 다루면 "못 본 태그"가 "없는 태그"가 된다(코덱스 리뷰 P2-4).
+    if (!Array.isArray(chunk)) throw new Error('태그 목록이 배열이 아닙니다')
+    tags.push(...chunk)
+    if (chunk.length < 100) return tags
+  }
+  throw new Error('태그가 상한(20페이지)보다 많아 전부 확인하지 못했습니다')
+}
+
+async function resolveHeadline(previousDescription) {
+  try {
+    const latest = pickLatestReleaseTag(await fetchAllTags())
+    if (latest) return renderHeadline(latest)
+    // 조회는 됐는데 vN.N.N 태그가 하나도 없다. 승계는 하되 조용히 성공으로 끝내지 않는다 —
+    // 운영자가 "머리말이 갱신됐다"고 읽으면 낡은 버전이 최신인 척 남는다.
+    console.error('릴리스 태그(vN.N.N)를 찾지 못했습니다 — 머리말을 "마지막으로 확인된"으로 표시합니다.')
+    return staleHeadline(previousDescription)
+  } catch (error) {
+    console.error(`최신 릴리스 태그를 확인하지 못했습니다 — 머리말을 "마지막으로 확인된"으로 표시합니다: ${error.message}`)
+    return staleHeadline(previousDescription)
+  }
 }
 
 // 리포트 이슈 제목을 파싱한다. 제목 형식은 이 스크립트가 만들므로 고정이다:
@@ -208,7 +287,8 @@ function tableRowCount(table) {
 
 // 현황판 재생성(2026-09-02 사용자 지시): 행 = 소비자 프로젝트 하나(이벤트 로그가 아니라 최신 상태).
 // 새 행은 새 소비자가 나타났을 때만 추가되고, 업데이트는 그 프로젝트 행을 갱신한다.
-async function rebuildHistoryTable() {
+async function rebuildHistoryTable(previousDescription) {
+  const headline = await resolveHeadline(previousDescription)
   const entries = []
   for (let page = 1; page <= 10; page += 1) {
     const issues = await gitlab('GET', `/projects/${encodedProject}/issues?labels=${encodeURIComponent('설치리포트')}&state=all&per_page=100&page=${page}&order_by=created_at&sort=asc`)
@@ -240,7 +320,8 @@ async function rebuildHistoryTable() {
       : '-'
     rows.push(`| ${project} | ${installCell} | ${updateCell} |`)
   }
-  return `${HISTORY_HEADER}\n${rows.join('\n')}`
+  const head = headline ? `${headline}\n\n${HISTORY_HEADER}` : HISTORY_HEADER
+  return `${head}\n${rows.join('\n')}`
 }
 
 const HISTORY_TITLE = '하네스 설치·업데이트 이력'
@@ -249,6 +330,7 @@ const HISTORY_TITLE = '하네스 설치·업데이트 이력'
 const HISTORY_HEADER = [
   '이 이슈는 소비자 프로젝트의 배포 현황판입니다. 행 = 프로젝트 하나(최신 상태), 새 행은 새 소비자가 나타났을 때만 늘어납니다.',
   '리포트 이슈(라벨 설치리포트)들로부터 report:install이 매번 재생성합니다. (본체 운영용 — 개발 행위 추적이 아닙니다.)',
+  '머리말의 최신 릴리스는 본체 저장소의 릴리스 태그에서 옵니다 — 아래 표의 최대값이 아닙니다.',
   '',
   '| 프로젝트 | 설치일 / 버전 | 업데이트일 / 버전 |',
   '| --- | --- | --- |',
@@ -259,8 +341,8 @@ if (rebuildOnly) {
     console.error('--rebuild-history는 등록 토큰이 필요합니다(HARNESS_BODY_ISSUE_TOKEN).')
     process.exit(1)
   }
-  const table = await rebuildHistoryTable()
   const found = await gitlab('GET', `/projects/${encodedProject}/issues?labels=${encodeURIComponent('설치이력표')}&state=all&per_page=1`)
+  const table = await rebuildHistoryTable(found[0]?.description)
   if (found.length === 0) {
     const historyIssue = await gitlab('POST', `/projects/${encodedProject}/issues`, { title: HISTORY_TITLE, description: table, labels: '설치이력표' })
     console.log(`이력 표 이슈 생성: #${historyIssue.iid} (리포트 ${tableRowCount(table)}건)`)
@@ -285,8 +367,8 @@ try {
   // 수기 등록 이슈는 행이 영영 안 생긴다(첫날 실측: clubadm #4, API 직접 호출) ② 동시
   // 등록 시 읽고-고쳐-쓰기 경쟁으로 행이 덮일 수 있다. 재생성이면 표는 파생 뷰가 되어
   // 어떤 경로로 이슈가 생겼든 다음 실행이 전체를 다시 그리며 스스로 복구된다.
-  const table = await rebuildHistoryTable()
   const found = await gitlab('GET', `/projects/${encodedProject}/issues?labels=${encodeURIComponent('설치이력표')}&state=all&per_page=1`)
+  const table = await rebuildHistoryTable(found[0]?.description)
   if (found.length === 0) {
     const historyIssue = await gitlab('POST', `/projects/${encodedProject}/issues`, {
       title: HISTORY_TITLE,

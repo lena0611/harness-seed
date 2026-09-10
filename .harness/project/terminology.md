@@ -36,7 +36,7 @@
 
 | 용어 | 쉽게 말하면 | 실물 |
 | --- | --- | --- |
-| harness:check | 전체 검사 한 방 — 정책·문서·회귀·(옵트인 시) 프로젝트 검증까지 | `.harness/bin/harness check` |
+| harness:check | 전체 검사 한 방 — 정책·문서·회귀 등 하네스 자신의 관문 검사만 (lint/test/build는 실행하지 않습니다) | `.harness/bin/harness check` |
 | harness:impact | 커밋 전 "이 변경이 어디에 영향 주나" 미리보기. 가볍고 안 막음 | `.harness/bin/harness impact` |
 | 훅(hook) | 커밋/푸시 순간 자동으로 도는 검사 관문 — 평소엔 존재감 없는 안전벨트 | `.githooks/`, `.harness/bin/harness hooks:install` |
 | 회귀 | 한 번 잡은 사고가 재발하면 커밋을 막는 자동 테스트 — "다시는 안 깨진다"의 박제 | 본체 `scripts/test-init.mjs` |

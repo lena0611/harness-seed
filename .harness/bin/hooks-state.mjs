@@ -295,7 +295,10 @@ if (isMain) {
       legacy: info.autoMigrates
         ? '예전 방식 (core.hooksPath=.githooks) — 이 저장소를 주 폴더로 여는 다음 Claude 세션에서 자동 갱신됩니다 (지금 바꾸려면 hooks:install)'
         : '예전 방식 (core.hooksPath=.githooks) — hooks:install 로 갱신하세요',
-      off: '꺼짐',
+      // off 도 legacy 와 같은 배선이 켜 준다(세션 시작 훅은 둘 다 처리한다) — 한쪽만 갈라 두면 채널이 어긋난다.
+      off: info.autoMigrates
+        ? '꺼짐 — 이 저장소를 주 폴더로 여는 다음 Claude 세션에서 자동으로 켜집니다 (지금 켜려면 hooks:install)'
+        : '꺼짐',
       optout: '꺼짐 (이 PC의 명시적 선택: harness.hooksAutoEnable=false)',
       nogit: 'git 저장소 아님',
     }[info.state]

@@ -1162,6 +1162,12 @@ function lowProjectNvmrcInstallsInDualRuntimeMode() {
   assert(exists(target, '.harness/bin/dual-node.sh'), 'dual-runtime install should ship dual-node.sh')
   assert(exists(target, '.harness/bin/node-env.mjs'), 'dual-runtime install should ship node-env.mjs')
   assert(read(target, '.nvmrc') === '12\n', 'dual-runtime install should preserve project .nvmrc')
+  // 0.2.149: 진단 문구가 이미 없어진 기능을 약속하지 않는지 잠근다. verify 제거(0.2.131) 뒤에도
+  // "nvm install 후 프로젝트 검증(lint/test/build)이 동작합니다"가 남아 있었다 — 설치하는 사람이 읽는
+  // 자리라 "하네스가 내 빌드를 돌린다"는 오해를 그대로 심었다(결정 110의 "거짓 안내" 부류).
+  assert(!output.includes('프로젝트 검증(lint/test/build)이 동작'), 'install diagnostics must not promise project verification the harness no longer runs')
+  assert(!output.includes('lint/test/build는 .nvmrc Node로 실행합니다'), 'the dual-runtime line must not claim the harness runs project build tools')
+  assert(output.includes('하네스는 lint/test/build를 실행하지 않'), 'the dual-runtime line must state who actually owns code quality checks')
 }
 
 // dual-runtime은 nvm이 전환 수단이다. nvm이 없으면 이전처럼 설치를 중단하고 안내한다.
@@ -3129,6 +3135,170 @@ function crossHookCallRunsTheRealHook() {
 // 지시를 주는데 그 지시가 공지와 다르면 지금 뭘 해야 하는지 갈린다. 세션 시작 훅이 실제로 배선돼 있으면 자동 갱신을
 // 안내하고, 배선이 없으면(터미널만 쓰는 PC·어댑터 미설치·등록 누락) 종전 문구를 낸다 — 판정은 사람 안내 쪽으로 닫는다.
 // #29 참고 표시: previousHooksPath는 선언값과 해석값이 같으면 한 번만 찍는다.
+// 0.2.149 — 훅 미설치 안내가 "새 대화창을 열면 저절로 켜진다"까지 말한다 (PHP 백엔드 실측 2026-09-10).
+// pull 로 하네스가 들어온 **이미 열려 있던** 세션에서 이 안내가 떴는데 명령만 건넸다 — 그 창은 스스로 켤 수
+// 없고 다음 세션은 켜므로, 둘 다 말해야 개발자가 지금 칠지 기다릴지 고른다. 배선이 없는 clone 에서는 거짓이라
+// 말하지 않는 것까지 함께 잠근다(#29 ① 의 교훈: 같은 사실을 말하는 채널이 둘이면 한쪽만 고치면 안 된다).
+// 0.2.149 — 세션 시작이 "못 갖춘 조건"만 표로 보여준다(사용자 지시 2026-09-10). 사람과 에이전트가
+// 같은 줄을 읽는 자리라 채널을 하나로 둔다. 핵심은 **모름을 꺼짐으로 단정하지 않는 것**이다 — 실측에서
+// node 가 없자 훅이 멀쩡히 켜져 있는데도 "꺼져 있는데 켜지 못했습니다"라고 알렸고, 처방으로 준
+// hooks:install 도 같은 이유로 실패할 명령이었다.
+// 0.2.149 — pull(post-merge)도 같은 준비 상태 표를 낸다(사용자 지시 2026-09-10). Claude 를 안 쓰는
+// 개발자(터미널·Codex 전용 PC)에게 닿는 유일한 채널이라 넣었다. 판정 본문은 preflight.sh 한 곳이
+// 소유하므로, 두 훅이 **같은 문장**을 내는지까지 함께 잠근다 — 사본이 갈리면 한쪽만 고치게 된다.
+function pullReportsTheSameUnmetPrerequisites() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(exists(target, '.harness/bin/preflight.sh'), 'the shared preflight module must ship to consumers')
+  const postMerge = path.join(target, '.githooks/post-merge')
+  const sessionHook = path.join(target, '.claude/hooks/session-start-reminder.sh')
+  const runHook = (hookPath, pathValue, extraEnv = {}) => {
+    const options = {
+      cwd: target,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { PATH: pathValue, HOME: target, NVM_DIR: path.join(target, 'no-such-nvm'), ...extraEnv },
+    }
+    try {
+      return execFileSync('sh', [hookPath], options)
+    } catch (error) {
+      // 훅은 어떤 환경에서도 0 으로 끝나야 한다 — 삼키면 pull·세션을 죽이는 회귀를 못 잡는다(코덱스 P2-7).
+      throw new Error(`hook exited ${error.status}: ${error.stdout ?? ''}${error.stderr ?? ''}`)
+    }
+  }
+
+  // ① 준비된 pull 은 조용하다 — 매 pull 마다 도는 자리라 정상에서 한 줄도 늘리지 않는다.
+  const healthy = run('sh', [postMerge], { cwd: target, env: { ...process.env } })
+  // 표가 없는지가 아니라 **한 줄도 없는지**를 본다. 매 pull 마다 도는 자리라 잡음 한 줄이 곧 비용이다.
+  assert(healthy.trim() === '', `a healthy pull must print nothing at all (got: ${healthy})`)
+
+  // ② Node 가 없는 pull 은 표를 낸다.
+  const bare = runHook(postMerge, '/usr/bin:/bin:/usr/sbin:/sbin')
+  assert(bare.includes('준비 안 된 항목') && bare.includes('| 하네스 실행 Node |'), 'a pull without Node must raise the same gap table')
+  assert(bare.includes('판정 불가'), 'hook state must stay undecidable on a pull without Node')
+
+  // ③ 두 훅이 같은 문장을 낸다 — 공용 모듈을 쓴다는 사실을 문구로 확인한다(사본이면 여기서 갈린다).
+  // ③ pull 만의 행: 배선이 예전 방식이면 알린다. **고치지는 않는다** — pull 이 설정을 말없이 바꾸지 않는다.
+  // runInit 은 --no-hooks 로 돌아 optout 표식을 남긴다 — 그 표식이 legacy 판정을 덮으므로 먼저 지운다.
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
+  run('git', ['config', 'core.hooksPath', '.githooks'], { cwd: target })
+  const legacyPull = run('sh', [postMerge], { cwd: target, env: { ...process.env } })
+  assert(legacyPull.includes('예전 방식'), `a pull on the legacy wiring must say so (got: ${legacyPull})`)
+  assert(legacyPull.includes('hooks:install'), 'the legacy row must offer the command that fixes it')
+  assert(run('git', ['config', '--get', 'core.hooksPath'], { cwd: target }).trim() === '.githooks', 'the pull must not silently rewire the repository')
+  run('git', ['config', '--unset', 'core.hooksPath'], { cwd: target })
+
+  const fromSession = runHook(sessionHook, '/usr/bin:/bin:/usr/sbin:/sbin', { CLAUDE_PROJECT_DIR: target })
+  const tableOf = (out) => out.split('\n').filter((line) => line.startsWith('| ') || line.includes('준비 안 된 항목')).join('\n')
+  assert(tableOf(fromSession) === tableOf(bare), `both hooks must emit the identical table\n--- session ---\n${tableOf(fromSession)}\n--- pull ---\n${tableOf(bare)}`)
+}
+
+function sessionStartTablesUnmetPrerequisites() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  // runInit 은 --no-hooks 로 돌아 optout 표식을 남긴다 — 그 표식이 off 판정을 덮지 않게 지운다.
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
+  const hook = path.join(target, '.claude/hooks/session-start-reminder.sh')
+
+  // ① 다 갖춰진 환경: 훅을 켜고, 표는 찍지 않는다(정상은 침묵).
+  const healthy = run('sh', [hook], { cwd: target, env: { ...process.env, CLAUDE_PROJECT_DIR: target } })
+  assert(healthy.includes('자동으로 켰습니다'), 'with everything in place the session start must enable the hooks and say so')
+  assert(!healthy.includes('준비 안 된 항목'), 'a healthy session start must not print the gap table at all')
+
+  // ② Node 가 없는 환경: run() 은 PATH 에 Node 를 심으므로 쓰지 않는다. nvm 후보도 없애 dual-node 가
+  //    찾지 못하게 한다(그렇지 않으면 이 PC 의 nvm 설치본을 찾아 정상 경로로 빠진다).
+  const runWithPath = (pathValue) => {
+    const options = {
+      cwd: target,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { PATH: pathValue, HOME: target, NVM_DIR: path.join(target, 'no-such-nvm'), CLAUDE_PROJECT_DIR: target },
+    }
+    try {
+      return execFileSync('sh', [hook], options)
+    } catch (error) {
+      // 종료코드를 삼키면 fail-open 위반(훅이 세션·pull 을 죽이는 것)을 놓친다(코덱스 리뷰 P2-7).
+      throw new Error(`hook exited ${error.status}: ${error.stdout ?? ''}${error.stderr ?? ''}`)
+    }
+  }
+  const bare = runWithPath('/usr/bin:/bin:/usr/sbin:/sbin')
+  assert(bare.includes('준비 안 된 항목'), 'without Node the session start must print the gap table')
+  assert(bare.includes('| 하네스 실행 Node |') && bare.includes('nvm install 20'), 'the table must name the missing runtime and how to install it')
+  assert(bare.includes('판정 불가'), 'hook state must be reported as undecidable, not as off, when Node is missing')
+  assert(!bare.includes('자동으로 켜지 못했습니다'), 'the old misdiagnosis (claiming the hooks are off) must not come back')
+  assert(!bare.includes('hooks:install 을 직접 실행해'), 'a command that needs the missing runtime must not be handed out as the fix')
+
+  // ③ Node 는 있지만 하네스가 못 쓰는 버전(12, nvm 없음). 판정은 "있나 없나"가 아니라 "돌릴 수 있나"여야
+  //    한다 — 실측에서 상태 조회가 SyntaxError 로 죽고 그 실패가 다시 off 로 폴백해, 없을 때와 똑같이
+  //    "모름"이 "꺼짐"으로 둔갑했다(훅이 켜져 있어도 그렇게 말한다).
+  const fakeBin = path.join(target, 'fake-node-bin')
+  fs.mkdirSync(fakeBin, { recursive: true })
+  const shim = path.join(fakeBin, 'node')
+  fs.writeFileSync(shim, [
+    '#!/bin/sh',
+    '# Node 12 흉내: --version 은 답하고, 최신 문법을 쓰는 하네스 스크립트는 죽는다(옵셔널 체이닝은 14+).',
+    'case "$1" in',
+    '  --version|-v) echo "v12.22.12"; exit 0 ;;',
+    'esac',
+    'echo "SyntaxError: Unexpected token" >&2',
+    'exit 1',
+    '',
+  ].join('\n'))
+  fs.chmodSync(shim, 0o755)
+  const old = runWithPath(`${fakeBin}:/usr/bin:/bin:/usr/sbin:/sbin`)
+  assert(old.includes('준비 안 된 항목'), 'a Node too old for the harness must also raise the gap table')
+  assert(old.includes('v12.22.12'), 'the table must name the version that is actually installed')
+  assert(old.includes('판정 불가'), 'hook state must stay undecidable on a Node the harness cannot run')
+  assert(!old.includes('자동으로 켜지 못했습니다'), 'a crashed state probe must not be reported as the hooks being off')
+
+  // ④ preflight.sh 가 없는 옛 설치본(새 .claude + 옛 .harness)에서도 훅 실패는 침묵하지 않는다.
+  //    fallback 을 no-op 으로 두면 안내가 통째로 사라져 "정상"으로 읽힌다(적대적 리뷰 P1-1).
+  const preflight = path.join(target, '.harness/bin/preflight.sh')
+  const saved = fs.readFileSync(preflight, 'utf8')
+  const installer = path.join(target, '.harness/bin/install-hooks.mjs')
+  const savedInstaller = fs.readFileSync(installer, 'utf8')
+  fs.rmSync(preflight)
+  fs.writeFileSync(installer, "console.error('모의 실패')\nprocess.exit(3)\n")
+  try { run('git', ['config', '--unset', 'core.hooksPath'], { cwd: target }) } catch {}
+  // ①에서 훅이 실제로 깔렸으므로 다시 꺼진 상태로 만든다 — 그래야 설치 실패 경로를 밟는다.
+  for (const name of ['pre-commit', 'pre-push']) {
+    fs.rmSync(path.join(target, '.git/hooks', name), { force: true })
+  }
+  const legacyInstall = run('sh', [hook], { cwd: target, env: { ...process.env, CLAUDE_PROJECT_DIR: target } })
+  assert(legacyInstall.includes('커밋·푸시 훅'), `an old install without preflight.sh must still report the hook failure (got: ${legacyInstall.slice(0, 400)})`)
+  assert(legacyInstall.includes('모의 실패'), 'the installer stderr must survive the fallback path')
+  fs.writeFileSync(preflight, saved)
+  fs.writeFileSync(installer, savedInstaller)
+}
+
+function hookOffNoticeTellsAboutTheNextSession() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  // runInit 은 --no-hooks 로 돌아 optout 표식을 남긴다 — 그 표식이 off 판정을 덮지 않게 지운다.
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
+  const explain = () => run(nodeBin, [path.join(target, '.harness/bin/hooks-state.mjs'), '--explain'], { cwd: target })
+  const headline = (out) => out.split('\n')[0]
+
+  // ① 배선이 있는 clone: 두 채널이 같은 말을 한다.
+  assert(headline(explain()).includes('꺼짐'), `precondition: hooks must read off (got: ${headline(explain())})`)
+  assert(headline(explain()).includes('다음 Claude 세션') && headline(explain()).includes('주 폴더'), `the status label must say the next session enables it, with the condition it depends on (got: ${headline(explain())})`)
+  assert(headline(explain()).includes('hooks:install'), 'the status label must still offer the manual command')
+
+  const wired = runGuard(target)
+  assert(wired.includes('git hook 미설치'), 'the check notice must still report the missing hooks')
+  assert(wired.includes('새 Claude 세션') && wired.includes('이 창에서는 켜지지 않습니다'), 'the check notice must tell the developer a new session enables it and that the open one cannot')
+  assert(wired.includes('.harness/bin/harness hooks:install'), 'the check notice must still offer the immediate command')
+  assert(!wired.includes('각자 한 번 실행해야 합니다'), 'the manual-only wording must not appear when the auto path exists')
+
+  // ② 배선이 없는 clone(터미널·Codex 전용): 자동으로 켜진다고 말하면 거짓이다.
+  fs.rmSync(path.join(target, '.claude/hooks/session-start-reminder.sh'), { force: true })
+  const bare = runGuard(target)
+  assert(bare.includes('git hook 미설치'), 'the check notice must still report the missing hooks without wiring')
+  assert(!bare.includes('새 Claude 세션') && !bare.includes('자동으로 켭니다'), 'without session-start wiring the notice must not promise an automatic enable')
+  assert(bare.includes('각자 한 번 실행해야 합니다'), 'without wiring the notice must fall back to the manual instruction')
+  assert(!headline(explain()).includes('다음 Claude 세션'), 'the status label must drop the auto wording without wiring too')
+}
+
 function hooksStatusNoticeSuitsTheEnvironment() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -4465,6 +4635,114 @@ function reportInstallFailsOpenToFileWithoutToken() {
 
   const usage = (() => { try { run(nodeBin, [path.join(target, '.harness/bin/report-install.mjs')], { cwd: target }); return '' } catch (error) { return `${error.stdout ?? ''}${error.stderr ?? ''}` } })()
   assert(usage.includes('사용법'), 'missing required args must print usage and fail')
+}
+
+// 0.2.149 — 현황판 머리말은 "지금 최신 릴리스"다(사용자 지시 2026-09-10). 값의 출처는 본체
+// 저장소의 릴리스 태그 하나뿐이라, 회귀는 가짜 GitLab을 띄워 실제 경로(태그 조회 → 표 재생성
+// → PUT 본문)를 끝까지 밟는다. 조회 실패를 주입해 "지어내지 않는다"까지 함께 잠근다.
+function historyBoardHeadlinesTheLatestRelease() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  fs.writeFileSync(path.join(target, '.issue-adapter.env'), 'HARNESS_BODY_ISSUE_TOKEN=test-token\n')
+
+  const driver = path.join(target, 'fake-gitlab.mjs')
+  fs.writeFileSync(driver, `
+import http from 'node:http'
+import fs from 'node:fs'
+import { spawn } from 'node:child_process'
+
+const [reportPath, mode, existingPath, outPath] = process.argv.slice(2)
+const existing = fs.readFileSync(existingPath, 'utf8')
+let captured = ''
+
+// 일부러 어긋난 순서 + 문자열 정렬이면 지는 값(v0.2.99 > v0.2.148)을 섞는다.
+const TAGS = [
+  { name: 'v0.2.99', commit: { created_at: '2026-08-01T10:00:00.000+09:00' } },
+  { name: 'v0.2.148', commit: { created_at: '2026-09-10T11:02:53.000+09:00' } },
+  { name: 'not-a-release', commit: { created_at: '2026-09-11T00:00:00.000+09:00' } },
+  { name: 'v0.2.100', commit: { created_at: '2026-08-02T10:00:00.000+09:00' } },
+  { name: 'v0.2.9', commit: { created_at: '2026-07-01T10:00:00.000+09:00' } }
+]
+const REPORTS = [
+  { iid: 10, title: '[설치] alpha -→v0.2.140 (2026-08-01)' },
+  { iid: 11, title: '[업데이트] alpha v0.2.140→v0.2.147 (2026-09-09)' }
+]
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, 'http://127.0.0.1')
+  const send = (code, body) => {
+    res.writeHead(code, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(body))
+  }
+  if (url.pathname.endsWith('/repository/tags')) {
+    if (mode === 'tags-fail') return send(500, { message: 'boom' })
+    return send(200, TAGS)
+  }
+  if (req.method === 'GET' && url.pathname.endsWith('/issues')) {
+    const labels = url.searchParams.get('labels')
+    if (labels === '설치리포트') {
+      return send(200, Number(url.searchParams.get('page') || '1') === 1 ? REPORTS : [])
+    }
+    if (labels === '설치이력표') return send(200, [{ iid: 2, description: existing }])
+    return send(200, [])
+  }
+  if (req.method === 'PUT') {
+    let body = ''
+    req.on('data', (chunk) => { body += chunk })
+    req.on('end', () => {
+      captured = JSON.parse(body).description || ''
+      send(200, { iid: 2 })
+    })
+    return
+  }
+  return send(200, {})
+})
+
+// spawnSync는 부모의 이벤트 루프를 막아 이 서버가 응답하지 못한다(첫 시도에서 헤더 타임아웃으로 실증).
+server.listen(0, '127.0.0.1', () => {
+  const child = spawn(process.execPath, [reportPath, '--rebuild-history'], {
+    env: Object.assign({}, process.env, { HARNESS_BODY_API_BASE: 'http://127.0.0.1:' + server.address().port }),
+    stdio: ['ignore', 'pipe', 'pipe']
+  })
+  let out = ''
+  child.stdout.on('data', (chunk) => { out += chunk })
+  child.stderr.on('data', (chunk) => { out += chunk })
+  child.on('close', (code) => {
+    fs.writeFileSync(outPath, captured)
+    server.close()
+    process.stdout.write(out)
+    process.exit(code === 0 ? 0 : 1)
+  })
+})
+`)
+
+  const reportPath = path.join(target, '.harness/bin/report-install.mjs')
+  const existingPath = path.join(target, 'existing-board.md')
+  const outPath = path.join(target, 'captured-board.md')
+  const drive = (mode, existingDescription) => {
+    fs.writeFileSync(existingPath, existingDescription)
+    run(nodeBin, [driver, reportPath, mode, existingPath, outPath], { cwd: target })
+    return fs.readFileSync(outPath, 'utf8')
+  }
+
+  // ① 최신은 태그에서 고른다 — API가 준 순서(첫 항목 v0.2.99)도 문자열 정렬도 아니다.
+  const ok = drive('tags-ok', '(아직 머리말 없음)')
+  assert(ok.startsWith('**현재 최신 릴리스: v0.2.148** (커밋 2026-09-10)'), 'the board must open with the newest release tag; the date is the commit date and must be labelled as such')
+  assert(!ok.includes('v0.2.99**') && !ok.includes('v0.2.100**') && !ok.includes('not-a-release'), 'semver order must beat API order, string order and non-release tags')
+  assert(ok.includes('| 프로젝트 | 설치일 / 버전 | 업데이트일 / 버전 |') && ok.includes('| alpha |'), 'the headline must sit above the existing status table, not replace it')
+
+  // ② 조회가 실패하면 지어내지 않고 직전 머리말을 그대로 이어 쓴다.
+  // 실패했으면 그 값을 "현재 최신"이라고 단정하지 않는다 — 값은 지키되 확인되지 않았다고 말한다(코덱스 P1-3).
+  const carried = drive('tags-fail', ok)
+  assert(carried.startsWith('**마지막으로 확인된 릴리스: v0.2.148** (커밋 2026-09-10) — 이번 갱신에서는 최신 태그를 확인하지 못했습니다'), `a failed lookup must keep the value but drop the "current" claim (got: ${carried.split('\n')[0]})`)
+  // 두 번째 실패에서도 머리말이 사라지지 않는다(이미 바뀐 줄을 이어받는다).
+  const carriedTwice = drive('tags-fail', carried)
+  assert(carriedTwice.startsWith('**마지막으로 확인된 릴리스: v0.2.148**'), `a second failure must keep carrying the stale headline (got: ${carriedTwice.split('\n')[0]})`)
+
+  // ③ 이어 쓸 것도 없으면 머리말을 빼고 표만 그린다 — 틀린 버전을 적는 쪽이 더 나쁘다.
+  const bare = drive('tags-fail', '(아직 머리말 없음)')
+  assert(!bare.includes('현재 최신 릴리스'), 'with no tag and no previous headline the board must not fabricate a version')
+  assert(bare.includes('| alpha |'), 'the status table must still render when the headline is unavailable')
 }
 
 // 0.2.137 — 보고 대기 백스톱(결정 98 후속, "리포팅할까요?를 건너뛰는 에이전트" 실측):
@@ -8927,6 +9205,10 @@ const tests = [
   driftSkipsProjectOwnedListedEntries,
   freshCriticalPathTemplateStartsEmpty,
   reportInstallFailsOpenToFileWithoutToken,
+  historyBoardHeadlinesTheLatestRelease,
+  hookOffNoticeTellsAboutTheNextSession,
+  sessionStartTablesUnmetPrerequisites,
+  pullReportsTheSameUnmetPrerequisites,
   pendingReportMarkerRemindsUntilReported,
   updateOutputSkipsStaticCommandGuide,
   chainedUpdateKeepsOriginalFromForChangelogAndReport,

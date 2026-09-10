@@ -26,8 +26,29 @@ if [ -s "$NVM_DIR/nvm.sh" ]; then
   set -u
 fi
 
-. .harness/bin/dual-node.sh
-harness_dual_node_activate
+# 준비 상태(0.2.149): pull 은 Claude 를 안 쓰는 개발자(터미널·Codex 전용 PC)에게 닿는 유일한 채널이다.
+# 세션 시작 훅과 같은 판정을 같은 파일(.harness/bin/preflight.sh)로 한다 — 문구를 고칠 자리는 하나다.
+# 여기서 dual-node 도 함께 걸린다(preflight 가 source·activate 한다). 전환 안내 한 줄은 감추지 않는다:
+# pull 은 종전부터 그 줄을 보여 왔고, 이 자리의 채널은 표 하나가 아니다.
+# 정상이면 아무것도 찍지 않는다. 하네스 검사는 Node 를 못 쓰면 건너뛰지만, **팀 자체 훅은 막지 않는다**.
+. .harness/bin/preflight.sh
+harness_preflight_node "$(pwd)"
+harness_preflight_hooks_undecidable "$(pwd)"
+if [ "$HARNESS_NODE_USABLE" = "0" ]; then
+  # 하네스 검사는 이 Node 로 못 돌지만, **팀 자체 훅은 그 Node 로 돌 수 있다**(예: Node 18).
+  # 그래서 하네스 최소 미만이라는 이유로 팀 훅까지 막지 않는다 — 종전 거동을 그대로 지킨다
+  # (코덱스 리뷰 P1-1: 새 게이트가 이전 훅 체인을 건너뛰어 pull 동작이 후퇴했다).
+  if [ "$HARNESS_NODE_OK" = "1" ]; then
+    if ! node .harness/bin/run-previous-hook.mjs post-merge "$@"; then
+      echo "[harness] 기존 post-merge hook이 실패했습니다(pull은 유지). 위 출력을 확인하세요."
+    fi
+  elif [ -n "$(git config --get harness.previousHooksPath 2>/dev/null || printf '')" ]; then
+    # node 가 아예 없으면 체인 실행기(run-previous-hook.mjs)도 못 돈다. 침묵하면 팀 훅이 돈 줄 안다.
+    harness_gap '이전 훅 체인' '실행 못 함 (Node 없음 — 팀 자체 post-merge 훅이 돌지 않았습니다)' '위 Node 부터'
+  fi
+  harness_preflight_print
+  exit 0
+fi
 
 # 기존 프로젝트 post-merge hook이 있으면 먼저 실행한다. 실패해도 pull은 유지하되 조용히 넘기지 않는다.
 if ! node .harness/bin/run-previous-hook.mjs post-merge "$@"; then
@@ -41,5 +62,20 @@ if [ -f .harness/spec-lock.json ]; then
     echo "  pull은 완료됐지만 에이전트가 기획 본문을 읽을 수 없습니다. 재시도: npm run harness:spec:fetch -- --at-lock"
   fi
 fi
+
+# 훅 배선이 어긋났으면 알린다. **고치지는 않는다** — pull 이 저장소 설정을 말없이 바꾸지 않는다.
+# (세션 시작 훅은 대화형 자리라 자동으로 켜지만, pull 은 스크립트에서도 돌기 때문이다.)
+# 조회 실패를 정상과 같이 침묵하지 않는다 — 모름을 단정으로 바꾸지 않는 것과 같은 규칙이다
+# (코덱스 리뷰 P2-6: 이 채널에만 '판정 불가' 처리가 빠져 있었다).
+HARNESS_HOOKS_STATE="$(node .harness/bin/hooks-state.mjs 2>/dev/null)" || HARNESS_HOOKS_STATE=''
+if [ -z "$HARNESS_HOOKS_STATE" ]; then
+  harness_gap '커밋·푸시 훅' '판정 불가 (상태 조회 실패)' '.harness/bin/harness hooks:status 로 원인을 확인하세요'
+elif [ "$HARNESS_HOOKS_STATE" = "legacy" ]; then
+  harness_gap '커밋·푸시 훅' '예전 방식 (core.hooksPath=.githooks — 브랜치를 옮기면 검사가 사라질 수 있습니다)' '.harness/bin/harness hooks:install'
+elif [ "$HARNESS_HOOKS_STATE" = "off" ]; then
+  harness_gap '커밋·푸시 훅' '꺼짐 (커밋·push 검사가 실행되지 않습니다)' '.harness/bin/harness hooks:install'
+fi
+
+harness_preflight_print
 
 exit 0

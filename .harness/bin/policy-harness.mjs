@@ -794,6 +794,16 @@ function printHookInstallNotice() {
     ? `- core.hooksPath가 '${info.hooksPath}'로 설정되어 있어 하네스 훅이 실행되지 않습니다.`
     : '- git 기본 훅 폴더에 하네스 래퍼가 없어 커밋·push 검사가 실행되지 않습니다.')
   if (info.state === 'optout') console.log('- 이 PC는 명시적으로 끈 상태입니다(harness.hooksAutoEnable=false). 되돌리기: git config --unset harness.hooksAutoEnable')
+  // PHP 백엔드 실측(2026-09-10): pull 로 하네스가 들어온 **이미 열려 있던** 세션에서 이 안내가 떴는데, 명령만 건네고
+  // "새 대화창을 열면 저절로 켜진다"는 사실은 말하지 않았다. 그 창은 시작할 때 읽은 설정으로 돌아 스스로 켤 수 없고,
+  // 다음 세션은 켠다 — 둘 다 말해야 개발자가 지금 칠지 기다릴지 고를 수 있다. 배선이 없는 clone(터미널·Codex 전용,
+  // 상위/하위 폴더를 주 폴더로 연 세션)에서는 거짓이므로 그때는 말하지 않는다(#29 ①의 교훈).
+  if (info.state === 'off' && info.autoMigrates) {
+    console.log('- 이 저장소를 주 폴더로 여는 새 Claude 세션(새 대화창)을 시작하면 세션 시작 훅이 자동으로 켭니다. 지금 열려 있는 창은 시작할 때 읽은 설정으로 돌아 이 창에서는 켜지지 않습니다.')
+    console.log('- 기다리지 않고 지금 켜려면:')
+    console.log('    .harness/bin/harness hooks:install')
+    return
+  }
   console.log('- 훅 설정은 clone으로 공유되지 않습니다. 저장소를 새로 받은 사람은 각자 한 번 실행해야 합니다:')
   console.log('    .harness/bin/harness hooks:install')
 }

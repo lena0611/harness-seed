@@ -273,12 +273,12 @@ if (!hasNvm()) {
     if (installed) {
       console.log(`  - 프로젝트 Node(.nvmrc ${nvmrc.raw}): ${installed.name} 설치됨`)
     } else if (nvmrc.parsed) {
-      console.warn(`  - 프로젝트 Node(.nvmrc ${nvmrc.raw}): nvm에 없음 → nvm install ${nvmrc.raw} 후 프로젝트 검증(lint/test/build)이 동작합니다.`)
+      console.warn(`  - 프로젝트 Node(.nvmrc ${nvmrc.raw}): nvm에 없음 → nvm install ${nvmrc.raw} 로 설치하세요. 프로젝트 코드·빌드용이며 하네스는 이 Node를 쓰지 않습니다.`)
     } else {
       console.warn(`  - 프로젝트 Node(.nvmrc ${nvmrc.raw}): 버전 표기를 해석하지 못했습니다. 숫자 버전 사용을 권장합니다.`)
     }
     if (dualRuntime) {
-      console.log('  - dual-runtime: hook은 하네스 Node로 검사를 실행하고, lint/test/build는 .nvmrc Node로 실행합니다.')
+      console.log('  - dual-runtime: hook은 하네스 검사만 하네스 Node로 실행합니다. 프로젝트 코드·빌드는 .nvmrc Node 그대로이고, 하네스는 lint/test/build를 실행하지 않습니다(0.2.131).')
     }
   } else {
     console.log('  - .nvmrc 없음: hook은 PATH 기본 Node가 낮으면 nvm 설치본(>=20.19)으로 자동 전환합니다.')
