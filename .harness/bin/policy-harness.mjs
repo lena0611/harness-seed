@@ -767,13 +767,23 @@ function printHookInstallNotice() {
   if (!fs.existsSync(path.join(repoRoot, '.githooks'))) return
 
   // 판정 정본은 hooks-state.mjs(0.2.146): installed(래퍼) · legacy(예전 방식, 세션 시작이 갱신) · off · optout · nogit
-  let info = { state: 'off', hooksPath: '' }
+  // 조회에 실패하면 '꺼짐'이 아니라 '모름'이다(0.2.149) — 폴백으로 off 를 쓰면 켜져 있는 훅을
+  // 꺼졌다고 단정하고, 처방으로 준 hooks:install 도 같은 이유로 실패할 수 있다.
+  let info = null
   try {
     info = JSON.parse(execFileSync(process.execPath, [path.join(repoRoot, '.harness/bin/hooks-state.mjs'), '--json'], {
       cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
     }))
   } catch {
-    info = { state: 'off', hooksPath: '' }
+    info = null
+  }
+  if (!info || typeof info.state !== 'string') {
+    console.log('')
+    console.log('git hook 상태를 확인하지 못했습니다 (이 clone 기준):')
+    console.log('- 꺼졌다는 뜻이 아닙니다. 상태 조회 자체가 실패했습니다.')
+    console.log('- 원인을 확인하세요:')
+    console.log('    .harness/bin/harness hooks:status')
+    return
   }
   if (info.state === 'installed' || info.state === 'nogit') return
   // legacy(예전 방식)는 자동 갱신 배선이 **없을 때만** 알린다(0.2.147, 적대적 리뷰 P1-3): 배선된 프로젝트는

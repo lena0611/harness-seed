@@ -3146,6 +3146,45 @@ function crossHookCallRunsTheRealHook() {
 // 0.2.149 — pull(post-merge)도 같은 준비 상태 표를 낸다(사용자 지시 2026-09-10). Claude 를 안 쓰는
 // 개발자(터미널·Codex 전용 PC)에게 닿는 유일한 채널이라 넣었다. 판정 본문은 preflight.sh 한 곳이
 // 소유하므로, 두 훅이 **같은 문장**을 내는지까지 함께 잠근다 — 사본이 갈리면 한쪽만 고치게 된다.
+// 0.2.149 — 훅 상태 **조회 실패**를 어느 채널도 "꺼짐"으로 단정하지 않는다. 세션 시작·pull·check 를
+// 고치고도 프롬프트 주입 채널(inject-context.sh)만 옛 폴백으로 남아 있었다(사용자 지적 2026-09-10).
+// 같은 결함을 한 자리씩 고치다 다섯 번째로 남은 자리라, 채널 전부를 한 회귀로 함께 잠근다.
+function noChannelCallsAnUnreadableHookStateOff() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
+  // 훅은 실제로 켠다 — 조회만 깨졌을 때 "꺼짐"이라 말하는지가 요점이다.
+  run(nodeBin, [path.join(target, '.harness/bin/install-hooks.mjs')], { cwd: target })
+
+  const probe = path.join(target, '.harness/bin/hooks-state.mjs')
+  const saved = fs.readFileSync(probe, 'utf8')
+  fs.writeFileSync(probe, 'process.exit(1)\n')
+  try {
+    const prompt = run('sh', [path.join(target, '.claude/hooks/inject-context.sh')], {
+      cwd: target,
+      env: { ...process.env, CLAUDE_PROJECT_DIR: target },
+      input: JSON.stringify({ prompt: 'hello' }),
+    })
+    assert(!prompt.includes('hooks are OFF'), `a failed probe must not be announced as hooks being off (got: ${prompt})`)
+    assert(prompt.includes('could not be determined'), `a failed probe must be reported as undecidable (got: ${prompt})`)
+
+    const check = runGuard(target)
+    assert(!check.includes('git hook 미설치'), `check must not claim the hooks are missing when the probe failed (got: ${check})`)
+    assert(check.includes('상태를 확인하지 못했습니다'), 'check must say the state could not be read')
+    assert(check.includes('hooks:status'), 'check must point at the command that explains why')
+  } finally {
+    fs.writeFileSync(probe, saved)
+  }
+
+  // 조회가 정상이면 종전대로 조용하다 — 이 회귀가 안내를 통째로 없애 버리지 않았음을 확인한다.
+  const quiet = run('sh', [path.join(target, '.claude/hooks/inject-context.sh')], {
+    cwd: target,
+    env: { ...process.env, CLAUDE_PROJECT_DIR: target },
+    input: JSON.stringify({ prompt: 'hello' }),
+  })
+  assert(!quiet.includes('could not be determined') && !quiet.includes('hooks are OFF'), `installed hooks must produce no hook warning (got: ${quiet})`)
+}
+
 function pullReportsTheSameUnmetPrerequisites() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -9209,6 +9248,7 @@ const tests = [
   hookOffNoticeTellsAboutTheNextSession,
   sessionStartTablesUnmetPrerequisites,
   pullReportsTheSameUnmetPrerequisites,
+  noChannelCallsAnUnreadableHookStateOff,
   pendingReportMarkerRemindsUntilReported,
   updateOutputSkipsStaticCommandGuide,
   chainedUpdateKeepsOriginalFromForChangelogAndReport,

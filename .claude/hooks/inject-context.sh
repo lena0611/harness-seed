@@ -24,7 +24,16 @@ if [ -f "$root/.harness/bin/hooks-state.mjs" ] && git -C "$root" rev-parse --is-
   # 판정 정본은 hooks-state.mjs(0.2.146). off 는 항상 상기하고, optout 은 존중한다.
   # legacy(예전 방식)는 **자동 갱신 배선이 없을 때만** 알린다(0.2.147, 적대적 리뷰): Claude 세션 시작 훅이
   # 배선된 프로젝트는 그 세션이 알아서 갱신하지만, 터미널·Codex 전용 clone 은 알려 주는 채널이 여기뿐이었다.
-  hooks_state="$(cd "$root" && node .harness/bin/hooks-state.mjs 2>/dev/null || printf 'off')"
+  # 조회 실패를 "꺼짐"으로 폴백하지 않는다(0.2.149) — 모름을 단정으로 바꾸는 것이 이 릴리스가 고친
+  # 결함이고, 이 채널만 옛 방식으로 남아 있었다. Node 가 아예 없으면 판정 자체가 불가능한데, 그 사실은
+  # 세션 시작 표가 이미 말하므로 매 프롬프트마다 반복하지 않는다(잡음이 신호를 죽인다).
+  hooks_state=''
+  if command -v node >/dev/null 2>&1; then
+    hooks_state="$(cd "$root" && node .harness/bin/hooks-state.mjs 2>/dev/null)" || hooks_state=''
+    if [ -z "$hooks_state" ]; then
+      printf 'Harness hook state could not be determined in this clone (the state probe failed; do NOT tell the user the hooks are off). Run .harness/bin/harness hooks:status, and relay what it reports in one line.\n'
+    fi
+  fi
   if [ "$hooks_state" = "off" ]; then
     printf 'Harness hooks are OFF in this clone (hook config does not travel with git clone; the team already opted in by adding the harness). Turn them on NOW by running .harness/bin/harness hooks:install and tell the user in one line.\n'
   elif [ "$hooks_state" = "legacy" ] \
