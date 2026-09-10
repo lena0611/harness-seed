@@ -3149,6 +3149,56 @@ function crossHookCallRunsTheRealHook() {
 // 0.2.149 — 훅 상태 **조회 실패**를 어느 채널도 "꺼짐"으로 단정하지 않는다. 세션 시작·pull·check 를
 // 고치고도 프롬프트 주입 채널(inject-context.sh)만 옛 폴백으로 남아 있었다(사용자 지적 2026-09-10).
 // 같은 결함을 한 자리씩 고치다 다섯 번째로 남은 자리라, 채널 전부를 한 회귀로 함께 잠근다.
+// 0.2.149 — 프롬프트 채널도 같은 준비 상태 표를 내되 **세션당 한 번만** 찍는다(사용자 결정 2026-09-10).
+// 세션 도중에 환경이 깨지면(Node 제거·버전 교체·PATH 변경) 세션 시작 표는 이미 지나갔고 pull 도 없으면
+// 알려 줄 채널이 없다. 다만 매 프롬프트에 같은 줄이 쌓이면 잡음이 신호를 죽이므로 세션 id 로 한 번만 낸다.
+function promptChannelShowsPrerequisitesOncePerSession() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const hook = path.join(target, '.claude/hooks/inject-context.sh')
+  const ask = (sessionId, pathValue) => {
+    const options = {
+      cwd: target,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      input: JSON.stringify({ session_id: sessionId, prompt: 'hi' }),
+      env: { PATH: pathValue, HOME: target, NVM_DIR: path.join(target, 'no-such-nvm'), CLAUDE_PROJECT_DIR: target },
+    }
+    try {
+      return execFileSync('bash', [hook], options)
+    } catch (error) {
+      throw new Error(`prompt hook exited ${error.status}: ${error.stdout ?? ''}${error.stderr ?? ''}`)
+    }
+  }
+  const noNode = '/usr/bin:/bin:/usr/sbin:/sbin'
+
+  const first = ask('sess-A', noNode)
+  assert(first.includes('준비 안 된 항목') && first.includes('| 하네스 실행 Node |'), `the prompt channel must raise the gap table when the harness cannot run (got: ${first})`)
+
+  const second = ask('sess-A', noNode)
+  assert(!second.includes('준비 안 된 항목'), `the same session must not repeat the table on every prompt (got: ${second})`)
+
+  const otherSession = ask('sess-B', noNode)
+  assert(otherSession.includes('준비 안 된 항목'), 'a different session must be told once as well')
+
+  // 세션 id 가 없으면 중복을 막을 수단이 없으므로 조용한 쪽으로 실패한다(세션 시작 표가 그 자리를 맡는다).
+  const anonymous = (() => {
+    const options = {
+      cwd: target,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      input: JSON.stringify({ prompt: 'hi' }),
+      env: { PATH: noNode, HOME: target, NVM_DIR: path.join(target, 'no-such-nvm'), CLAUDE_PROJECT_DIR: target },
+    }
+    try { return execFileSync('bash', [hook], options) } catch (error) { return `${error.stdout ?? ''}${error.stderr ?? ''}` }
+  })()
+  assert(!anonymous.includes('준비 안 된 항목'), 'without a session id the channel must stay quiet rather than repeat')
+
+  // 갖춰진 환경에서는 세션 id 가 새로워도 아무것도 나오지 않는다.
+  const healthy = run('bash', [hook], { cwd: target, env: { ...process.env, CLAUDE_PROJECT_DIR: target }, input: JSON.stringify({ session_id: 'sess-C', prompt: 'hi' }) })
+  assert(!healthy.includes('준비 안 된 항목'), `a healthy environment must produce no table (got: ${healthy})`)
+}
+
 function noChannelCallsAnUnreadableHookStateOff() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -9249,6 +9299,7 @@ const tests = [
   sessionStartTablesUnmetPrerequisites,
   pullReportsTheSameUnmetPrerequisites,
   noChannelCallsAnUnreadableHookStateOff,
+  promptChannelShowsPrerequisitesOncePerSession,
   pendingReportMarkerRemindsUntilReported,
   updateOutputSkipsStaticCommandGuide,
   chainedUpdateKeepsOriginalFromForChangelogAndReport,

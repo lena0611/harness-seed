@@ -2,6 +2,7 @@
 # scope: harness — 모든 프로젝트에 동일한 본체 훅. 다중 저장소 세션에서는 주 폴더 것으로 충분합니다.
 set -euo pipefail
 
+hook_input="$(cat 2>/dev/null || true)"
 root="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 profile="$root/.harness/policy/profile.json"
 active_stack="unknown"
@@ -16,6 +17,29 @@ printf 'Harness reporting: when reporting actual work progress, summarize as [ha
 # 연결 프로젝트(0.2.139): 매 프롬프트에 한 줄 — 해석 규칙은 .harness/bin/linked-projects.mjs.
 if [ -f "$root/.harness/bin/linked-projects.mjs" ]; then
   node "$root/.harness/bin/linked-projects.mjs" prompt "$root" 2>/dev/null || true
+fi
+
+# 하네스 구동 조건(0.2.149): 세션 도중에 환경이 깨지면(Node 제거·버전 교체·PATH 변경) 세션 시작 표는
+# 이미 지나갔고 pull 도 없으면 알려 줄 채널이 없다. 그래서 이 자리에서도 같은 표를 낸다.
+# **세션당 한 번만** 찍는다 — 매 프롬프트에 같은 줄이 쌓이면 잡음이 신호를 죽인다(사용자 결정 2026-09-10).
+# 세션 구분은 훅 입력의 session_id 로 한다. 그 값이 없으면 중복을 막을 수단이 없으므로 찍지 않는다
+# (세션 시작 표가 이미 그 자리를 맡는다 — 조용한 쪽으로 실패한다).
+harness_session_id="$(printf '%s' "$hook_input" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+if [ -n "$harness_session_id" ] && [ -f "$root/.harness/bin/preflight.sh" ]; then
+  harness_seen="$root/.harness/generated/preflight-session"
+  if [ "$(cat "$harness_seen" 2>/dev/null || printf '')" != "$harness_session_id" ]; then
+    # dual-runtime 전환 안내 한 줄은 이 자리에서 내지 않는다 — 프롬프트마다 붙으면 잡음이다.
+    HARNESS_DUAL_RUNTIME_ANNOUNCED=1
+    export HARNESS_DUAL_RUNTIME_ANNOUNCED
+    . "$root/.harness/bin/preflight.sh"
+    harness_preflight_node "$root"
+    harness_preflight_hooks_undecidable "$root"
+    if [ -n "$HARNESS_GAPS" ]; then
+      harness_preflight_print
+      mkdir -p "$root/.harness/generated" 2>/dev/null || true
+      printf '%s' "$harness_session_id" > "$harness_seen" 2>/dev/null || true
+    fi
+  fi
 fi
 
 # 훅 미설치 감지(결정 94): 훅 설정은 clone으로 공유되지 않으므로 새로 받은 clone은 관문이 꺼져 있다.
