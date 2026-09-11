@@ -697,7 +697,10 @@ function noChannelCallsAnUnreadableHookStateOff() {
   const saved = fs.readFileSync(probe, 'utf8')
   fs.writeFileSync(probe, 'process.exit(1)\n')
   try {
-    const prompt = run('sh', [path.join(target, '.claude/hooks/inject-context.sh')], {
+    // 프로덕션은 settings.json 이 훅을 **경로로** 부르므로 shebang(`#!/usr/bin/env bash`)이 적용된다.
+    // 테스트가 `sh` 로 강제하면 리눅스에서 dash 가 잡혀 `set -o pipefail` 에서 죽는다 — macOS 의 sh 는
+    // bash 라 로컬만 통과하고 CI 만 빨개졌다(0.2.149 이후 계속). 훅은 프로덕션과 같은 셸로 부른다.
+    const prompt = run('bash', [path.join(target, '.claude/hooks/inject-context.sh')], {
       cwd: target,
       env: { ...process.env, CLAUDE_PROJECT_DIR: target },
       input: JSON.stringify({ prompt: 'hello' }),
@@ -714,7 +717,7 @@ function noChannelCallsAnUnreadableHookStateOff() {
   }
 
   // 조회가 정상이면 종전대로 조용하다 — 이 회귀가 안내를 통째로 없애 버리지 않았음을 확인한다.
-  const quiet = run('sh', [path.join(target, '.claude/hooks/inject-context.sh')], {
+  const quiet = run('bash', [path.join(target, '.claude/hooks/inject-context.sh')], {
     cwd: target,
     env: { ...process.env, CLAUDE_PROJECT_DIR: target },
     input: JSON.stringify({ prompt: 'hello' }),

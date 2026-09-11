@@ -47,6 +47,10 @@
   - **[결함픽스] 하위 폴더 프로젝트에서 `.sh` 게이트가 뚫려 있었다(0.2.146 이후 계속, Codex 교차 리뷰에서 재현).** `HEAD:<경로>` 는 **저장소 루트 기준**이라, 프로젝트가 저장소의 하위 폴더면(모노레포 안 한 서비스) 루트에 같은 이름의 커밋된 스크립트가 있을 때 그것으로 존재 확인이 통과했다. 미추적 스크립트가 검사 없이 실행될 수 있었다. `HEAD:./<경로>` 로 바꿔 저장소 루트에서도 하위 폴더에서도 같은 파일을 본다.
   - 회귀 `blockedNewManagedScriptSaysItWasJustInstalled` — 커밋 전 차단+문장 / 커밋 후 통과 / 관리 파일이 아닌 새 스크립트에는 그 문장이 안 붙음 / **설치 뒤 고친 관리 파일에도 안 붙음**. 게이트 우회는 `dangerousHookAllowsOnlyCommittedUnmodifiedScripts` 에 하위 폴더 사례로 박았다.
 
+- **[내부] CI 가 0.2.149 중반부터 6번 연속 빨간불이었다 — 리눅스에서만 깨지는 회귀 하나** — 마지막 초록은 `0.2.149 — 세션 시작·pull에 준비 상태 표…` 였고, **v0.2.149 릴리스 태그 push 도 빨간 상태로 나갔다**(아무도 못 봤다). 원인은 `noChannelCallsAnUnreadableHookStateOff` 가 `inject-context.sh` 를 `sh` 로 강제 실행한 것. 프로덕션은 `settings.json` 이 훅을 **경로로** 부르므로 shebang(`#!/usr/bin/env bash`)이 적용되는데, 테스트만 `sh` 를 강제했다. macOS 의 `sh` 는 bash 라 로컬은 늘 통과하고, 리눅스의 `sh` 는 dash 라 `set -o pipefail` 에서 죽는다(`Illegal option -o pipefail`, exit 2 — 로컬 dash 로 같은 메시지 재현). **훅 자체는 멀쩡하다** — 테스트가 프로덕션과 다른 셸로 부른 것이 전부다. 테스트를 프로덕션과 같은 셸로 맞췄다.
+  - 같은 자리를 전부 셌다(결정 112): 스위트에서 `sh` 로 부르는 훅은 `.githooks/*`(`#!/usr/bin/env sh`)와 `session-start-reminder.sh`(`#!/bin/sh`)뿐이고 둘 다 pipefail 을 쓰지 않아 맞는 호출이다. bash 셰방을 `sh` 로 부르던 곳은 이 두 줄뿐이었다.
+  - **빨간 CI 를 ⛔ 번복 배너 탓으로 넘겨짚지 않는다.** 체크리스트가 "번복 배너를 담은 push 는 CI 가 반드시 빨개진다"고 적어 둔 탓에 빨간불이 예상된 것처럼 읽혔지만, 이번 여섯 번은 전부 회귀 실패였다. 빨간불은 매번 이유를 확인한다.
+
 - **[내부] 설치기 회귀 스위트를 등록층과 본문층으로 나눴다** — `scripts/test-init.mjs` 한 파일이 9,604줄까지 자라 회귀 하나를 고치려 해도 파일 전체를 열어야 했고, 새 회귀를 어디에 넣을지도 사람마다 갈렸다. 이제 진입점은 **등록과 실행**만 갖는다(`tests` 배열이 회귀 목록의 정본, 그 뒤가 종전 샤드 러너). 본문은 영역별로 `scripts/test-init/<영역>.mjs` 여덟 개(install·hooks·spec·scan·stack·guard·runtime·release), 공용 픽스처·단언·실행 헬퍼는 `scripts/test-init/helpers.mjs`.
   - **거동은 한 줄도 바꾸지 않았다.** `tests` 배열의 순서를 그대로 두어 샤드 배분(인덱스 라운드로빈)과 출력 순서가 종전과 같고, 이름 필터·`--shard=k/N`·`--sequential`·`HARNESS_TESTS_SEQUENTIAL=1` 도 그대로다. 진입면(`node scripts/test-init.mjs`)이 바뀌지 않아 `guard.mjs` 의 seed-mode 게이트도 손대지 않았다.
   - 분리는 손으로 하지 않고 스크립트로 옮긴 뒤 **원본 본문 영역의 비어 있지 않은 8,064줄이 분리본에 하나도 빠지거나 늘지 않았음**을 대조해 확인했다. 항목 사이에 있던 모듈 상수(`nodeBinDir`)와 "삭제된 회귀" 묘비 주석까지 함께 옮겼다.
