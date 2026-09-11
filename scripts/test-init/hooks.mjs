@@ -1,5 +1,6 @@
 // git hook 설치·체인·래퍼와 Claude 어댑터 훅, 커밋 단계 회귀. 실행 등록은 scripts/test-init.mjs의 tests 배열이 정본이다.
 import { execFileSync } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -637,6 +638,107 @@ function blockedNewManagedScriptSaysItWasJustInstalled() {
   })
   assert(editedOut.includes('하네스가 차단함'), 'an edited managed script must still be blocked')
   assert(!editedOut.includes('방금 설치한 관리 파일'), `the hint must not claim an edited file is exactly what the update installed (got: ${editedOut})`)
+}
+
+// 0.2.151(#45, club-admin-vue3) — 업데이트가 **내용만 갈아끼운** 기존 관리 파일에도 같은 안내가 붙는다.
+// 0.2.150 의 판정은 "HEAD 에 없다"였다. 덮어쓴 파일은 HEAD 에 남아 있어 탈락했고, 손댄 적 없는 훅을
+// "새로 만들거나 고친 스크립트"라고 막으면서 안심 문구만 빠졌다 — #40 과 같은 오해의 반쪽이다.
+function blockedOverwrittenManagedScriptSaysItWasJustInstalled() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  // 설치본을 통째로 커밋해 "HEAD 에 있는 관리 파일" 상태를 만든다.
+  run('git', ['add', '-A'], { cwd: target })
+  run('git', ['commit', '-q', '-m', 'install'], { cwd: target })
+
+  const managed = '.harness/bin/preflight.sh'
+  const ask = () => execFileSync('bash', [path.join(target, '.claude/hooks/block-dangerous.sh')], {
+    cwd: target,
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    input: JSON.stringify({ tool_input: { command: `bash ${managed}` }, cwd: target }),
+    env: { ...process.env, CLAUDE_PROJECT_DIR: target },
+  })
+
+  // 전제: 커밋된 그대로면 통과한다.
+  assert(ask().trim() === '', 'precondition: the committed managed script must pass')
+
+  // 업데이트가 이 파일을 갈아끼운 상황을 흉내 낸다 — 내용이 바뀌고, manifest 기록 sha 도 새 내용으로 갱신된다.
+  // (사람이 고친 것이 아니라 설치기가 쓴 것이므로 manifest 와 디스크가 일치한다.)
+  const abs = path.join(target, managed)
+  fs.writeFileSync(abs, `${read(target, managed)}\n# 0.2.151 업데이트가 덮어쓴 줄\n`)
+  const manifestPath = path.join(target, '.harness/install-manifest.json')
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  manifest.managedFiles[managed].sha256 = crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex')
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  const out = ask()
+  assert(out.includes('하네스가 차단함'), `an overwritten managed script must still be blocked (got: ${out})`)
+  // 고침을 빼면(HEAD 존재 검사에서 바로 return 1) 이 단언이 깨진다 — #45 가 보고한 바로 그 상태다.
+  assert(
+    out.includes('방금 설치한 관리 파일'),
+    `the hint must also cover managed files the update overwrote, not only new ones (got: ${out})`,
+  )
+  assert(out.includes('작업 파일이 HEAD 와 다릅니다'), `the reason must name the HEAD mismatch (got: ${out})`)
+
+  // 설치 뒤 **사람이** 고친 경우는 계속 제외된다 — manifest 기록 sha 를 갱신하지 않은 쪽이 그 경우다.
+  fs.appendFileSync(abs, '# 사람이 덧붙인 줄\n')
+  const edited = ask()
+  assert(edited.includes('하네스가 차단함'), 'a human-edited managed script must still be blocked')
+  assert(
+    !edited.includes('방금 설치한 관리 파일'),
+    `sha mismatch must still suppress the hint for human edits (got: ${edited})`,
+  )
+}
+
+// 0.2.151(#46, scorecard-print) — 어느 조건에 걸렸는지를 문구가 지목한다.
+// 예전에는 통과 조건 둘(커밋 상태·실행 폴더 확정)을 나열만 해서, 커밋을 다 해 둔 팀이 앞선 cd 하나로
+// 막혔을 때 "커밋하면 통과한다던 게 거짓말인가"로 읽었다. 두 경우가 같은 문장으로 나오던 것이 문제다.
+function blockedScriptNamesWhichConditionItFailed() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run('git', ['add', '-A'], { cwd: target })
+  run('git', ['commit', '-q', '-m', 'install'], { cwd: target })
+
+  const ask = (command) => execFileSync('bash', [path.join(target, '.claude/hooks/block-dangerous.sh')], {
+    cwd: target,
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    input: JSON.stringify({ tool_input: { command } , cwd: target }),
+    env: { ...process.env, CLAUDE_PROJECT_DIR: target },
+  })
+
+  // ① 커밋 상태는 멀쩡하고 앞선 cd 하나 때문에 막힌 경우 — #46 이 겪은 그대로.
+  // 단언은 **사유절**만 겨냥한다 — 고정 안내문에 이미 "같은 명령에 앞선 cd 없음"이 들어 있어
+  // 그냥 `앞선 cd` 를 찾으면 어떤 차단에서도 참이 되는 헛단언이 된다.
+  const byCd = ask('cd .harness && bash bin/preflight.sh')
+  assert(byCd.includes('하네스가 차단함'), `a preceding cd must still block (got: ${byCd})`)
+  assert(byCd.includes('사유: 같은 명령에 앞선 cd'), `the message must name the cd as the cause (got: ${byCd})`)
+  // 커밋은 이미 됐으므로 커밋을 권하면 거짓 안내다.
+  assert(
+    !byCd.includes('커밋하면 통과합니다'),
+    `a committed script must not be told to commit (got: ${byCd})`,
+  )
+  assert(byCd.includes('절대 경로로 부르면 통과합니다'), `the message must say what actually unblocks it (got: ${byCd})`)
+
+  // ② 같은 스크립트를 절대 경로로 부르면 통과한다 — ①의 안내가 약속한 그대로.
+  assert(ask(`bash ${path.join(target, '.harness/bin/preflight.sh')}`).trim() === '', 'an absolute path must pass')
+
+  // ③ 커밋 안 된 새 스크립트는 다른 사유가 나온다 — 두 경우가 같은 문장이면 안 된다.
+  fs.writeFileSync(path.join(target, 'mine.sh'), '#!/bin/sh\necho hi\n')
+  const byHead = ask('bash mine.sh')
+  assert(byHead.includes('사유: 이 스크립트가 HEAD 에 없습니다'), `an uncommitted script must name the HEAD condition (got: ${byHead})`)
+  assert(!byHead.includes('사유: 같은 명령에 앞선 cd'), `the cd reason must not leak into an unrelated block (got: ${byHead})`)
+
+  // ④ 한 줄에 `.sh` 실행이 여럿일 때, **통과한 앞 조각**의 파일이 뒤 조각 안내에 새면 안 된다.
+  //    앞 조각(커밋된 관리 파일)은 통과하고 뒤 조각은 앞선 cd 로 거절된다 — 뒤 조각은 경로 확정
+  //    전에 걸리므로, 함수 진입 시 리셋이 없으면 안내가 **앞 조각의 파일**을 가리킨다(적대적 리뷰 H3).
+  const leak = ask('bash .harness/bin/preflight.sh && cd .harness && bash ../mine.sh')
+  assert(leak.includes('하네스가 차단함'), `the second segment must still block (got: ${leak})`)
+  assert(leak.includes('사유: 같은 명령에 앞선 cd'), `the reason must describe the failing segment (got: ${leak})`)
+  assert(
+    !leak.includes('방금 설치한 관리 파일'),
+    `the hint must not describe the earlier passing segment's file (got: ${leak})`,
+  )
 }
 
 function promptChannelShowsPrerequisitesOncePerSession() {
@@ -1552,6 +1654,8 @@ export {
   globalHooksPathOverrideWorksFromLinkedWorktree,
   crossHookCallRunsTheRealHook,
   blockedNewManagedScriptSaysItWasJustInstalled,
+  blockedOverwrittenManagedScriptSaysItWasJustInstalled,
+  blockedScriptNamesWhichConditionItFailed,
   promptChannelShowsPrerequisitesOncePerSession,
   noChannelCallsAnUnreadableHookStateOff,
   pullReportsTheSameUnmetPrerequisites,

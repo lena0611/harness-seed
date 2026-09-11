@@ -36,7 +36,7 @@
 - 단 "특정 파일 참조"가 아닌 경로는 검사 대상에서 제외합니다(`isIgnorableCodePath`). 이 구분이 없으면 본체엔 우연히 존재하는 디렉토리가 소비자 환경에는 없어 환경 의존 오탐이 발생합니다.
   - glob/생략 표기: `*`, `...` 포함.
   - 디렉토리 예시: trailing slash로 끝나는 경로(`.github/workflows/`, `.harness/policy/`)는 "이런 위치를 보라"는 안내이지 파일 링크가 아닙니다.
-  - 본체 CI 어댑터: `.github/workflows/` 하위는 소비자 프로젝트에 기본 주입되지 않으므로 소비자 환경에 없을 수 있어 검사하지 않습니다(본체에선 실제 존재하므로 검사해도 통과).
+  - CI 워크플로 경로: `.github/workflows/` 하위는 소비자 문서가 자기 워크플로 파일을 구체 경로로 인용해도 그 파일의 존재가 환경마다 갈리므로(CI 미사용·다른 CI·브랜치 차이) 검사하지 않습니다. 본체에는 0.2.151(결정 114)로 워크플로가 없지만, 이 규칙의 근거는 그와 무관하게 **소비자 환경**입니다.
 - 구체 파일 참조(`.harness/bin/guard.mjs` 등)는 계속 검사 대상입니다. 이 규칙이 바뀌면 `scripts/test-init.mjs`의 `isIgnorableCodePathClassifiesExamplesAndCiPaths`/`consumerDocLinkCheckIgnoresCiExamplePaths` 회귀를 함께 갱신합니다.
 - **존재하지 않는 것이 정상인 파일**(소비자가 만들어야 켜지는 스위치 파일 등 — issue-adapter 실물이 그 예)은 문서에서 백틱 경로로 쓰지 않습니다 — 위 검사가 죽은 경로로 오탐합니다. 파일명 없이 서술로 풀거나, 경로가 꼭 필요하면 백틱 없이 씁니다(0.2.123 실측).
 

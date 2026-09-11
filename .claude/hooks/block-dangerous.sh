@@ -166,16 +166,27 @@ done <<< "$cmd"
 #   - 예외: 인터프리터 옵션 자리의 -n(문법 검사만)은 실행이 아니므로 통과. `sh file.sh -n`은 인자라 예외가 아니다.
 # 이 판정은 해당 패턴 하나만 건너뛴다 — 같은 줄의 다른 위험 패턴(sudo, curl|sh 등)은 계속 검사한다.
 # 차단된 스크립트가 **하네스 업데이트가 방금 설치한 관리 파일**인지 본다(#40·#41·#42, 세 팀이 같은 자리를 짚었다).
-# 새 파일은 정의상 HEAD 에 없으므로 이 게이트에 항상 걸린다 — 동작은 옳지만, 문구가 "새로 만들거나 고친
-# 스크립트"라고만 말해 "업데이트가 훅을 망가뜨렸나"로 읽힌다. 판정은 두 조건: HEAD 에 없고 + 설치 manifest 의
-# managedFiles 에 있다. 훅의 node 스니펫은 bash 단일 인용 안이라 JS 에 작은따옴표를 쓰지 않는다(0.2.146 함정).
+# 업데이트가 놓고 간 파일은 이 게이트에 걸린다 — 동작은 옳지만, 문구가 "새로 만들거나 고친 스크립트"라고만
+# 말해 "업데이트가 훅을 망가뜨렸나"로 읽힌다. 훅의 node 스니펫은 bash 단일 인용 안이라 JS 에 작은따옴표를
+# 쓰지 않는다(0.2.146 함정).
 # manifest 에 이름이 있는 것만으로는 부족하다 — 설치 뒤 사람이 고치거나 통째로 갈아치웠어도 이름은 그대로 남아,
-# "설치가 잘못된 게 아니라 커밋만 안 된 것"이라는 문장이 거짓이 된다(Codex 교차 리뷰). 기록된 sha256 과
+# "설치가 놓고 간 그대로"라는 문장이 거짓이 된다(Codex 교차 리뷰). 기록된 sha256 과
 # 디스크 내용이 **같을 때만** 붙인다 — 그때만 "설치가 놓고 간 그대로"가 확인된 사실이다.
-harness_new_managed_file() {
+# 0.2.151(#45, club-admin-vue3): 판정을 "HEAD 에 없다"에서 **"HEAD 와 다르다(없는 경우 포함)"**로 넓혔다.
+# 업데이트가 **내용만 갈아끼운** 기존 관리 파일은 HEAD 에 남아 있어 예전 조건에서 탈락했고, 손댄 적 없는
+# 파일을 "새로 만들거나 고친 스크립트"라고 막으면서 안심 문구만 빠졌다 — #40 과 같은 오해인데 반쪽만 고쳐져
+# 있던 셈이다. sha256 대조는 그대로라 설치 뒤 사람이 고친 파일은 계속 제외된다.
+harness_installed_managed_file() {
   local rel="$1" root="$2"
   [ -n "$rel" ] || return 1
-  git -C "$root" cat-file -e "HEAD:./$rel" 2>/dev/null && return 1
+  # HEAD 와 완전히 같으면(작업 파일·인덱스 모두) 설명할 것이 없다 — 이 문구는 "업데이트가 놓고 갔고 아직
+  # HEAD 에 반영되지 않은 파일"만 대상으로 한다.
+  if git -C "$root" cat-file -e "HEAD:./$rel" 2>/dev/null; then
+    if git -C "$root" diff --quiet HEAD -- "$rel" 2>/dev/null \
+      && git -C "$root" diff --quiet --cached HEAD -- "$rel" 2>/dev/null; then
+      return 1
+    fi
+  fi
   HARNESS_REL="$rel" HARNESS_ROOT="$root" node -e '
 const fs = require("fs");
 const crypto = require("crypto");
@@ -191,8 +202,16 @@ try {
 ' 2>/dev/null
 }
 
+# 0.2.151(#46, scorecard-print): 거절 갈래마다 `denied_reason` 을 남긴다. 예전에는 통과 조건 둘(커밋 상태·실행
+# 폴더 확정)을 **나열만** 해서, 커밋을 다 해 둔 팀이 앞선 cd 하나 때문에 막혔을 때 "커밋하면 통과한다던 게
+# 거짓말인가"로 읽었다. 둘 다 위반한 경우와 하나만 위반한 경우가 같은 문장으로 나오던 것이 문제다.
 script_exec_allowed() {
   local seg="$1" before="$2"
+  # 한 줄에 `.sh` 실행이 여럿이면 이 함수가 조각마다 불린다. 앞 조각이 통과하면서 세워 둔 값이
+  # 남으면, 뒤 조각이 경로 확정 **전에** 거절될 때(앞선 cd·변수 경로·저장소 밖) 안내가 **앞 조각의
+  # 파일**을 가리킨다 — 다른 파일 얘기를 하는 거짓 안내다. 진입할 때마다 비워 불변식을 명시한다.
+  denied_rel=""
+  denied_reason=""
   local -a toks
   read -ra toks <<< "$seg"
   local i=1 script="" syntax_only=0
@@ -206,6 +225,7 @@ script_exec_allowed() {
     i=$((i + 1))
   done
   [ "$syntax_only" = "1" ] && return 0
+  denied_reason="대상 스크립트를 하나로 확정할 수 없습니다(변수·따옴표·연결 명령)"
   [ -n "$script" ] || return 1
   case "$script" in *'$'*|*'`'*|*'"'*|*"'"*) return 1 ;; esac
   # 조각 안에 연결 연산자나 또 다른 .sh 토큰이 있으면 실행을 하나씩 확정할 수 없다 → 자동 허용하지 않는다(fail-closed).
@@ -218,8 +238,12 @@ script_exec_allowed() {
   # 바뀌었을 수 있어 상대 경로를 풀 수 없다 → 자동 허용하지 않는다(절대 경로는 cd 와 무관하니 그대로 판정).
   case "$script" in
     /*) ;;
-    *) if [[ "$before" =~ (^|[\;\&\|\(\{[:space:]])(cd|pushd|popd)([[:space:]]|$) ]]; then return 1; fi ;;
+    *) if [[ "$before" =~ (^|[\;\&\|\(\{[:space:]])(cd|pushd|popd)([[:space:]]|$) ]]; then
+         denied_reason="같은 명령에 앞선 cd 가 있어 상대 경로 대상을 확정할 수 없습니다(절대 경로로 부르면 통과합니다)"
+         return 1
+       fi ;;
   esac
+  denied_reason="저장소 안의 일반 파일이 아닙니다(저장소 밖이거나 파일이 없습니다)"
   local root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
   local base="${hook_cwd:-$root}"
   local rel
@@ -242,9 +266,23 @@ try {
   # `HEAD:<경로>` 는 **저장소 루트 기준**이라, 프로젝트가 저장소의 하위 폴더면 루트의 동명 파일로
   # 존재 확인이 통과해 미추적 스크립트가 게이트를 그냥 빠져나간다(Codex 교차 리뷰에서 재현).
   # `./` 를 붙이면 cwd 기준으로 읽혀 저장소 루트에서도 하위 폴더에서도 같은 파일을 본다.
+  # 비-git 프로젝트에서는 "커밋하면 통과합니다"가 실행 불가능한 안내다 — HEAD 도 저장소도 없다.
+  # 0.2.150 까지는 이 약속이 관리 파일 안심 문구에만 붙었는데, 사유 줄은 **모든** 차단에 붙으므로
+  # 여기서 갈라 준다(이번 릴리스가 없애려는 거짓 안내와 같은 부류라 함께 막는다).
+  if ! git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
+    denied_reason="git 저장소가 아니라 커밋 상태를 확인할 수 없습니다"
+    return 1
+  fi
+  denied_reason="이 스크립트가 HEAD 에 없습니다(새 파일 — 커밋하면 통과합니다)"
   git -C "$root" cat-file -e "HEAD:./$rel" 2>/dev/null || return 1
+  # "수정본"이라고 쓰지 않는다(#45 후속): 업데이트가 덮어쓴 파일도 이 갈래로 오는데, 그 문장이
+  # 바로 뒤 안심 문구("네가 고친 게 아니다")와 한 절 차이로 싸운다 — 누가 바꿨는지는 안심 문구의
+  # 유무가 말하게 두고, 사유는 상태만 적는다.
+  denied_reason="작업 파일이 HEAD 와 다릅니다(커밋하면 통과합니다)"
   git -C "$root" diff --quiet HEAD -- "$rel" 2>/dev/null || return 1
+  denied_reason="스테이징된 내용이 HEAD 와 다릅니다(커밋하면 통과합니다)"
   git -C "$root" diff --quiet --cached HEAD -- "$rel" 2>/dev/null || return 1
+  denied_reason=""
   return 0
 }
 
@@ -291,6 +329,7 @@ while IFS= read -r line; do
         *'\.sh('*)
           denied_segment=""
           denied_rel=""
+          denied_reason=""
           if script_execs_all_allowed "$line" "$pattern" "$seen_lines"; then
             continue
           fi
@@ -298,10 +337,12 @@ while IFS= read -r line; do
             warn "$pattern"
           fi
           managed_hint=""
-          if harness_new_managed_file "${denied_rel:-}" "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"; then
-            managed_hint=" 이 파일은 하네스 업데이트가 방금 설치한 관리 파일입니다 — 설치가 잘못된 것이 아니라 아직 커밋되지 않았을 뿐이고, 커밋하면 통과합니다."
+          if harness_installed_managed_file "${denied_rel:-}" "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"; then
+            managed_hint=" 이 파일은 하네스 업데이트가 방금 설치한 관리 파일입니다 — 설치가 잘못된 것이 아니라 아직 HEAD 에 반영되지 않았을 뿐입니다."
           fi
-          deny "하네스가 차단함: 셸 스크립트 실행 '$(printf '%s' "$denied_segment" | cut -c1-120)' — 저장소에 커밋된 그대로(HEAD와 동일)인 저장소 안 스크립트만, 실행 폴더를 확정할 수 있을 때(같은 명령에 앞선 cd 없음) 통과합니다. 새로 만들거나 고친 스크립트, 저장소 밖 스크립트는 사용자에게 목적과 영향 범위를 확인한 뒤 진행하세요. 문법 검사만 하려면 sh -n <파일>.${managed_hint}"
+          reason_line=""
+          [ -n "${denied_reason:-}" ] && reason_line=" 사유: ${denied_reason}."
+          deny "하네스가 차단함: 셸 스크립트 실행 '$(printf '%s' "$denied_segment" | cut -c1-120)' — 저장소에 커밋된 그대로(HEAD와 동일)인 저장소 안 스크립트만, 실행 폴더를 확정할 수 있을 때(같은 명령에 앞선 cd 없음) 통과합니다.${reason_line}${managed_hint} 막힌 스크립트는 사용자에게 목적과 영향 범위를 확인한 뒤 진행하세요. 문법 검사만 하려면 sh -n <파일>."
           ;;
       esac
       if [ "$profile" = "permissive" ]; then

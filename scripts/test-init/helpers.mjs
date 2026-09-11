@@ -21,11 +21,12 @@ function withoutCallerGitEnv(env) {
     if (key.startsWith('GIT_')) continue
     clean[key] = value
   }
-  // CI 러너(GitHub Actions)에는 전역 git 신원이 없어 픽스처 안의 `git commit`이
-  // "empty ident name"으로 죽었다 — 0.2.136부터 매 push가 빨간불이었는데 로컬은 전역 설정
-  // 덕에 통과해 아무도 못 봤다(2026-09-02 발견). 스위트가 실행 환경의 git 설정에 좌우되지
-  // 않도록 신원 기본값을 항상 넣는다(저장소 로컬 user.* 설정이 있으면 그쪽이 우선하지 않고
-  // 환경변수가 이기지만, 테스트는 작성자 값을 단언하지 않는다).
+  // 스위트가 실행 환경의 git 설정에 좌우되지 않도록 신원 기본값을 항상 넣는다 — 전역
+  // user.*가 없는 머신에서는 픽스처 안의 `git commit`이 "empty ident name"으로 죽는다.
+  // (저장소 로컬 user.* 설정이 있어도 환경변수가 이기지만, 테스트는 작성자 값을 단언하지 않는다.)
+  // 이 기본값이 없던 시절 그 머신이 CI 러너였고 0.2.136부터 매 push가 빨간불이었는데, 로컬은
+  // 전역 설정 덕에 통과해 아무도 못 봤다(2026-09-02 발견). CI는 이제 없지만(결정 114) 이유는
+  // 남는다 — 전역 설정 없는 새 머신·컨테이너에서 똑같이 깨진다.
   clean.GIT_AUTHOR_NAME = 'Harness Test'
   clean.GIT_AUTHOR_EMAIL = 'test@example.com'
   clean.GIT_COMMITTER_NAME = 'Harness Test'

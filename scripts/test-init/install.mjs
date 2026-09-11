@@ -50,7 +50,6 @@ function cleanInstallCreatesExpectedFiles() {
   assert(exists(target, '.harness/bin/handoff.mjs'), 'clean install should copy harness handoff script under .harness/bin')
   assert(exists(target, '.harness/documentation/guide/index.html'), 'clean install should copy interactive guide')
   assert(exists(target, '.github/commit-template.txt'), 'clean install should copy commit message template')
-  assert(!exists(target, '.github/workflows/policy-guard.yml'), 'clean install should not copy seed GitHub Actions workflow')
   assert(!exists(target, 'scripts'), 'clean install should not create root scripts directory')
   assert(!exists(target, '.nvmrc'), 'clean install should not create project runtime contract')
   assert(exists(target, '.harness/install-manifest.json'), 'clean install should write install manifest')

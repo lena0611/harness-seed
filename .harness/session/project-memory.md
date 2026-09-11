@@ -58,7 +58,7 @@
 - `npm run docs:check` / `docs:check:strict`: 하네스 본체 저장소 전용 문서 검사
 - `npm run standards:list` / `stack:status` / `stack:apply` / `stack:reset`
 - `npm run templates:list` / `template:status` / `template:apply` / `template:reset`
-- CI에서는 `npm run harness:check:strict`를 기준으로 실행
+- 이 저장소에는 코드 검증 CI가 없습니다(0.2.151, 결정 114) — 검증은 커밋·푸시 훅이 전부 합니다. CI를 두는 프로젝트는 `npm run harness:check:strict`를 기준으로 실행합니다.
 
 ## 운영 장치 원칙
 - 하네스는 방향과 읽기 순서를 제공.

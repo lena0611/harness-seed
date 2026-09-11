@@ -54,7 +54,9 @@ function isIgnorableCodePathClassifiesExamplesAndCiPaths() {
   // 예시/디렉토리/CI 어댑터 경로는 무결성 검사 대상이 아니다.
   assert(isIgnorableCodePath('.github/workflows/'), 'trailing-slash CI dir is a directory example')
   assert(isIgnorableCodePath('.harness/policy/'), 'trailing-slash dir is a directory example')
-  assert(isIgnorableCodePath('.github/workflows/policy-guard.yml'), 'CI adapter path is ignorable (not injected into consumers)')
+  // 0.2.151: 예시를 소비자 쪽 이름으로 바꿨다. 본체에는 워크플로가 없고(결정 114) 이 규칙이 지키는
+  // 것은 **소비자가 자기 CI 파일을 구체 경로로 인용하는 경우**다.
+  assert(isIgnorableCodePath('.github/workflows/ci.yml'), 'a concrete CI workflow path is ignorable (presence varies by environment)')
   assert(isIgnorableCodePath('.harness/bin/*.mjs'), 'glob is ignorable')
   assert(isIgnorableCodePath('.harness/session/...'), 'ellipsis is ignorable')
   // 구체 파일 참조는 여전히 검사 대상이어야 한다(오탐 수정이 진짜 dead까지 가리면 안 된다).
@@ -66,10 +68,18 @@ function isIgnorableCodePathClassifiesExamplesAndCiPaths() {
 function consumerDocLinkCheckIgnoresCiExamplePaths() {
   const target = makeTarget()
   runInit(target)
-  // 소비자에는 본체 CI 어댑터(.github/workflows/)가 주입되지 않는다(전제).
-  assert(!exists(target, '.github/workflows'), 'consumer should not have .github/workflows (precondition)')
-  // 본체 문서(harness-scan.md 등)는 `.github/workflows/`를 백틱 예시로 언급한다. 설치된 doc-link-check를
-  // 소비자 루트에서 실행해도 그 예시/CI 경로를 dead로 보고하지 않아야 한다.
+  // 예전 전제("소비자에 본체 CI 어댑터가 주입되지 않는다")는 0.2.151 에 본체 워크플로가 사라지면서
+  // **영원히 참**이 됐다 — 검사처럼 보이지만 아무것도 지키지 않아 지웠다(결정 114·115).
+  //
+  // 대신 이 분기가 **실제로 지키는 것**을 겪게 한다: 소비자 문서가 자기 CI 파일을 **구체 경로로**
+  // 인용하고 그 파일이 없는 환경. 본체 문서의 `.github/workflows/` 언급은 전부 trailing slash 라
+  // 그쪽 규칙이 먼저 잡아 이 분기를 밟지 않는다(적대적 리뷰 실측 — 분기를 지워도 통과했다).
+  fs.mkdirSync(path.join(target, '.harness/project'), { recursive: true })
+  fs.appendFileSync(
+    path.join(target, '.harness/project/workflow-rules.md'),
+    '\n## CI\n\n배포는 `.github/workflows/deploy.yml` 이 담당합니다.\n',
+  )
+  assert(!exists(target, '.github/workflows/deploy.yml'), 'precondition: the cited workflow must be absent here')
   const out = run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs')], { cwd: target })
   assert(!out.includes('.github/workflows'), 'consumer doc-link-check must not flag .github/workflows example/CI paths')
 }

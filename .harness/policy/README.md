@@ -7,7 +7,7 @@
 ## 목적
 - 개발 기준 문서가 바뀌면 어떤 코드 영역을 재검토해야 하는지 자동으로 드러냅니다.
 - 소스가 바뀌면 어떤 기준을 다시 확인해야 하는지 역으로 드러냅니다.
-- 자동으로 검증 가능한 위반은 CI에서 실패 처리합니다.
+- 자동으로 검증 가능한 위반은 `harness check`가 실패로 처리합니다(커밋·푸시 훅이 그 검사를 돌립니다). 프로젝트가 CI를 둔다면 `--strict`로 차단까지 올릴 수 있습니다 — 하네스 본체에는 CI를 두지 않습니다(결정 114).
 - 새 세션에서도 이 트리거를 놓치지 않도록 세션 하네스와 연결합니다.
 
 ## 읽기 순서
@@ -32,7 +32,7 @@
 .harness/bin/harness check
 ```
 
-아래 명령은 하네스 본체 저장소에서 세부 원인 분석이나 CI 검증이 필요할 때 사용하는 내부 개발 명령입니다. `harness:sync`와 `harness:context`는 소비자 프로젝트에도 제공되지만, 일반 개발자가 업무 지시 때마다 직접 실행하는 명령이 아니라 에이전트가 큰 작업 전에 판단 컨텍스트를 만들 때 사용하는 보조 명령입니다.
+아래 명령은 하네스 본체 저장소에서 세부 원인 분석이 필요할 때 사용하는 내부 개발 명령입니다. `harness:sync`와 `harness:context`는 소비자 프로젝트에도 제공되지만, 일반 개발자가 업무 지시 때마다 직접 실행하는 명령이 아니라 에이전트가 큰 작업 전에 판단 컨텍스트를 만들 때 사용하는 보조 명령입니다.
 
 ```bash
 npm run policy:impact
@@ -74,7 +74,6 @@ npm run docs:check
 - `.harness/bin/sync-context.mjs`: 프로젝트 맵, import 맵, 패턴 후보를 `.harness/generated/**`로 재생성
 - `.harness/bin/build-context.mjs`: 작업 설명을 기준으로 `.harness/session/task-context.md`에 Agent Decision Context 생성
 - `.harness/bin/doc-link-check.mjs`: 문서 레지스트리 일관성과 마크다운 링크/코드 경로 참조 검증
-- CI 설정: 푸시/PR 시 `.harness/bin/harness check --strict` 실행
 
 ## 운영 원칙
 - 개발 기준 변경은 문서 수정으로 끝내지 않습니다. 영향을 받는 코드 영역을 반드시 다시 봅니다.

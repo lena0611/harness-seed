@@ -313,8 +313,12 @@ const codePathPattern = /`((?:src|scripts|\.github|\.harness|\.claude|\.githooks
 // 백틱 코드 경로 중 "특정 파일 참조"가 아니라 무결성 검사 대상에서 빼야 하는 경로를 판별한다.
 // - glob/생략(`*`, `...`)은 패턴 표기.
 // - trailing slash(`.github/workflows/`, `.harness/policy/`)는 "이런 위치를 보라"는 디렉토리 예시이지 파일 링크가 아니다.
-// - `.github/workflows/` 하위는 본체 CI 어댑터 경로다. 소비자 프로젝트에는 기본 주입되지 않으므로(소비자 환경엔 없을 수 있음) 검사하지 않는다.
-//   본체에선 실제 존재하므로 검사해도 통과하지만, 소비자에서의 환경 의존 오탐을 없애기 위해 항상 제외한다.
+// - `.github/workflows/` 하위는 CI 워크플로 경로다. 소비자 문서가 자기 워크플로 파일을 구체 경로로 인용해도
+//   그 파일은 환경마다 있고 없고가 갈린다(CI 미사용·다른 CI·브랜치별 차이) — 환경 의존 오탐을 없애려 항상 제외한다.
+//   0.2.151(결정 114)로 본체에서도 워크플로를 제거했으나 이 규칙의 근거는 그와 무관하다. 본체 자기 검사는
+//   이 분기가 없어도 통과한다(`listMarkdownFiles`가 `.harness`·`.claude`만 훑어 CHANGELOG를 안 보고,
+//   아카이브 결정 로그는 `isHistoryLogPath`가 이미 뺀다) — 이 분기를 지키는 것은 소비자 환경뿐이므로
+//   본체 회귀는 구체 워크플로 경로를 인용하는 픽스처 문서로 확인한다.
 export function isIgnorableCodePath(target) {
   if (target.includes('*') || target.includes('...')) {
     return true

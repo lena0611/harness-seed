@@ -433,7 +433,6 @@
         ".githooks/**",
         "package.json",
         "CHANGELOG.md",
-        ".github/workflows/**",
         "release"
       ],
       "keywords": [
