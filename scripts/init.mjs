@@ -1156,6 +1156,25 @@ function pruneOldBackupSets(target, keep, dryRun, protect) {
   return { removed, bytes };
 }
 
+// 백업·회전 결과를 꼬리 요약 한 줄로 낸다(#44 multisite, v0.2.150 수령 리포트). 보고가 출력 **머리**에만 있어
+// 꼬리(`::: 현재 상태 :::`)만 읽고 끝내는 에이전트가 세트가 지워진 것을 놓쳤다 — "조용히 지우지 않는다"는
+// 0.2.150 의 약속은 그 보고가 **실제로 읽히는 자리**에 있을 때만 지켜진다. 머리 줄은 그대로 두고 꼬리에 한 줄 더한다.
+function renderBackupSummary(summary, dryRun) {
+  if (!summary) return null;
+  const parts = [];
+  if (summary.dir) {
+    parts.push(`이번 세트 ${summary.count}개 보관(.harness-backup/${basename(summary.dir)})`);
+  } else if (summary.skipped > 0) {
+    parts.push(`안 만듦 — 기존 파일 ${summary.skipped}개는 모두 git 이 되돌릴 수 있습니다`);
+  }
+  if (summary.prunedCount > 0) {
+    const mb = (summary.prunedBytes / (1024 * 1024)).toFixed(1);
+    parts.push(`오래된 세트 ${summary.prunedCount}개 정리(약 ${mb} MB 회수, 최근 ${BACKUP_KEEP_SETS}개만 남김)`);
+  }
+  if (parts.length === 0) return null;
+  return `백업: ${dryRun ? '[dry-run] ' : ''}${parts.join(' · ')}`;
+}
+
 function backupExisting(target, files, dryRun) {
   const existing = files.filter((rel) => existsSync(join(target, rel)));
   if (existing.length === 0) {
@@ -3216,8 +3235,11 @@ function main() {
       process.exit(1);
     }
 
+    // 꼬리 요약에서도 같은 사실을 내보내려고 결과를 블록 밖에 둔다(#44).
+    let backupSummary = null;
     if (!opts.noBackup) {
       const backup = backupExisting(TARGET, [...files, ...CONSUMER_PROJECT_STATE_PATHS, ...legacyManagedRootScripts], opts.dryRun);
+      backupSummary = { dir: backup.dir, count: backup.count, skipped: backup.skipped, prunedCount: 0, prunedBytes: 0 };
       if (backup.count > 0) {
         console.log(`backup: ${backup.dir} (${backup.count}개 기존 파일${backup.skipped > 0 ? `, git 이 되돌릴 수 있는 ${backup.skipped}개는 생략` : ''})`);
       } else if (backup.skipped > 0) {
@@ -3231,6 +3253,8 @@ function main() {
         if (pruned.removed.length > 0) {
           const mb = (pruned.bytes / (1024 * 1024)).toFixed(1);
           console.log(`${opts.dryRun ? '[dry-run] ' : ''}backup: 오래된 세트 ${pruned.removed.length}개 정리(약 ${mb} MB 회수) — 최근 ${BACKUP_KEEP_SETS}개만 남깁니다. 전부 남기려면 --keep-all-backups.`);
+          backupSummary.prunedCount = pruned.removed.length;
+          backupSummary.prunedBytes = pruned.bytes;
         }
       }
       if (backup.count > 0 || backup.skipped > 0 || opts.verbose || opts.dryRun) {
@@ -3612,6 +3636,7 @@ function main() {
       return;
     }
 
+    const backupLine = renderBackupSummary(backupSummary, opts.dryRun);
     console.log(`
 ::: 공통 하네스 설치 완료 :::
 
@@ -3619,7 +3644,7 @@ function main() {
   - 이번 선택: 공통 하네스만 설치했습니다.
   - 설치 버전: 공통 하네스 v${writtenLock?.baseHarness?.version ?? sourcePkg.version ?? 'dry-run'}
   - 설치/갱신된 하네스 관리 파일: ${installed.added + installed.updated}개
-  - 보존된 프로젝트 소유/로컬 수정 파일: ${installed.skipped + projectState.preserved}개${(installed.preservedForeignFiles?.length ?? 0) > 0 ? ` (그중 하네스 원본과 다른 동명 파일 ${installed.preservedForeignFiles.length}개 — 위 ⚠ 참조: ${installed.preservedForeignFiles.join(', ')})` : ''}
+  - 보존된 프로젝트 소유/로컬 수정 파일: ${installed.skipped + projectState.preserved}개${(installed.preservedForeignFiles?.length ?? 0) > 0 ? ` (그중 하네스 원본과 다른 동명 파일 ${installed.preservedForeignFiles.length}개 — 위 ⚠ 참조: ${installed.preservedForeignFiles.join(', ')})` : ''}${backupLine ? `\n  - ${backupLine}` : ''}
   - package.json 주입 별칭: 0개 (모든 하네스 명령은 .harness/bin/harness 런처)${renderRetiredScriptsNotice(pkg.retired) ? `\n  - ${renderRetiredScriptsNotice(pkg.retired)}` : ''}
   - 스택 기준은 나중에 추가할 수 있습니다.
   - 단순 운영 건이면 지금 상태로 작업을 시작해도 됩니다.

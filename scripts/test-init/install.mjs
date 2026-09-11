@@ -1322,6 +1322,12 @@ function updateRemovesRetiredManagedCommandDoc() {
 // 알려 줄 채널이 없다. 다만 매 프롬프트에 같은 줄이 쌓이면 잡음이 신호를 죽이므로 세션 id 로 한 번만 낸다.
 // 0.2.150 — 백업은 git 이 못 되돌리는 것만, 세트는 최근 2개만. 종전에는 설치할 때마다 전부 복사하고
 // 정리 코드가 없어 `.harness-backup` 이 무한정 쌓였다(멀티사이트 30세트 75MB, 실제 하네스의 4.4배).
+// 설치 출력의 꼬리 요약(`::: 현재 상태 :::` 이후)만 잘라낸다 — "머리에 있으니 됐다"를 단언이 통과시키지 않게.
+function statusBlock(out) {
+  const at = out.indexOf('::: 현재 상태 :::')
+  return at === -1 ? '' : out.slice(at)
+}
+
 function backupSkipsWhatGitCanRestoreAndRotatesSets() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -1334,6 +1340,9 @@ function backupSkipsWhatGitCanRestoreAndRotatesSets() {
   // 안내하는 명령이 실제로 돌아가야 한다. `HEAD:<경로>` 는 저장소 루트 기준이라 하위 폴더 설치에서 실패한다 — `./` 형태만 양쪽에서 된다.
   assert(clean.includes('git show HEAD:./'), `the restore hint must use the cwd-relative form that also works in a subdirectory (got: ${clean})`)
   assert(!exists(target, '.harness-backup'), 'no backup directory may be created when git can restore every file')
+  // #44(multisite v0.2.150 수령 리포트): 백업 보고가 출력 **머리**에만 있으면 꼬리만 읽는 에이전트가 놓친다.
+  // 머리에 있는 것으로는 부족하고 `::: 현재 상태 :::` **이후**에도 있어야 하므로 꼬리만 잘라서 본다.
+  assert(statusBlock(clean).includes('백업: 안 만듦'), `the tail summary must say why no backup folder exists (got: ${statusBlock(clean)})`)
 
   // ② 관리 파일 하나를 고치면 **그 하나만** 백업한다. 나머지는 git 이 들고 있다.
   fs.appendFileSync(path.join(target, '.harness/session/active-context.md'), '\n로컬 수정\n')
@@ -1349,6 +1358,8 @@ function backupSkipsWhatGitCanRestoreAndRotatesSets() {
   fs.appendFileSync(path.join(target, '.harness/session/active-context.md'), '\n또 수정\n')
   const rotated = runInit(target, '--no-scan', '--no-handoff', '--no-check')
   assert(/오래된 세트 \d+개 정리/.test(rotated), `pruning must be reported, never silent (got: ${rotated})`)
+  // 지운 것을 조용히 두지 않는다는 약속은 보고가 **읽히는 자리**에 있을 때만 지켜진다 — 꼬리에도 있어야 한다(#44).
+  assert(/오래된 세트 \d+개 정리/.test(statusBlock(rotated)), `pruning must also reach the tail summary (got: ${statusBlock(rotated)})`)
   const sets = fs.readdirSync(path.join(target, '.harness-backup')).filter((name) => /^\d{4}-\d{2}-\d{2}T/.test(name))
   assert(sets.length === 2, `only the newest two sets may remain (got: ${sets.join(', ')})`)
 
