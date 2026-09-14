@@ -55,21 +55,25 @@
    .harness/bin/harness standards:list        # 후보와 각 후보의 repo 주소가 나온다
    git clone <위에서 고른 repo> <새-스택-이름>
    ```
-   스택이 여럿이면 결이 가까운 쪽을 고릅니다. clone 한 뒤 `.git`을 지우고 새 저장소로 올립니다. 그대로 두는 것: `scripts/` 세 파일(설치기·자기 검사·자기 회귀), `package.json`, `.nvmrc`, `.gitignore`. 새로 쓰는 것: `manifest.json`, `policies.json`, `instructions/`, `README.md` 본문.
+   스택이 여럿이면 결이 가까운 쪽을 고릅니다. clone 한 뒤 `.git`을 지우고 새 저장소로 올립니다. 그대로 두는 것: `scripts/` 세 파일(설치기·자기 검사·자기 회귀), `package.json`, `.nvmrc`, `.gitignore`. 새로 쓰는 것: `manifest.json`, `policies.json`, `instructions/`, `README.md` 본문. **지울 것: 견본 지침 중 자기 `manifest.json`이 열거하지 않는 `instructions/*.md` 전부와, 딸려 온 에디터 설정(`.idea/` 등).** `package.json`의 `files`가 `instructions` 폴더를 통째로 담으므로 지우지 않으면 남의 언어 지침이 자기 패키지에 그대로 실립니다(실측 — 자기 검사는 열거된 파일만 보므로 잡지 못합니다). 8단계에서 `npm pack --dry-run`으로 확인합니다.
 3. **`package.json`을 고칩니다.** `name`, `bin`의 키(= 스택 id), `version`(`0.1.0`부터). `files` 목록과 `engines`는 그대로 둡니다. 설치기는 의존성 없이 유지합니다 — `npx`가 매번 받아 실행하는 패키지입니다.
 4. **`manifest.json`을 채웁니다.** 아래 계약 절의 표대로. `source.type`은 `none`으로 두고, package.json 병합이나 scaffold 절은 넣지 않습니다(다른 언어 저장소에 `package.json`을 만들어 버립니다).
 5. **설치기에서 바꿀 곳은 셋뿐입니다.** ① 대상 프로젝트의 의존성 파일을 읽는 함수와 호환성 판정 함수 — 견본은 `package.json`을 읽으니 「런타임별 차이」 표의 자기 파일로 바꿉니다. ② 스택 id와 문구 상수(자기 검사 스크립트의 id 단언 포함). ③ 자기 회귀의 픽스처 — 견본의 "Vue 2 프로젝트면 중단" 테스트를 자기 언어의 "맞지 않는 프로젝트" 픽스처로. 공통 하네스 설치 → `stack:apply` → lock 기록 → scan/handoff/check로 이어지는 체인은 건드리지 않습니다.
+
+   **설치기 밖에서 하나 더 있습니다 — 자기 검사(`check.mjs`)에 박힌 스택 고유 단언.** 스택 id 말고도 견본은 자기 스택이 고른 값을 단언으로 굳혀 둡니다 — 예: `compatibility.allowEmptyProject === true`. 자기 스택이 다른 값을 고르면 여기서 막히는데, 에러 문구가 견본 시점 문맥("이 스택")을 그대로 들고 있어 자기 얘기로 읽히지 않습니다. 그리고 `allowEmptyProject`를 `false`로 두면 **회귀의 기본 픽스처까지 유효한 의존성 파일을 들고 있어야** 전 테스트가 돕니다(실측).
 6. **지침을 씁니다.** 첫 문서는 적용 범위와 제외 범위(overview), 마지막 문서는 그 언어의 검증 명령(verification). 사이는 그 스택의 진입점·데이터 흐름·외부 연동·배포 전 확인을 한 관심사씩 한 파일로 나눕니다.
 7. **`policies.json`을 씁니다.** 본체가 요구하는 모양(아래 절)으로 5~10개. `ownedAreas`는 그 언어 저장소의 실제 폴더 glob입니다.
 8. **저장소 안에서 검증합니다.** `npm run check`(manifest·정책·지침 정합)와 `npm run test:init`(설치기 회귀).
-9. **실제 저장소에서 검증합니다.** 대상 저장소를 연습 폴더에 새로 clone 하고 `npx -y git+<repo>#<branch> init`을 실행해 아래 체크리스트를 확인합니다. 팀이 쓰는 저장소에 바로 하지 않습니다.
+9. **실제 저장소에서 검증합니다.** 대상 저장소를 연습 폴더에 새로 clone 하고 `npx -y git+<repo>#<branch> init`을 실행해 아래 체크리스트를 확인합니다. 팀이 쓰는 저장소에 바로 하지 않습니다. `npx`는 git에서 받아오므로 이 형태는 **먼저 push해야** 돕니다. push 전에 확인하려면 픽스처 폴더에서 `node <스택-저장소>/scripts/init.mjs init --dry-run`으로 같은 경로를 로컬에서 돌릴 수 있습니다 — 네트워크도 태그도 필요 없습니다.
 10. **태그를 만듭니다.** `manifest.json`의 `stackHarness.ref`와 `package.json`의 `version`을 만들 태그에 맞추고(`v0.1.0` ↔ `0.1.0`) 커밋한 뒤 태그를 push 합니다.
 11. **카탈로그 등록을 요청합니다.** 본체 팀에 id·repo·ref를 전달하면 `.harness/stacks/registry.json`에 실려 다음 본체 릴리스부터 `standards:list`에 보입니다. 등록 전에도 `npx -y git+<repo>#<tag> init`으로 설치는 됩니다.
 
 
 ### 견본을 복사하면 걸리는 것 셋
 
-실제로 견본을 복사해 다른 런타임 스택을 만들어 보고 걸린 것들입니다(2026-09-07 실측). 미리 알면 각각 1분입니다.
+실제로 견본을 복사해 다른 런타임 스택을 만들어 보고 걸린 것들입니다. 미리 알면 각각 1분입니다.
+
+**확인한 범위**: PHP(`composer.json`, 2026-09-07)와 Gradle·Maven(2026-09-11). PHP는 `package.json`과 같은 JSON 모양이라 이식이 가벼웠고, 위 「버전이 의존성 줄에 없을 때」는 Gradle에서야 드러났습니다. 둘 다 "바꿀 곳 셋"(+④)은 사실로 확인됐습니다 — 판정 엔진 아래쪽은 손대지 않았습니다. **아직 안 해 본 런타임(Python·Go 등)은 자기 의존성 파일의 모양부터 확인하세요.**
 
 1. **견본 회귀가 자기 저장소 주소를 문자열로 단언합니다.** 그대로 복사하면 새 스택이 견본의 옛 주소를 단언해 첫 실행부터 실패합니다(`lock should record stack harness repository`). `manifest.json`에서 읽게 바꾸세요 — 나중에 저장소가 다른 그룹으로 옮겨져도 안 깨집니다.
    ```js
@@ -94,6 +98,23 @@
 | Java / Kotlin | `pom.xml`, `build.gradle(.kts)` | groupId:artifactId와 버전(예: Spring Boot 2와 3), Java 버전 | XML·Gradle DSL은 정규식으로 충분합니다. 파서 의존성을 설치기에 추가하지 않습니다 |
 | Python | `pyproject.toml`, `requirements.txt` | `requires-python`, 의존성(예: Django와 FastAPI) | |
 | Go | `go.mod` | `go` 지시자, `module` 경로, `require` | |
+
+### 버전이 의존성 줄에 없을 때 — 조용히 통과하는 자리
+
+견본의 판정은 **의존성 이름 → 버전 문자열** 지도를 만들어 돌립니다. npm과 composer는 의존성 줄에 버전이 늘 있으므로 그대로 됩니다. **그렇지 않은 런타임이 더 많습니다.**
+
+| 런타임 | 버전이 실제로 있는 곳 |
+| --- | --- |
+| Gradle | 의존성 줄이 아니라 `plugins { id("...") version "..." }`. Spring의 dependency-management를 쓰면 의존성 줄에는 버전이 **아예 없습니다** |
+| Maven | `<parent>`, `<dependencyManagement>`, 또는 `<properties>`의 변수 |
+| Python | `constraints.txt`나 lock 파일 |
+| Go | 간접 의존성은 `// indirect` 표시와 함께 |
+
+**버전을 못 읽으면 major 판정이 통째로 빕니다.** 그러면 맞지 않는 프로젝트가 차단되지 않고 **조용히 통과합니다** — 설치가 실패하는 것보다 나쁜 결과입니다. 실측(2026-09-11): Spring Boot 2 저장소가 BOM을 쓰자 `expected: major 3` 규칙을 그대로 지나갔습니다.
+
+고치는 데 판정 엔진을 건드릴 필요는 없습니다. **읽는 쪽이 좌표를 더 내면 됩니다.** 버전이 실제로 있는 자리를 별도 좌표로 만들고(예: `plugin:org.springframework.boot`) manifest 규칙이 그 이름을 가리키면, `expected`·`incompatible` 모양은 그대로입니다.
+
+자기 런타임에서 **버전이 안 적히는 흔한 구성**을 픽스처로 하나 만들어 회귀에 넣으세요. 그 하나가 이 구멍을 막습니다.
 
 판정 원칙은 언어와 무관하게 같습니다.
 

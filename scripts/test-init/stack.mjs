@@ -579,6 +579,13 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
 
   // 견본을 실제로 복사해 만들어 보고 걸린 세 가지(2026-09-07). 셋 다 첫 실행을 막거나
   // 조용히 잘못된 단언을 남기는 종류라 가이드에 남아 있어야 한다.
+  // 2026-09-11 도그푸딩(Gradle·Maven): 견본 판정은 "의존성 줄에 버전이 있다"를 전제하는데 npm·composer 에서만 참이다.
+  // Spring 의 BOM 을 쓰는 Boot 2 저장소가 major 규칙을 **조용히 통과**했다 — 설치 실패보다 나쁜 결과라 가이드가 이
+  // 자리를 직접 짚어야 한다. 고침은 읽는 쪽이 좌표를 더 내는 것이고 판정 엔진은 그대로다.
+  assert(guide.includes('버전이 의존성 줄에 없'), 'the guide must warn that many runtimes do not carry the version on the dependency line')
+  assert(guide.includes('조용히 통과'), 'and must name the failure mode — an incompatible project sailing through')
+  // 견본 자기 검사는 견본 스택이 고른 값을 단언으로 굳혀 둔다(allowEmptyProject). 설치기 셋만 고치면 여기서 막힌다.
+  assert(guide.includes('allowEmptyProject'), 'the guide must name the stack-specific assertion baked into the sample self-check')
   assert(guide.includes('HARNESS_SEED_PATH'), 'the guide must say how to point the sample regression at a local body checkout')
   assert(guide.includes('stackManifest.stackHarness.repo'), 'the guide must warn that the sample asserts its own repo URL as a literal')
 
