@@ -594,6 +594,9 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
   assert(guide.includes('indirect'), 'the guide must warn that an indirect dependency is not the project own choice')
   // 빗나가는 쪽은 "차단돼야 하는데 통과하는" 픽스처라야 드러난다 — 통과/차단 한 쌍만으로는 안 잡힌다.
   assert(guide.includes('차단돼야 하는데 통과하는'), 'the guide must say which fixture shape actually exposes a silent pass')
+  // 말만 해서는 아무도 안 만든다(enforcement-ladder 0번: 사람이 매번 기억해야 지켜지는 것은 문서 대신 가드로).
+  // 견본에 자리를 두고 자기 검사·회귀가 함께 강제하므로, 가이드가 그 자리를 가리켜야 작성자에게 닿는다.
+  assert(guide.includes('compat-fixtures'), 'the guide must point at the place the sample reserves for these fixtures')
 
   assert(guide.includes('HARNESS_SEED_PATH'), 'the guide must say how to point the sample regression at a local body checkout')
   assert(guide.includes('stackManifest.stackHarness.repo'), 'the guide must warn that the sample asserts its own repo URL as a literal')

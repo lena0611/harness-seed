@@ -931,6 +931,12 @@ function sessionStartTablesUnmetPrerequisites() {
   assert(old.includes('v12.22.12'), 'the table must name the version that is actually installed')
   assert(old.includes('판정 불가'), 'hook state must stay undecidable on a Node the harness cannot run')
   assert(!old.includes('자동으로 켜지 못했습니다'), 'a crashed state probe must not be reported as the hooks being off')
+  // 두 갈래가 **같은 행**을 내면 안 된다(#46 과 같은 갈래: 사유를 지목하지 않으면 지난번과 글자 하나
+  // 다르지 않은 문장을 받는다). 없음은 "PATH·nvm 어디에도 없음", 낮음은 최소 버전을 이름에 달고 지금
+  // 버전을 보여준다 — 처방도 다르다(낮음 쪽만 "프로젝트 Node 는 그대로 둡니다"가 붙는다).
+  assert(old.includes('| 하네스 실행 Node 20.19+ |'), `a too-old Node must get its own row naming the floor (got: ${old})`)
+  assert(!old.includes('PATH·nvm 어디에도 없음'), 'a Node that exists must never be described as missing')
+  assert(!bare.includes('| 하네스 실행 Node 20.19+ |'), 'a missing Node must not borrow the too-old row')
 
   // ④ preflight.sh 가 없는 옛 설치본(새 .claude + 옛 .harness)에서도 훅 실패는 침묵하지 않는다.
   //    fallback 을 no-op 으로 두면 안내가 통째로 사라져 "정상"으로 읽힌다(적대적 리뷰 P1-1).

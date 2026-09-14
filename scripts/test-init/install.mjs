@@ -1527,6 +1527,28 @@ function twoStageUpdateRecordsTheRealStartVersion() {
   runInit(plain, '--no-scan', '--no-handoff', '--no-check')
   const plainUpdate = JSON.parse(read(plain, '.harness/harness-lock.json')).lastUpdate
   assert(plainUpdate?.from === middle, `without a chained marker the start must stay the previous lock version (got: ${plainUpdate?.from})`)
+
+  // 표식이 **있는데 이 설치와 안 이어지는** 경우(앞선 사이클이 남긴 낡은 표식). 이어받기 조건은
+  // `marker.to === 설치할 버전` 이고, 그것을 안 보면 남의 구간을 이 업데이트 기록으로 끌어와
+  // 없던 범위를 지어낸다 — 조용히 틀린 이력이라 눈에 안 띈다. 있음·없음 둘만 세면 이 경우가 빠진다.
+  const stale = makeTarget()
+  runInit(stale, '--no-scan', '--no-handoff', '--no-check')
+  const staleManifest = JSON.parse(read(stale, '.harness/install-manifest.json'))
+  staleManifest.version = middle
+  fs.writeFileSync(path.join(stale, '.harness/install-manifest.json'), `${JSON.stringify(staleManifest, null, 2)}\n`)
+  const staleLock = JSON.parse(read(stale, '.harness/harness-lock.json'))
+  staleLock.baseHarness.version = middle
+  fs.writeFileSync(path.join(stale, '.harness/harness-lock.json'), `${JSON.stringify(staleLock, null, 2)}\n`)
+  const stalePath = path.join(stale, '.harness/generated/pending-report.json')
+  fs.mkdirSync(path.dirname(stalePath), { recursive: true })
+  // to 가 이번에 설치할 버전(current)이 아니다 — 앞선 사이클의 찌꺼기다.
+  fs.writeFileSync(stalePath, `${JSON.stringify({ kind: 'update', from: start, to: between, at: new Date().toISOString() }, null, 2)}\n`)
+  runInit(stale, '--no-scan', '--no-handoff', '--no-check')
+  const staleUpdate = JSON.parse(read(stale, '.harness/harness-lock.json')).lastUpdate
+  assert(
+    staleUpdate?.from === middle,
+    `a marker that does not chain into this install must be ignored, not borrowed (got: ${staleUpdate?.from}, expected ${middle})`,
+  )
 }
 
 // 0.2.140 — 백엔드 common 첫 설치 실측: 설치 경로에는 "리포트를 남길까요?" 질문 의무가 닿지 않아
