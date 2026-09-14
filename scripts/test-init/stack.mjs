@@ -586,6 +586,15 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
   assert(guide.includes('조용히 통과'), 'and must name the failure mode — an incompatible project sailing through')
   // 견본 자기 검사는 견본 스택이 고른 값을 단언으로 굳혀 둔다(allowEmptyProject). 설치기 셋만 고치면 여기서 막힌다.
   assert(guide.includes('allowEmptyProject'), 'the guide must name the stack-specific assertion baked into the sample self-check')
+  // 2026-09-14 도그푸딩(Python·Go): 빗나가는 자리가 버전 하나가 아니었다. 셋 다 같은 실패 모양(조용한 통과)이라
+  // 하나라도 빠지면 그 런타임 작성자는 자기 구멍을 못 본다. 실측 — Python 은 PEP 503 이름 정규화(PyPI 정식 표기가
+  // SQLAlchemy·typing_extensions), Go 는 경로의 /vN 과 // indirect.
+  assert(guide.includes('PEP 503'), 'the guide must warn that some runtimes normalize distribution names')
+  assert(guide.includes('major가 이름 안에 있다'), 'the guide must warn that Go carries the major version in the module path')
+  assert(guide.includes('indirect'), 'the guide must warn that an indirect dependency is not the project own choice')
+  // 빗나가는 쪽은 "차단돼야 하는데 통과하는" 픽스처라야 드러난다 — 통과/차단 한 쌍만으로는 안 잡힌다.
+  assert(guide.includes('차단돼야 하는데 통과하는'), 'the guide must say which fixture shape actually exposes a silent pass')
+
   assert(guide.includes('HARNESS_SEED_PATH'), 'the guide must say how to point the sample regression at a local body checkout')
   assert(guide.includes('stackManifest.stackHarness.repo'), 'the guide must warn that the sample asserts its own repo URL as a literal')
 
