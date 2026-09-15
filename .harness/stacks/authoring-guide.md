@@ -55,7 +55,7 @@
    .harness/bin/harness standards:list        # 후보와 각 후보의 repo 주소가 나온다
    git clone <위에서 고른 repo> <새-스택-이름>
    ```
-   스택이 여럿이면 결이 가까운 쪽을 고릅니다. clone 한 뒤 `.git`을 지우고 새 저장소로 올립니다. 그대로 두는 것: `scripts/` 세 파일(설치기·자기 검사·자기 회귀), `package.json`, `.nvmrc`, `.gitignore`. 새로 쓰는 것: `manifest.json`, `policies.json`, `instructions/`, `README.md` 본문. **지울 것: 견본 지침 중 자기 `manifest.json`이 열거하지 않는 `instructions/*.md` 전부와, 딸려 온 에디터 설정(`.idea/` 등).** `package.json`의 `files`가 `instructions` 폴더를 통째로 담으므로 지우지 않으면 남의 언어 지침이 자기 패키지에 그대로 실립니다(실측 — 자기 검사는 열거된 파일만 보므로 잡지 못합니다). 8단계에서 `npm pack --dry-run`으로 확인합니다.
+   스택이 여럿이면 결이 가까운 쪽을 고릅니다. **하나뿐이어도 그것이 견본입니다** — 런타임이 달라도 그대로 복사해 씁니다. 설치기의 체인(공통 하네스 설치 → `stack:apply` → lock 기록 → scan·handoff·check)은 언어를 타지 않고, 언어를 타는 곳은 의존성을 읽는 자리 하나뿐입니다(네 런타임 실측 — Node 견본으로 Java·Python·Go 스택을 만들었고 체인은 한 줄도 고치지 않았습니다). 목록에 Node 스택만 보인다고 "내 언어는 없네"로 멈추지 마세요. clone 한 뒤 `.git`을 지우고 새 저장소로 올립니다. 그대로 두는 것: `scripts/` 세 파일(설치기·자기 검사·자기 회귀), `package.json`, `.nvmrc`, `.gitignore`. 새로 쓰는 것: `manifest.json`, `policies.json`, `instructions/`, `README.md` 본문. **지울 것: 견본 지침 중 자기 `manifest.json`이 열거하지 않는 `instructions/*.md` 전부와, 딸려 온 에디터 설정(`.idea/` 등).** `package.json`의 `files`가 `instructions` 폴더를 통째로 담으므로 지우지 않으면 남의 언어 지침이 자기 패키지에 그대로 실립니다(실측 — 자기 검사는 열거된 파일만 보므로 잡지 못합니다). 8단계에서 `npm pack --dry-run`으로 확인합니다.
 3. **`package.json`을 고칩니다.** `name`, `bin`의 키(= 스택 id), `version`(`0.1.0`부터). `files` 목록과 `engines`는 그대로 둡니다. 설치기는 의존성 없이 유지합니다 — `npx`가 매번 받아 실행하는 패키지입니다.
 4. **`manifest.json`을 채웁니다.** 아래 계약 절의 표대로. `source.type`은 `none`으로 두고, package.json 병합이나 scaffold 절은 넣지 않습니다(다른 언어 저장소에 `package.json`을 만들어 버립니다).
 5. **설치기에서 바꿀 곳은 셋뿐입니다.** ① 대상 프로젝트의 의존성 파일을 읽는 함수와 호환성 판정 함수 — 견본은 `package.json`을 읽으니 「런타임별 차이」 표의 자기 파일로 바꿉니다. ② 스택 id와 문구 상수(자기 검사 스크립트의 id 단언 포함). ③ 자기 회귀의 픽스처 — 견본의 "Vue 2 프로젝트면 중단" 테스트를 자기 언어의 "맞지 않는 프로젝트" 픽스처로. 공통 하네스 설치 → `stack:apply` → lock 기록 → scan/handoff/check로 이어지는 체인은 건드리지 않습니다.
@@ -378,6 +378,8 @@ npx -y git+<stack-harness-repo-url>#v0.1.0 init
 ## 카탈로그 등록
 
 소비자 프로젝트의 `standards:list`는 본체가 배포하는 `.harness/stacks/registry.json`을 읽습니다. 새 스택은 태그가 나온 뒤 본체 팀에 id·repo·ref를 전달해 등록을 요청하고, 다음 본체 릴리스부터 목록에 보입니다. 등록 전에도 `npx -y git+<repo>#<tag> init`으로 설치는 되므로 첫 팀 적용을 등록 때문에 기다릴 필요는 없습니다.
+
+**스택 그룹에 저장소를 만든 것과 카탈로그에 등재된 것은 다릅니다.** 그룹에 올라온 것은 "누가 뭔가 만들었다"이고, `registry.json` 에 실린 것이 "회사가 이걸 쓰라고 인정했다"입니다. 앞엣것이 뒤엣것을 자동으로 만들지 않습니다 — 실험 중인 것, 폐기한 것, 연습으로 올린 것도 같은 그룹에 있습니다. 그래서 목록을 그룹에서 읽어 오지 않고 파일로 관리합니다(결정 116). 내 스택을 남이 `standards:list` 에서 보게 하려면 **등재 요청이 반드시 필요합니다.**
 
 ## 백엔드 API 하네스 예시 범위
 

@@ -597,6 +597,12 @@ function stackAuthoringGuideSpeaksEveryRuntime() {
   // 말만 해서는 아무도 안 만든다(enforcement-ladder 0번: 사람이 매번 기억해야 지켜지는 것은 문서 대신 가드로).
   // 견본에 자리를 두고 자기 검사·회귀가 함께 강제하므로, 가이드가 그 자리를 가리켜야 작성자에게 닿는다.
   assert(guide.includes('compat-fixtures'), 'the guide must point at the place the sample reserves for these fixtures')
+  // 그룹 소속 ≠ 승인(결정 116 근거 ③). 카탈로그는 캐시가 아니라 심사 문이라, 저장소만 만들고
+  // 등재 요청을 안 하면 남의 standards:list 에는 영원히 안 보인다. 작성자가 마지막에 놓치기 쉬운 자리다.
+  assert(guide.includes('카탈로그에 등재된 것은 다릅니다'), 'the guide must separate "a repo exists in the group" from "the catalog lists it"')
+  // 카탈로그에 스택이 하나뿐인 기간이 길다(2026-09-14 실측: vue3 하나). "여럿이면 고르라"만 적어 두면
+  // 다른 런타임 작성자가 Node 스택만 보고 "내 언어는 없네"로 멈춘다 — 실제로는 그대로 복사하면 된다.
+  assert(guide.includes('하나뿐이어도 그것이 견본입니다'), 'the guide must tell an author to copy the only sample even when its runtime differs')
 
   assert(guide.includes('HARNESS_SEED_PATH'), 'the guide must say how to point the sample regression at a local body checkout')
   assert(guide.includes('stackManifest.stackHarness.repo'), 'the guide must warn that the sample asserts its own repo URL as a literal')
