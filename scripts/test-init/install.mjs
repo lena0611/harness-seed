@@ -128,6 +128,9 @@ function cleanInstallCreatesExpectedFiles() {
   assert(commitPushRules.includes('## 요청별 검증 경로'), 'commit/push rules should explain request-specific verification paths')
   assert(commitPushRules.includes('hook 설치 여부는 `.harness/bin/harness hooks:status`로 판단'), 'commit/push rules should explain hook installation detection')
   assert(commitPushRules.includes('commit hook에서 같은 검증이 다시 실행될 수 있음'), 'commit/push rules should warn about intentional manual check duplication')
+  // #48(clubadm): 기록 전용 커밋이 히스토리를 어지럽힌다 — 원칙을 문서에 두되, pre-commit 의 생략 경로가 남아 있으므로
+  // 문서가 "그런 커밋을 권하지 않는다"고 직접 말해야 한다. 원칙 문장이 빠지면 생략 경로만 남아 반대로 읽힌다.
+  assert(commitPushRules.includes('기록 전용 커밋은 만들지 않습니다'), 'commit/push rules must state the record-only-commit principle (#48)')
 
   const skillRegistry = JSON.parse(read(target, '.harness/skills/registry.json'))
   const sessionStartSkill = skillRegistry.skills.find((skill) => skill.id === 'harness.session-start')
