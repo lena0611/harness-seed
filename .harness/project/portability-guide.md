@@ -43,7 +43,7 @@
 - **하네스 실행 Node와 프로젝트 빌드 Node는 별개 계약입니다(dual-runtime, 0.2.63).** 프로젝트 Node가 20.19 미만이어도 하네스를 설치할 수 있습니다. hook/런처는 활성 Node가 낮으면 nvm 설치본 중 최신(>=20.19)으로 **하네스 스크립트만** 전환합니다(`.harness/bin/dual-node.sh`). 프로젝트 코드는 건드리지 않습니다 — 하네스는 lint/test/build를 실행하지 않으며(0.2.131) 팀 자체 훅은 전환 전 PATH(`HARNESS_PREV_PATH`)로 실행되므로 프로젝트 Node 그대로 돕니다(`.harness/bin/run-previous-hook.mjs`).
 - 하네스 패키지는 소비자 프로젝트에 자신의 Node 버전을 `.nvmrc`로 주입하지 않습니다. 단, `.nvmrc`가 없는 프로젝트에서 사용자가 `init --project-node <ver>`로 확인해 주면 그 프로젝트의 기존 Node 버전을 `.nvmrc`로 기록합니다(프로젝트 버전 선언이지 하네스 버전 강요가 아닙니다).
 - 적용 프로젝트의 `.nvmrc`는 프로젝트/Jenkins 빌드 계약입니다. 하네스 설치나 scaffold 템플릿 적용은 기존 `.nvmrc`를 자동 덮어쓰지 않습니다.
-- 기존 `.nvmrc`가 Node 20.19 이상이면 그대로 단일 런타임으로 사용합니다(전환 없음). 더 낮은 버전이면 dual-runtime 모드로 설치하며, 설치 시 nvm·하네스 Node·프로젝트 Node 설치 여부를 진단합니다. nvm 자체가 없으면 전환 수단이 없으므로 설치를 중단하고 안내합니다(nvm 자동 설치는 하지 않습니다).
+- 기존 `.nvmrc`가 Node 20.19 이상이면 그대로 단일 런타임으로 사용합니다(전환 없음). 다만 그 `.nvmrc`가 **활성 Node와 다르면** 준비 상태 표가 `프로젝트 Node` 행으로 알립니다(결정 119) — 하네스가 대신 바꾸지는 않습니다. 프로젝트 Node는 프로젝트 계약이라 전환은 사람이 `nvm use`로 합니다. 침묵이 설계인 자리가 아닙니다. 더 낮은 버전이면 dual-runtime 모드로 설치하며, 설치 시 nvm·하네스 Node·프로젝트 Node 설치 여부를 진단합니다. nvm 자체가 없으면 전환 수단이 없으므로 설치를 중단하고 안내합니다(nvm 자동 설치는 하지 않습니다).
 - `.nvmrc` 없는 Node 프로젝트에서 저버전 신호(package.json engines, .node-version, Dockerfile, CI)가 감지되면 추측으로 확정하지 않고 `--project-node` 인터뷰를 요구합니다. 비-Node 프로젝트(package.json 부재)는 `.nvmrc` 계약이 원래 없으므로 인터뷰 없이 설치됩니다.
 - 저버전 `.nvmrc` 프로젝트에서 해당 Node가 nvm에 없어도 하네스 검사는 하네스 Node로 그대로 돕니다 — 하네스는 프로젝트 Node를 쓰지 않기 때문입니다. 설치 시 진단이 `nvm install <ver>`를 안내하지만 그 Node는 프로젝트 코드·빌드용이며, 없다고 해서 하네스가 막지는 않습니다.
 - Node 20은 2026-04-30에 EOL이므로 신규 프로젝트는 Jenkins 검증이 준비되는 대로 Node 22/24 전환을 검토합니다.

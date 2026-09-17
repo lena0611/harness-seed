@@ -77,6 +77,42 @@ harness_preflight_node() {
     HARNESS_NODE_WHY="Node $HARNESS_NODE_VER — 하네스 최소 20.19 미만"
     harness_gap '하네스 실행 Node 20.19+' "$HARNESS_NODE_VER (낮음 — 하네스 스크립트가 이 버전에서 실행되지 않습니다)" 'Node 20.19+ 설치 (nvm 쓰면 nvm install 20 — 프로젝트 Node 는 그대로 둡니다)'
   fi
+  # 호출자가 따로 부르게 두지 않는다. 세 채널(세션 시작·프롬프트·pull)이 모두 이 함수를 부르므로
+  # 여기서 이어 부르면 **어느 채널도 빠뜨릴 수 없다** — 빠뜨리면 그것이 이 표가 막으려는 조용한 부재다.
+  harness_preflight_project_node "$hpn_root"
+  return 0
+}
+
+# 프로젝트가 요구하는 Node(.nvmrc)와 지금 셸의 Node가 다른가. 위 판정은 "하네스가 돌 수 있나"(20.19+)만 보므로,
+# 둘 다 20.19 이상이면서 서로 다른 경우가 통째로 비어 있었다 — 그 사이에 프로젝트 빌드가 틀린 Node 로 돈다.
+# 실증(clubadm ORP-218, 2026-09-16): .nvmrc 가 v24.14.0(x64)인데 셸 기본이 v24.19.0(arm64)이었다. 표는 침묵했고,
+# 에이전트가 그 Node 로 빌드해 실패하자 **정상이던 x64 node_modules 를 "오염"으로 오진**하고 npm ci 로 갈아엎어
+# 개발자의 npm run dev 를 깨뜨렸다. 팀이 리마인더에 "nvm use 부터"를 손으로 적어 두었지만 그건 읽는 글이라
+# 무시됐다 — 같은 사실이 이 표에 있으면 장치가 된다.
+# $1: 저장소 루트
+harness_preflight_project_node() {
+  hpp_root=$1
+  # Node 자체를 못 쓰는 상태면 위 행이 이미 말했다. 여기서 또 말하면 같은 문제를 두 줄로 센다.
+  [ "$HARNESS_NODE_USABLE" = "1" ] || return 0
+  [ -f "$hpp_root/.nvmrc" ] || return 0
+
+  hpp_spec=$(tr -d ' \t\r\n' < "$hpp_root/.nvmrc" 2>/dev/null || printf '')
+  hpp_spec=${hpp_spec#v}
+  [ -n "$hpp_spec" ] || return 0
+  # lts/* · node 같은 별칭은 이 자리에서 해석하지 않는다. 모르는 것을 단정하지 않는다.
+  case "$hpp_spec" in *[!0-9.]*) return 0 ;; esac
+  # dual-runtime(.nvmrc 가 하네스 최소 미만)은 **선언된 정상 상태**다. 어긋남이 아니므로 침묵한다 —
+  # 항상 켜져 있는 경고는 무시당하고, 그러면 진짜 어긋남까지 같이 묻힌다.
+  harness_preflight_node_ok_version "$hpp_spec" || return 0
+
+  hpp_now=${HARNESS_NODE_VER#v}
+  # spec 이 적은 자리까지만 본다: `24` 는 24.x 전부를, `24.14` 는 24.14.x 전부를 만족한다(nvm 규칙).
+  case "$hpp_now" in
+    "$hpp_spec") return 0 ;;
+    "$hpp_spec".*) return 0 ;;
+  esac
+
+  harness_gap '프로젝트 Node' "$HARNESS_NODE_VER — .nvmrc 는 v$hpp_spec" "nvm use v$hpp_spec (없으면 nvm install v$hpp_spec 먼저) — 프로젝트 빌드·설치 명령 전에"
   return 0
 }
 

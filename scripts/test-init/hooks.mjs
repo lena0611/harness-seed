@@ -958,6 +958,63 @@ function sessionStartTablesUnmetPrerequisites() {
   fs.writeFileSync(installer, savedInstaller)
 }
 
+// clubadm ORP-218(2026-09-16) 실증: `.nvmrc` 가 v24.14.0 인데 셸 기본이 v24.19.0 이었고 **표는 침묵했다**.
+// 둘 다 20.19 이상이라 "하네스가 돌 수 있나"만 보던 판정을 통과했기 때문이다. 그 사이 에이전트가 틀린 Node 로
+// 빌드해 정상이던 x64 node_modules 를 "오염"으로 오진하고 npm ci 로 갈아엎어 개발자의 dev 서버를 깨뜨렸다.
+// 팀이 리마인더에 "nvm use 부터"를 손으로 적어 두었지만 그것은 **읽는 글**이라 무시됐다 — 표에 있어야 장치가 된다.
+function prerequisiteTableNamesProjectNodeMismatch() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const probe = () => execFileSync('sh', ['-c',
+    `. "${target}/.harness/bin/preflight.sh"; harness_preflight_node "${target}"; harness_preflight_print`,
+  ], { cwd: target, encoding: 'utf8', env: { ...process.env, HARNESS_DUAL_RUNTIME_ANNOUNCED: '1' } })
+
+  const nvmrc = path.join(target, '.nvmrc')
+  const now = process.version
+  const major = Number(now.slice(1).split('.')[0])
+  const write = (value) => fs.writeFileSync(nvmrc, `${value}\n`)
+
+  // ① 어긋남 — 둘 다 하네스 최소 이상인데 서로 다르다. clubadm 이 만난 바로 그 경우다.
+  write(`v${major + 1}.0.0`)
+  const mismatch = probe()
+  assert(mismatch.includes('| 프로젝트 Node |'), `a project/shell node mismatch must get its own row (got: ${mismatch})`)
+  assert(mismatch.includes(now), 'the row must name the node that is actually active')
+  assert(mismatch.includes(`v${major + 1}.0.0`), 'and the version the project asked for')
+  assert(mismatch.includes('nvm use'), 'the fix column must be the command that resolves it')
+  // 하네스가 못 도는 것이 아니다 — 위 두 행과 섞이면 처방이 엉킨다.
+  assert(!mismatch.includes('| 하네스 실행 Node |'), 'a usable node must not also be reported as missing')
+
+  // ② 같으면 침묵. 맞는 상태에 경고를 띄우면 표 전체가 무시된다.
+  write(now)
+  assert(!probe().includes('프로젝트 Node'), 'a matching node must stay silent')
+
+  // ③ bare major 는 그 major 의 아무 버전이나 만족한다(nvm 규칙). 자리수를 넘겨 비교하면 오탐이다.
+  write(String(major))
+  assert(!probe().includes('프로젝트 Node'), 'a bare-major .nvmrc must be satisfied by any version of that major')
+
+  // ④ lts/* · node 같은 별칭은 해석하지 않는다 — 모르는 것을 단정하지 않는다.
+  write('lts/*')
+  assert(!probe().includes('프로젝트 Node'), 'an alias .nvmrc must not be judged')
+
+  // ⑤ dual-runtime(.nvmrc 가 하네스 최소 미만)은 **선언된 정상 상태**다. 여기서 경고하면 그 프로젝트는 표가
+  //    영구히 켜져 있게 되고, 항상 켜진 경고는 무시당해 진짜 어긋남까지 함께 묻힌다.
+  write('v12.22.12')
+  assert(!probe().includes('프로젝트 Node'), 'a declared dual-runtime project must stay silent')
+
+  // ⑥ .nvmrc 가 없으면 비교 대상이 없다.
+  fs.rmSync(nvmrc)
+  assert(!probe().includes('프로젝트 Node'), 'no .nvmrc means nothing to compare')
+
+  // ⑦ 배선 — 호출자가 따로 부르지 않아도 세션 시작 채널에 실려 나온다. 세 채널이 같은 함수를 부르므로
+  //    판정 함수 꼬리에서 이어 부르게 했다. 채널마다 호출을 추가하는 방식이면 한 곳을 빠뜨릴 수 있고,
+  //    그 빠뜨림이 바로 이 표가 막으려는 조용한 부재다.
+  write(`v${major + 1}.0.0`)
+  const hook = path.join(target, '.claude/hooks/session-start-reminder.sh')
+  const session = run('sh', [hook], { cwd: target, env: { ...process.env, CLAUDE_PROJECT_DIR: target } })
+  assert(session.includes('| 프로젝트 Node |'), `the session-start channel must carry the row without a call of its own (got: ${session.slice(0, 400)})`)
+}
+
 function hookOffNoticeTellsAboutTheNextSession() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -1666,6 +1723,7 @@ export {
   noChannelCallsAnUnreadableHookStateOff,
   pullReportsTheSameUnmetPrerequisites,
   sessionStartTablesUnmetPrerequisites,
+  prerequisiteTableNamesProjectNodeMismatch,
   hookOffNoticeTellsAboutTheNextSession,
   hooksStatusNoticeSuitsTheEnvironment,
   sessionStartJudgesHookMigrationByStateNotExitCode,
