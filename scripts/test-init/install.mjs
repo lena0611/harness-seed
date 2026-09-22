@@ -1557,6 +1557,55 @@ function twoStageUpdateRecordsTheRealStartVersion() {
 // 0.2.140 — 백엔드 common 첫 설치 실측: 설치 경로에는 "리포트를 남길까요?" 질문 의무가 닿지 않아
 // (그 문서는 업데이트 스킬에만) 에이전트가 토큰 없음→파일에서 멈추고 전달까지 못 갔다.
 // 설치 완료 출력의 맨 마지막이 질문 의무·전달 경로를 직접 말해야 한다.
+// 프로젝트 소유 파일은 업데이트가 덮지 않는다 — 그래서 릴리스가 **견본**을 바꿔도 기존 설치본에는
+// 닿지 않고 아무도 그 사실을 모른다. #48 의 기록 전용 커밋 원칙이 실제로 그랬다: 공지에 "옮겨
+// 적으세요"를 적었지만 그것을 보려면 changelog 를 따로 불러야 했고, 안 부르면 조용히 사라졌다.
+// 설치 출력 끝(에이전트가 반드시 보는 자리)에서 직접 지목한다.
+//
+// 판정은 **견본끼리** 한다. 대상 파일과 비교하면 자기 규칙을 손댄 팀마다 매 업데이트 경고가 떠서
+// 곧 무시당한다 — 항상 켜진 경고가 진짜 신호를 묻는 그 실패다(결정 119 와 같은 갈래).
+function updateNamesProjectOwnedFilesWhoseSeedChanged() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  assert(manifest.projectOwnedSeedShas && Object.keys(manifest.projectOwnedSeedShas).length > 0,
+    'install must record the seed-side sha of project-owned files — without it there is nothing to compare next time')
+
+  const seed = path.join(repoRoot, '.harness/project/commit-push-rules.md')
+  const original = fs.readFileSync(seed, 'utf8')
+  try {
+    // ① 견본이 바뀌면 지목한다.
+    fs.writeFileSync(seed, `${original}\n<!-- seed drift fixture -->\n`)
+    const drifted = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+    assert(drifted.includes('::: 옮겨 적을 것 :::'), `a changed seed of a project-owned file must be named (got: ${drifted.slice(-800)})`)
+    assert(drifted.includes('.harness/project/commit-push-rules.md'), 'and the row must name which file')
+    assert(drifted.includes('harness changelog'), 'and where to read what changed')
+  } finally {
+    fs.writeFileSync(seed, original)
+  }
+
+  // ② 되돌린 것도 변경이므로 한 번 더 뜬다. 그 다음부터 침묵해야 한다 —
+  //    안 바뀐 상태에서 뜨면 매 업데이트 경고가 되어 곧 무시당한다.
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const quiet = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!quiet.includes('옮겨 적을 것'), `an unchanged seed must stay silent (got: ${quiet.slice(-500)})`)
+
+  // ③ 팀이 **자기 파일**을 고친 것은 견본 변경이 아니다. 여기서 뜨면 규칙을 손댄 팀 전부가
+  //    매번 경고를 받는다 — 이 판정이 견본끼리 하는 이유다.
+  fs.appendFileSync(path.join(target, '.harness/project/commit-push-rules.md'), '\n우리 팀 규칙 추가\n')
+  const localEdit = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!localEdit.includes('옮겨 적을 것'), `a consumer edit is not a seed change (got: ${localEdit.slice(-500)})`)
+
+  // ④ 기록이 없는 옛 설치본(0.2.151 이하)은 비교 기준이 없다. 모르는 것을 "전부 바뀌었다"로
+  //    부풀리지 않는다 — 첫 업데이트가 26개를 쏟아내면 그 자리에서 신뢰를 잃는다.
+  const legacy = JSON.parse(read(target, '.harness/install-manifest.json'))
+  delete legacy.projectOwnedSeedShas
+  fs.writeFileSync(path.join(target, '.harness/install-manifest.json'), `${JSON.stringify(legacy, null, 2)}\n`)
+  const noRecord = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!noRecord.includes('옮겨 적을 것'), `an install without the recorded shas must stay silent (got: ${noRecord.slice(-500)})`)
+}
+
 function installOutputEndsWithReportPrompt() {
   const target = makeTarget()
   const out = runInitDefaultHooks(target, '--no-scan', '--no-handoff', '--no-check')
@@ -2220,6 +2269,7 @@ export {
   backupSkipsWhatGitCanRestoreAndRotatesSets,
   installDeclaresCmdLineEndingsSoGitStopsWarning,
   twoStageUpdateRecordsTheRealStartVersion,
+  updateNamesProjectOwnedFilesWhoseSeedChanged,
   installOutputEndsWithReportPrompt,
   linkedAddDeclaresWithoutLocalFolder,
   linkedAddWritesProfileAndLocalSettings,

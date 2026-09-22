@@ -2271,6 +2271,8 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, prev
     manifestVersion: 3,
     managedFiles,
     projectOwnedFiles: projectOwnedFiles.sort(),
+    // 견본 쪽 sha — 다음 업데이트가 "이번 릴리스가 이 견본을 바꿨나"를 판정하는 기준이다.
+    projectOwnedSeedShas: collectProjectOwnedSeedShas(sourceRoot, projectOwnedFiles),
     // 현황 기록(0.2.146): 하네스 원본과 다른 동명 파일을 보존한 것. 소유권 표시가 아니며 하네스가 덮어쓰거나 지우지 않는다.
     preservedForeignFiles: [...lastPreservedForeignFiles].sort(),
   }
@@ -2311,7 +2313,44 @@ function normalizeSourceRef(ref, repo, packageVersion) {
   return ref
 }
 
+// 프로젝트 소유 파일의 **견본 쪽** sha 를 기록한다(0.2.152). 이 파일들은 업데이트가 덮지 않으므로,
+// 릴리스가 견본 내용을 바꿔도 기존 설치본에는 닿지 않고 아무도 그 사실을 모른다(#48 원칙 절이 실제로
+// 그랬다 — 공지에 "옮겨 적으세요"를 적었지만 그것을 보려면 changelog 를 따로 불러야 했다).
+//
+// 대상 파일의 sha 가 아니라 **견본 파일의 sha** 를 남기는 것이 핵심이다. 대상 것을 남기면 팀이 고친
+// 것과 견본이 바뀐 것을 구분할 수 없어, 자기 규칙을 손댄 팀마다 매 업데이트 경고가 뜬다. 견본끼리
+// 비교하면 팀 수정과 무관하게 "이번 릴리스가 이 견본을 바꿨나"만 답한다.
+function collectProjectOwnedSeedShas(sourceRoot, projectOwnedFiles) {
+  const shas = {}
+  for (const rel of projectOwnedFiles) {
+    const abs = join(sourceRoot, rel)
+    if (!existsSync(abs) || !statSync(abs).isFile()) continue
+    shas[rel] = sha256(abs)
+  }
+
+  return shas
+}
+
+// 이번 릴리스가 견본을 바꾼 project-owned 파일. 기록이 없는 옛 설치본(0.2.151 이하)은 비교할 기준이
+// 없으므로 **아무 말도 하지 않는다** — 모르는 것을 "전부 바뀌었다"로 부풀리지 않는다.
+function collectProjectOwnedSeedDrift(sourceRoot, previousManifest, projectOwnedFiles) {
+  const before = previousManifest?.projectOwnedSeedShas
+  if (!before || typeof before !== 'object') return []
+
+  const drifted = []
+  for (const rel of projectOwnedFiles) {
+    const recorded = before[rel]
+    if (!recorded) continue
+    const abs = join(sourceRoot, rel)
+    if (!existsSync(abs) || !statSync(abs).isFile()) continue
+    if (sha256(abs) !== recorded) drifted.push(rel)
+  }
+
+  return drifted.sort()
+}
+
 function writeInstallManifest(sourceRoot, target, files, copiedFiles, opts, previousManifest = null) {
+
   if (opts.dryRun) return null
 
   const manifest = buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, previousManifest)
@@ -3697,6 +3736,20 @@ ${renderHookStep(TARGET, 7, diagnostics.hooks)}
     } else {
       printConsumerCommandGuide(TARGET);
     }
+    // 견본이 바뀌었는데 덮지 않은 파일을 알린다(0.2.152). 자리를 여기로 잡은 이유: 설치 출력 끝은
+    // 에이전트가 반드시 보는 곳이다. changelog 를 따로 불러야만 보이면 부르지 않는 순간 조용히 사라진다 —
+    // #48 원칙이 실제로 그 경로였다(공지에 "옮겨 적으세요"가 있었지만 그것을 보려면 한 단계를 더 밟아야 했다).
+    const seedDrift = collectProjectOwnedSeedDrift(sourceRoot, recognizedManifest, writtenManifest?.projectOwnedFiles ?? []);
+    if (seedDrift.length > 0) {
+      console.log('');
+      console.log('::: 옮겨 적을 것 :::');
+      console.log('  이번 업데이트가 견본을 바꿨지만, 프로젝트 소유 파일이라 덮지 않았습니다. 내 파일은 그대로입니다.');
+      for (const rel of seedDrift) {
+        console.log(`    - ${rel}`);
+      }
+      console.log('  무엇이 바뀌었는지는 .harness/bin/harness changelog 의 "### 공지" 절에 있습니다. 필요한 부분만 자기 파일에 옮겨 적으세요.');
+    }
+
     printInstallReportPrompt();
   } finally {
     cleanupSource(sourceRoot, sourceIsTemp);
