@@ -786,6 +786,14 @@ function printHookInstallNotice() {
     return
   }
   if (info.state === 'installed' || info.state === 'nogit') return
+  // CI 워크스페이스(0.2.152, #52): install-hooks 가 설계대로 건너뛴 상태다. 여기서 "각자 한 번 실행하세요"를 내면 빌드
+  // 로그에 사람 PC 용 처방이 남는다 — 거짓 안내다. 이유만 한 줄 말한다(침묵하면 "미설치"를 되묻게 된다). 판정은
+  // hooks-state 의 detectCi 하나를 JSON 으로 받는다 — 설치기와 다른 답을 내면 안 된다.
+  if (info.ci && (info.state === 'off' || info.state === 'optout')) {
+    console.log('')
+    console.log(`git hook 미설치 — CI 환경(${info.ci})이라 설치하지 않았습니다. CI 는 커밋하지 않으므로 정상입니다.`)
+    return
+  }
   // legacy(예전 방식)는 자동 갱신 배선이 **없을 때만** 알린다(0.2.147, 적대적 리뷰 P1-3): 배선된 프로젝트는
   // 다음 Claude 세션이 갱신하므로 커밋마다 재촉하면 잡음이고, 터미널·Codex 전용 clone 은 알려 주는 채널이 없었다.
   if (info.state === 'legacy') {

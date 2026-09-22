@@ -1188,6 +1188,61 @@ function preflightRunDirectlyAnswersInsteadOfStayingSilent() {
   assert(!session.includes('준비됨') && !session.includes('직접 실행할 필요는 없습니다'), `the direct-run lines must not leak into the hook channel (got: ${session.slice(0, 300)})`)
 }
 
+// scorecard-print #52(0.2.151 수령): prepare/postprepare 에 걸린 install-hooks 가 젠킨스 `npm ci` 마다 그대로 돌아 훅 안내
+// 40줄이 빌드 로그를 채우고 빌드 에이전트의 git 설정을 매 빌드 건드렸다. 설치기가 환경변수를 하나도 안 읽어(process.env
+// 참조 0건) CI 인지 사람 PC 인지 가를 자리가 없었다. CI 에서는 건너뛰되 **무엇을 보고 건너뛰었는지 한 줄 남긴다** — 이 설치기의
+// 존재 이유가 "훅은 clone 으로 안 온다"라서 조용히 사라지면 "왜 훅이 없지"를 되묻게 된다. 판정은 `CI` 하나에 걸지 않는다:
+// 젠킨스는 `CI` 를 세우지 않는 설정이 흔하다(ci-info 도 JENKINS_URL 로 판별) — 제보자 제안 그대로면 제보자 환경에서 빠진다.
+function hooksInstallSkipsInCiButSaysSo() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  try { run('git', ['config', '--unset', 'harness.hooksAutoEnable'], { cwd: target }) } catch {}
+  const installer = path.join(target, '.harness/bin/install-hooks.mjs')
+  const install = (extra) => run(nodeBin, [installer], { cwd: target, env: { ...process.env, ...extra } })
+  const resetHooks = () => {
+    for (const name of ['pre-commit', 'pre-push']) fs.rmSync(path.join(target, '.git/hooks', name), { force: true })
+    try { run('git', ['config', '--unset', 'commit.template'], { cwd: target }) } catch {}
+  }
+
+  // ① CI=true(GitHub Actions·GitLab CI): 건너뛰고, 이유를 말하고, git 설정은 건드리지 않는다.
+  const skipped = install({ CI: 'true' })
+  assert(skipped.includes('건너뜀') && skipped.includes('CI 환경'), `in CI the installer must skip and say why (got: ${skipped})`)
+  assert(!skipped.includes('설치 완료') && !skipped.includes('활성화되는 hook'), 'the 40-line install report must not be printed in CI')
+  assert(!hasWrapper(target, 'pre-commit'), 'no wrapper may be installed in CI')
+  assert(readTargetGitConfig(target, 'commit.template') === '', 'commit.template must not be written on a CI workspace')
+  assert(hooksState(target) !== 'installed', 'state must not read installed after a CI skip')
+
+  // ② 젠킨스처럼 CI 를 세우지 않는 러너 — JENKINS_URL 만 있다. `CI` 하나에 걸면 여기서 설치가 조용히 되돌아온다.
+  const jenkins = install({ JENKINS_URL: 'https://ci.example.test/' })
+  assert(jenkins.includes('건너뜀') && jenkins.includes('JENKINS_URL'), `a Jenkins runner without CI=true must still be recognised, naming the signal (got: ${jenkins})`)
+  assert(!hasWrapper(target, 'pre-commit'), 'no wrapper may be installed on a Jenkins runner either')
+
+  // ③ CI=false 는 관례상 "CI 아님"의 명시다(ci-info 와 같은 해석) — 사람 PC 에서 그 값이 있어도 설치는 돈다.
+  const notCi = install({ CI: 'false' })
+  assert(notCi.includes('설치 완료'), `CI=false must be read as "not CI" and install normally (got: ${notCi.slice(0, 200)})`)
+  assert(hasWrapper(target, 'pre-commit') && hooksState(target) === 'installed', 'the normal path must still install')
+
+  // ④ 명시 옵트인: CI 라도 설치를 원하면(커밋하는 봇 잡) 변수 하나로 켠다.
+  resetHooks()
+  const forced = install({ CI: 'true', HARNESS_INSTALL_HOOKS_IN_CI: '1' })
+  assert(forced.includes('설치 완료') && hooksState(target) === 'installed', `HARNESS_INSTALL_HOOKS_IN_CI=1 must install even in CI (got: ${forced.slice(0, 200)})`)
+
+  // ⑤ harness check 도 같은 답을 받는다 — CI 워크스페이스에 "각자 한 번 실행하세요"를 내면 빌드 로그에 사람 PC 용 처방이 남는다.
+  resetHooks()
+  fs.rmSync(path.join(target, '.claude/hooks/session-start-reminder.sh'), { force: true }) // 배선 없는 clone — CI 가 그렇다
+  // 두 번째 check 는 첫 번째의 검증 캐시를 그대로 타서 훅 안내 절이 아예 돌지 않는다(tree 가 같고 env 만 다르다) — 둘 다 캐시를 끈다.
+  const onPc = runGuard(target, '--no-cache')
+  assert(onPc.includes('git hook 미설치') && onPc.includes('각자 한 번 실행해야 합니다'), `precondition: on a PC the off state must get the instruction (got: ${onPc})`)
+  const inCi = runGuard(target, '--no-cache', { env: { ...process.env, CI: 'true' } })
+  assert(inCi.includes('CI 환경') && inCi.includes('설치하지 않았습니다'), `harness check in CI must explain the deliberate skip (got: ${inCi})`)
+  assert(!inCi.includes('각자 한 번 실행해야 합니다') && !inCi.includes('hooks:install'), 'harness check must not hand a CI runner the install instruction')
+
+  // ⑥ hooks:status 도 같은 말을 한다 — 세 자리(설치기·check·status)가 다른 답을 내면 한쪽만 고치게 된다.
+  const explain = (env) => run(nodeBin, [path.join(target, '.harness/bin/hooks-state.mjs'), '--explain'], { cwd: target, ...(env ? { env } : {}) })
+  assert(explain({ ...process.env, CI: 'true' }).includes('CI 환경'), 'hooks:status in CI must say the skip is by design')
+  assert(!explain().includes('CI 환경'), 'on a PC hooks:status must not mention CI')
+}
+
 // #35(multisite 0.2.147 리포트, 중간): 훅 자동 전환에 성공했는데 세션 시작 훅이 "켜지 못했습니다"라고 알렸다.
 // 판정이 install-hooks.mjs 의 **종료코드**였다 — "켜졌는가"를 묻는 자리에서 "명령이 0으로 끝났는가"를 대신 물었다.
 // 같은 구조로는 반대 방향(실패를 성공으로)도 막지 못한다. 이제 설치 뒤 상태(hooks-state)로 가르고, 실패 때만 stderr 를 남긴다.
@@ -1765,6 +1820,7 @@ export {
   sessionStartTablesUnmetPrerequisites,
   prerequisiteTableNamesProjectNodeMismatch,
   preflightRunDirectlyAnswersInsteadOfStayingSilent,
+  hooksInstallSkipsInCiButSaysSo,
   hookOffNoticeTellsAboutTheNextSession,
   hooksStatusNoticeSuitsTheEnvironment,
   sessionStartJudgesHookMigrationByStateNotExitCode,

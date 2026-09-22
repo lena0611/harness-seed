@@ -44,6 +44,22 @@ export const WRAPPER_ACTIVE_ENV = 'HARNESS_HOOK_WRAPPER_ACTIVE'
 // 재설치가 교정하고 uninstall이 지운다(외부 리뷰 2차 P1). 다르면 팀의 설정(husky 등)이라 이전 훅으로 체인한다.
 export const OVERRIDE_KEY = 'harness.hooksPathOverride'
 
+// CI 감지(0.2.152, scorecard-print #52). 한 곳에서만 판정한다 — install-hooks(건너뛸지)와 harness check(미설치를 어떻게
+// 말할지)가 같은 답을 받아야 한다. `CI` 하나만 보지 않는다: 젠킨스는 `CI` 를 세우지 않는 설정이 흔해(ci-info 도 젠킨스는
+// JENKINS_URL 로 판별한다) 그 하나에 걸면 정작 제보자 환경에서 조용히 안 걸린다. `CI=false` 는 관례상 "CI 아님"의 명시라
+// 다른 신호보다 앞선다(ci-info 와 같은 해석) — 사람 PC 에서 그 값이 있어도 설치가 돌아야 한다.
+// 반환: 걸린 변수 이름(예: 'JENKINS_URL') 또는 ''(CI 아님). 이름을 돌려주는 이유는 "무엇을 보고 건너뛰었는지"를 말하기 위해서다.
+export const CI_ENV_KEYS = ['CI', 'CONTINUOUS_INTEGRATION', 'JENKINS_URL', 'BUILD_NUMBER', 'GITLAB_CI', 'GITHUB_ACTIONS', 'TF_BUILD', 'TEAMCITY_VERSION', 'CIRCLECI', 'TRAVIS', 'BUILDKITE', 'BITBUCKET_BUILD_NUMBER', 'CODEBUILD_BUILD_ID']
+export function detectCi(env = process.env) {
+  if (/^(false|0|no)$/i.test(String(env.CI ?? '').trim())) return ''
+  for (const key of CI_ENV_KEYS) {
+    const value = env[key]
+    if (value === undefined || String(value).trim() === '') continue
+    return key
+  }
+  return ''
+}
+
 function git(repoRoot, args) {
   return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
 }
@@ -287,7 +303,8 @@ if (isMain) {
   const repoRoot = process.env.HARNESS_REPO_ROOT || process.cwd()
   const info = detectHooksState(repoRoot)
   if (process.argv.includes('--json')) {
-    console.log(JSON.stringify(info))
+    // ci 는 상태가 아니라 환경이지만 같은 JSON 으로 나른다 — 읽는 쪽(policy-harness)이 조회를 두 번 하지 않게.
+    console.log(JSON.stringify({ ...info, ci: detectCi() }))
   } else if (process.argv.includes('--explain')) {
     const label = {
       installed: '켜짐 (브랜치 무관 래퍼)',
@@ -303,6 +320,9 @@ if (isMain) {
       nogit: 'git 저장소 아님',
     }[info.state]
     console.log(`하네스 git 훅: ${label}`)
+    // CI 워크스페이스에서 "꺼짐"만 보이면 결함으로 읽힌다 — 설치기·check 와 같은 판정으로 같은 말을 한다(0.2.152 #52).
+    const ci = detectCi()
+    if (ci && (info.state === 'off' || info.state === 'optout')) console.log(`  CI 환경(${ci}): 설치하지 않는 것이 정상입니다 — install-hooks 가 건너뛰고, harness check 도 같은 판정을 합니다.`)
     if (info.state !== 'nogit') {
       console.log(`  git 훅 폴더: ${relToRepo(repoRoot, info.hooksDir)}`)
       console.log(`  core.hooksPath: ${info.hooksPath ? `${info.hooksPath}${info.hooksPathOverride ? ' (전역 설정을 덮는 로컬 명시 — 기본 훅 폴더)' : ''}` : '(해제 — git 기본 폴더 사용)'}`)

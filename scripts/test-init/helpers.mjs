@@ -15,10 +15,17 @@ const packageRef = `v${packageVersion}`
 // git hook 아래서 스위트가 돌 때(pre-commit) git이 hook에 내보낸 GIT_DIR/GIT_INDEX_FILE 등이
 // 자식 git 명령에 누수되면, 임시 픽스처 저장소 대신 바깥 저장소를 조작한다(워크트리에서 실측 —
 // 픽스처 git init이 바깥 공유 config를 bare=true로 재초기화). 테스트 자식은 항상 cwd 저장소만 본다.
+// hooks-state.mjs 의 CI_ENV_KEYS 와 같은 목록이다(본체 모듈을 테스트 헬퍼가 import 하지 않으려고 복제 — 어긋나면 그쪽 테스트가 잡는다).
+const INHERITED_CI_KEYS = new Set(['CI', 'CONTINUOUS_INTEGRATION', 'JENKINS_URL', 'BUILD_NUMBER', 'GITLAB_CI', 'GITHUB_ACTIONS', 'TF_BUILD', 'TEAMCITY_VERSION', 'CIRCLECI', 'TRAVIS', 'BUILDKITE', 'BITBUCKET_BUILD_NUMBER', 'CODEBUILD_BUILD_ID'])
 function withoutCallerGitEnv(env) {
   const clean = {}
+  // 호출자가 env 를 넘기지 않았을 때만 CI 표식을 걷어낸다(0.2.152): install-hooks 는 CI 에서 설치를 건너뛰므로,
+  // CI 러너·CI 변수가 남은 셸에서 스위트를 돌리면 훅 설치를 전제한 테스트 20여 개가 한꺼번에 무너진다. 명시로 넘긴 env 는
+  // 그대로 둔다 — CI 동작 자체를 검증하는 테스트가 그 길로 CI 를 심는다.
+  const inherited = env === undefined
   for (const [key, value] of Object.entries(env ?? process.env)) {
     if (key.startsWith('GIT_')) continue
+    if (inherited && INHERITED_CI_KEYS.has(key)) continue
     clean[key] = value
   }
   // 스위트가 실행 환경의 git 설정에 좌우되지 않도록 신원 기본값을 항상 넣는다 — 전역

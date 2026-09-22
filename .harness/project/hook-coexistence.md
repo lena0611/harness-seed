@@ -33,6 +33,7 @@ husky, lefthook처럼 `core.hooksPath`를 쓰는 git 훅 도구와 하네스 훅
 - 하한선(실측 2026-08-26): `postprepare`는 **npm 7부터** 생명주기로 인정됩니다. npm 6(Node 12·14 동봉분)은 `prepare`가 있어도 `postprepare`를 실행하지 않습니다. husky 9 자체가 Node 18+를 요구하므로 이 공존 패턴을 쓸 프로젝트는 하한선이 자동 충족되고, husky 없이 하네스 훅만 쓰는 프로젝트는 `prepare` 직행이면 npm 6에서도 동작합니다. 덤: npm 7+에서는 `prepare`를 지워도 `postprepare`가 단독으로 실행되므로, husky를 걷어내도 하네스 훅 설치는 살아남습니다.
 - 멱등입니다: husky가 자기 경로로 설정 → `install-hooks.mjs`가 그 경로를 저장·체인하고 `core.hooksPath`를 해제(래퍼가 husky 훅을 이어 실행). `npm install`을 반복해도 같은 상태로 수렴합니다.
 - 부수 이점: 훅 설치는 git 로컬 설정이라 clone으로 공유되지 않는데, prepare에 물리면 팀원이 `npm install`만 해도 husky 훅과 하네스 훅이 함께 장착됩니다(별도 온보딩 단계 불필요).
+- **CI에서는 설치하지 않습니다**(0.2.152, scorecard-print #52). 위 패턴은 CI의 `npm ci`에서도 그대로 돌아 훅 안내 40줄이 빌드 로그를 채우고 빌드 에이전트의 git 설정을 매 빌드 건드렸습니다. `CI`·`JENKINS_URL`·`GITLAB_CI`·`GITHUB_ACTIONS` 등이 서 있으면 `install-hooks.mjs`는 **무엇을 보고 건너뛰었는지 한 줄만** 남기고 끝납니다 — CI는 커밋하지 않으므로 훅이 할 일이 없습니다. 판정은 `CI` 하나가 아닙니다(젠킨스는 `CI`를 세우지 않는 설정이 흔합니다). `CI=false`는 "CI 아님"의 명시로 읽습니다. 커밋하는 봇 잡처럼 CI에서도 훅이 필요하면 `HARNESS_INSTALL_HOOKS_IN_CI=1`. `harness check`도 같은 판정을 받아 CI에서는 "각자 한 번 실행하세요" 대신 그 이유를 한 줄로 냅니다.
 - 적용 후 확인:
   - `.harness/bin/harness hooks:status` → `켜짐 (브랜치 무관 래퍼)` (`core.hooksPath`는 해제 상태가 정상)
   - `git config harness.previousHooksPath` → husky 경로(버전에 따라 `.husky` 또는 `.husky/_`)이면 체인 연결 완료

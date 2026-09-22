@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { MIN_NODE, hasNvm, isSupportedNode, readNvmrc, resolveHarnessNodeBest, resolveInstalledForSpec } from './node-env.mjs'
-import { HARNESS_HOOKS_DIR, LEGACY_HOOKS_PATH, OLD_DEFAULT_MARKER, OVERRIDE_KEY, PARKED_HOOKS_PATH, PREV_DIR_NAME, WRAPPED_HOOKS, effectiveGitHooksDir, gitHooksDir, isWrapper, readLocalGitConfig, relToRepo, resolveHooksPath, samePath, wrapperSource } from './hooks-state.mjs'
+import { HARNESS_HOOKS_DIR, LEGACY_HOOKS_PATH, OLD_DEFAULT_MARKER, OVERRIDE_KEY, PARKED_HOOKS_PATH, PREV_DIR_NAME, WRAPPED_HOOKS, detectCi, effectiveGitHooksDir, gitHooksDir, isWrapper, readLocalGitConfig, relToRepo, resolveHooksPath, samePath, wrapperSource } from './hooks-state.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -43,6 +43,19 @@ function readGitConfig(key) {
 
 function exists(rel) {
   return fs.existsSync(path.join(repoRoot, rel))
+}
+
+// CI 에서는 설치하지 않는다(0.2.152, scorecard-print #52). 이 설치기는 prepare/postprepare 에 걸리는 것이 표준 패턴이라
+// (hook-coexistence.md) CI 의 `npm ci` 마다 그대로 돌았다 — 훅 안내 40줄이 빌드 로그를 채워 정작 볼 것(설치 경고·번들
+// 크기)이 묻히고, 빌드 에이전트의 git 설정을 매 빌드 건드렸다. CI 는 커밋하지 않으므로 훅이 할 일이 없다.
+// **침묵하지는 않는다** — 이 설치기의 존재 이유가 "훅 설정은 clone 으로 안 온다"이므로 조용히 사라지면 "왜 CI 에 훅이
+// 없지"를 되묻게 된다. 무엇을 보고 건너뛰었는지 한 줄 남긴다(0.2.149 「모름을 꺼짐으로 단정하지 않는다」와 같은 결).
+// 판정은 hooks-state.mjs 의 detectCi 하나다 — harness check 가 같은 판정으로 "미설치"를 다르게 말한다.
+const ciSignal = detectCi()
+if (ciSignal && !/^(1|true|yes)$/i.test(String(process.env.HARNESS_INSTALL_HOOKS_IN_CI ?? '').trim())) {
+  console.log(`[harness] git hook 설치 건너뜀 — CI 환경입니다(${ciSignal}). CI 는 커밋하지 않으므로 훅이 필요 없고, 빌드 에이전트의 git 설정도 건드리지 않습니다.`)
+  console.log('  CI 에서도 설치하려면(커밋하는 봇 잡 등): HARNESS_INSTALL_HOOKS_IN_CI=1')
+  process.exit(0)
 }
 
 if (!isGitRepository()) {
