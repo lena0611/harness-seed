@@ -1148,6 +1148,46 @@ function hooksStatusNoticeSuitsTheEnvironment() {
   assert(!headline(explain()).includes('자동 갱신'), 'a terminal-only clone must not be promised an automatic migration')
 }
 
+// scorecard-print #49 ①(0.2.151 수령): 새 「프로젝트 Node」 행을 확인하려고 preflight.sh 를 **직접 실행**했더니 아무 말 없이
+// exit 0 이었다. 함수만 정의하는 source 전용 파일인데 실행 비트와 shebang 이 있어 실행되는 파일처럼 보였고, "정상은 침묵"을
+// 배운 뒤라 빈 화면이 정상으로 읽혔다 — 침묵의 이유가 둘(정상 / 잘못 부름)인데 화면이 같았다. 직접 실행되면 판정을 돌려
+// 답한다. 훅이 source 하는 경로는 그대로 라이브러리다 — 자동 출력이 붙으면 세 채널의 표가 두 벌이 된다.
+function preflightRunDirectlyAnswersInsteadOfStayingSilent() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const preflight = path.join(target, '.harness/bin/preflight.sh')
+  const env = { ...process.env, HARNESS_DUAL_RUNTIME_ANNOUNCED: '1' }
+  const opts = { cwd: target, encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'pipe'] }
+  const direct = (shell) => execFileSync(shell, [preflight], opts)
+  const nvmrc = path.join(target, '.nvmrc')
+  const now = process.version
+  const major = Number(now.slice(1).split('.')[0])
+
+  // ① 어긋난 상태에서 직접 실행 — 제보자의 상황. 표가 나와야 한다(종전: 빈 출력, exit 0).
+  fs.writeFileSync(nvmrc, `v${major + 1}.0.0\n`)
+  const mismatch = direct('sh')
+  assert(mismatch.includes('| 프로젝트 Node |'), `run directly, preflight.sh must print the gap table instead of exiting silently (got: ${JSON.stringify(mismatch)})`)
+  assert(!mismatch.includes('준비됨'), 'a gap and the all-clear line must not both appear')
+
+  // ② 다 갖춘 상태 — 여기가 핵심이다. 종전에는 이 경우와 "잘못 부름"이 같은 빈 화면이었다.
+  fs.writeFileSync(nvmrc, `${now}\n`)
+  const clear = direct('sh')
+  assert(clear.includes('준비됨') && clear.includes('못 갖춘 항목 없음'), `with nothing missing a direct run must say so instead of staying silent (got: ${JSON.stringify(clear)})`)
+  assert(clear.includes(now), 'the all-clear line must show the node it judged so the silence is explainable')
+  assert(!clear.includes('준비 안 된 항목'), 'the all-clear must not print the gap table header')
+  // 제보자가 실제로 친 형태(실행 비트로 직접)와 bash 도 같은 답을 낸다. 실행 비트는 init 이 copyFileSync 로 보존한다.
+  assert(execFileSync(preflight, [], opts).includes('준비됨'), 'executing the file by its own path must answer too')
+  assert(direct('bash').includes('준비됨'), 'bash preflight.sh must answer too')
+
+  // ③ 훅이 source 하는 경로는 라이브러리다 — $0 이 훅 파일이라 꼬리가 걸리지 않는다.
+  const sourced = execFileSync('sh', ['-c', `. "${preflight}"; printf 'LIB_OK'`], opts)
+  assert(sourced === 'LIB_OK', `sourcing from another script must define functions only and print nothing (got: ${JSON.stringify(sourced)})`)
+  // 세션 시작 채널에 '준비됨' 줄이 새지 않는다 — 훅 계약(정상은 침묵)은 그대로다.
+  const hook = path.join(target, '.claude/hooks/session-start-reminder.sh')
+  const session = run('sh', [hook], { cwd: target, env: { ...process.env, CLAUDE_PROJECT_DIR: target } })
+  assert(!session.includes('준비됨') && !session.includes('직접 실행할 필요는 없습니다'), `the direct-run lines must not leak into the hook channel (got: ${session.slice(0, 300)})`)
+}
+
 // #35(multisite 0.2.147 리포트, 중간): 훅 자동 전환에 성공했는데 세션 시작 훅이 "켜지 못했습니다"라고 알렸다.
 // 판정이 install-hooks.mjs 의 **종료코드**였다 — "켜졌는가"를 묻는 자리에서 "명령이 0으로 끝났는가"를 대신 물었다.
 // 같은 구조로는 반대 방향(실패를 성공으로)도 막지 못한다. 이제 설치 뒤 상태(hooks-state)로 가르고, 실패 때만 stderr 를 남긴다.
@@ -1724,6 +1764,7 @@ export {
   pullReportsTheSameUnmetPrerequisites,
   sessionStartTablesUnmetPrerequisites,
   prerequisiteTableNamesProjectNodeMismatch,
+  preflightRunDirectlyAnswersInsteadOfStayingSilent,
   hookOffNoticeTellsAboutTheNextSession,
   hooksStatusNoticeSuitsTheEnvironment,
   sessionStartJudgesHookMigrationByStateNotExitCode,

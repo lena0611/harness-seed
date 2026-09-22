@@ -8,7 +8,8 @@
 # 계약(.harness/project/commit-push-rules.md "hook 구현 계약"과 같은 규율):
 # - POSIX sh 호환(dash 포함). bash 전용 문법을 쓰지 않는다.
 # - set -u 안전. 어떤 함수도 비0으로 끝나지 않는다 — 호출자의 set -e 를 죽이지 않는다.
-# - 정상은 침묵: 못 갖춘 것이 없으면 아무것도 출력하지 않는다.
+# - 정상은 침묵: 못 갖춘 것이 없으면 아무것도 출력하지 않는다 — 훅이 source 해서 부를 때. 파일을 **직접 실행**하면
+#   맨 아래 꼬리가 판정을 돌려 표 또는 "없음" 한 줄을 낸다(0.2.152 #49 — 침묵의 뜻이 둘이면 안 된다).
 # - dual-node.sh 를 source 해 nvm 설치본을 찾는다. git 훅과 런처가 쓰는 것과 같은 규칙이다.
 #   전환 안내 한 줄을 감출지는 호출자가 HARNESS_DUAL_RUNTIME_ANNOUNCED 로 정한다.
 
@@ -140,3 +141,33 @@ harness_preflight_print() {
   fi
   return 0
 }
+
+# ── 직접 실행됐을 때(0.2.152, scorecard-print #49 ①) ─────────────────────────────────────────────────
+# 이 파일은 훅이 source 하는 라이브러리지만 실행 비트와 shebang 이 있어 실행되는 파일처럼 보인다. 직접 실행하면
+# 함수만 정의하고 끝나 **아무 말 없이 exit 0** 이었다 — "정상은 침묵"을 배운 사람은 그 빈 화면을 정상으로 읽었고,
+# 침묵의 이유가 둘(정상 / 잘못 부름)인데 화면이 같았다. 그래서 직접 실행되면 판정을 실제로 돌려 표를 내고, 못 갖춘
+# 것이 없으면 그렇다고 한 줄 말한다 — 침묵을 없애는 것이 아니라 **침묵의 뜻을 하나로** 만든다.
+#
+# 판정은 $0 의 파일명이다. 훅이 source 하면 $0 은 훅 파일(session-start-reminder.sh·post-merge·inject-context.sh)이라
+# 걸리지 않고 라이브러리로만 동작한다. zsh 는 source 할 때도 $0 을 이 파일로 바꾸는데(FUNCTION_ARGZERO, 기본 on) 그때
+# 표가 나오는 것은 의도한 동작이다 — 손으로 source 하는 사람도 표를 보려는 사람이다. 그 경우를 위해 여기서 exit 하지
+# 않는다(source 한 셸을 죽인다). `. preflight.sh` 뒤 함수를 직접 부르는 옛 방법도 그대로 동작한다.
+case "${0##*/}" in
+  preflight.sh)
+    case "$0" in */*) hpd_dir=${0%/*} ;; *) hpd_dir=. ;; esac
+    hpd_root=$(CDPATH= cd -- "$hpd_dir/../.." 2>/dev/null && pwd) || hpd_root=$(pwd)
+    # 경로로 루트를 못 찾으면(PATH 로 찾은 파일을 source 한 경우 등) 지금 폴더의 저장소 루트를 쓴다 — 틀린 루트에서
+    # .nvmrc 를 못 보고 "준비됨"이라 하면 거짓 안내다.
+    if [ ! -d "$hpd_root/.harness" ]; then hpd_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd); fi
+    harness_preflight_node "$hpd_root"
+    harness_preflight_hooks_undecidable "$hpd_root"
+    if [ -n "$HARNESS_GAPS" ]; then
+      harness_preflight_print
+    else
+      hpd_nvmrc='없음'
+      if [ -f "$hpd_root/.nvmrc" ]; then hpd_nvmrc=$(tr -d ' \t\r\n' < "$hpd_root/.nvmrc" 2>/dev/null || printf '?'); fi
+      printf '[harness] 준비됨 — 못 갖춘 항목 없음 (셸 Node %s · .nvmrc %s)\n' "${HARNESS_NODE_VER:-없음}" "$hpd_nvmrc"
+    fi
+    printf '  이 표는 세션 시작·pull 때 자동으로 나옵니다 — 못 갖춘 것이 있을 때만. 직접 실행할 필요는 없습니다.\n'
+    ;;
+esac
