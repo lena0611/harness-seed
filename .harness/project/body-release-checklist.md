@@ -121,20 +121,20 @@
 - [ ] 이 단계를 건너뛰어도 현황판은 다음 소비자 리포트 때 스스로 최신으로 그려진다(재생성 파생 뷰). 이 단계는 그 사이의 시차를 없애는 것이다.
 - [ ] 태그 조회가 실패하면 머리말은 직전 값을 그대로 유지한다(지어내지 않는다). 출력에 확인 실패 줄이 뜨면 토큰 권한이나 네트워크를 본다.
 
-### ai-standard-cli 반영 (consumer-facing 릴리스마다 — 별도 저장소)
+### ai-standard-cli 반영 (CLI 동작이 바뀔 때만 — 별도 저장소)
 - 위치: 형제 디렉터리 `../ai-standard-cli` (GitLab 단일 원격 `origin`, 기본 브랜치 `master`, 자체 `.harness` 없음 → hook 검증 없음, 검사는 수동).
-- CLI 자체 버전은 본체와 **별개 라인(0.1.x)**이며, 본체 태그를 base ref로 "반영"한다. 커밋 컨벤션: `공통 하네스 vX.Y.Z 설치 경로 반영`.
-- 유지보수/문서만 바뀐 본체 릴리스(consumer 동작 불변)는 CLI base ref를 굳이 올리지 않아도 된다. 기능/버그/계약 변경 릴리스에서 반영한다.
-- 절차(Node ≥20.19 셸에서):
+- **본체 릴리스마다 CLI를 올리지 않습니다**(결정 123, 2026-09-28). CLI 0.2.48부터 신규 설치는 설치 직전에 본체 저장소의 릴리스 태그(`vX.Y.Z`)를 조회해 가장 높은 것을 설치하므로, **본체 태그를 찍는 순간 새 프로젝트가 그 버전을 받습니다.** 예전의 "`공통 하네스 vX.Y.Z 설치 경로 반영`" 커밋(README 예시 ref·버전 범프)은 더 이상 필요 없습니다.
+- 반영이 필요한 경우는 **CLI가 보는 것이 바뀔 때**뿐입니다: 저장소 주소 이동(스택 그룹 이전 같은), 설치기 플래그 추가·폐기, 내장 스택 후보 목록 변경, 최소 Node 상향. 그때의 절차(Node ≥20.19 셸에서):
   ```bash
   cd ../ai-standard-cli && git fetch origin            # clean + master 최신 확인
   # 1) package.json version patch bump
-  npm install --package-lock-only --ignore-scripts     # lock 동기 (수동 lock 편집은 hook 차단)
-  # 2) README의 AI_STANDARD_BASE_HARNESS_REF=v<본체새버전> 갱신 + 테스트 픽스처 예시 ref 갱신
+  npm install --package-lock-only --ignore-scripts     # lock 동기
+  # 2) 바뀐 동작에 맞춰 src/cli.mjs · README · test 갱신
   npm run check && npm test                             # 전체 통과 확인(테스트 수는 CLI 저장소가 소유)
-  git add -A && git commit -m "공통 하네스 v<본체버전> 설치 경로 반영"
+  git add -A && git commit -m "<무엇이 바뀌었는지>"
   git tag -a v<CLI버전> -m "..." && git push origin master && git push origin v<CLI버전>
   ```
+- 본체 태그를 찍은 뒤 한 번 확인합니다: 빈 폴더에서 `npx -y git+https://git.smartscore.kr/ai-standard/agents/ai-standard-cli.git init --common-only --print` → 명령 끝에 `#v<새 본체 버전>`이 붙어야 합니다. `[주의] … 기본 브랜치`가 뜨면 태그 조회가 실패한 것입니다(권한·네트워크).
 
 ### 스택 하네스 · scaffold 템플릿
 **본체 릴리스는 이들을 손대지 않습니다**(결정 108, 2026-09-07). 각 저장소가 자기 릴리스를 소유하고, 자기 `manifest.json`의 `baseHarness.ref`로 본체를 어떻게 따라갈지 스스로 정합니다. **그 값은 그 저장소가 실제로 검증한 정확한 태그입니다 — 범위 표기(`semver:<range>`)는 쓰지 않습니다**(2026-09-07 외부 리뷰: 릴리스 시점 검증이 그 뒤에 나올 본체를 보장하지 못한다). 이유와 판단 기준은 [authoring-guide.md](../stacks/authoring-guide.md)의 `baseHarness.ref` 절.

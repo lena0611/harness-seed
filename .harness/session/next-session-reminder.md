@@ -15,6 +15,13 @@
 - 견본 드리프트 장치는 **0.2.152 에서는 기준선만 심고 말을 안 합니다**(옛 manifest 에 비교 기준이 없음). 첫 발화는 그 다음 릴리스부터. 0.2.152 자체에는 project-owned 견본 변경이 없어 이번엔 손으로 옮길 것도 없습니다.
 - CI 판정은 `hooks-state.mjs` 의 `detectCi` 하나입니다. `CI` 하나에 걸지 않습니다(젠킨스는 `CI` 를 안 세우는 설정이 흔함) — 회귀가 `JENKINS_URL` 만 있는 러너를 잠갑니다.
 
+## CLI · 플러그인 — 별도 저장소, 미커밋 (2026-09-28)
+
+- `ai-standard-cli` 0.2.48: 신규 설치가 **최신 릴리스 태그**를 받는다(결정 123). 릴리스마다 CLI 를 올리던 관례는 끝 — CLI 가 보는 것(주소·플래그·내장 스택 목록·최소 Node)이 바뀔 때만.
+- `smartscore-harness` 플러그인 0.1.3: 변형 표의 `#v0.2.x` 행 정정(그건 CLI 버전이지 하네스 버전이 아니다) + "릴리스본을 받는다" 문구.
+- 둘 다 커밋·태그·푸시 전. 마켓 `autoUpdate` 는 이 PC 에서 26일간 안 당겼다 — 새 플러그인 버전은 소비자가 `claude plugin marketplace update smartscore` → `claude plugin update smartscore-harness@smartscore` 를 쳐야 받는다.
+- 검증용 설치본 `~/practice/plugin-probe-20260928-*` 넷에는 `pending-report.json` 이 있다 — 거기서 `report:install` 을 치면 현황판에 가짜 행이 생긴다.
+
 ## 열린 소비자 리포트 4건 — 릴리스 뒤에 회신합니다
 
 `#49` scorecard-print · `#50` club-admin-vue3 · `#51` multisite · `#52` scorecard-print(2번째). 전부 0.2.151 수령 리포트, 댓글 0.
