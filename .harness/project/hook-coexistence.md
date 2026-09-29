@@ -12,7 +12,8 @@ husky, lefthook처럼 `core.hooksPath`를 쓰는 git 훅 도구와 하네스 훅
 ## 공존은 이미 설계되어 있다
 
 - `.harness/bin/harness hooks:install`(`install-hooks.mjs`)은 기존 hook 경로를 `harness.previousHooksPath`에 저장하고, `core.hooksPath`를 **해제**한 뒤 git 기본 훅 폴더(`.git/hooks`)에 하네스 **래퍼**를 둡니다(0.2.146). 래퍼는 현재 브랜치의 `.githooks/<훅>`에 위임하므로 브랜치를 바꿔도 훅이 사라지지 않습니다 — 예전 방식(`core.hooksPath=.githooks`)은 하네스 없는 브랜치에서 훅이 조용히 0개가 됐습니다(smartscore-backend/common #28). 기존 훅 도구의 파일은 삭제하거나 수정하지 않습니다.
-- 커밋/푸시 시 `.githooks/*`가 기존 hook(husky 등)을 먼저 체인 실행하고(`run-previous-hook.mjs`, 전환 전 프로젝트 PATH인 `HARNESS_PREV_PATH` 사용), 그다음 하네스 검사를 실행합니다.
+- 커밋/푸시 시 `.githooks/*`가 기존 hook(husky 등)을 먼저 체인 실행하고(`run-previous-hook.mjs`), 그다음 하네스 검사를 실행합니다.
+- **이전 훅은 프로젝트 Node(`.nvmrc`)로 돕니다** — 개발자가 커밋을 친 셸의 Node가 아닙니다(0.2.152, smartdid #53 ①). 하네스 훅이 맨 앞에서 `nvm use`를 하고, dual-runtime 전환(`.nvmrc`가 20.19 미만)이 있었으면 전환 전 PATH(`HARNESS_PREV_PATH`)로 되돌려 부릅니다 — 어느 쪽이든 `.nvmrc` Node입니다. 그래서 "셸 Node가 `.nvmrc`와 맞는지"를 검사하던 프로젝트 훅은 하네스 뒤에서는 항상 맞는 것으로 보게 됩니다. 그 검사는 세션 시작·pull 때 하네스가 「프로젝트 Node」 행으로 대신합니다(0.2.151).
 - 따라서 husky 쪽 훅(lint-staged 등)은 그대로 동작하고, 실패하면 하네스 검사 전에 커밋이 막힙니다.
 
 ## 표준 공존 패턴
@@ -43,6 +44,23 @@ husky, lefthook처럼 `core.hooksPath`를 쓰는 git 훅 도구와 하네스 훅
 - 과거에는 하네스가 package.json의 `lint`/`test`/`build` 스크립트를 감지하면 자동으로 커밋 검증에 포함해, husky(lint-staged)와 **같은 커밋에서 lint가 두 번** 돌고 커밋에 담기지 않은 파일의 오류까지 커밋을 막을 수 있었습니다(멀티사이트 실측).
 - **하네스는 lint를 실행하지 않습니다. husky 등 프로젝트 도구가 담당합니다.** test/build도 마찬가지이며, 옵트인 설정도 없습니다 — 코드 품질 검사의 소유는 전적으로 프로젝트입니다. 상세 계약: [config-contract.md](./config-contract.md).
 - 하네스 훅이 하는 일은 체인 실행(기존 husky 훅 먼저)과 하네스 자신의 관문 검사뿐입니다. 그래서 husky 쪽 lint 설정을 그대로 두면 됩니다.
+
+## `husky install`을 직접 부르는 프로젝트 스크립트가 있는 경우 (0.2.152, smartdid #53 ②)
+
+`prepare` 밖에서 husky를 켜는 스크립트가 있는 프로젝트(예: 개발 서버 시작 스크립트가 "`core.hooksPath`가 `.husky`가 아니면 `husky install`")는 하네스 설치 직후 상태를 **꺼진 것으로 오판**합니다 — 하네스는 `core.hooksPath`를 **해제**하고 git 기본 폴더의 래퍼로 husky 훅을 이어 부르기 때문입니다. 그 스크립트가 `husky install`을 다시 돌리면 `core.hooksPath=.husky`가 되어 하네스 훅은 꺼지고(`hooks-state.mjs` → `off`), 다음 Claude 세션 시작이 다시 켜고, 다음 개발 서버 시작이 다시 끄는 **핑퐁**이 됩니다.
+
+고치는 법은 그 스크립트가 husky 파일이 아니라 **하네스의 판정을 보게** 하는 것입니다:
+
+```bash
+state=$(node .harness/bin/hooks-state.mjs)        # installed | legacy | off | optout | nogit
+if [ "$state" != "installed" ]; then
+  npx husky install                               # 또는 팀이 쓰던 husky 켜기
+  node .harness/bin/install-hooks.mjs             # husky 뒤에 하네스 — 표준 공존 패턴과 같은 순서
+fi
+```
+
+- `node .harness/bin/hooks-state.mjs`(인자 없음)의 한 단어 출력과 `--json`은 **프로젝트 스크립트가 써도 되는 공식 인터페이스**입니다 — 하네스 자신의 훅·`harness check`·`hooks:status`가 같은 판정을 씁니다(0.2.146부터). 단어 목록은 위 다섯 개이고, 추가될 수는 있어도 뜻이 바뀌거나 사라지지는 않습니다.
+- `installed`면 husky 훅은 이미 이전 훅 체인으로 돌고 있으니 아무것도 하지 않는 것이 맞습니다.
 
 ## 이미 체인 중인 저장소에 husky를 나중에 얹는 경우 (0.2.135)
 

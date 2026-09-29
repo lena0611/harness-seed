@@ -2,7 +2,7 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
-## 0.2.152 에 쌓인 것 — 셋
+## 0.2.152 에 쌓인 것 — 넷
 
 **주 1회 정기 릴리스가 기본입니다.** 쌓여 있는 것이 정상 상태이고, 릴리스는 사용자가 말할 때만 꺼냅니다. 주기·핫픽스 조건은 `body-release-checklist.md` 의 「언제 내보내나」 절에 있습니다.
 
@@ -11,6 +11,7 @@
 | 프로젝트 소유 파일의 **견본**이 바뀌면 설치 출력이 지목 (`::: 옮겨 적을 것 :::`) | 120 | 사용자 질문 → #49·#50·#51 이 같은 구멍을 각각 짚음 |
 | `preflight.sh` 직접 실행 시 표 또는 "준비됨" 한 줄 | 121 | scorecard-print #49 ① |
 | CI 에서는 git 훅 설치 건너뜀 + 한 줄, check·status 도 같은 판정 | 122 | scorecard-print #52 ① |
+| 비밀 파일 읽기 차단에 명령 경계(`chmod` 의 `od` 오탐) + 종결자 구멍(`$(cat .env)` 통과) 닫음, `hook-coexistence.md` 이전 훅 Node·husky install 핑퐁 절 | — | smartdid #53 ①②④ |
 
 - 견본 드리프트 장치는 **0.2.152 에서는 기준선만 심고 말을 안 합니다**(옛 manifest 에 비교 기준이 없음). 첫 발화는 그 다음 릴리스부터. 0.2.152 자체에는 project-owned 견본 변경이 없어 이번엔 손으로 옮길 것도 없습니다.
 - CI 판정은 `hooks-state.mjs` 의 `detectCi` 하나입니다. `CI` 하나에 걸지 않습니다(젠킨스는 `CI` 를 안 세우는 설정이 흔함) — 회귀가 `JENKINS_URL` 만 있는 러너를 잠갑니다.
@@ -22,9 +23,11 @@
 - 둘 다 커밋·태그·푸시 전. 마켓 `autoUpdate` 는 이 PC 에서 26일간 안 당겼다 — 새 플러그인 버전은 소비자가 `claude plugin marketplace update smartscore` → `claude plugin update smartscore-harness@smartscore` 를 쳐야 받는다.
 - 검증용 설치본 `~/practice/plugin-probe-20260928-*` 넷에는 `pending-report.json` 이 있다 — 거기서 `report:install` 을 치면 현황판에 가짜 행이 생긴다.
 
-## 열린 소비자 리포트 4건 — 릴리스 뒤에 회신합니다
+## 열린 소비자 리포트 5건 — 릴리스 뒤에 회신합니다
 
-`#49` scorecard-print · `#50` club-admin-vue3 · `#51` multisite · `#52` scorecard-print(2번째). 전부 0.2.151 수령 리포트, 댓글 0.
+`#49` scorecard-print · `#50` club-admin-vue3 · `#51` multisite · `#52` scorecard-print(2번째) · `#53` **smartdid(신규 팀, 첫 설치)**. 전부 0.2.151 수령 리포트, 댓글 0.
+
+`#53` 은 CLI 0.2.48 로 설치한 첫 사례다 — "최신 릴리스 태그(v0.2.151) 조회 정상", husky 7 이전 훅 체인 정상. 개선 4건 중 ①②④ 는 0.2.152 에 반영, ③(vuex Vue3 프로젝트에 스택 후보 없음)은 **정상 동작**(그 스택은 Pinia 규약 전제)이라 본체 변경 없음 — CLI 가 "왜 공통만 깔렸는지" 한 줄 더 말해 주는 개선 후보만 남김.
 
 **"이렇게 할 예정" 회신은 만들지 않습니다.** 릴리스가 나간 뒤 "요청을 이렇게 반영했다"로 한 번만 씁니다. 회신할 때 적을 것:
 

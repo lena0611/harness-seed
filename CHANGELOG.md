@@ -41,6 +41,7 @@
 - **판정은 `CI` 하나에 걸지 않는다.** 제보자는 `process.env.CI` 로 충분하다고 했지만 젠킨스는 `CI` 를 세우지 않는 설정이 흔하다(`ci-info` 도 젠킨스는 `JENKINS_URL` 로 판별한다) — 그 하나에 걸면 정작 제보자 환경에서 조용히 안 걸린다. `CI`·`JENKINS_URL`·`GITLAB_CI`·`GITHUB_ACTIONS` 등 여럿을 보고, `CI=false` 는 "CI 아님"의 명시로 읽는다. 판정 함수는 `hooks-state.mjs` 의 `detectCi` 하나다(의존성 0개 원칙 — `ci-info` 를 넣지 않고 몇 줄로 본다). 회귀가 "`JENKINS_URL` 만 있는 러너"를 잠근다 — `CI` 하나로 되돌리면 그 단언이 깨진다.
 - 커밋하는 봇 잡처럼 CI 에서도 훅이 필요하면 `HARNESS_INSTALL_HOOKS_IN_CI=1` 로 켠다.
 - **비밀 파일 읽기 차단 패턴에 명령 경계를 둔다**(smartdid #53 ④). `chmod 600 .issue-adapter.env` 가 ".env 읽기"로 막혔다 — `(cat|head|…|od)` 앞에 경계가 없어 `chmod` 의 `od` 가 걸렸고, 토큰 파일을 잠그라는 우리 안내를 따르던 에이전트가 막힌 데다 사유("읽기")까지 틀렸다. 본체에서 재현하다 두 번째 모양도 나왔다: 인자 범위 `[^|><]*` 가 `;`·`&&` 를 넘어 이어 붙어 `head -3 README.md; echo "… .env …"` 가 하나로 잡혔다. 명령 이름 앞에 경계(`(^|[[:space:];&|(`])`)를 두고 인자 범위를 같은 명령 안으로 좁혔다 — `.env`·`id_rsa`·`.aws/credentials`·`.ssh/id_`·`.pem` 열 패턴 전부. 진짜 읽기(`cat .env`, `sudo cat .env`, `cat < .env` …)는 그대로 막힌다. 회귀를 쓰다 반대쪽 구멍도 나왔다 — 파일명 뒤 종결자에 `)` `;` `&` `|` 백틱이 없어 `$(cat .env)`·`cat .env; …`·`` `cat .env` `` 가 **통과**하고 있었다(읽은 값을 어디론가 보내는 모양들). 같이 닫았다(회귀 20개).
+- **`hook-coexistence.md`**: 이전 훅이 도는 Node 를 정확히 적었다(smartdid #53 ①) — "전환 전 프로젝트 PATH" 라는 문장이 dual-runtime 이 아닐 때는 사실과 달랐다. 이전 훅은 어느 경우든 `.nvmrc` Node 로 돌며, 셸 Node 를 검사하던 프로젝트 훅은 하네스 뒤에서 항상 맞는 것으로 보게 된다. 그리고 `husky install` 을 직접 부르는 스크립트가 하네스를 끄고 세션 시작이 다시 켜는 핑퐁(smartdid #53 ②)을 절로 추가하고, `hooks-state.mjs` 무인자 출력·`--json` 을 프로젝트 스크립트가 써도 되는 공식 인터페이스로 명시했다.
 
 ## 0.2.151 - 2026-09-18
 
