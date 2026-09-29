@@ -219,6 +219,7 @@ import {
 import {
   reportInstallHelpWritesNothing,
   reportInstallFailsOpenToFileWithoutToken,
+  reportInstallRepostsTheSavedFileWithItsOriginalDate,
   historyBoardHeadlinesTheLatestRelease,
   pendingReportMarkerRemindsUntilReported,
   releaseNoticeBuildsPayloadFromLatestChangelogSection,
@@ -442,6 +443,7 @@ const tests = [
   driftSkipsProjectOwnedListedEntries,
   freshCriticalPathTemplateStartsEmpty,
   reportInstallFailsOpenToFileWithoutToken,
+  reportInstallRepostsTheSavedFileWithItsOriginalDate,
   historyBoardHeadlinesTheLatestRelease,
   hookOffNoticeTellsAboutTheNextSession,
   sessionStartTablesUnmetPrerequisites,

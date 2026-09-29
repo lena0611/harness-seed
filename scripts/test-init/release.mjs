@@ -56,6 +56,41 @@ function reportInstallFailsOpenToFileWithoutToken() {
   const usage = (() => { try { run(nodeBin, [path.join(target, '.harness/bin/report-install.mjs')], { cwd: target }); return '' } catch (error) { return `${error.stdout ?? ''}${error.stderr ?? ''}` } })()
   assert(usage.includes('사용법'), 'missing required args must print usage and fail')
 }
+// club-control-vue3 #55 ①(0.2.152): 토큰 없이 설치해 파일로만 남은 리포트를 다음 날 토큰을 받아 인자로 다시 만들면
+// 제목·일자·이력 행이 실행일로 찍혀 파일(설치일)과 어긋났다. 파일에 이미 다 있으니 그것을 그대로 올린다.
+function reportInstallRepostsTheSavedFileWithItsOriginalDate() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const script = path.join(target, '.harness/bin/report-install.mjs')
+  const generated = () => fs.readdirSync(path.join(target, '.harness/generated')).filter((name) => name.startsWith('install-report-'))
+
+  // ① 토큰 없는 설치일: 파일로 남고, 안내가 --from-file 을 가리킨다.
+  const fallback = run(nodeBin, [script, '--kind', 'install', '--to', 'v0.2.142'], { cwd: target })
+  assert(fallback.includes('--from-file'), `the fallback message must tell how to post the file later (got: ${fallback})`)
+  const [file] = generated()
+  assert(file, 'precondition: the fallback file exists')
+  const rel = `.harness/generated/${file}`
+  const today = new Date().toISOString().slice(0, 10)
+  // "다음 날"을 흉내 낸다: 파일 안의 날짜를 설치일(09-28)로 바꾼다 — 실행일은 그대로 오늘이다.
+  fs.writeFileSync(path.join(target, rel), read(target, rel).split(today).join('2026-09-28'))
+
+  // ② --from-file: 제목·이력 행이 파일의 날짜(설치일)를 그대로 쓴다 — 실행일이 아니다.
+  const dry = run(nodeBin, [script, '--from-file', rel, '--dry-run'], { cwd: target })
+  assert(dry.includes('제목: [설치] harness-test-target -→v0.2.142 (2026-09-28)'), `the title must keep the saved date (got: ${dry})`)
+  assert(dry.includes('이력 행: | 2026-09-28 | harness-test-target | 설치 | - → v0.2.142 |'), `the history row must keep the saved date (got: ${dry})`)
+  assert(!dry.includes(`(${today})`), 'the run date must not replace the saved date')
+  assert(dry.includes('| 일자 | 2026-09-28 |'), 'the body must be the saved body, date included')
+
+  // ③ 아직 토큰이 없으면 같은 파일을 또 만들지 않는다 — 파일은 그대로, 방법만 다시.
+  const still = run(nodeBin, [script, '--from-file', rel], { cwd: target })
+  assert(still.includes('파일은 그대로 있습니다'), `without a token the saved file must be kept, not duplicated (got: ${still})`)
+  assert(generated().length === 1, 'no second fallback file may be written')
+
+  // ④ report:install 이 남긴 모양이 아니면 거절한다 — 아무 md 나 이슈로 올리는 문이 아니다.
+  fs.writeFileSync(path.join(target, 'notes.md'), '# 메모\n\n아무 내용\n')
+  const bad = (() => { try { run(nodeBin, [script, '--from-file', 'notes.md', '--dry-run'], { cwd: target }); return '' } catch (error) { return `${error.stdout ?? ''}${error.stderr ?? ''}` } })()
+  assert(bad.includes('report:install 이 남긴 파일만'), `a file that is not a saved report must be refused with a reason (got: ${bad})`)
+}
 
 // 0.2.149 — 현황판 머리말은 "지금 최신 릴리스"다(사용자 지시 2026-09-10). 값의 출처는 본체
 // 저장소의 릴리스 태그 하나뿐이라, 회귀는 가짜 GitLab을 띄워 실제 경로(태그 조회 → 표 재생성
@@ -346,6 +381,7 @@ function issueAdapterExampleShipsAsSwitchContract() {
 export {
   reportInstallHelpWritesNothing,
   reportInstallFailsOpenToFileWithoutToken,
+  reportInstallRepostsTheSavedFileWithItsOriginalDate,
   historyBoardHeadlinesTheLatestRelease,
   pendingReportMarkerRemindsUntilReported,
   releaseNoticeBuildsPayloadFromLatestChangelogSection,

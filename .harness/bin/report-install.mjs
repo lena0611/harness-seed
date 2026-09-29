@@ -33,6 +33,7 @@ function printUsage(log) {
   log('사용법: report:install                     # 표식(pending-report.json)의 값으로 실행')
   log('       report:install -- --kind install|update --to <버전> [--from <버전>] [--notes-file <md>] [--dry-run]')
   log('       report:install -- --rebuild-history   # 리포트 생성 없이 이력 표만 재생성(치유)')
+  log('       report:install -- --from-file <md>       # 토큰 없이 파일로만 남았던 리포트를 그 날짜 그대로 등록')
   log('       report:install -- --help              # 이 도움말 (아무것도 만들지 않음)')
 }
 
@@ -64,15 +65,16 @@ const pendingDefaults = (() => {
     return {}
   }
 })()
-const kind = argValue('--kind') ?? pendingDefaults.kind ?? null
+let kind = argValue('--kind') ?? pendingDefaults.kind ?? null
 const fromVersion = argValue('--from') ?? pendingDefaults.from ?? '-'
 const toVersion = argValue('--to') ?? pendingDefaults.to ?? null
+const fromFile = argValue('--from-file')
 const notesFile = argValue('--notes-file')
 const dryRun = args.includes('--dry-run')
 
 const rebuildOnly = args.includes('--rebuild-history')
 
-if (!rebuildOnly && (!['install', 'update'].includes(kind ?? '') || !toVersion)) {
+if (!rebuildOnly && !fromFile && (!['install', 'update'].includes(kind ?? '') || !toVersion)) {
   printUsage(console.error)
   process.exit(1)
 }
@@ -133,8 +135,8 @@ const manifest = (() => {
 const managedCount = manifest ? Object.keys(manifest.managedFiles ?? {}).length : '-'
 const notes = notesFile ? fs.readFileSync(path.resolve(repoRoot, notesFile), 'utf8').trim() : ''
 
-const title = `[${kindLabel}] ${project} ${fromVersion}→${toVersion} (${today})`
-const description = [
+let title = `[${kindLabel}] ${project} ${fromVersion}→${toVersion} (${today})`
+let description = [
   `## ${kindLabel} 결과`,
   '',
   `| 항목 | 값 |`,
@@ -147,7 +149,33 @@ const description = [
   '',
   notes ? `## 전달 사항 (개선요청 포함 가능)\n\n${notes}` : '전달 사항 없음 — 정상 완료 보고입니다.',
 ].join('\n')
-const historyRow = `| ${today} | ${project} | ${kindLabel} | ${fromVersion} → ${toVersion} |`
+let historyRow = `| ${today} | ${project} | ${kindLabel} | ${fromVersion} → ${toVersion} |`
+// ── 파일로 남긴 리포트를 나중에 그대로 올린다(0.2.152, club-control-vue3 #55 ①) ─────────────────────────────
+// 토큰 없이 설치하면 리포트가 파일로만 남고 표식은 지워진다(위 fail-open). 다음 날 토큰을 받아 인자로 다시 만들면
+// 제목·일자·이력 행이 **실행일**로 찍혀 파일(설치일)과 어긋났다 — 그 팀은 API 로 직접 올리고 --rebuild-history 로
+// 표를 맞췄다. 파일에 이미 제목·본문·이력 행이 그대로 있으니 그것을 올린다. 인자도 표식도 필요 없다.
+function parseSavedReport(rel) {
+  const abs = path.resolve(repoRoot, rel)
+  const text = fs.readFileSync(abs, 'utf8')
+  const lines = text.split(/\r?\n/)
+  const titleLine = lines[0] ?? ''
+  const match = /^# (\[(설치|업데이트)\] .+)$/.exec(titleLine)
+  if (!match) throw new Error(`${rel}: 첫 줄이 "# [설치] …" 또는 "# [업데이트] …" 제목이 아닙니다 — report:install 이 남긴 파일만 올릴 수 있습니다`)
+  let last = lines.length - 1
+  while (last > 0 && lines[last].trim() === '') last -= 1
+  const row = lines[last]
+  if (!row.startsWith('| ')) throw new Error(`${rel}: 마지막 줄이 이력 행("| 날짜 | 프로젝트 | … |")이 아닙니다`)
+  const body = lines.slice(1, last).join('\n').replace(/^\n+/, '').replace(/\n+$/, '')
+  return { title: match[1], kind: match[2] === '설치' ? 'install' : 'update', description: body, historyRow: row }
+}
+if (fromFile) {
+  const saved = parseSavedReport(fromFile)
+  title = saved.title
+  description = saved.description
+  historyRow = saved.historyRow
+  kind = saved.kind
+}
+
 
 if (dryRun) {
   console.log('[dry-run] 등록 없이 내용만 출력합니다.')
@@ -162,6 +190,13 @@ const adapterEnv = readAdapterEnv()
 const token = adapterEnv.HARNESS_BODY_ISSUE_TOKEN
 
 if (!token) {
+  if (fromFile) {
+    // 파일을 올리려는데 아직 토큰이 없다 — 같은 파일을 또 만들 이유가 없다. 파일은 그대로 두고 방법만 다시 말한다.
+    console.log('HARNESS_BODY_ISSUE_TOKEN이 아직 없어 등록하지 못했습니다. 파일은 그대로 있습니다:')
+    console.log(`  ${fromFile}`)
+    console.log('  토큰: 하네스 본체 개발자에게 DM으로 요청 → ~/.config/ai-standard/report.env 에 HARNESS_BODY_ISSUE_TOKEN=<값>')
+    process.exit(0)
+  }
   // fail-open: 등록 수단이 없으면 파일로 남기고 전달을 안내한다. 실패로 만들지 않는다.
   const outDir = path.join(repoRoot, '.harness/generated')
   fs.mkdirSync(outDir, { recursive: true })
@@ -173,6 +208,7 @@ if (!token) {
   console.log('  토큰: 하네스 본체 개발자에게 DM으로 요청 → ~/.config/ai-standard/report.env 에')
   console.log('  HARNESS_BODY_ISSUE_TOKEN=<값> — 한 번 두면 모든 프로젝트에서 동작')
   console.log('  (프로젝트별로 다르게 쓰려면 프로젝트 루트 .issue-adapter.env가 우선합니다)')
+  console.log(`  토큰을 받은 뒤 이 파일을 그 날짜 그대로 올리려면:  .harness/bin/harness report:install -- --from-file ${path.relative(repoRoot, outPath)}`)
   clearPendingMarker() // 파일로 남긴 것도 보고 완료다 — 상기 안내를 멈춘다.
   process.exit(0)
 }
