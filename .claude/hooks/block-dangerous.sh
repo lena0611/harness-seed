@@ -130,16 +130,20 @@ dangerous_patterns=(
   'curl[[:space:]].*\|[[:space:]]*(sh|bash|zsh)'
   'wget[[:space:]].*\|[[:space:]]*(sh|bash|zsh)'
   '>[[:space:]]*/dev/sd[a-z]'
-  '(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+[^|><]*\.env([[:space:]]|$|\.)'
-  '(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+<[[:space:]]*[^|><]*\.env([[:space:]]|$|\.)'
-  '(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+[^|><]*(id_rsa|id_ed25519)([[:space:]]|$)'
-  '(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+<[[:space:]]*[^|><]*(id_rsa|id_ed25519)([[:space:]]|$)'
-  '(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+[^|><]*\.aws/credentials'
-  '(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+<[[:space:]]*[^|><]*\.aws/credentials'
-  '(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+[^|><]*\.ssh/id_'
-  '(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+<[[:space:]]*[^|><]*\.ssh/id_'
-  '(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+[^|><]*\.pem([[:space:]]|$)'
-  '(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+<[[:space:]]*[^|><]*\.pem([[:space:]]|$)'
+  # 비밀 파일 읽기(0.2.152, smartdid #53 ④): 명령 이름 앞에 경계가 없으면 `chmod` 의 `od` 가 걸려 `chmod 600 .issue-adapter.env` —
+  # 토큰 파일을 잠그라는 우리 안내 그대로 — 가 "읽기"로 막힌다(사유도 틀림). 인자 범위 `[^|><]*` 는 `;`·`&&` 를 넘어 이어 붙어
+  # `head -3 README.md; echo "… .env …"` 가 한 명령으로 잡혔다(본체 재현). 경계 `(^|공백|;|&|"|"|(|`)` 를 두고 범위를 같은 명령 안으로 좁힌다.
+  # 반대쪽 구멍도 같이 닫는다: 파일명 뒤 종결자에 `)` `;` `&` `|` 백틱이 없어 `$(cat .env)`·`cat .env; …` 가 통과했다.
+  '(^|[[:space:];&|(`])(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+[^|><;&]*\.env([[:space:]]|$|\.|[;&|)`])'
+  '(^|[[:space:];&|(`])(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+<[[:space:]]*[^|><;&]*\.env([[:space:]]|$|\.|[;&|)`])'
+  '(^|[[:space:];&|(`])(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+[^|><;&]*(id_rsa|id_ed25519)([[:space:]]|$|[;&|)`])'
+  '(^|[[:space:];&|(`])(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+<[[:space:]]*[^|><;&]*(id_rsa|id_ed25519)([[:space:]]|$|[;&|)`])'
+  '(^|[[:space:];&|(`])(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+[^|><;&]*\.aws/credentials'
+  '(^|[[:space:];&|(`])(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+<[[:space:]]*[^|><;&]*\.aws/credentials'
+  '(^|[[:space:];&|(`])(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+[^|><;&]*\.ssh/id_'
+  '(^|[[:space:];&|(`])(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+<[[:space:]]*[^|><;&]*\.ssh/id_'
+  '(^|[[:space:];&|(`])(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+[^|><;&]*\.pem([[:space:]]|$|[;&|)`])'
+  '(^|[[:space:];&|(`])(cat|head|tail|less|more|bat|strings|xxd|od)[[:space:]]+<[[:space:]]*[^|><;&]*\.pem([[:space:]]|$|[;&|)`])'
   '>[[:space:]]*(\.env|.*\.pem|.*id_rsa|.*id_ed25519|.*\.aws/credentials)'
 )
 

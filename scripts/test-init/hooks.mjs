@@ -1478,6 +1478,37 @@ function dangerousHookAllowsWriterHeredocMentions() {
   assert(denyCount('cat <<\'EOF\'\nsudo 설명\nEOF') === 0 && denyCount('tee doc.md <<\'EOF\'\nrm -rf / 는 금지\nEOF') === 0, 'plain cat/tee heredoc bodies stay exempt')
   assert(denyCount('cat <<-\'EOF\'\n\tsudo 설명\n\tEOF') === 0, 'a <<- heredoc (tab-indented terminator) stays exempt')
 }
+// smartdid #53 ④(0.2.151 첫 설치 리포트): `chmod 600 .issue-adapter.env` 가 ".env 읽기"로 차단됐다. 비밀 파일 읽기 패턴의
+// 명령 이름 그룹 앞에 경계가 없어 `chmod` 의 `od` 가 걸렸다 — 토큰 파일을 잠그라는 우리 안내를 따르던 에이전트가 막힌 것이고,
+// 차단 사유("읽기")도 틀렸다(거짓 안내). 본체에서 재현하다 두 번째 모양도 나왔다: `[^|><]*` 가 `;`·`&&` 를 넘어 이어 붙어
+// `head -3 README.md; echo "… .env …"` 처럼 서로 다른 두 명령이 하나로 잡혔다. 명령 이름 앞에 경계를 두고, 인자 범위를
+// 같은 명령 안(`;`·`&` 전)으로 좁힌다. 같은 구조의 열 패턴(id_rsa·aws·ssh·pem) 전부 같은 손질이다.
+function dangerousHookEnvReadNeedsACommandBoundary() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const hook = path.join(target, '.claude/hooks/block-dangerous.sh')
+  const denyCount = (command) => {
+    const out = run('bash', [hook], { input: JSON.stringify({ tool_input: { command } }) })
+    return (out.match(/"permissionDecision": "deny"/g) ?? []).length
+  }
+  // ① 제보 그대로 — 파일 권한을 잠그는 건 읽기가 아니다.
+  assert(denyCount('chmod 600 .issue-adapter.env') === 0, 'chmod on a secret file is not a read — "od" inside "chmod" must not match')
+  assert(denyCount('chmod 600 ~/.config/ai-standard/report.env') === 0, 'the same for the home token file our own guidance names')
+  assert(denyCount('chmod 600 ~/.ssh/id_ed25519 && chmod 400 cert.pem') === 0, 'the sibling patterns (ssh key, pem) need the same boundary')
+  // ② 본체 실측 — 다른 명령의 인자를 `;`·`&&` 너머로 이어 붙이면 안 된다.
+  assert(denyCount('head -3 README.md; echo "설명: .env 파일은 gitignore"') === 0, 'a read command and a later unrelated mention must not be stitched across ";"')
+  assert(denyCount('cat notes.md && echo ".env 는 커밋 금지"') === 0, 'nor across "&&"')
+  assert(denyCount('git add .gitignore && git commit -m "ignore .env files"') === 0, 'a commit message mentioning .env is not a read')
+  // ③ 진짜 읽기는 전부 그대로 막힌다 — 경계가 어디에 있든.
+  for (const real of [
+    'cat .env', 'sudo cat .env', 'echo a; cat .env', 'true && head -1 .env',
+    // 종결자 구멍(이 회귀를 쓰다 발견): 파일명 바로 뒤가 `)` `;` `&` `|` 백틱이면 통과했다 — 전부 읽은 값을 어디론가 보내는 모양이다.
+    'x=$(cat .env)', 'echo `cat .env`', 'cat .env; true', 'cat .env&&true', 'cat .env|base64', '"$(cat ~/.ssh/id_rsa)"', 'k=$(cat cert.pem)',
+    'xxd .issue-adapter.env', 'od -c .env', 'cat ../.env.local', 'cat < .env', 'less ~/.ssh/id_rsa', 'strings cert.pem', 'tail ~/.aws/credentials',
+  ]) {
+    assert(denyCount(real) === 1, `a genuine secret read must stay blocked: ${real}`)
+  }
+}
 
 // 0.2.146 — smartscore-backend/common 후속 제보 ③ + Codex 설계 리뷰: `bash …/x.sh` 일괄 차단이 팀 절차
 // (bash tools/php/dev-setup.sh)를 막았다. 저장소에 커밋된 그대로(HEAD와 동일)인 저장소 안 스크립트만 통과하고,
@@ -1831,6 +1862,7 @@ export {
   hookCoexistenceDocCoversOwnHookDirPattern,
   hooksInstallWarnsWhenStoredChainIsReplaced,
   dangerousHookAllowsWriterHeredocMentions,
+  dangerousHookEnvReadNeedsACommandBoundary,
   defaultAllowListCoversContextAndSync,
   dangerousHookAllowsOnlyCommittedUnmodifiedScripts,
   installStopsOnForeignHookConflictUntilResolved,
