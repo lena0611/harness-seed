@@ -15,6 +15,7 @@
 - [ ] 방향이 비어 있으면 구현보다 **부트스트랩 인터뷰 먼저** — [bootstrap.md](./bootstrap.md)
 - [ ] 인터뷰 산출물 확인: `project-charter.md`, `scope-contract.md`, `profile.json`
 - [ ] 반복될 도메인·아키텍처·워크플로우 규칙은 시작 시점에 아는 만큼만 `domain-rules.md` / `architecture-rules.md` / `workflow-rules.md`에 — 나머지는 작업하며 승격
+- [ ] 규칙 문서(`domain` · `architecture` · `coding` · `workflow`)는 **비운 채 시작해도 됩니다.** 첫 작업의 AI 출력이나 리뷰 지적에서 "여기가 다르다"를 **한 줄 규칙**으로 뽑아 그때그때 더하세요 — 미리 쓰려 하면 손이 멈춥니다. 도구(lint·formatter)가 잡는 건 적지 말고 도구 설정을 가리키고, **한 문서가 수십 줄을 넘기면 AI가 다 못 지킵니다** — 지키지 않으면 품질에 직결되는 것만 남깁니다.
 
 ## 3. 기획 문서 연동 (기획 저장소가 있을 때, 리더)
 
