@@ -2687,7 +2687,22 @@ function mergeGitignore(target, opts) {
   }
 
   const lines = current.split(/\r?\n/);
-  const missing = entries.filter((entry) => !lines.includes(entry));
+  // 같은 경로를 이미 다루는 줄이 있으면 넣지 않는다 — 모양이 달라도(`/dist`·`dist`·`dist/`·`**/dist`) 같은 이름이면 팀이 이미
+  // 정한 것이다(0.2.152, kiosk #56). vue-cli 기본 .gitignore(`node_modules`·`/dist`)에 `node_modules/`·`dist/` 가 한 번 더 붙었고,
+  // `dist/` 는 루트 한정이던 `/dist` 보다 넓어 하위 폴더 dist 까지 무시됐다 — 동작 영향은 없어도 팀 규칙을 조용히 넓힌 것이다.
+  // 팀이 `!dist/` 처럼 명시적으로 무시를 푼 경우, node_modules·dist 같은 **프로젝트 관례 항목**은 따르고 넣지 않는다. 하네스
+  // 자기 산출물·토큰 파일은 그 경우에도 넣는다 — 뒤에 오는 줄이 이기므로 다시 무시된다(비밀 파일이 추적되는 쪽이 더 나쁘다).
+  const normalizeIgnore = (line) => line.trim().replace(/^!/, '').replace(/^\*\*\//, '').replace(/^\//, '').replace(/\/$/, '');
+  const active = lines.map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
+  const covered = new Set(active.map(normalizeIgnore));
+  const optedOut = new Set(active.filter((line) => line.startsWith('!')).map(normalizeIgnore));
+  const projectConvention = new Set(['node_modules/', 'dist/']);
+  const missing = entries.filter((entry) => {
+    const key = normalizeIgnore(entry);
+    if (covered.has(key) && !optedOut.has(key)) return false;
+    if (projectConvention.has(entry) && optedOut.has(key)) return false;
+    return !lines.includes(entry);
+  });
   if (missing.length === 0) return 0;
 
   if (!opts.dryRun) {

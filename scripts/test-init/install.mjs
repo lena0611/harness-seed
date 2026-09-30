@@ -508,6 +508,40 @@ export default defineConfig([
   assert(!config.includes('...globals.node'), 'no dead node-globals config once the directory is excluded')
 }
 
+// kiosk #56(0.2.152): vue-cli 기본 .gitignore(`node_modules`·`/dist`)가 있는데 설치가 `node_modules/`·`dist/` 를 한 번 더 붙였다.
+// 문자열이 같을 때만 건너뛰었기 때문이다. `dist/` 는 루트 한정이던 `/dist` 보다 넓어 팀 규칙을 조용히 넓힌 셈이다.
+function initSkipsGitignoreEntriesTheProjectAlreadyCovers() {
+  const linesOf = (target) => read(target, '.gitignore').split(/\r?\n/).map((line) => line.trim())
+
+  // ① 모양만 다른 같은 경로 — 넣지 않는다. 없는 것(토큰 파일·백업 폴더)은 그대로 넣는다.
+  const target = makeTarget()
+  fs.writeFileSync(path.join(target, '.gitignore'), 'node_modules\n/dist\n**/.harness/generated/\n')
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const lines = linesOf(target)
+  assert(!lines.includes('node_modules/'), 'an existing `node_modules` line covers `node_modules/` — no duplicate')
+  assert(!lines.includes('dist/'), 'an existing `/dist` line covers `dist/` — and must not be widened to nested dist folders')
+  assert(!lines.includes('.harness/generated/'), 'a `**/`-prefixed equivalent counts as covered too')
+  assert(lines.includes('.issue-adapter.env') && lines.includes('.harness-backup/'), 'entries the project does not have are still added')
+  assert(lines.filter((line) => line === 'node_modules').length === 1 && lines.filter((line) => line === '/dist').length === 1, 'the project lines stay exactly as written')
+
+  // ② 팀이 명시적으로 무시를 푼 프로젝트 관례 항목은 따른다 — 우리 줄이 뒤에 붙으면 팀의 결정을 덮는다.
+  const opted = makeTarget()
+  fs.writeFileSync(path.join(opted, '.gitignore'), '!dist/\n')
+  runInit(opted, '--no-scan', '--no-handoff', '--no-check')
+  assert(!linesOf(opted).includes('dist/'), 'a project that un-ignored dist/ must not get it re-ignored by the harness')
+
+  // ③ 하네스 토큰 파일은 예외다 — 팀이 `!.issue-adapter.env` 를 적었어도 다시 무시한다(비밀이 추적되는 쪽이 더 나쁘다).
+  const secret = makeTarget()
+  fs.writeFileSync(path.join(secret, '.gitignore'), '!.issue-adapter.env\n')
+  runInit(secret, '--no-scan', '--no-handoff', '--no-check')
+  assert(linesOf(secret).includes('.issue-adapter.env'), 'the token file must be ignored even against an explicit un-ignore')
+
+  // ④ 아무것도 없던 Node 프로젝트는 종전대로 둘 다 받는다(기존 회귀와 같은 약속).
+  const clean = makeTarget()
+  runInit(clean, '--no-scan', '--no-handoff', '--no-check')
+  assert(linesOf(clean).includes('node_modules/') && linesOf(clean).includes('dist/'), 'a project without its own rules still gets both')
+}
+
 function initAddsHarnessBackupIgnoreWhenNodeOverrideExists() {
   const target = makeTarget()
   writeJson(target, 'package.json', {
@@ -2229,6 +2263,7 @@ export {
   nonNodeInstallSkipsPackageJson,
   initPatchesEslintConfigForHarnessFiles,
   initAddsHarnessBackupIgnoreWhenNodeOverrideExists,
+  initSkipsGitignoreEntriesTheProjectAlreadyCovers,
   reinstallPreservesProjectOwnedFiles,
   retiredAliasNoticeSurvivesZeroInjection,
   retiredAliasNoticeOmittedWhenNoneExist,
