@@ -372,6 +372,50 @@ const HISTORY_HEADER = [
   '| --- | --- | --- |',
 ].join('\n')
 
+// ── 지난 리포트에 달린 본체 회신(0.2.152, 결정 125) ──────────────────────────────────────────────────
+// 리포트 이슈는 봇 계정(공용 토큰)이 만들므로 본체가 회신을 달아도 알림은 봇에게 간다 — 보드를 열어 보지 않는 팀은
+// 회신을 영영 못 본다(2026-09-29 실측: 소비자 절차 어디에도 "지난 리포트 회신을 보라"가 없다). 팀 에이전트가 다음
+// 리포트를 올리러 여기 오는 순간이 회신을 건넬 유일한 자리다. 기준은 "이 프로젝트의 가장 최근 리포트가 올라간 뒤에
+// 달린 댓글" — 지난 방문 이후의 새 회신만 보이고, 상태 파일 없이 반복을 막는다(다음 리포트가 올라가면 기준점이 옮겨간다).
+// 시스템 노트("mentioned in issue …")는 댓글이 아니다. 조회에 실패하면 침묵한다 — 이 자리의 본업은 리포트 등록이고,
+// 보드가 안 닿으면 등록 쪽이 실패로 말한다.
+async function printRepliesOnPreviousReports(projectName) {
+  let issues
+  try {
+    issues = await gitlab('GET', `/projects/${encodedProject}/issues?labels=${encodeURIComponent('설치리포트')}&search=${encodeURIComponent(projectName)}&in=title&state=all&per_page=20&order_by=created_at&sort=desc`)
+  } catch {
+    return
+  }
+  if (!Array.isArray(issues)) return
+  // search 는 부분 일치다(club-admin-vue3 ↔ club-control-vue3, common ↔ backend/common) — 제목을 파싱해 정확히 이 프로젝트만.
+  const mine = issues.filter((issue) => parseReportTitle(issue)?.project === projectName)
+  if (mine.length === 0) return
+  const since = Date.parse(mine[0].created_at)
+  const found = []
+  for (const issue of mine.slice(0, 5)) {
+    if (!(issue.user_notes_count > 0)) continue
+    let notes
+    try {
+      notes = await gitlab('GET', `/projects/${encodedProject}/issues/${issue.iid}/notes?per_page=20&order_by=created_at&sort=desc`)
+    } catch {
+      continue
+    }
+    if (!Array.isArray(notes)) continue
+    const reply = notes.find((note) => !note.system && typeof note.body === 'string' && Date.parse(note.created_at) >= since)
+    if (reply) found.push({ issue, reply })
+  }
+  if (found.length === 0) return
+  console.log('')
+  console.log('::: 지난 리포트에 본체 회신 (에이전트: 사용자에게 그대로 전달하세요) :::')
+  for (const { issue, reply } of found) {
+    const first = reply.body.split('\n').map((line) => line.trim()).find(Boolean) ?? ''
+    console.log(`  #${issue.iid} ${issue.title} — ${String(reply.created_at).slice(0, 10)} 회신${issue.state === 'closed' ? ', 닫힘' : ''}`)
+    console.log(`    ${first.length > 160 ? `${first.slice(0, 157)}…` : first}`)
+    if (issue.web_url) console.log(`    → ${issue.web_url}`)
+  }
+  console.log('')
+}
+
 if (rebuildOnly) {
   if (!token) {
     console.error('--rebuild-history는 등록 토큰이 필요합니다(HARNESS_BODY_ISSUE_TOKEN).')
@@ -389,6 +433,9 @@ if (rebuildOnly) {
   process.exit(0)
 }
 
+
+// 새 리포트를 올리기 직전 — 지난 리포트의 회신을 건넨다(결정 125). 기준점은 아직 이번 리포트가 없는 지금이다.
+await printRepliesOnPreviousReports(project)
 
 try {
   const issue = await gitlab('POST', `/projects/${encodedProject}/issues`, {

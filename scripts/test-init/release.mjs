@@ -199,6 +199,106 @@ server.listen(0, '127.0.0.1', () => {
   assert(!bare.includes('현재 최신 릴리스'), 'with no tag and no previous headline the board must not fabricate a version')
   assert(bare.includes('| alpha |'), 'the status table must still render when the headline is unavailable')
 }
+// 0.2.152 — 결정 125: 리포트 이슈는 봇 계정이 만들어 본체 회신 알림이 사람에게 가지 않는다. 팀 에이전트가 다음 리포트를
+// 올리러 오는 순간 지난 리포트의 회신을 건넨다. 기준은 "가장 최근 리포트가 올라간 뒤의 댓글" — 그 전 댓글은 지난 방문에서
+// 봤다고 본다. 가짜 GitLab 으로 실제 경로(목록 조회 → 노트 조회 → 등록)를 밟는다.
+function reportInstallRelaysRepliesOnPreviousReports() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  fs.writeFileSync(path.join(target, '.issue-adapter.env'), 'HARNESS_BODY_ISSUE_TOKEN=test-token\n')
+
+  const driver = path.join(target, 'fake-gitlab-replies.mjs')
+  fs.writeFileSync(driver, `
+import http from 'node:http'
+import fs from 'node:fs'
+import { spawn } from 'node:child_process'
+
+const [reportPath, mode, outPath] = process.argv.slice(2)
+let posted = ''
+// 최근 리포트(#21)는 09-20 에 올라갔다. 그 뒤(since)에 달린 댓글만 "새 회신"이다.
+const REPORTS = [
+  { iid: 22, title: '[설치] harness-test-target-2 -→v0.2.151 (2026-09-25)', created_at: '2026-09-25T10:00:00.000+09:00', user_notes_count: 1, state: 'opened', web_url: 'https://git.example.test/i/22' },
+  { iid: 21, title: '[업데이트] harness-test-target v0.2.140→v0.2.151 (2026-09-20)', created_at: '2026-09-20T10:00:00.000+09:00', user_notes_count: 2, state: 'opened', web_url: 'https://git.example.test/i/21' },
+  { iid: 20, title: '[업데이트] harness-test-target v0.2.130→v0.2.140 (2026-08-01)', created_at: '2026-08-01T10:00:00.000+09:00', user_notes_count: 1, state: 'closed', web_url: 'https://git.example.test/i/20' },
+  { iid: 19, title: '[설치] harness-test-target -→v0.2.130 (2026-07-01)', created_at: '2026-07-01T10:00:00.000+09:00', user_notes_count: 1, state: 'closed', web_url: 'https://git.example.test/i/19' }
+]
+const NOTES = {
+  22: [{ id: 1, system: false, created_at: '2026-09-26T10:00:00.000+09:00', body: 'DECOY-OTHER-PROJECT' }],
+  21: [
+    { id: 2, system: true, created_at: '2026-09-29T15:00:00.000+09:00', body: 'mentioned in issue #22' },
+    { id: 3, system: false, created_at: '2026-09-29T16:00:00.000+09:00', body: 'REPLY-NEW-21: 0.2.152 에 이렇게 반영했습니다.\\n자세한 내용은 changelog 에.' }
+  ],
+  20: [{ id: 5, system: false, created_at: '2026-08-02T10:00:00.000+09:00', body: 'REPLY-OLD-20: 지난 방문 전 답' }],
+  19: [{ id: 4, system: false, created_at: '2026-09-29T17:00:00.000+09:00', body: 'REPLY-NEW-19: 옛 리포트에 늦게 단 답' }]
+}
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, 'http://127.0.0.1')
+  const send = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)) }
+  if (url.pathname.endsWith('/repository/tags')) return send(200, [])
+  const notes = url.pathname.match(/\\/issues\\/(\\d+)\\/notes$/)
+  if (req.method === 'GET' && notes) {
+    if (mode === 'notes-fail') return send(500, { message: 'boom' })
+    return send(200, NOTES[notes[1]] || [])
+  }
+  if (req.method === 'GET' && url.pathname.endsWith('/issues')) {
+    const labels = url.searchParams.get('labels')
+    if (labels === '설치리포트') return send(200, url.searchParams.get('search') ? REPORTS : [])
+    return send(200, [])
+  }
+  if (req.method === 'POST' && url.pathname.endsWith('/issues')) {
+    let body = ''
+    req.on('data', (chunk) => { body += chunk })
+    req.on('end', () => {
+      const parsed = JSON.parse(body)
+      if (parsed.labels === '설치리포트') posted = parsed.title
+      send(200, { iid: parsed.labels === '설치리포트' ? 30 : 2, web_url: 'https://git.example.test/i/30' })
+    })
+    return
+  }
+  if (req.method === 'PUT') { let b = ''; req.on('data', (c) => { b += c }); req.on('end', () => send(200, { iid: 2 })); return }
+  return send(200, {})
+})
+
+server.listen(0, '127.0.0.1', () => {
+  const child = spawn(process.execPath, [reportPath, '--kind', 'update', '--from', 'v0.2.151', '--to', 'v0.2.152'], {
+    env: Object.assign({}, process.env, { HARNESS_BODY_API_BASE: 'http://127.0.0.1:' + server.address().port }),
+    stdio: ['ignore', 'pipe', 'pipe']
+  })
+  let out = ''
+  child.stdout.on('data', (chunk) => { out += chunk })
+  child.stderr.on('data', (chunk) => { out += chunk })
+  child.on('close', (code) => {
+    fs.writeFileSync(outPath, JSON.stringify({ code, out, posted }))
+    server.close()
+    process.exit(0)
+  })
+})
+`)
+  const reportPath = path.join(target, '.harness/bin/report-install.mjs')
+  const outPath = path.join(target, 'captured.json')
+  const drive = (mode) => { run(nodeBin, [driver, reportPath, mode, outPath], { cwd: target }); return JSON.parse(fs.readFileSync(outPath, 'utf8')) }
+
+  // ① 정상: 최근 리포트(#21)의 회신과, 옛 리포트(#20)에 **지난 방문 뒤** 달린 회신은 보이고, 지난 방문 전 답과 시스템 노트,
+  //    다른 프로젝트(search 부분 일치)의 답은 보이지 않는다. 그리고 본업(등록)은 그대로 된다.
+  const ok = drive('ok')
+  assert(ok.code === 0, `report:install must succeed (got exit ${ok.code}: ${ok.out})`)
+  assert(ok.out.includes('::: 지난 리포트에 본체 회신'), `replies on previous reports must be announced (got: ${ok.out})`)
+  assert(ok.out.includes('#21 [업데이트] harness-test-target') && ok.out.includes('REPLY-NEW-21: 0.2.152 에 이렇게 반영했습니다.'), 'the reply on the latest report must show with its first line')
+  assert(!ok.out.includes('자세한 내용은 changelog'), 'only the first line of a reply is relayed')
+  assert(ok.out.includes('#19 [설치] harness-test-target') && ok.out.includes('REPLY-NEW-19'), 'a reply added to an older report after the last visit must show too')
+  assert(!ok.out.includes('REPLY-OLD-20') && !ok.out.includes('#20 '), 'a report whose only reply predates the last visit was already seen and must not repeat')
+  assert(!ok.out.includes('mentioned in issue'), 'system notes are not replies')
+  assert(!ok.out.includes('DECOY-OTHER-PROJECT') && !ok.out.includes('#22'), 'a different project that merely matches the search substring must be excluded')
+  assert(ok.out.includes('닫힘'), 'a closed report must be marked as such')
+  assert(ok.out.includes('https://git.example.test/i/21'), 'the issue link must be given')
+  assert(ok.posted.startsWith('[업데이트] harness-test-target v0.2.151→v0.2.152'), `the new report must still be posted (got: ${ok.posted})`)
+
+  // ② 노트 조회가 실패하면 침묵하되 본업은 그대로 — 부가 정보가 등록을 막지 않는다.
+  const failed = drive('notes-fail')
+  assert(failed.code === 0 && failed.posted.startsWith('[업데이트] harness-test-target'), 'a failed reply lookup must not block the report')
+  assert(!failed.out.includes('지난 리포트에 본체 회신'), 'nothing is announced when the lookup failed')
+}
 
 // 0.2.137 — 보고 대기 백스톱(결정 98 후속, "리포팅할까요?를 건너뛰는 에이전트" 실측):
 // 설치/업데이트가 표식을 남기고, check가 상기하고, report:install(파일 fail-open 포함)이 지운다.
@@ -382,6 +482,7 @@ export {
   reportInstallHelpWritesNothing,
   reportInstallFailsOpenToFileWithoutToken,
   reportInstallRepostsTheSavedFileWithItsOriginalDate,
+  reportInstallRelaysRepliesOnPreviousReports,
   historyBoardHeadlinesTheLatestRelease,
   pendingReportMarkerRemindsUntilReported,
   releaseNoticeBuildsPayloadFromLatestChangelogSection,
