@@ -849,7 +849,7 @@ function shouldIncludeInstallFile(relPath) {
 function isProjectOwned(relPath) {
   const rel = toPosix(relPath);
   if (rel === MANIFEST_PATH) return false;
-  // 세션 이력 아카이브(0.2.95, clubadm 요청 2): decision-log.md가 project-owned인 것과 동일하게
+  // 세션 이력 아카이브(0.2.95, clubadm #57 2): decision-log.md가 project-owned인 것과 동일하게
   // 그 아카이브도 project-owned로 분류한다. 관례(decision-log-YYYYH1.md)를 따르는 소비자 아카이브가
   // managed 복원 대상과 경로 충돌해 본체 이력으로 덮어써지는 유실 경로를 계약으로 차단한다.
   return PROJECT_OWNED_PATHS.has(rel) || PROJECT_OWNED_PREFIXES.some((prefix) => rel.startsWith(prefix)) || isSessionHistoryLog(rel);
@@ -2717,55 +2717,73 @@ function mergeGitignore(target, opts) {
 // 그런데 소비자 저장소에 그 의도를 알려 줄 속성이 없어, git 이 매번 "CRLF will be replaced by LF" 경고를 냈다
 // (smartscore-backend/common #32, macOS). 속성 한 줄이면 git 이 인덱스에는 LF, 작업본에는 CRLF 로 다루어 경고가 사라지고
 // Windows 안전성도 그대로다. 패턴은 하네스 경로로 좁힌다 — 프로젝트가 가진 자기 .cmd 파일에 정책을 강요하지 않는다.
-const HARNESS_GITATTRIBUTES_ENTRIES = ['.harness/bin/*.cmd text eol=crlf'];
+// 속성 무리마다 따로 판정한다(0.2.152) — 한 무리를 팀이 정해 뒀다고 다른 무리까지 건너뛰면 안 된다.
+// 결정 로그 union(0.2.152, 결정 126 — clubadm #57): 결정 118(#48 B안)로 기록이 코드 커밋에 실리면서 브랜치마다 파일 끝에 절이
+// 붙고 머지마다 같은 자리를 다퉜다(TD 머지 충돌 19건, 내용 충돌 0건). union 은 둘 다 넣고 멈추지 않는다. **아카이브
+// (decision-log-*.md)와 입력 큐에는 걸지 않는다** — 동시 아카이빙은 add/add 충돌로 드러나야 하고, 입력 큐는 표의 상태 칸을 고치는
+// 파일이라 union 이면 같은 행이 두 상태로 남는다. union 의 부작용(아카이브된 옛 절의 부활)은 decision-log-lint.mjs 가 잡는다.
+const HARNESS_GITATTRIBUTES_GROUPS = [
+  {
+    attribute: 'eol',
+    sample: '.harness/bin/harness.cmd',
+    entry: '.harness/bin/*.cmd text eol=crlf',
+    comment: '# harness-seed: cmd.exe 배치는 CRLF 로 배포된다 (LF 에서 label/goto 가 깨질 수 있음)',
+  },
+  {
+    attribute: 'merge',
+    sample: '.harness/session/decision-log.md',
+    entry: '.harness/session/decision-log.md merge=union',
+    comment: '# harness-seed: 결정 로그는 브랜치마다 끝에 절이 붙는다 — 머지 때 둘 다 넣고 멈추지 않는다 (아카이브·입력 큐는 제외)',
+  },
+];
 
 // 이 속성이 실제로 필요한 파일들 — 패턴이 아니라 **파일**로 판정한다. git 은 마지막에 매칭되는 줄이 이기므로,
 // 패턴 문자열만 비교하면 팀이 `*.cmd text eol=lf` 처럼 다른 모양으로 정해 둔 선택을 우리 줄이 조용히 덮는다
 // (적대적 리뷰 P2-5: 문자열 비교로는 세 가지 팀 표기 중 셋 다 덮였다). git 에게 해석 결과를 물어 판정한다.
-const HARNESS_CRLF_SAMPLE_FILES = ['.harness/bin/harness.cmd'];
-
-function resolvedEolAttribute(target, rel) {
-  const result = spawnSync('git', ['check-attr', 'eol', '--', rel], {
+function resolvedAttribute(target, attribute, rel) {
+  const result = spawnSync('git', ['check-attr', attribute, '--', rel], {
     cwd: target,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
   });
   // git 이 없거나 저장소가 아니면 판정 불가 → null 을 내고 문자열 비교 폴백으로 떨어진다.
   if (result.status !== 0 || typeof result.stdout !== 'string') return null;
-  const match = result.stdout.trim().match(/eol:\s*(\S+)$/);
+  const match = result.stdout.trim().match(new RegExp(`${attribute}:\\s*(\\S+)$`));
   return match ? match[1] : null;
 }
 
 function mergeGitattributes(target, opts) {
   const gitattributesPath = join(target, '.gitattributes');
   if (isSymlinkPath(gitattributesPath)) {
-    console.warn(`'.gitattributes' 자리가 심볼릭 링크라 줄바꿈 속성 병합을 건너뜁니다 — 하네스는 링크 너머를 쓰지 않습니다.`);
-    return 0;
+    console.warn(`'.gitattributes' 자리가 심볼릭 링크라 속성 병합(cmd 줄바꿈·결정 로그 머지)을 건너뜁니다 — 하네스는 링크 너머를 쓰지 않습니다.`);
+    // 호출부가 넣은 무리를 이름으로 본다(.includes) — 숫자 0 을 돌려주면 거기서 터진다.
+    return [];
   }
   let current = '';
   if (existsSync(gitattributesPath)) {
     current = readFileSync(gitattributesPath, 'utf8');
   }
 
-  // 이미 누군가(팀이든 우리든) 이 파일들의 eol 을 정해 뒀으면 손대지 않는다 — 이미 crlf 면 할 일이 없고,
-  // 다른 값이면 팀의 명시적 선택이라 덮지 않는다. unspecified 일 때만 우리 줄을 넣는다.
-  const decided = HARNESS_CRLF_SAMPLE_FILES.map((rel) => resolvedEolAttribute(target, rel));
-  if (decided.length > 0 && decided.every((value) => value && value !== 'unspecified')) return 0;
-
-  // git 판정이 불가한 환경(git 없음·저장소 아님)을 위한 폴백: 같은 패턴 문자열이 이미 있으면 넣지 않는다.
+  // 이미 누군가(팀이든 우리든) 그 파일의 속성을 정해 뒀으면 손대지 않는다 — 같은 값이면 할 일이 없고, 다른 값이면 팀의
+  // 명시적 선택이라 덮지 않는다. unspecified 일 때만 우리 줄을 넣는다. 무리마다 따로 본다(eol 이 정해졌다고 merge 를 건너뛰지 않는다).
   const lines = current.split(/\r?\n/).map((line) => line.trim());
-  const missing = HARNESS_GITATTRIBUTES_ENTRIES.filter((entry) => {
-    const pattern = entry.split(/\s+/)[0];
-    return !lines.some((line) => line && !line.startsWith('#') && line.split(/\s+/)[0] === pattern);
-  });
-  if (missing.length === 0) return 0;
+  const added = [];
+  for (const group of HARNESS_GITATTRIBUTES_GROUPS) {
+    const decided = resolvedAttribute(target, group.attribute, group.sample);
+    if (decided && decided !== 'unspecified') continue;
+    // git 판정이 불가한 환경(git 없음·저장소 아님)을 위한 폴백: 같은 패턴 문자열이 이미 있으면 넣지 않는다.
+    const pattern = group.entry.split(/\s+/)[0];
+    if (decided === null && lines.some((line) => line && !line.startsWith('#') && line.split(/\s+/)[0] === pattern)) continue;
+    added.push(group);
+  }
+  if (added.length === 0) return [];
 
   if (!opts.dryRun) {
     const prefix = current.trim() ? `${current.replace(/\s*$/, '')}\n\n` : '';
-    writeFileSync(gitattributesPath, `${prefix}# harness-seed: cmd.exe 배치는 CRLF 로 배포된다 (LF 에서 label/goto 가 깨질 수 있음)\n${missing.join('\n')}\n`);
+    writeFileSync(gitattributesPath, `${prefix}${added.map((group) => `${group.comment}\n${group.entry}`).join('\n\n')}\n`);
   }
 
-  return missing.length;
+  return added.map((group) => group.attribute);
 }
 
 function findEslintConfig(target) {
@@ -3334,10 +3352,17 @@ function main() {
     const writtenLock = lockResult?.lock ?? null;
     // 일회성 사건이라 verbose 가 아니어도 알린다(적대적 리뷰 P3·P2-4): 이 줄을 넣으면 git 이 인덱스를 정규화해
     // `.harness/bin/harness.cmd` 가 한 번 "수정됨"으로 보인다 — 내용은 그대로다. 미리 말해 두면 놀라지 않는다.
-    if (gitattributesAdded > 0 && !opts.dryRun) {
+    if (gitattributesAdded.includes('eol') && !opts.dryRun) {
       console.log('');
-      console.log(`.gitattributes: cmd 줄바꿈 속성 ${gitattributesAdded}건을 넣었습니다 (git의 "CRLF will be replaced by LF" 경고 제거).`);
+      console.log('.gitattributes: cmd 줄바꿈 속성 1건을 넣었습니다 (git의 "CRLF will be replaced by LF" 경고 제거).');
       console.log('  이 때문에 .harness/bin/harness.cmd 가 한 번 수정된 것으로 보일 수 있습니다 — 내용은 그대로이니 그대로 커밋하면 됩니다.');
+    }
+    // 이 줄은 **받는 브랜치에 들어간 뒤의 머지부터** 효과가 있다 — 이 줄 자체를 처음 들고 오는 머지는 평소처럼 한 번 충돌할 수
+    // 있다(제보자 시뮬레이션). 기준 브랜치에 먼저 넣으라고 그 자리에서 말한다.
+    if (gitattributesAdded.includes('merge') && !opts.dryRun) {
+      console.log('');
+      console.log('.gitattributes: 결정 로그 머지 속성을 넣었습니다 — 브랜치마다 끝에 붙은 절이 머지 때 충돌 없이 둘 다 들어갑니다.');
+      console.log('  받는 브랜치에 이 줄이 있어야 적용됩니다: 기준 브랜치(develop 등)에 먼저 커밋하고, 거기서 새로 딴 브랜치부터 효과가 납니다.');
     }
 
     const diagnostics = runPostInstallDiagnostics(TARGET, opts, { freshInstall: !recognizedManifest });

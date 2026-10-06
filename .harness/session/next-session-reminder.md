@@ -2,7 +2,7 @@
 
 새 세션을 열면 이 문서를 짧게 훑고 시작합니다. (SessionStart hook이 자동으로 보여줍니다.)
 
-## 0.2.152 에 쌓인 것 — 일곱
+## 0.2.152 에 쌓인 것 — 여덟
 
 **주 1회 정기 릴리스가 기본입니다.** 쌓여 있는 것이 정상 상태이고, 릴리스는 사용자가 말할 때만 꺼냅니다. 주기·핫픽스 조건은 `body-release-checklist.md` 의 「언제 내보내나」 절에 있습니다.
 
@@ -15,6 +15,7 @@
 | 스택 카탈로그 vue3 ref v0.2.49 (본체 v0.2.151 고정) | 124 | club-control-vue3 #54 |
 | `report:install` 이 지난 리포트의 본체 회신을 보여줌 — 이번 회신 7건이 닿는 길 | 125 | 사용자 질문 |
 | `.gitignore` 병합이 `/dist`·`dist`·`dist/` 를 같은 것으로 봄 | — | kiosk #56 |
+| 결정 로그 `merge=union` + 제목 중복 보초(check 필수 조치·strict 차단, post-merge 즉시) | 126 | clubadm #57 |
 
 - 견본 드리프트 장치는 **0.2.152 에서는 기준선만 심고 말을 안 합니다**(옛 manifest 에 비교 기준이 없음). 첫 발화는 그 다음 릴리스부터. 0.2.152 자체에는 project-owned 견본 변경이 없어 이번엔 손으로 옮길 것도 없습니다.
 - CI 판정은 `hooks-state.mjs` 의 `detectCi` 하나입니다. `CI` 하나에 걸지 않습니다(젠킨스는 `CI` 를 안 세우는 설정이 흔함) — 회귀가 `JENKINS_URL` 만 있는 러너를 잠갑니다.
@@ -26,9 +27,9 @@
 - 둘 다 커밋·태그·푸시 전. 마켓 `autoUpdate` 는 이 PC 에서 26일간 안 당겼다 — 새 플러그인 버전은 소비자가 `claude plugin marketplace update smartscore` → `claude plugin update smartscore-harness@smartscore` 를 쳐야 받는다.
 - 검증용 설치본 `~/practice/plugin-probe-20260928-*` 넷에는 `pending-report.json` 이 있다 — 거기서 `report:install` 을 치면 현황판에 가짜 행이 생긴다.
 
-## 열린 소비자 리포트 7건 — 릴리스 뒤에 회신합니다
+## 열린 소비자 리포트 8건 — 릴리스 뒤에 회신합니다
 
-`#49` scorecard-print · `#50` club-admin-vue3 · `#51` multisite · `#52` scorecard-print(2번째) · `#53` **smartdid(신규 팀, 첫 설치)** · `#55` **club-control-vue3(신규 팀, 업데이트 0.2.151)** · `#56` **kiosk(신규 팀, 첫 설치 — Vue 2.7+Vite 7, 스택 없어 공통만; vue-cli yorkie 훅 19개 체인 정상)**. 댓글 0. `#54` 는 2026-09-29 회신·닫음(#55 로 갈음).
+`#49` scorecard-print · `#50` club-admin-vue3 · `#51` multisite · `#52` scorecard-print(2번째) · `#53` **smartdid(신규 팀, 첫 설치)** · `#55` **club-control-vue3(신규 팀, 업데이트 0.2.151)** · `#56` **kiosk(신규 팀, 첫 설치 — Vue 2.7+Vite 7, 스택 없어 공통만; vue-cli yorkie 훅 19개 체인 정상)**. 댓글 0. `#54` 는 2026-09-29 회신·닫음(#55 로 갈음). **`#57` clubadm 개선요청(결정 로그 union + 제목 중복 보초)** — 요청 1·2 는 0.2.152 에 반영(결정 126), 요청 3(아카이빙 도구)은 보류 — 회신 때 세 가지 차이(세기는 필수 조치·strict 차단 / pre-merge-commit 대신 post-merge / 날짜 기준 이동은 규칙과 어긋남)를 적는다. clubadm 은 반영 뒤 TD 머지 충돌 건수를 재집계해 보고하겠다고 했다.
 
 `#54` 는 새 Vue3 프로젝트가 **0.2.142** 를 받은 건 — 스택 v0.2.48 이 그 버전을 고정한 채 아홉 릴리스 방치(결정 124). 사용자가 그 팀 에이전트에 직접 전달해 `update --base-only` 로 올렸고 `#55` 가 그 업데이트 리포트다. **스택은 v0.2.49(본체 v0.2.151 고정)로, CLI 는 0.2.49(스택 설치 직후 뒤처짐 알림)로 올라갔다** — 둘 다 태그·푸시 완료. `#54` 는 `#55` 로 갈음해 닫아도 된다.
 

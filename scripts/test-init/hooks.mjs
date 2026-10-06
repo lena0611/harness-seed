@@ -826,6 +826,69 @@ function noChannelCallsAnUnreadableHookStateOff() {
   })
   assert(!quiet.includes('could not be determined') && !quiet.includes('hooks are OFF'), `installed hooks must produce no hook warning (got: ${quiet})`)
 }
+// clubadm 요청(0.2.152, 결정 126): union 머지의 부작용 — 아카이브로 옮긴 옛 절에 다른 브랜치가 줄을 덧붙인 채 머지되면, union 이 그
+// 옛 절을 **충돌 없이 통째로 되살린다**(제보자 시뮬레이션 T4, 본체 재현). 실제 경로로 재현한다: 설치가 넣은 .gitattributes →
+// 아카이빙 브랜치 · 정정 브랜치 → union 머지 → post-merge 즉시 알림 → harness check 필수 조치 → strict 차단.
+function decisionLogDuplicateHeadingsNeedAction() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const git = (...args) => run('git', args, { cwd: target })
+  const log = path.join(target, '.harness/session/decision-log.md')
+  const archive = path.join(target, '.harness/session/decision-log-2026H2.md')
+  const heading = '## 2026-08-01 - 옛 결정: 캐시 전략'
+  const strictPolicy = () => run(nodeBin, [path.join(target, '.harness/bin/policy-harness.mjs'), 'guard', '--strict'], { cwd: target })
+
+  fs.appendFileSync(log, `\n${heading}\n- 처음 본문\n`)
+  git('add', '-A')
+  git('commit', '-q', '-m', 'base')
+  const base = git('rev-parse', '--abbrev-ref', 'HEAD').trim()
+  const clean = runGuard(target, '--no-cache')
+  const requiredBefore = Number((clean.match(/필수 조치: (\d+)건/) ?? [0, 0])[1])
+  strictPolicy() // precondition: 중복이 없으면 strict 에서도 이 검사로는 실패하지 않는다(던지면 다른 원인이다)
+
+  // 아카이빙 브랜치: 옛 절을 아카이브로 옮긴다.
+  git('checkout', '-q', '-b', 'archive')
+  const section = `${heading}\n- 처음 본문\n`
+  fs.writeFileSync(log, fs.readFileSync(log, 'utf8').replace(`\n${section}`, '\n'))
+  fs.writeFileSync(archive, `# 결정 로그 아카이브 2026 하반기\n\n${section}`)
+  git('add', '-A')
+  git('commit', '-q', '-m', 'archive')
+  // 정정 브랜치: 같은 옛 절에 한 줄 덧붙인다.
+  git('checkout', '-q', base)
+  git('checkout', '-q', '-b', 'fix')
+  fs.writeFileSync(log, fs.readFileSync(log, 'utf8').replace('- 처음 본문\n', '- 처음 본문\n- 정정 한 줄\n'))
+  git('commit', '-q', '-am', 'fix')
+
+  // ① union 머지는 충돌 없이 끝나고, 옛 절이 현행에 되살아난다 — 제보자 T4 그대로(이게 이 검사의 존재 이유).
+  git('checkout', '-q', 'archive')
+  git('merge', '-q', '--no-edit', 'fix')
+  assert(fs.readFileSync(log, 'utf8').includes(heading) && fs.readFileSync(archive, 'utf8').includes(heading), 'precondition: union must have resurrected the archived section without a conflict')
+
+  // ② post-merge 가 그 자리에서 알린다 — 충돌 없는 머지는 pre-commit 을 부르지 않는다.
+  const pulled = run('sh', [path.join(target, '.githooks/post-merge')], { cwd: target, env: { ...process.env } })
+  assert(pulled.includes('같은 절이 두 번') && pulled.includes('decision-log.md:') && pulled.includes('decision-log-2026H2.md:'), `post-merge must flag the resurrected section with both places (got: ${pulled})`)
+
+  // ③ harness check: 필수 조치로 센다. push 의 check --fast 도 같은 판정이다.
+  const flagged = runGuard(target, '--no-cache')
+  assert(flagged.includes('[확인 필수]') && flagged.includes('옛 결정: 캐시 전략'), `harness check must name the duplicated section (got: ${flagged.slice(0, 600)})`)
+  const requiredAfter = Number((flagged.match(/필수 조치: (\d+)건/) ?? [0, 0])[1])
+  assert(requiredAfter === requiredBefore + 1, `the duplicate must count as one required action (before ${requiredBefore}, after ${requiredAfter})`)
+
+  // ④ strict 에서는 차단한다 — 기본은 필수 조치, strict 에서 실패(다른 필수 조치와 같은 사다리).
+  expectFailure(strictPolicy, 'a duplicate decision heading must fail the check in strict mode')
+
+  // ⑤ 한쪽을 지우면 사라진다. 같은 날짜라도 제목이 다르면 중복이 아니다. 코드 펜스 안의 예시 제목은 세지 않는다.
+  fs.writeFileSync(log, fs.readFileSync(log, 'utf8').replace(`${heading}\n- 처음 본문\n- 정정 한 줄\n`, '## 2026-08-01 - 다른 결정\n- 본문\n\n```md\n## 2026-08-01 - 옛 결정: 캐시 전략\n```\n'))
+  assert(!runGuard(target, '--no-cache').includes('결정 로그 제목 중복'), 'after removing one copy the check must go quiet (same date with another title and a fenced example are not duplicates)')
+  strictPolicy()
+
+  // ⑥ 제목은 다른데 결정 번호가 겹치면 따로 낸다 — 두 브랜치가 같은 번호를 딴 경우다.
+  fs.appendFileSync(log, '\n## 2026-09-01 - 결정 7: A 안\n- A\n')
+  fs.appendFileSync(archive, '\n## 2026-09-02 - 결정 7: B 안\n- B\n')
+  const numbered = run(nodeBin, [path.join(target, '.harness/bin/decision-log-lint.mjs')], { cwd: target })
+  assert(numbered.includes('결정 7 — 서로 다른 절이 같은 번호를 씁니다'), `a reused decision number must be flagged (got: ${numbered})`)
+}
+
 
 function pullReportsTheSameUnmetPrerequisites() {
   const target = makeTarget()
@@ -1848,6 +1911,7 @@ export {
   promptChannelShowsPrerequisitesOncePerSession,
   noChannelCallsAnUnreadableHookStateOff,
   pullReportsTheSameUnmetPrerequisites,
+  decisionLogDuplicateHeadingsNeedAction,
   sessionStartTablesUnmetPrerequisites,
   prerequisiteTableNamesProjectNodeMismatch,
   preflightRunDirectlyAnswersInsteadOfStayingSilent,

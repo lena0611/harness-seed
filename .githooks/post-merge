@@ -78,4 +78,11 @@ fi
 
 harness_preflight_print
 
+# 결정 로그 제목 중복(0.2.152, 결정 126): `.gitattributes` 의 union 머지는 충돌 없이 끝나므로 pre-commit 이 돌지 않는다 — 이 머지가
+# 결정 로그를 건드렸으면 여기서 바로 본다. 아카이브로 옮긴 옛 절을 union 이 되살린 경우를 머지한 사람이 그 자리에서 알게 한다
+# (push 의 harness check 도 같은 판정을 한다 — 이 줄은 즉시성을 위한 것). 정상은 침묵이고 실패해도 머지는 유지한다.
+if [ -f .harness/bin/decision-log-lint.mjs ] && git diff --name-only ORIG_HEAD HEAD 2>/dev/null | grep -q '^\.harness/session/decision-log'; then
+  node .harness/bin/decision-log-lint.mjs || true
+fi
+
 exit 0

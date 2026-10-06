@@ -457,7 +457,7 @@ function printConsumerSummary({ edgeResult, criticalResult, cacheHit = false, fa
     : impact.syncGapLevels ?? {}
   const decisionLog = impact.decisionLog ?? {}
   const requiredCount = (levels.blocking ?? 0) + (levels['action required'] ?? 0)
-    + (decisionLog.overrideMissingRebuttal ? 1 : 0) + (failedReason ? 1 : 0)
+    + (decisionLog.overrideMissingRebuttal ? 1 : 0) + (decisionLog.duplicateHeadings > 0 ? 1 : 0) + (failedReason ? 1 : 0)
   const suggestedCount = levels['review suggested'] ?? 0
   const openManualActions = countOpenManualActions()
   const templateGap = readJson(templateGapSummaryPath, { selected: false, gaps: 0, invalid: 0 })

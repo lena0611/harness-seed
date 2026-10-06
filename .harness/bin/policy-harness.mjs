@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { findDecisionLogDuplicates, formatDecisionLogDuplicates } from './decision-log-lint.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -436,6 +437,16 @@ function analyzeDecisionLogChanges() {
     reversalDetected: reversalLines.length > 0,
     overrideEntries: overrideLines.length,
     overrideMissingRebuttal: overrideLines.length > 0 && !hasRebuttal,
+  }
+}
+
+// 0.2.152(결정 126): 결정 로그 union 머지의 부작용 — 아카이브로 옮긴 옛 절이 충돌 없이 되살아난 것 — 을 잡는다. diff 가 아니라
+// **상태**를 본다: 되살아난 절은 머지 커밋에 들어 있어 이번 변경 범위 밖일 수 있다. 판정은 decision-log-lint.mjs 하나다.
+function analyzeDecisionLogDuplicates() {
+  const found = findDecisionLogDuplicates(path.join(repoRoot, harnessRootRel, 'session'))
+  return {
+    duplicateHeadings: found.headings.length + found.numbers.length,
+    duplicateDetail: formatDecisionLogDuplicates(found),
   }
 }
 
@@ -1537,7 +1548,7 @@ function runImpact() {
 
   const informational = isInformationalSyncGap(changedGroups, harnessMode)
   const bootstrapRelaxed = harnessMode === 'bootstrap'
-  const logFindings = { ...analyzeDecisionLogChanges(), ...analyzeDecisionLogSize(changedFiles) }
+  const logFindings = { ...analyzeDecisionLogChanges(), ...analyzeDecisionLogSize(changedFiles), ...analyzeDecisionLogDuplicates() }
   for (const gap of syncGaps) {
     syncGapLevels[syncReviewLevel(gap, informational, logFindings.reversalDetected, bootstrapRelaxed)]++
   }
@@ -1573,6 +1584,14 @@ function runImpact() {
     console.log('권고 뒤집기 기록 검사:')
     console.log('- [확인 필수] decision-log에 [권고 뒤집기] 항목이 추가됐지만 같은 변경에 근거 반박: 필드가 없습니다.')
     console.log('- 뒤집은 권고의 근거를 무엇으로 반박했는지 해당 항목에 남기세요. 관례: .harness/session/README.md')
+  }
+
+  if (logFindings.duplicateHeadings > 0) {
+    console.log('')
+    console.log('결정 로그 제목 중복 검사:')
+    console.log(`- [확인 필수] 현행·아카이브 결정 로그에 같은 절이 두 번 이상 있습니다(${logFindings.duplicateHeadings}건).`)
+    for (const line of logFindings.duplicateDetail) console.log(line)
+    console.log('- union 머지가 아카이브로 옮긴 옛 절을 충돌 없이 되살렸을 때 생깁니다. 내용을 비교해 한쪽(보통 현행 파일 쪽)을 지우세요. 번호만 겹치면 나중에 붙은 절의 번호를 올립니다.')
   }
 
   if (logFindings.oversized) {
@@ -1658,6 +1677,11 @@ function runImpact() {
 
   // 권고 뒤집기 기록 누락은 동기화 후보와 별개로 strict에서 실패한다(P1, 차단 승격).
   if (strictMode && logFindings.overrideMissingRebuttal) {
+    process.exitCode = 1
+  }
+  // 결정 로그 제목 중복도 같은 사다리를 탄다(0.2.152): 기본은 필수 조치, strict 에서 차단. 알림이냐 차단이냐는 회사가 정할 일이라
+  // (결정 요청 #4 미결정) 이 검사만 따로 세게 걸지 않는다.
+  if (strictMode && logFindings.duplicateHeadings > 0) {
     process.exitCode = 1
   }
 }

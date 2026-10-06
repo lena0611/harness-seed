@@ -1466,6 +1466,61 @@ function backupSkipsWhatGitCanRestoreAndRotatesSets() {
   assert(fs.existsSync(madeDir), `the set created by this very install must survive pruning (gone: ${madeDir})`)
   assert(fs.existsSync(path.join(madeDir, '.harness/session/active-context.md')), 'and it must still hold the edited file')
 }
+// clubadm 요청(0.2.152, 결정 126): 결정 118(#48 B안)로 기록이 코드 커밋에 실리면서 결정 로그는 브랜치마다 끝에 절이 붙고, 머지마다
+// 같은 자리를 다퉜다(clubadm TD 머지 충돌 19건 — 전부 자리만 겹친 것, 내용 충돌 0건). 설치가 union 속성을 넣는다 — 결정 로그만.
+function installDeclaresUnionMergeForDecisionLog() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const mergeAttr = (dir, rel) => run('git', ['check-attr', 'merge', '--', rel], { cwd: dir }).trim()
+
+  // ① 결정 로그만 union 이다. 아카이브는 동시 아카이빙이 add/add 충돌로 드러나야 하고, 입력 큐는 표의 상태 칸을 고치는 파일이라
+  //    union 이면 같은 행이 두 상태로 남는다(제보자가 짚은 이유 그대로).
+  assert(mergeAttr(target, '.harness/session/decision-log.md').endsWith('merge: union'), `the decision log must merge with union (got: ${mergeAttr(target, '.harness/session/decision-log.md')})`)
+  assert(mergeAttr(target, '.harness/session/decision-log-2026H2.md').endsWith('merge: unspecified'), 'archives must keep normal merges so concurrent archiving surfaces as a conflict')
+  assert(mergeAttr(target, '.harness/session/developer-input-queue.md').endsWith('merge: unspecified'), 'the input queue must not union — a table row would end up in two states')
+
+  // ② 멱등: 다시 설치해도 줄이 늘지 않는다.
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const unionLines = read(target, '.gitattributes').split('\n').filter((line) => line.includes('merge=union'))
+  assert(unionLines.length === 1, `reinstall must not duplicate the union line (got ${unionLines.length})`)
+
+  // ③ 0.2.151 설치본(eol 줄만 있다)이 업데이트되면 union 줄이 더해진다 — eol 이 정해져 있다고 merge 까지 건너뛰면 안 된다.
+  //    예전 함수는 eol 판정 하나로 통째로 빠져나왔다.
+  const older = makeTarget()
+  fs.writeFileSync(path.join(older, '.gitattributes'), '# harness-seed: cmd.exe 배치는 CRLF 로 배포된다 (LF 에서 label/goto 가 깨질 수 있음)\n.harness/bin/*.cmd text eol=crlf\n')
+  runInit(older, '--no-scan', '--no-handoff', '--no-check')
+  const upgraded = read(older, '.gitattributes')
+  assert(upgraded.includes('.harness/session/decision-log.md merge=union'), `an update must add the union line even when the eol line is already there (got: ${upgraded})`)
+  assert(upgraded.split('\n').filter((line) => line.includes('eol=crlf')).length === 1, 'the existing eol line must not be duplicated')
+
+  // ④ 팀이 그 파일의 merge 를 이미 정해 뒀으면 표기가 어떻든 덮지 않는다(git 은 마지막에 매칭되는 줄이 이긴다).
+  for (const teamLine of ['.harness/session/decision-log.md -merge', '*.md merge=binary']) {
+    const team = makeTarget()
+    fs.writeFileSync(path.join(team, '.gitattributes'), `${teamLine}\n`)
+    runInit(team, '--no-scan', '--no-handoff', '--no-check')
+    assert(!read(team, '.gitattributes').includes('merge=union'), `'${teamLine}': an explicit team decision must not be overridden`)
+  }
+
+  // ⑤ 실제 머지: 두 브랜치가 각자 끝에 절을 붙이면 충돌 없이 둘 다 들어간다(clubadm 19건이 이 경우).
+  const git = (...args) => run('git', args, { cwd: target })
+  git('add', '-A')
+  git('commit', '-q', '-m', 'install')
+  const base = git('rev-parse', '--abbrev-ref', 'HEAD').trim()
+  const log = path.join(target, '.harness/session/decision-log.md')
+  git('checkout', '-q', '-b', 'td-a')
+  fs.appendFileSync(log, '\n## 2026-10-01 - A 브랜치의 결정\n- A\n')
+  git('commit', '-q', '-am', 'a')
+  git('checkout', '-q', base)
+  git('checkout', '-q', '-b', 'td-b')
+  fs.appendFileSync(log, '\n## 2026-10-02 - B 브랜치의 결정\n- B\n')
+  git('commit', '-q', '-am', 'b')
+  git('checkout', '-q', 'td-a')
+  git('merge', '-q', '--no-edit', 'td-b') // 충돌이면 여기서 던진다
+  const merged = fs.readFileSync(log, 'utf8')
+  assert(merged.includes('## 2026-10-01 - A 브랜치의 결정') && merged.includes('## 2026-10-02 - B 브랜치의 결정'), `both appended sections must survive the merge (got: ${merged.slice(-300)})`)
+  assert(!merged.includes('<<<<<<<'), 'no conflict markers may be left behind')
+}
+
 
 // #32(smartscore-backend/common 0.2.146 업데이트 리포트) ①: `.cmd` 는 cmd.exe 의 label/goto 가 LF 에서 깨질 수 있어
 // 일부러 CRLF 로 배포하는데(0.2.136), 소비자 저장소에 그 의도를 알려 줄 속성이 없어 git 이 매번
@@ -2303,6 +2358,7 @@ export {
   updateRemovesRetiredManagedCommandDoc,
   backupSkipsWhatGitCanRestoreAndRotatesSets,
   installDeclaresCmdLineEndingsSoGitStopsWarning,
+  installDeclaresUnionMergeForDecisionLog,
   twoStageUpdateRecordsTheRealStartVersion,
   updateNamesProjectOwnedFilesWhoseSeedChanged,
   installOutputEndsWithReportPrompt,
