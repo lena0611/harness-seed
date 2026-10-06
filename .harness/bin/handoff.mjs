@@ -170,7 +170,7 @@ function renderProjectRuleAuthoringGuide() {
 - \`.harness/project/coding-conventions.md\`: 언어·서식·네이밍 규약 (도구가 못 잡는 것만)
 - \`.harness/project/workflow-rules.md\`: 작업 순서/검증/반복 업무 패턴
 - \`.harness/project/commit-push-rules.md\`: 완료 승인, commit/push, hook 기준
-- \`.harness/session/decision-log.md\`: 확정 전 판단과 선택 이유
+- \`.harness/session/decision-log.md\`: 중요한 결정과 그 이유 — 코드·git 이력으로 알 수 없는 것만, 사용자 허락을 받고 씁니다
 - \`.harness/session/developer-input-queue.md\`: 팀 확인이 필요한 질문
 
 하네스를 인지하는 에이전트는 반복되는 규칙, 중요한 판단, 검증 기준이 드러나면 위 문서 중 맞는 위치에 후보를 남기거나 승격합니다. 단발성 구현 메모는 프로젝트 룰로 승격하지 않습니다.
@@ -212,7 +212,7 @@ function buildReport() {
 판단 순서:
 
 1. \`.harness/bin/harness standards:list\`로 회사가 제공하는 스택 하네스 후보를 확인합니다.
-2. 맞는 후보가 없으면 \`.harness/session/decision-log.md\`에 "공통 기준만 운영" 이유를 남깁니다.
+2. 맞는 후보가 없으면 공통 기준만으로 운영합니다. \`.harness/policy/profile.json\` 의 \`activeStack: none\` 이 그 기록이라 따로 남길 것은 없습니다.
 3. 반복될 프로젝트 유형이라 새 스택 하네스가 필요해 보이면 \`.harness/session/developer-input-queue.md\`에 후보 요청을 남깁니다.
 
 나중에 맞는 스택 하네스가 제공되면 재설치가 아니라 스택 기준 추가 적용으로 진행합니다.
@@ -233,7 +233,7 @@ npx -y git+<스택-저장소>#<tag> init
 
   return `# Harness Handoff
 
-> 설치 또는 업데이트 직후 개발자가 바로 확인할 요약입니다. 이 문서는 런타임 산출물이므로 직접 기준으로 삼지 말고, 필요한 판단은 프로젝트 문서나 decision-log에 옮깁니다.
+> 설치 또는 업데이트 직후 개발자가 바로 확인할 요약입니다. 이 문서는 런타임 산출물이므로 직접 기준으로 삼지 말고, 필요한 판단은 프로젝트 문서(\`.harness/project/*\`)로 옮깁니다.
 
 - generatedAt: ${generatedAt}
 - branch: ${branch}
@@ -316,7 +316,7 @@ ${readManualActionsSummary()}
 - 새 규칙은 한 번의 구현 세부사항이 아니라 반복되는 도메인, 구조, 검증 기준일 때만 승격합니다.
 - 길어진 프로젝트 룰은 인덱스, 세부 문서, 요약으로 나눕니다.
 - 에이전트는 항상 모든 로컬룰을 읽지 않고 \`.harness/bin/harness context "<작업 설명>"\`으로 이번 작업의 판단 컨텍스트를 만듭니다.
-- 오래된 판단은 삭제보다 먼저 \`decision-log.md\`에 변경 이유를 남기고 최신 요약을 \`project-memory.md\`나 해당 룰 문서 상단에 둡니다.
+- 오래된 판단은 바로 지우지 않고 최신 요약을 \`project-memory.md\`나 해당 룰 문서 상단에 둡니다. 바꾸는 이유는 보통 커밋 메시지로 충분하고, git 이력만으로 안 보이는 중요한 기준 변경일 때만 사용자 허락을 받아 \`decision-log.md\`에 남깁니다.
 
 ## 확인할 일
 1. 새 터미널이면 프로젝트 루트에서 \`nvm use\`를 실행합니다.

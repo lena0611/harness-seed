@@ -109,7 +109,7 @@ git diff --staged
 | 반복되는 도메인 규칙 | `.harness/project/domain-rules.md` |
 | 반복되는 구조/경계 결정 | `.harness/project/architecture-rules.md` |
 | 반복되는 검증/릴리스 절차 | `.harness/project/workflow-rules.md` |
-| 중요한 선택 이유, 예외, 충돌 해결 | `.harness/session/decision-log.md` |
+| 중요한 선택 이유, 예외, 충돌 해결 | `.harness/session/decision-log.md` (사용자 허락 후) |
 | 다음 세션에서 반드시 이어야 할 항목 | `.harness/session/next-session-reminder.md` |
 | 외부 콘솔, secret, 권한, 배포 수동 조치 | `.harness/session/manual-actions.md` |
 

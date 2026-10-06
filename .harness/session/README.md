@@ -40,7 +40,7 @@ Claude Code에서는 아래 slash command를 사용합니다. Codex와 Copilot�
 | `/memory` | `.harness/session/project-memory.md` | 오래 유지되는 프로젝트 사실 기록 |
 | `/decision` | `.harness/session/decision-log.md` | 구조 결정, 예외, 충돌 해결 이유 기록 |
 | `/harness-scan` | `.harness/session/project-scan-report.md` | 현재 프로젝트 스캔과 로컬 기준 후보 정리 |
-| `/하네스업데이트` | `.harness/harness-lock.json`, `.harness/session/decision-log.md` | 공통/스택 하네스 업데이트 후보를 확인하고 안전한 업데이트 명령 선택 |
+| `/하네스업데이트` | `.harness/harness-lock.json` | 공통/스택 하네스 업데이트 후보를 확인하고 안전한 업데이트 명령 선택 |
 | `/운영업무` | .harness/maintenance/work-history/연도별 폴더 | JIRA 운영 업무를 접수하고 업무 유형별 흐름으로 연결 |
 | `/업무요약` | .harness/maintenance/work-history/연도별 폴더 | 완료 후보를 사용자가 승인한 운영 업무의 요청, 변경, 검증, TODO 기록 |
 
@@ -51,7 +51,7 @@ Claude Code는 `SessionStart` hook으로 `next-session-reminder.md`를 자동 �
 - 최근 상태, 다음 작업, 확인이 필요한 항목은 `active-context.md`에 기록합니다.
 - `active-context.md`는 프로젝트 고정 사실, 최신 작업 상태, 핸드오프만 짧게 남깁니다. 운영 규칙 본문은 복사하지 말고 `workflow-rules.md`, `commit-push-rules.md`, `CLAUDE.md` 같은 권위 문서를 단일 출처로 가리킵니다.
 - `next-session-reminder.md`는 다음 세션 부트스트랩 체크리스트와 미결 항목만 남깁니다. `project/*` 규칙 본문을 붙여 넣지 말고 포인터로 축약합니다.
-- 중요한 구조 결정이나 방향 변경은 `decision-log.md`에 남깁니다.
+- 중요한 결정이나 모두가 알아야 할 공유 내용이 생겼을 때만 `decision-log.md`에 남깁니다 — 사용자에게 먼저 묻고 허락을 받은 뒤 씁니다(아래 「결정 로그 기록 기준」).
 - 에이전트가 직접 처리할 수 없는 외부 콘솔, secret, capability, Pages/배포 설정은 `manual-actions.md`에 남깁니다.
 - 큰 작업이나 생소한 영역은 `harness:sync`로 생성 컨텍스트를 최신화하고 `harness:context`로 에이전트 판단 컨텍스트를 만듭니다.
 - `harness:context`의 Selected Skills는 작업별 읽을거리, 실행 명령, 기록 위치를 좁히는 기준으로 사용합니다.
@@ -70,6 +70,10 @@ Claude Code는 `SessionStart` hook으로 `next-session-reminder.md`를 자동 �
 매 세션 또는 재개 시 로드되는 `active-context.md`, `next-session-reminder.md`, `project-memory.md`, `decision-log.md`, `developer-input-queue.md`, `MEMORY.md`류 인덱스는 부트스트랩, 핸드오프, 현재 유효 항목만 유지합니다. 규칙 본문은 `.harness/project/*` 단일 출처로 보내고, 오래된 이력은 날짜별 아카이브나 thread handoff 스냅샷으로 분리합니다. `answered`/`obsolete` 큐 항목과 supersede된 결정/기억은 현재 파일에 상주시키지 않습니다.
 
 ## 결정 로그 기록 기준 (write 게이트)
+
+**쓰기 전에 사용자에게 묻습니다**(2026-10-06 사용자 결정). 결정 로그는 작업 기록이 아닙니다 — 무엇을 고쳤는지는 커밋 메시지와 CHANGELOG 가 맡고, 나중에 사람이나 에이전트가 코드·git 이력으로 알 수 있는 내용은 남기지 않습니다. 아래 리트머스를 통과한 후보가 생기면 무엇을 왜 남길지 한두 줄로 보여 주고, 허락을 받은 뒤 씁니다. 묻지 않고 쓰지 않습니다. 사용자가 `/decision` 으로 직접 시킨 경우는 그 자체가 허락입니다.
+
+이 단계가 들어간 이유: 아래 리트머스는 예전부터 있었지만 에이전트가 기억해서 지키는 문서 규칙이라 지켜지지 않았습니다(본체 최근 60일 커밋 331개 중 64개가 결정 로그를 건드렸고, CHANGELOG·커밋 메시지와 거의 같은 내용이 세 번 적혔습니다). 많이 쓸수록 머지 때 부딪힙니다. 허락 단계는 사람이 보는 확인 지점입니다.
 
 리트머스 한 줄: **"3주 뒤 누군가 '왜?'라고 묻겠는가 + 그 답이 코드·git·문서에 안 보이는가" — 둘 다 예일 때만 기록합니다** (결정 87, 멀티사이트 피드백 수용).
 

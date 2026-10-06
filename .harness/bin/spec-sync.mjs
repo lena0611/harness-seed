@@ -1888,7 +1888,7 @@ function runMoveBaseline(state) {
   // 기준이 움직였으니 캐시 본문도 새 기준으로 맞춘다.
   reportHydrationAfterLockChange(hydrateSpecCacheIfStale({ timeoutMs: 30000 }))
   console.log(`기준 시점을 ${toPosix(path.relative(repoRoot, lockPath))}에 기록했습니다. 이 파일은 커밋해서 팀과 공유합니다.`)
-  console.log('기준 이동은 "그 사이 기획 변경을 살펴봤다"는 선언입니다. 검토 결과를 decision-log에 남기세요.')
+  console.log('기준 이동은 "그 사이 기획 변경을 살펴봤다"는 선언입니다. 검토 결과는 커밋 메시지에 남기고, 자명하지 않은 판단만 사용자 허락을 받아 decision-log에 남깁니다.')
 }
 
 // --at-lock: lock이 기록한 정확한 파일 집합을 캐시에 복원한다(기준 이동 없음).
@@ -2852,7 +2852,7 @@ function runSettle({ docs = [] } = {}) {
   }
 
   console.log('')
-  console.log('정산은 "이 기획 변경을 살펴봤다"는 선언입니다. 영향 없음이 자명하지 않으면 근거를 decision-log에 남기고(자명하면 커밋 메시지로 충분),')
+  console.log('정산은 "이 기획 변경을 살펴봤다"는 선언입니다. 영향 없음이 자명하지 않으면 근거를 사용자 허락을 받아 decision-log에 남기고(자명하면 커밋 메시지로 충분),')
   console.log(`${toPosix(path.relative(repoRoot, lockPath))} 변경을 커밋에 포함해 다시 push 하세요.`)
 }
 
@@ -3106,7 +3106,7 @@ function runStatus() {
       console.log(`  - [${item.kind}] ${nameOf(item)}${suffix}`)
     }
     console.log('')
-    console.log('판단: 구현에 영향을 주면 코드/테스트를 반영합니다. 영향 없음이 자명하면 커밋 메시지 한 줄, 자명하지 않은 판단만 decision-log에 남깁니다.')
+    console.log('판단: 구현에 영향을 주면 코드/테스트를 반영합니다. 영향 없음이 자명하면 커밋 메시지 한 줄, 자명하지 않은 판단만 사용자 허락을 받아 decision-log에 남깁니다.')
     console.log('확인이 끝났으면 .harness/bin/harness spec:settle 로 정산합니다.')
   } else if (state.lock.exists && notReady.length === 0) {
     // "읽고"를 명시한다 — 아래 "마지막 최신 확인"의 원격 감지와는 다른 축이라, 축을 안 밝히면

@@ -12,4 +12,4 @@
 
 - Supabase secret, GitHub/GitLab Pages 설정, Apple capability, 인증서, 스토어/클라우드 콘솔 설정처럼 로컬 코드 수정만으로 끝나지 않는 일을 기록합니다.
 - 완료되면 상태를 `done`으로 바꾸고, 확인한 날짜와 근거를 관련 작업 칸에 남깁니다.
-- 수동 조치가 구현 방향에 영향을 주면 `decision-log.md`에도 결정 근거를 남깁니다.
+- 수동 조치가 구현 방향을 바꾸는 중요한 결정이면 사용자 허락을 받아 `decision-log.md`에도 근거를 남깁니다.

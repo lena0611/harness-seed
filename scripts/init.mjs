@@ -1880,6 +1880,7 @@ function consumerProjectStateTemplate(rel, context) {
 > 하네스 본체의 변경 이력이나 릴리스 노트가 아닙니다. 하네스 본체 변경 기록은 하네스 저장소의 \`CHANGELOG.md\` 또는 릴리스 태그를 확인합니다.
 
 ## 기록 원칙
+- **쓰기 전에 사용자에게 묻습니다.** 이 문서는 작업 기록이 아닙니다 — 무엇을 고쳤는지는 커밋 메시지가 맡고, 코드·git 이력으로 나중에 알 수 있는 내용은 남기지 않습니다. 아래에 해당하는 중요한 결정이나 모두가 알아야 할 공유 내용이 생기면 무엇을 왜 남길지 보여 주고 허락을 받은 뒤 씁니다.
 - 프로젝트 기준, 스택 기준, 템플릿 계약, 개인 기준이 충돌할 때 선택 이유를 남깁니다.
 - 테스트 전략, 예외 허용, 아키텍처 경계, 운영 절차처럼 이후 작업에 영향을 주는 판단을 남깁니다.
 - 단순 작업 로그나 일회성 구현 세부사항은 남기지 않습니다.
@@ -1888,11 +1889,6 @@ function consumerProjectStateTemplate(rel, context) {
 - 결정이 \`.harness/project/*\` 규칙으로 굳으면 기존 항목 본문은 \`→ <대상 문서> 참조\` 포인터로 축약합니다.
 - 오래된 결정은 날짜별 \`decision-log-YYYYH1.md\`, \`decision-log-YYYYH2.md\`, \`thread-handoff-YYYY-MM-DD.md\` 같은 스냅샷으로 아카이브하고, 현재 파일은 최근/유효 결정만 유지합니다.
 - append-only로만 늘리지 말고 갱신 전 supersede된 항목을 먼저 정리합니다.
-
-## ${generatedAt.slice(0, 10)} - 하네스 초기 설치 또는 업데이트
-- baseHarness: ${packageVersion}
-- 이 프로젝트의 구체적인 판단은 아직 기록되지 않았습니다.
-- 설치 직후 분석은 \`.harness/session/project-scan-report.md\`와 \`.harness/session/handoff.md\`를 확인합니다.
 `;
 
     case '.harness/session/developer-input-queue.md': {
@@ -1920,7 +1916,7 @@ function consumerProjectStateTemplate(rel, context) {
 | charter-risk | deferred | 변경하면 특히 위험한 영역이나 반복 회귀 지점은 무엇인가? | 유지보수와 에이전트 작업의 검증 기준을 정하기 위해 필요 | 미정 | ${charterReviewDate} |
 
 ## 운영 원칙
-- 답변을 받으면 관련 문서(\`project-charter.md\`, \`active-context.md\`, \`decision-log.md\`)를 함께 갱신합니다.
+- 답변을 받으면 관련 문서(\`project-charter.md\`, \`active-context.md\` 등)를 함께 갱신합니다. 답이 중요한 결정이면 사용자 허락을 받아 \`decision-log.md\`에도 남깁니다.
 - 유보된 질문은 삭제하지 않고 \`deferred\`로 남깁니다.
 - **재검토일**(YYYY-MM-DD)을 적으면 그 날짜까지 세션 시작 알림에서 유예됩니다(집계 한 줄로만 표시). 비워두면 종전대로 매 세션 출력됩니다 — 장기 보류(정책·담당자 부재형)는 날짜를 적어 신호 희석을 막고, 지금 답이 필요한 질문은 비워둡니다. 기한이 지나면 다시 출력되므로 영구 은닉은 되지 않습니다.
 - \`answered\` 또는 \`obsolete\` 항목은 관련 문서 반영을 확인한 뒤 큐에서 제거하거나 날짜별 아카이브로 옮깁니다.
@@ -1947,7 +1943,7 @@ function consumerProjectStateTemplate(rel, context) {
 
 - Supabase secret, GitHub/GitLab Pages 설정, Apple capability, 인증서, 스토어/클라우드 콘솔 설정처럼 로컬 코드 수정만으로 끝나지 않는 일을 기록합니다.
 - 완료되면 상태를 \`done\`으로 바꾸고, 확인한 날짜와 근거를 관련 작업 칸에 남깁니다.
-- 수동 조치가 구현 방향에 영향을 주면 \`decision-log.md\`에도 결정 근거를 남깁니다.
+- 수동 조치가 구현 방향을 바꾸는 중요한 결정이면 사용자 허락을 받아 \`decision-log.md\`에도 근거를 남깁니다.
 `;
 
     case '.harness/session/next-session-reminder.md':
@@ -1999,7 +1995,7 @@ function consumerProjectStateTemplate(rel, context) {
 ## 기록 원칙
 - 한 번뿐인 구현 세부사항은 기록하지 않습니다.
 - 반복되는 도메인 규칙, 아키텍처 경계, 검증 기준만 남깁니다.
-- 오래된 사실을 바꿀 때는 \`decision-log.md\`에 변경 이유를 남깁니다.
+- 오래된 사실을 바꿀 때 이유는 보통 커밋 메시지로 충분합니다. git 이력만으로 안 보이는 중요한 기준 변경일 때만 사용자 허락을 받아 \`decision-log.md\`에 남깁니다.
 - 한 항목은 한 줄로 유지하고, 같은 사실은 새 항목으로 추가하지 말고 기존 항목을 업데이트합니다.
 - 틀렸거나 supersede된 기억은 현재 파일에 남겨두지 말고 삭제하거나 유효한 사실로 교체합니다.
 `;
@@ -2740,11 +2736,17 @@ const HARNESS_GITATTRIBUTES_GROUPS = [
 // 이 속성이 실제로 필요한 파일들 — 패턴이 아니라 **파일**로 판정한다. git 은 마지막에 매칭되는 줄이 이기므로,
 // 패턴 문자열만 비교하면 팀이 `*.cmd text eol=lf` 처럼 다른 모양으로 정해 둔 선택을 우리 줄이 조용히 덮는다
 // (적대적 리뷰 P2-5: 문자열 비교로는 세 가지 팀 표기 중 셋 다 덮였다). git 에게 해석 결과를 물어 판정한다.
+// 판정에는 저장소가 공유하는 규칙만 쓴다(0.2.153) — 설치하는 사람의 개인 전역(core.attributesFile, 기본 ~/.config/git/attributes)과
+// 시스템 attributes 가 섞이면, 그 사람이 `* text=auto eol=lf` 같은 개인 설정을 쓸 때 "이미 정해져 있다"로 읽혀 공유 파일에 줄이 빠지고
+// 그 설정이 없는 팀원에게 경고·충돌이 돌아간다. 없는 파일을 core.attributesFile 로 가리키면 git 은 오류 없이 개인 전역을 건너뛴다.
+// 클론별 개인 규칙($GIT_DIR/info/attributes)은 끌 방법이 없어 남는다 — 쓰는 사람이 드물다.
 function resolvedAttribute(target, attribute, rel) {
-  const result = spawnSync('git', ['check-attr', attribute, '--', rel], {
+  const noPersonalAttributes = join(target, '.git', 'harness-no-personal-attributes');
+  const result = spawnSync('git', ['-c', `core.attributesFile=${noPersonalAttributes}`, 'check-attr', attribute, '--', rel], {
     cwd: target,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
+    env: { ...process.env, GIT_ATTR_NOSYSTEM: '1' },
   });
   // git 이 없거나 저장소가 아니면 판정 불가 → null 을 내고 문자열 비교 폴백으로 떨어진다.
   if (result.status !== 0 || typeof result.stdout !== 'string') return null;
@@ -3716,16 +3718,32 @@ function main() {
     }
 
     const backupLine = renderBackupSummary(backupSummary, opts.dryRun);
+    // 스택이 적용된 프로젝트에서도 이 블록이 뜬다 — `harness update` 는 스택 init 다음에 공통 init 을 마지막으로
+    // (embedded 아님) 돌린다. 거기서 "공통 하네스만 설치했습니다"라고 하면 스택이 빠진 것처럼 읽혔다(scorecard-print #59).
+    // 그래서 lock 의 스택 기록으로 문장을 고른다. dry-run 은 lock 을 쓰지 않으므로 있는 lock 을 읽는다 — 상태 한 줄 때문에
+    // 설치가 멈추면 안 되니 깨진 lock 은 "스택 없음"으로 읽는다(손상은 다른 자리가 알린다).
+    let appliedStack = writtenLock?.stackHarness ?? null;
+    if (!writtenLock) {
+      try {
+        appliedStack = readJson(join(TARGET, LOCK_PATH), {})?.stackHarness ?? null;
+      } catch {
+        appliedStack = null;
+      }
+    }
+    const baseVersionLabel = `공통 하네스 v${writtenLock?.baseHarness?.version ?? sourcePkg.version ?? 'dry-run'}`;
+    const stateHead = appliedStack
+      ? `  - 적용된 스택: ${appliedStack.id ?? 'unknown'} — 공통 하네스와 함께 그대로 적용되어 있습니다.
+  - 설치 버전: ${baseVersionLabel} · 스택 하네스 v${appliedStack.version ?? 'unknown'}`
+      : `  - 이번 선택: 공통 하네스만 설치했습니다.
+  - 설치 버전: ${baseVersionLabel}`;
     console.log(`
 ::: 공통 하네스 설치 완료 :::
 
 ::: 현재 상태 :::
-  - 이번 선택: 공통 하네스만 설치했습니다.
-  - 설치 버전: 공통 하네스 v${writtenLock?.baseHarness?.version ?? sourcePkg.version ?? 'dry-run'}
+${stateHead}
   - 설치/갱신된 하네스 관리 파일: ${installed.added + installed.updated}개
   - 보존된 프로젝트 소유/로컬 수정 파일: ${installed.skipped + projectState.preserved}개${(installed.preservedForeignFiles?.length ?? 0) > 0 ? ` (그중 하네스 원본과 다른 동명 파일 ${installed.preservedForeignFiles.length}개 — 위 ⚠ 참조: ${installed.preservedForeignFiles.join(', ')})` : ''}${backupLine ? `\n  - ${backupLine}` : ''}
-  - package.json 주입 별칭: 0개 (모든 하네스 명령은 .harness/bin/harness 런처)${renderRetiredScriptsNotice(pkg.retired) ? `\n  - ${renderRetiredScriptsNotice(pkg.retired)}` : ''}
-  - 스택 기준은 나중에 추가할 수 있습니다.
+  - package.json 주입 별칭: 0개 (모든 하네스 명령은 .harness/bin/harness 런처)${renderRetiredScriptsNotice(pkg.retired) ? `\n  - ${renderRetiredScriptsNotice(pkg.retired)}` : ''}${appliedStack ? '' : '\n  - 스택 기준은 나중에 추가할 수 있습니다.'}
   - 단순 운영 건이면 지금 상태로 작업을 시작해도 됩니다.
 `);
     if (!recognizedManifest) {
@@ -3747,9 +3765,9 @@ ${renderNodeStep(TARGET)}
   4) 맞는 스택 기준이 있으면 해당 스택 하네스의 init 명령을 실행
        예: npx -y git+<스택-저장소>#<tag> init
             (주소는 3)의 standards:list 출력에 나옵니다 — 본체는 특정 스택 주소를 들고 있지 않습니다)
-  5) 팀 기준으로 남길 판단이 생기면 기록
-       .harness/session/decision-log.md
-       또는 판단이 필요하면 .harness/session/developer-input-queue.md
+  5) 팀이 정해야 할 판단이 생기면 질문으로 남김
+       .harness/session/developer-input-queue.md
+       결정 로그(.harness/session/decision-log.md)는 중요한 결정만, 사용자 허락을 받고 씁니다
   5-1) 설치 결과 리포트 — 이 출력 맨 끝의 "::: 설치 결과 리포트 :::"를 보고 사용자에게 꼭 물어봅니다
   6) 필요하면 scaffold 템플릿 후보 조회 후 적용
        .harness/bin/harness templates:list

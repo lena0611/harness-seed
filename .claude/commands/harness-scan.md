@@ -45,7 +45,7 @@ allowed-tools: Read, Glob, Grep, Write, Edit, Bash
 - `.harness/project/workflow-rules.md`: 개발, 리뷰, 릴리스, 장애 대응 흐름
 - `.harness/policy/profile.json`: active stack 또는 `none`
 - `.harness/session/active-context.md`: 현재 작업 맥락
-- `.harness/session/decision-log.md`: 선택한 구조와 이유
+- `.harness/session/decision-log.md`: 선택한 구조와 이유 (중요한 것만, 사용자 허락을 받은 뒤)
 - `.harness/session/developer-input-queue.md`: 확인이 필요한 질문
 
 ## 4. 검증

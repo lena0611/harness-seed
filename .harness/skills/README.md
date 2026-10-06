@@ -73,4 +73,4 @@ Claude Code의 slash command나 Codex의 외부 skill 시스템과 같은 실행
 2. `harness:context -- "<작업 설명>"`가 작업 유형과 관련 문서를 좁힙니다.
 3. 같은 결과 안에서 관련 스킬을 선택합니다.
 4. 에이전트는 선택된 스킬의 `read`, `commands`, `outputs`를 기준으로 작업 계획을 세웁니다.
-5. 작업 후 `decision-log.md`, `project-memory.md`, `next-session-reminder.md` 중 필요한 파일에만 기록합니다.
+5. 작업 후 `decision-log.md`, `project-memory.md`, `next-session-reminder.md` 중 필요한 파일에만 기록합니다. 결정 로그는 중요한 결정이나 모두가 알아야 할 공유 내용이 생겼을 때만, 사용자 허락을 받고 씁니다.

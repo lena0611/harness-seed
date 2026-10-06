@@ -55,5 +55,5 @@ Workstream handoff
 - 도메인 규칙: `.harness/project/domain-rules.md`
 - 구조 결정: `.harness/project/architecture-rules.md`
 - 검증/릴리스 절차: `.harness/project/workflow-rules.md`
-- 중요한 결정 이유: `.harness/session/decision-log.md`
+- 중요한 결정 이유: `.harness/session/decision-log.md` (사용자 허락 후)
 - 다음 세션 인계: `.harness/session/next-session-reminder.md`

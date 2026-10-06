@@ -657,7 +657,7 @@
             <div class="ff-group write">
               <span class="ff-tag write">쓰기</span>
               <ul>
-                <li><code>.harness/session/decision-log.md</code> — 자명하지 않은 판단만</li>
+                <li><code>.harness/session/decision-log.md</code> — 자명하지 않은 중요한 결정만, 사용자 허락 후</li>
                 <li><code>.harness/project/domain-rules.md</code> 등 룰 문서 — 반복 패턴 승격 시</li>
                 <li><code>.harness/session/developer-input-queue.md</code> — 보류 질문</li>
               </ul>
@@ -806,7 +806,7 @@
         agent: ['CLAUDE.md, session-start-alert, active-context를 최소 기준으로 읽습니다.', '세션 재개 시 decision-log와 project-memory를 추가 확인합니다.'],
         commands: ['.harness/bin/harness impact'],
         files: ['CLAUDE.md', '.harness/session/session-start-alert.md', '.harness/session/active-context.md'],
-        fallback: ['진입점과 실제 프로젝트 기준이 충돌하면 decision-log에 충돌 출처를 남깁니다.']
+        fallback: ['진입점과 실제 프로젝트 기준이 충돌하면 충돌 출처를 사용자에게 알리고, 남길 만한 결정이면 허락을 받아 decision-log에 남깁니다.']
       },
       priority: {
         title: '우선순위 판단',
@@ -833,7 +833,7 @@
         agent: ['harness:context가 기준 본문 수화, 최신 확인(비파괴), 세 상태 표시를 함께 처리합니다.', '"기준 이후 바뀐 문서"는 최신 본문을 읽고 구현하고, 반영 후 spec:settle로 정산합니다.', '구현한 기능의 기획 문서가 있으면 spec-map.md에 매핑 한 줄을 남깁니다.'],
         commands: ['.harness/bin/harness context "작업 설명"', '.harness/bin/harness spec:status', '.harness/bin/harness spec:settle'],
         files: ['.harness/spec-lock.json', '.harness/project/spec-authority-workflow.md', '.harness/project/spec-map.md'],
-        fallback: ['미연동 프로젝트에서 요구사항 기반 개발을 요청받으면 최초 1회만 기획 저장소 주소를 묻고, 없다면 decision-log에 보류를 기록해 같은 질문을 반복하지 않습니다.']
+        fallback: ['미연동 프로젝트에서 요구사항 기반 개발을 요청받으면 최초 1회만 기획 저장소 주소를 묻고, 없다면 허락을 받아 decision-log에 보류를 기록해 같은 질문을 반복하지 않습니다.']
       },
       impact: {
         title: '영향/충돌 정리',
@@ -842,7 +842,7 @@
         agent: ['변경 후보를 feature, config, harness, generated로 나눠 봅니다.', '문서나 코드 한쪽만 바뀐 후보 중 실제 기준 변경만 확인합니다.'],
         commands: ['.harness/bin/harness impact'],
         files: ['.harness/policy/policy-registry.json', '.harness/project/architecture-rules.md', '.harness/project/workflow-rules.md'],
-        fallback: ['의도적인 예외는 waiver나 decision-log에 남깁니다.']
+        fallback: ['의도적인 예외는 waiver에 남기고, 중요한 결정이면 허락을 받아 decision-log에도 남깁니다.']
       },
       draft: {
         title: '초안 구현',
@@ -865,7 +865,7 @@
       'direct-edit': {
         title: '직접 수정 반영',
         summary: '개발자 수정분은 사용자 소유 변경으로 간주하고 최종 후보에 포함합니다.',
-        developer: ['직접 수정한 이유가 기준 변화라면 decision-log에 남깁니다.'],
+        developer: ['직접 수정한 이유가 중요한 기준 변화라면 decision-log에 남깁니다 — 커밋 메시지로 알 수 있는 건 적지 않습니다.'],
         agent: ['사용자 수정분을 되돌리지 않고 연동되는 문서와 검증만 보강합니다.'],
         commands: ['git diff'],
         files: ['.harness/session/decision-log.md', '.harness/session/active-context.md'],
@@ -893,7 +893,7 @@
         title: '문서-코드 동기화',
         summary: '기준만 바뀌었는지, 코드만 바뀌었는지 확인하고 필요한 반대편을 보강합니다.',
         developer: ['규칙을 바꿨다면 구현이나 예외 기록이 함께 있는지 확인합니다.'],
-        agent: ['한쪽 변경 신호는 의미 불일치 판정이 아님을 전제로 해석합니다.', '일반 구현 변경은 기록 없이 진행하고 지속되는 구조 판단만 decision-log에 남깁니다.', '결정을 폐기·번복한 커밋에서는 연결 계약 문서에 반대 서술이 남지 않았는지 확인합니다.'],
+        agent: ['한쪽 변경 신호는 의미 불일치 판정이 아님을 전제로 해석합니다.', '일반 구현 변경은 기록 없이 진행하고 지속되는 구조 판단만 사용자 허락을 받아 decision-log에 남깁니다.', '결정을 폐기·번복한 커밋에서는 연결 계약 문서에 반대 서술이 남지 않았는지 확인합니다.'],
         commands: ['.harness/bin/harness impact', '.harness/bin/harness check  # 최종 검증만 요청했거나 hook 미설치/우회 시'],
         files: ['.harness/project/*.md', '.harness/session/decision-log.md', '.harness/policy/waivers.json'],
         fallback: ['초기 설치나 스택 적용 직후의 문서 추가는 정보성으로 해석합니다.']

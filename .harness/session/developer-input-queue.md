@@ -30,7 +30,7 @@
 ## 운영 원칙
 - `open` 또는 `deferred` 항목은 `session-start-alert.md`에서 반드시 언급합니다.
 - 개발자가 유보를 선택하면 해당 항목을 삭제하지 말고 `deferred`로 바꿉니다.
-- 답변을 받으면 관련 문서(`project-charter.md`, `active-context.md`, `decision-log.md`)를 함께 갱신합니다.
+- 답변을 받으면 관련 문서(`project-charter.md`, `active-context.md` 등)를 함께 갱신합니다. 답이 중요한 결정이면 사용자 허락을 받아 `decision-log.md`에도 남깁니다.
 - `answered` 또는 `obsolete` 항목은 관련 문서 반영을 확인한 뒤 큐에서 제거하거나 날짜별 아카이브로 옮깁니다.
 - 상시 로드되는 큐에는 `open`과 `deferred` 항목만 유지합니다.
 - **재검토일**(YYYY-MM-DD)을 적으면 그 날짜까지 세션 시작 알림에서 유예됩니다(집계 한 줄로만 표시). 비워두면 종전대로 매 세션 출력됩니다 — 장기 보류(정책·담당자 부재형)는 날짜를 적고, 지금 답이 필요한 질문은 비워둡니다. 기한이 지나면 다시 출력되므로 영구 은닉은 되지 않습니다.

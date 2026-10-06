@@ -380,7 +380,7 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2
 [harness] verify: harness:check 결과 (프로젝트 도구로 확인한 것이 있으면 함께)
 ```
 
-이 trace는 `harness:handoff`, `harness:impact`, `harness:check`, 에이전트 최종 응답이 서로 같은 흐름을 말하게 만드는 용도입니다. 자세한 판단 근거는 `decision-log.md`, `developer-input-queue.md`, `waivers.json` 중 알맞은 곳에 남깁니다.
+이 trace는 `harness:handoff`, `harness:impact`, `harness:check`, 에이전트 최종 응답이 서로 같은 흐름을 말하게 만드는 용도입니다. 자세한 판단 근거는 `decision-log.md`, `developer-input-queue.md`, `waivers.json` 중 알맞은 곳에 남깁니다(`decision-log.md`는 중요한 결정만, 사용자 허락 후).
 
 ## 로컬 룰이 너무 많아질 때
 
@@ -389,7 +389,7 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2
 1. 항상 읽는 최소 기준은 `CLAUDE.md`, 최상위 정책 참조, 세션 시작 알림, 현재 컨텍스트로 제한합니다.
 2. 에이전트는 큰 작업이나 낯선 작업 전에 `harness:context`를 사용해 판단 기준, 충돌 우선순위, 영향 후보를 좁힙니다. 개발자가 업무 지시 때마다 직접 실행할 필요는 없습니다.
 3. 긴 룰 문서는 인덱스와 세부 문서로 나누고, 상단에는 최신 요약과 적용 범위를 둡니다.
-4. 오래된 결정은 삭제하기보다 `decision-log.md`에 변경 이유를 남기고 최신 기준만 프로젝트 룰에 남깁니다.
+4. 오래된 결정은 바로 지우지 않고 최신 기준만 프로젝트 룰에 남깁니다. 바꾸는 이유는 보통 커밋 메시지로 충분하고, git 이력만으로 안 보이는 중요한 기준 변경일 때만 사용자 허락을 받아 `decision-log.md`에 남깁니다.
 5. 한 번뿐인 구현 세부사항은 프로젝트 룰로 승격하지 않습니다.
 
 즉, 프로젝트 룰은 무제한 프롬프트 재료가 아니라 검색 가능한 기준 저장소로 봅니다. 에이전트는 최소 기준을 먼저 읽고, 나머지는 작업 설명과 현재 diff에 맞춰 선택적으로 가져옵니다.
@@ -407,7 +407,7 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2
 
 `harness:sync`는 현재 프로젝트의 구조, import, 스크립트, 감지된 패턴을 `.harness/generated/**` 아래에 재생성합니다. `harness:context`는 작업 설명을 기준으로 `.harness/session/task-context.md`에 `Agent Decision Context`를 남깁니다. 이 문서는 작업 유형, 관련 기준, 충돌 우선순위, 영향 후보, 검증 요구사항을 한곳에 모읍니다.
 
-이 산출물은 원본이 아닙니다. 진실 출처는 실제 코드, 설정 파일, `.harness/project/*.md`, `.harness/policy/*.md`입니다. 생성 컨텍스트와 원본이 충돌하면 원본을 우선하고, 기준 충돌이나 예외는 `decision-log.md` 또는 `waivers.json`에 남깁니다.
+이 산출물은 원본이 아닙니다. 진실 출처는 실제 코드, 설정 파일, `.harness/project/*.md`, `.harness/policy/*.md`입니다. 생성 컨텍스트와 원본이 충돌하면 원본을 우선하고, 기준 충돌이나 예외는 `waivers.json`에 남기거나 중요한 결정이면 사용자 허락을 받아 `decision-log.md`에 남깁니다.
 
 긴 대화창에서 여러 업무가 섞여 에이전트의 현재 범위 인식이 흐려지면 [Workstream 대화창 분리 가이드](.harness/documentation/workstream-chat-splitting-guide.md)를 참고합니다. 이 방식은 선택형이며, 프로젝트가 session workstreams README를 만들었을 때만 매 요청 시작 시 workstream을 식별합니다.
 
@@ -482,7 +482,7 @@ Harness check summary
 | mode | 대상 | 검사 해석 |
 | --- | --- | --- |
 | `bootstrap` | 프로젝트 초입 또는 하네스 첫 적용 직후 | TBD와 초기 기준 추가를 정보성 안내로 봅니다. |
-| `active` | 일반 개발 중 | 기준 후보와 decision-log 기록을 권장합니다. |
+| `active` | 일반 개발 중 | 기준 후보 정리를 권장합니다(결정 로그는 중요한 결정만, 사용자 허락 후). |
 | `maintenance` | 안정화된 운영/유지보수 프로젝트 | 변경 영향도, 예외, 회귀 위험을 더 중요하게 봅니다. |
 | `strict` | CI, 릴리스, 보호 브랜치 | 자동 검증 실패와 명시적으로 강제한 동기화 후보를 실패 기준으로 봅니다. 일반적인 한쪽 변경 후보는 비차단 검토로 유지합니다. |
 
@@ -518,7 +518,7 @@ Harness check summary
 | `.harness/project/architecture-rules.md` | 책임 경계, 데이터 흐름, 금지 구조 |
 | `.harness/project/workflow-rules.md` | 작업 순서, 리뷰/검증 방식, 반복 업무 패턴 |
 | `.harness/project/commit-push-rules.md` | 완료 승인, commit/push, hook 검증 기준 |
-| `.harness/session/decision-log.md` | 아직 영구 규칙으로 확정하지 않은 판단과 선택 이유 |
+| `.harness/session/decision-log.md` | 중요한 결정과 그 이유 — 코드·git 이력으로 알 수 없는 것만, 사용자 허락을 받고 씁니다 |
 | `.harness/session/developer-input-queue.md` | 팀 확인이 필요한 미결 질문 |
 
 하네스를 인지하는 에이전트는 반복되는 규칙, 중요한 판단, 검증 기준이 드러나면 위 문서 중 맞는 위치에 후보를 남기거나 승격합니다. 단발성 구현 메모는 프로젝트 룰로 승격하지 않습니다.
@@ -591,7 +591,7 @@ Harness check summary
 
 현재 실제 스택 하네스가 하나뿐이어도 구조는 특정 스택에 묶여 있지 않습니다. API, 배치, 모바일, 라이브러리 패키지, 운영 도구처럼 다른 개발 스택도 같은 방식으로 별도 스택 하네스를 만들 수 있습니다. 새 스택 하네스를 만들 때는 `.harness/stacks/authoring-guide.md`를 기준으로 범위, manifest 계약, compatibility 검사, instruction 작성, 릴리스 절차를 정리합니다.
 
-`none`은 스택 기준을 아직 고르지 않았거나, 공통 기준만으로 운영하기로 한 상태입니다. 일반 프로젝트 적용 흐름에서는 `harness:scan` 리포트의 충돌 후보를 확인하고, 맞는 스택 하네스가 없으면 공통 기준 단독 운영 사유를 `decision-log.md`에 기록합니다.
+`none`은 스택 기준을 아직 고르지 않았거나, 공통 기준만으로 운영하기로 한 상태입니다. 일반 프로젝트 적용 흐름에서는 `harness:scan` 리포트의 충돌 후보를 확인하고, 맞는 스택 하네스가 없으면 공통 기준만으로 운영합니다(`activeStack: none` 이 그 기록).
 
 본체에는 특정 스택 기준이나 템플릿을 넣지 않습니다. 스택 기준은 `ai-standard/stacks` 쪽에서, 실제 scaffold 템플릿은 `ai-standard/scaffolds` 쪽에서 관리합니다. 본체 자신은 `ai-standard/harnesses`에 남습니다.
 
@@ -604,7 +604,7 @@ npx -y git+<스택-저장소>#<tag> init
 .harness/bin/harness check
 ```
 
-적용 후에는 `decision-log.md`에 "공통 기준 단독 운영에서 스택 기준 적용으로 전환"한 이유와 적용한 스택 버전을 남깁니다.
+적용한 스택과 버전은 `profile.json`·`harness-lock.json`·커밋이 기록합니다. 전환 이유가 팀이 알아야 할 결정이면 사용자 허락을 받아 `decision-log.md`에 남깁니다.
 
 스택 하네스 후보는 다음 명령으로 조회합니다.
 
@@ -640,7 +640,7 @@ npx -y git+<스택-저장소>#<tag> init
 .harness/bin/harness template:gap
 ```
 
-제품 템플릿의 개발 가이드는 프로젝트 로컬룰 전체로 복사하지 않습니다. 템플릿을 적용하거나 계약만 연결하면 `.harness/project/template-contract.md`가 생성되어 템플릿 가이드 스냅샷과 현재 프로젝트 하네스를 연결합니다. `template:gap` 결과를 수용하지 않는 항목은 관리 섹션 밖, `decision-log.md` 또는 다른 `.harness/project/*` 문서에 기록합니다.
+제품 템플릿의 개발 가이드는 프로젝트 로컬룰 전체로 복사하지 않습니다. 템플릿을 적용하거나 계약만 연결하면 `.harness/project/template-contract.md`가 생성되어 템플릿 가이드 스냅샷과 현재 프로젝트 하네스를 연결합니다. `template:gap` 결과를 수용하지 않는 항목은 관리 섹션 밖이나 다른 `.harness/project/*` 문서에 기록하고, 중요한 결정이면 사용자 허락을 받아 `decision-log.md`에도 남깁니다.
 
 권장 그룹 구조는 다음과 같습니다.
 

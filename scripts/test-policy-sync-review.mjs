@@ -62,6 +62,8 @@ function makeFixture() {
   fs.mkdirSync(path.join(target, 'src/apis'), { recursive: true })
   fs.mkdirSync(path.join(target, 'docs'), { recursive: true })
   fs.copyFileSync(sourceHarness, path.join(target, '.harness/bin/policy-harness.mjs'))
+  // policy-harness 가 같은 폴더의 결정 로그 보초를 import 한다(0.2.152) — 같이 놓지 않으면 픽스처에서 모듈을 못 찾는다.
+  fs.copyFileSync(path.join(repoRoot, '.harness/bin/decision-log-lint.mjs'), path.join(target, '.harness/bin/decision-log-lint.mjs'))
   fs.writeFileSync(path.join(target, 'src/apis/users.js'), 'export const users = []\n')
   fs.writeFileSync(path.join(target, 'docs/api.md'), '# API contract\n')
   writeJson(target, '.harness/policy/profile.json', {

@@ -57,9 +57,9 @@
 > - 사내 스택 하네스 — `.harness/bin/harness standards:list`로 `ai-standard/stacks`의 스택 하네스 패키지 조회
 > - scaffold 템플릿 — 스택 하네스 적용 후 `.harness/bin/harness templates:list`로 후보를 조회한 뒤 선택
 > - 로컬 스택 자산 — 별도 폴더의 `manifest.json` 경로를 `stackManifest`에 기록
-> - `none` — 예외적으로 공통 기준만 운영. 사유를 `decision-log.md`에 기록
+> - `none` — 예외적으로 공통 기준만 운영(`activeStack: none` 이 그 기록)
 
-선택 결과는 `.harness/policy/profile.json`의 `activeStack`에 기록합니다. 외부 스택 자산이면 `stackManifest`도 함께 기록합니다. `none`을 유지하면 왜 스택 기준을 선택하지 않았는지 `decision-log.md`에 사유를 한 줄 남깁니다.
+선택 결과는 `.harness/policy/profile.json`의 `activeStack`에 기록합니다. 외부 스택 자산이면 `stackManifest`도 함께 기록합니다. `none`을 유지하면 그 값이 기록입니다. 맞는 스택이 있는데도 쓰지 않기로 했다면 그 이유만 사용자 허락을 받아 `decision-log.md`에 한 줄 남깁니다.
 
 ### 4. 스택 호환성 검증 및 적용
 선택된 스택이 동작 가능한 상태인지 다음으로 결정합니다.

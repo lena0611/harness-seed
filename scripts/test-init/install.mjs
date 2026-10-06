@@ -19,6 +19,7 @@ import {
   makeTarget,
   runInit,
   runInitDefaultHooks,
+  runInitWithEnv,
   runGuard,
   readTargetGitConfig,
   hasWrapper,
@@ -163,7 +164,9 @@ function cleanInstallCreatesExpectedFiles() {
   assert(decisionLog.includes('사용자가 하네스를 직접 언급하지 않았더라도'), 'consumer decision log should mention implicit harness decisions')
   assert(decisionLog.includes('→ <대상 문서> 참조'), 'consumer decision log should describe pointer compaction')
   assert(decisionLog.includes('append-only로만 늘리지 말고'), 'consumer decision log should describe memory hygiene')
-  assert(decisionLog.includes('하네스 초기 설치 또는 업데이트'), 'consumer decision log should include install entry')
+  // 0.2.153: 결정 로그는 작업 기록이 아니다 — 설치 사실은 harness-lock.json 과 git 이 기록하므로 템플릿이 항목을 심지 않는다.
+  assert(!decisionLog.includes('하네스 초기 설치 또는 업데이트'), 'consumer decision log must not auto-seed an install entry (install facts live in harness-lock.json and git)')
+  assert(decisionLog.includes('쓰기 전에 사용자에게 묻습니다'), 'consumer decision log should state the ask-before-writing step')
   assert(!decisionLog.includes('정식 공개 전 공개 명령 정리'), 'consumer decision log should not include seed development history')
   assert(!decisionLog.includes('시드 하네스 저장소 분리'), 'consumer decision log should not include seed repository history')
 
@@ -1565,6 +1568,31 @@ function installDeclaresCmdLineEndingsSoGitStopsWarning() {
   }
 }
 
+// 0.2.153: 속성 판정은 저장소가 공유하는 규칙만으로 한다. 설치하는 사람의 개인 전역 attributes(~/.config/git/attributes)가
+// 판정에 섞이면, 그 사람이 `* text=auto eol=lf` 같은 개인 설정을 쓸 때 "이미 정해져 있다"로 읽혀 공유 .gitattributes 에 줄이
+// 빠지고 — 그 설정이 없는 팀원에게 CRLF 경고와 결정 로그 머지 충돌이 돌아간다(가짜 HOME 실측).
+function personalGitattributesDoNotDecideTheSharedFile() {
+  const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-fake-home-'))
+  fs.mkdirSync(path.join(fakeHome, '.config', 'git'), { recursive: true })
+  fs.writeFileSync(path.join(fakeHome, '.config', 'git', 'attributes'), '* text=auto eol=lf\n*.md merge=union\n')
+  // HOME 을 바꿔 실제 ~/.gitconfig(core.attributesFile 이 있을 수 있다)를 끊고, XDG 기본 위치로 가짜 개인 설정을 읽힌다.
+  const personal = { HOME: fakeHome, XDG_CONFIG_HOME: path.join(fakeHome, '.config') }
+  const target = makeTarget()
+
+  // 가짜 개인 설정이 실제로 먹히는지 먼저 본다 — 안 먹히면 아래 단언은 아무것도 증명하지 않는다.
+  const before = run('git', ['check-attr', 'eol', 'merge', '--', '.harness/bin/harness.cmd', '.harness/session/decision-log.md'], { cwd: target, env: { ...process.env, ...personal } })
+  assert(before.includes('.harness/bin/harness.cmd: eol: lf') && before.includes('.harness/session/decision-log.md: merge: union'), `the fake personal attributes must be in effect (got: ${before})`)
+
+  runInitWithEnv(target, personal, '--no-hooks', '--no-scan', '--no-handoff', '--no-check')
+  const shared = exists(target, '.gitattributes') ? read(target, '.gitattributes') : '(no .gitattributes)'
+  assert(shared.includes('.harness/bin/*.cmd text eol=crlf'), `a personal eol setting must not keep the cmd line out of the shared file (got: ${shared})`)
+  assert(shared.includes('.harness/session/decision-log.md merge=union'), `a personal merge setting must not keep the union line out of the shared file (got: ${shared})`)
+
+  // 개인 설정이 없는 팀원 눈으로 본 결과 — 공유 파일만으로 의도한 값이 나와야 한다.
+  const teammate = run('git', ['check-attr', 'eol', 'merge', '--', '.harness/bin/harness.cmd', '.harness/session/decision-log.md'], { cwd: target, env: { ...process.env, HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'harness-teammate-home-')), XDG_CONFIG_HOME: path.join(os.tmpdir(), 'harness-no-xdg') } })
+  assert(teammate.includes('.harness/bin/harness.cmd: eol: crlf') && teammate.includes('.harness/session/decision-log.md: merge: union'), `a teammate without personal settings must get the intended attributes (got: ${teammate})`)
+}
+
 // #22 ①(scorecard-print) 2단 체인 검증 잔여분(0.2.148, ~/practice/two-stage-lab 픽스처 실측). 스택 init이 공통을
 // 중간 태그까지 올린 뒤 공통 init이 최신까지 올리면 구간이 둘로 쪼개진다. 0.2.144의 `--update-from`은 **프로젝트에
 // 이미 깔려 있는 업데이터**가 넘기므로, 그보다 낮은 버전에 머문 프로젝트에서는 그 신호가 오지 않아 lock의
@@ -2359,6 +2387,7 @@ export {
   backupSkipsWhatGitCanRestoreAndRotatesSets,
   installDeclaresCmdLineEndingsSoGitStopsWarning,
   installDeclaresUnionMergeForDecisionLog,
+  personalGitattributesDoNotDecideTheSharedFile,
   twoStageUpdateRecordsTheRealStartVersion,
   updateNamesProjectOwnedFilesWhoseSeedChanged,
   installOutputEndsWithReportPrompt,

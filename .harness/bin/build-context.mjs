@@ -810,7 +810,7 @@ function renderContext() {
   lines.push('- 사용자 명시 지시와 회사 공통 필수 차단 기준을 먼저 확인합니다.')
   lines.push('- 프로젝트 기준이 스택/템플릿 기준보다 구체적이면 프로젝트 기준을 우선합니다.')
   lines.push('- 생성 컨텍스트는 기준이 아니며 원본 문서와 실제 코드가 우선합니다.')
-  lines.push('- 불명확한 기준 충돌은 `decision-log.md`, `developer-input-queue.md`, `waivers.json` 중 맞는 곳에 기록합니다.')
+  lines.push('- 불명확한 기준 충돌은 `developer-input-queue.md`에 질문으로 남깁니다. 정한 결과가 예외면 `waivers.json`, 중요한 결정이면 사용자 허락을 받아 `decision-log.md`에 남깁니다.')
   lines.push('')
   lines.push('## Selected Skills')
   lines.push('')

@@ -406,7 +406,7 @@ function printCriticalPathReview() {
       console.log(`    recommended verification: ${match.verification}`)
     }
   }
-  console.log('필요한 조치: 검증 결과와 수동 조치 여부를 decision-log, 업무 히스토리, manual-actions 중 알맞은 곳에 남기세요.')
+  console.log('필요한 조치: 검증 결과와 수동 조치 여부를 업무 히스토리나 manual-actions 중 알맞은 곳에 남기세요. 결정 로그는 중요한 결정만, 사용자 허락을 받고 씁니다.')
 
   return {
     matches,
@@ -420,7 +420,7 @@ function defaultCriticalPathRecommendation(glob) {
   if (glob.includes('domain') || glob.includes('algorithm')) return '도메인 회귀 테스트'
   if (glob.startsWith('ios/')) return 'Xcode 수동 빌드, capability/manual action 확인'
   if (glob.startsWith('android/')) return 'Android 로컬 빌드, 권한/manual action 확인'
-  return '변경 이유와 검증 결과를 decision-log 또는 업무 히스토리에 기록'
+  return '변경 이유와 검증 결과를 업무 히스토리나 커밋 메시지에 기록'
 }
 
 function countOpenManualActions() {

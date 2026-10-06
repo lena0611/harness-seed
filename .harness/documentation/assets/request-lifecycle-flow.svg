@@ -245,7 +245,7 @@
   <rect class="node-green" x="1345" y="805" width="350" height="72" rx="14" />
   <path class="arrow" d="M1195 978 H1305 V841 H1345" />
   <text class="label" x="1376" y="834">커밋 요약과 인계 정리</text>
-  <text class="small" x="1376" y="858">decision-log / active-context / memory</text>
+  <text class="small" x="1376" y="858">active-context / memory</text>
   <rect x="1574" y="812" width="56" height="22" rx="11" fill="#2563eb" />
   <text class="badge-text" x="1585" y="828">Token</text>
   <rect x="1638" y="812" width="44" height="22" rx="11" fill="#475569" />

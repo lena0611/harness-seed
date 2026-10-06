@@ -31,7 +31,7 @@ Codex나 Copilot 계열 에이전트는 Claude Code의 `SessionStart` hook과 sl
 
 - 리마인더: `.harness/session/next-session-reminder.md`
 - 장기 메모리: `.harness/session/project-memory.md`
-- 결정 로그: `.harness/session/decision-log.md`
+- 결정 로그: `.harness/session/decision-log.md` — 작업 기록이 아닙니다. 코드·git 이력으로 알 수 있는 건 적지 않고, 중요한 결정이나 모두가 알아야 할 공유 내용만 사용자 허락을 받고 남깁니다.
 
 큰 작업이나 낯선 요청은 `.harness/bin/harness context "<작업 설명>"` 결과의 Selected Skills를 보고 읽을 문서, 실행할 명령, 기록 위치를 좁힙니다.
 

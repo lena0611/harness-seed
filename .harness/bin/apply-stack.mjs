@@ -25,6 +25,9 @@ const stackRulesStart = '<!-- harness-stack-rules:start -->'
 const stackRulesEnd = '<!-- harness-stack-rules:end -->'
 const templateContractStart = '<!-- harness-template-contract:start -->'
 const templateContractEnd = '<!-- harness-template-contract:end -->'
+// 파일이 없을 때 apply 가 새로 만드는 머리. reset 이 "적용 직후 모습"을 다시 그릴 때도 같은 값을 쓴다.
+const stackRulesDefaultHead = '# 스택 프리셋 로컬 규칙\n\n'
+const templateContractDefaultHead = '# 템플릿 사용 계약\n\n'
 
 const args = process.argv.slice(2)
 const isReset = args.includes('--reset')
@@ -680,14 +683,14 @@ function renderTemplateContract(templateId, manifest, templateSnapshot) {
   lines.push('- 스택 일반 기준은 `stack-preset-rules.md`에서 확인합니다.')
   lines.push('- 템플릿 코드가 전제하는 계약은 위 템플릿 개발 가이드를 따릅니다.')
   lines.push('- 현재 프로젝트의 도메인, 예외, 운영 선택은 `domain-rules.md`, `architecture-rules.md`, `workflow-rules.md` 또는 이 파일의 관리 섹션 밖에 기록합니다.')
-  lines.push('- 템플릿 계약과 프로젝트 로컬룰이 충돌하면 `decision-log.md`에 선택 이유를 남깁니다.')
+  lines.push('- 템플릿 계약과 프로젝트 로컬룰이 충돌하면 선택 이유를 사용자 허락을 받아 `decision-log.md`에 남깁니다.')
 
   return `${lines.join('\n')}\n`
 }
 
 function applyStackLocalRules(stackId, manifest, manifestRoot) {
   const before = readTextIfExists(stackPresetRulesPath)
-  const current = before ?? '# 스택 프리셋 로컬 규칙\n\n'
+  const current = before ?? stackRulesDefaultHead
   const generated = renderStackLocalRules(stackId, manifest, manifestRoot)
   const next = upsertGeneratedSection(current, generated)
 
@@ -703,7 +706,7 @@ function applyStackLocalRules(stackId, manifest, manifestRoot) {
 
 function applyTemplateContract(templateId, manifest, templateSnapshot) {
   const before = readTextIfExists(templateContractPath)
-  const current = before ?? '# 템플릿 사용 계약\n\n'
+  const current = before ?? templateContractDefaultHead
   const generated = renderTemplateContract(templateId, manifest, templateSnapshot)
   const next = upsertGeneratedSection(current, generated, templateContractStart, templateContractEnd)
 
@@ -718,39 +721,75 @@ function applyTemplateContract(templateId, manifest, templateSnapshot) {
 }
 
 function restoreStackLocalRules(snapshot) {
+  restoreManagedSectionFile(snapshot, stackRulesStart, stackRulesEnd, stackRulesDefaultHead)
+}
+
+function restoreTemplateContract(snapshot) {
+  restoreManagedSectionFile(snapshot, templateContractStart, templateContractEnd, templateContractDefaultHead)
+}
+
+// reset 은 관리 구역만 적용 전으로 되돌린다(club-control-vue3 #60). 예전에는 첫 적용 때 찍은 파일 전체를
+// 되써서, 적용 뒤 프로젝트가 구역 밖에 적은 절이 스택 업데이트(reset → apply)마다 사라졌다 — 두 파일 모두
+// "관리 섹션 밖에는 프로젝트 내용을 적는다"고 안내하는 자리다. 구역 밖이 적용 직후 모습 그대로면 예전처럼
+// 스냅샷을 통째로 되쓴다(바이트까지 같게 · 적용 때 새로 만든 파일은 지운다). 구역 밖이 바뀌었으면 지금 파일을
+// 기준으로 관리 구역만 바꿔 끼우고, 파일은 지우지 않는다.
+function restoreManagedSectionFile(snapshot, startMarker, endMarker, defaultHead) {
   if (!snapshot?.path) {
     return
   }
 
   const abs = path.join(repoRoot, snapshot.path)
-  if (snapshot.existed) {
+  const original = snapshot.existed ? snapshot.content ?? '' : null
+  const current = readTextIfExists(abs)
+
+  if (current !== null) {
+    const now = splitManagedSection(current, startMarker, endMarker)
+    // 프로젝트가 관리 구역 표식까지 지웠다면 되돌릴 구역이 없다 — 파일 전체가 프로젝트 내용이다.
+    if (!now) {
+      return
+    }
+
+    const justApplied = splitManagedSection(upsertGeneratedSection(original ?? defaultHead, '', startMarker, endMarker), startMarker, endMarker)
+    if (now.before !== justApplied.before || now.after !== justApplied.after) {
+      const originalSection = original === null ? null : splitManagedSection(original, startMarker, endMarker)
+      const next = originalSection
+        ? `${now.before}${originalSection.block}${now.after}`
+        : joinAroundRemovedSection(now.before, now.after)
+      fs.writeFileSync(abs, next)
+      return
+    }
+  }
+
+  if (original !== null) {
     fs.mkdirSync(path.dirname(abs), { recursive: true })
-    fs.writeFileSync(abs, snapshot.content ?? '')
+    fs.writeFileSync(abs, original)
     return
   }
 
-  if (fs.existsSync(abs)) {
+  if (current !== null) {
     fs.unlinkSync(abs)
     removeEmptyParents(abs)
   }
 }
 
-function restoreTemplateContract(snapshot) {
-  if (!snapshot?.path) {
-    return
+function splitManagedSection(text, startMarker, endMarker) {
+  const startIndex = text.indexOf(startMarker)
+  const endIndex = text.indexOf(endMarker)
+  if (startIndex < 0 || endIndex < startIndex) {
+    return null
   }
 
-  const abs = path.join(repoRoot, snapshot.path)
-  if (snapshot.existed) {
-    fs.mkdirSync(path.dirname(abs), { recursive: true })
-    fs.writeFileSync(abs, snapshot.content ?? '')
-    return
+  return {
+    before: text.slice(0, startIndex),
+    block: text.slice(startIndex, endIndex + endMarker.length),
+    after: text.slice(endIndex + endMarker.length),
   }
+}
 
-  if (fs.existsSync(abs)) {
-    fs.unlinkSync(abs)
-    removeEmptyParents(abs)
-  }
+// 적용 전 파일에 관리 구역이 없었으면(apply 가 끝에 덧붙였으면) 구역을 빼고 앞뒤를 빈 줄 하나로 잇는다.
+function joinAroundRemovedSection(before, after) {
+  const body = [before.replace(/\s*$/, ''), after.trim()].filter(Boolean).join('\n\n')
+  return body ? `${body}\n` : ''
 }
 
 // ---------- Source adapters ----------

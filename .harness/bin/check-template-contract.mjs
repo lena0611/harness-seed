@@ -174,7 +174,7 @@ function renderReport(template, mode, results, manifestRel) {
   }
 
   lines.push('## 예외 기록', '')
-  lines.push('템플릿 계약을 의도적으로 따르지 않는 항목은 `.harness/session/decision-log.md`에 이유를 남기고, 반복되는 프로젝트 기준이면 `.harness/project/*-rules.md`로 승격합니다.')
+  lines.push('템플릿 계약을 의도적으로 따르지 않는 항목은 이유를 사용자 허락을 받아 `.harness/session/decision-log.md`에 남기고, 반복되는 프로젝트 기준이면 `.harness/project/*-rules.md`로 승격합니다.')
   return `${lines.join('\n')}\n`
 }
 

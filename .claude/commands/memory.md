@@ -14,7 +14,7 @@ allowed-tools: Read, Write, Edit
 
 ## 기준
 - 단기 진행 상황은 `active-context.md`에 둡니다.
-- 구조 결정과 이유는 `decision-log.md`에 둡니다.
+- 구조 결정과 이유는 `decision-log.md`에 둡니다 — 중요한 것만, 사용자 허락을 받은 뒤.
 - 본체 개발 메모리와 소비자 프로젝트 메모리는 설치 시 분리됩니다.
 - `project-memory.md`나 `MEMORY.md`류 인덱스는 한 항목 한 줄을 유지합니다.
 - 같은 사실은 새 항목으로 추가하지 말고 기존 항목을 업데이트합니다.

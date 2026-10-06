@@ -20,7 +20,7 @@ Copilot은 Claude Code의 `SessionStart` hook이나 slash command를 강제 실�
 
 - `.harness/session/next-session-reminder.md`
 - `.harness/session/project-memory.md`
-- `.harness/session/decision-log.md`
+- `.harness/session/decision-log.md` — 작업 기록이 아닙니다. 코드·git 이력으로 알 수 있는 건 적지 않고, 중요한 결정이나 모두가 알아야 할 공유 내용만 사용자 허락을 받고 남깁니다.
 
 ## 목차
 - 프로젝트 개요: 추가 예정 (`.harness/project/project-charter.md`)

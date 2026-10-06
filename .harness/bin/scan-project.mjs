@@ -622,10 +622,10 @@ function renderProjectRuleAuthoringGuide() {
 - \`.harness/project/coding-conventions.md\`: 언어·런타임 제약, 금지 문법·API, 서식, 네이밍 (도구가 못 잡는 것만)
 - \`.harness/project/workflow-rules.md\`: 작업 순서, 리뷰/검증 방식, 반복 업무 패턴
 - \`.harness/project/commit-push-rules.md\`: 완료 승인, commit/push, hook 검증 기준
-- \`.harness/session/decision-log.md\`: 아직 영구 규칙으로 확정하지 않은 판단과 선택 이유
+- \`.harness/session/decision-log.md\`: 중요한 결정과 그 이유 — 코드·git 이력으로 알 수 없는 것만, 사용자 허락을 받고 씁니다
 - \`.harness/session/developer-input-queue.md\`: 팀 확인이 필요한 미결 질문
 
-하네스를 인지하는 에이전트는 작업 중 반복되는 규칙, 중요한 판단, 검증 기준이 드러나면 위 문서 중 맞는 위치에 후보를 남기거나 승격합니다. 단발성 구현 메모는 프로젝트 룰로 승격하지 않고, 불확실한 내용은 decision-log 또는 developer-input-queue에 남깁니다.`
+하네스를 인지하는 에이전트는 작업 중 반복되는 규칙, 중요한 판단, 검증 기준이 드러나면 위 문서 중 맞는 위치에 후보를 남기거나 승격합니다. 단발성 구현 메모는 프로젝트 룰로 승격하지 않고, 불확실한 내용은 developer-input-queue에 질문으로 남깁니다. 결정 로그는 작업 기록이 아니므로 중요한 결정만 사용자 허락을 받고 씁니다.`
 }
 
 function renderHarnessEffectSummary({ profile, pkg, sourceRoots, testRoots, existingAiRuleDocs, styleGuideFiles, conflictCandidates }) {
@@ -664,7 +664,7 @@ function renderHarnessEffectSummary({ profile, pkg, sourceRoots, testRoots, exis
       '.harness/bin/harness check',
     ].filter(Boolean).join(', ')}.`)
   } else {
-    lines.push('테스트 루트나 test script가 없어 완료 기준이 사람마다 달라질 수 있습니다. 검증 전략을 선택해 workflow-rules.md 또는 decision-log.md에 남깁니다.')
+    lines.push('테스트 루트나 test script가 없어 완료 기준이 사람마다 달라질 수 있습니다. 검증 전략을 선택해 workflow-rules.md에 남깁니다.')
   }
 
   if (styleGuideFiles.length === 0) {
@@ -687,7 +687,7 @@ function renderDeveloperWorkflowChanges() {
 
   return formatList([
     `작업 시작: ${contextCommand}로 작업에 필요한 기준 문서와 스킬만 좁혀 읽습니다.`,
-    '작업 중: 반복되는 판단, 도메인 규칙, 검증 기준은 .harness/project/* 또는 decision-log.md에 남깁니다.',
+    '작업 중: 반복되는 판단, 도메인 규칙, 검증 기준은 .harness/project/*에 남깁니다. 결정 로그는 중요한 결정만, 사용자 허락을 받고 씁니다.',
     `작업 완료: ${checkCommand}로 기준 충돌, 문서 링크, 버전 상태, 프로젝트 검증을 한 번에 확인합니다.`,
     '인수인계: .harness/session/handoff.md가 설치/업데이트 직후 확인할 결론과 다음 행동을 유지합니다.',
   ])
@@ -884,7 +884,7 @@ function buildConflictCandidates({ profile, pkg, testRoots, styleGuideFiles, sty
   const activeStack = profile.activeStack || 'none'
 
   if (activeStack === 'none') {
-    conflicts.push('스택 기준 없음: 맞는 스택 하네스가 있으면 적용하고, 없거나 스택 독립 프로젝트라면 공통 기준 단독 운영 사유를 decision-log에 기록하세요.')
+    conflicts.push('스택 기준 없음: 맞는 스택 하네스가 있으면 적용하고, 없거나 스택 독립 프로젝트라면 공통 기준만으로 운영합니다(profile.json 의 activeStack: none 이 그 기록입니다).')
   }
 
   if (profile.stackManifest && !path.isAbsolute(profile.stackManifest) && !exists(profile.stackManifest)) {
@@ -927,13 +927,13 @@ function renderTestStrategyOptions(pkg, testRoots) {
     return '- 테스트 루트 또는 test script가 감지되었습니다. 현재 검증 전략을 `workflow-rules.md`에 맞게 유지하세요.'
   }
 
-  return `테스트 전략이 없습니다. 다음 중 하나를 선택해 \`.harness/project/workflow-rules.md\` 또는 \`.harness/session/decision-log.md\`에 기록하세요.
+  return `테스트 전략이 없습니다. 다음 중 하나를 선택해 \`.harness/project/workflow-rules.md\`에 기록하세요.
 
 1. 초기 단계: lint + build + 수동 확인
 2. 단위 테스트: 프로젝트 스택에 맞는 unit test 도구 도입
 3. 통합 테스트: API, 저장소, 외부 연동 경계 검증
 4. E2E 테스트: 주요 사용자/운영 흐름 검증
-5. 테스트 보류: 사유와 재검토 조건을 decision-log에 기록`
+5. 테스트 보류: 사유와 재검토 조건을 함께 기록`
 }
 
 function buildReport() {

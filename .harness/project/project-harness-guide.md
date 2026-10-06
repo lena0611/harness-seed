@@ -33,7 +33,7 @@
 3. `project-charter.md`와 `scope-contract.md`에 프로젝트 목적과 범위를 채웁니다.
 4. 기존 README, 위키, ADR, CI, 설정 파일, 반복 코드 패턴을 확인합니다.
 5. 발견한 내용을 도메인, 아키텍처, 작업 흐름, 설정 계약으로 나눕니다.
-6. 충돌이 있으면 `standards-layers.md`의 우선순위로 해석하고 `decision-log.md`에 선택 이유를 남깁니다.
+6. 충돌이 있으면 `standards-layers.md`의 우선순위로 해석하고, 선택 이유가 중요한 결정이면 사용자 허락을 받아 `decision-log.md`에 남깁니다.
 7. 검증 가능한 규칙은 관련 테스트, lint, build, 문서 검사, 리뷰 체크리스트와 연결합니다.
 8. `.harness/bin/harness check`로 문서 링크와 기준 동기화 상태를 확인합니다.
 
@@ -53,7 +53,7 @@
 | `workflow-rules.md` | 개발, 리뷰, 릴리스, 장애 대응, 검증 명령 |
 | `commit-push-rules.md` | commit/push 승인 이후 실행되는 git hook, 커밋 템플릿, 최종 안전 검사 |
 | `config-contract.md` | 환경변수, 설정 파일, secret, 런타임 설정 계약 |
-| `decision-log.md` | 기준 충돌, 예외, 아키텍처 변경의 선택 이유 |
+| `decision-log.md` | 기준 충돌, 예외, 아키텍처 변경처럼 중요한 결정의 이유(작업 기록이 아님, 사용자 허락 후) |
 | `developer-input-queue.md` | 확인이 필요한 질문과 보류된 판단 |
 
 프로젝트 하네스에서 가장 많이 쓰는 파일은 `domain-rules.md`, `architecture-rules.md`, `coding-conventions.md`, `workflow-rules.md`입니다. 나머지는 기준을 찾고 충돌을 해석하기 위한 지지 문서입니다.
@@ -221,7 +221,7 @@
 | 리뷰마다 반복되는 확인 항목 | `workflow-rules.md` 후보 |
 | 사람이 매번 기억해야 지켜지는 런타임 불변식 | 문서보다 테스트/CI/lint 가드 우선 (누락 = 빌드 실패) |
 | 설정 파일에 이미 고정된 스타일 | 스타일 규칙 초안 또는 로컬룰 |
-| 팀 합의가 필요한 충돌 | `developer-input-queue.md` 후 `decision-log.md` |
+| 팀 합의가 필요한 충돌 | `developer-input-queue.md` 후 `decision-log.md`(사용자 허락 후) |
 | 개인 작업 편의 | 개인룰에만 둠 |
 
 승격은 “문서가 많아 보이게 하기 위해” 하는 일이 아닙니다. 다음 작업에서 같은 실수를 줄이거나, 에이전트가 추측하지 않아도 되게 만드는 정보만 올립니다.
@@ -232,10 +232,10 @@
 
 - 프로젝트 하네스를 바꾼 뒤에는 `.harness/bin/harness check`를 실행합니다.
 - 문서가 길어질 때의 분리 기준은 `.harness/documentation/split-thresholds.md`가 정본입니다.
-- 룰 문서 상단에는 현재 따라야 할 요약과 적용 범위를 두고, 오래된 사례와 세부 근거는 하위 문서나 decision-log로 분리합니다.
+- 룰 문서 상단에는 현재 따라야 할 요약과 적용 범위를 두고, 오래된 사례와 세부 근거는 하위 문서로 분리합니다.
 - 에이전트가 모든 프로젝트 룰을 매번 읽는다고 가정하지 말고 `.harness/bin/harness context "<작업 설명>"`으로 판단 기준과 충돌 우선순위를 좁히게 합니다.
 - 규칙을 바꾸면 관련 테스트, CI, README, 운영 문서도 함께 봅니다.
-- 더 이상 맞지 않는 규칙은 삭제보다 먼저 `decision-log.md`에 변경 이유를 남깁니다.
+- 더 이상 맞지 않는 규칙은 바로 삭제하지 않습니다. 바꾸는 이유가 git 이력만으로 안 보이는 중요한 기준 변경이면 사용자 허락을 받아 `decision-log.md`에 남기고, 아니면 커밋 메시지로 충분합니다.
 - 임시 예외는 범위와 만료 조건을 남기고, 가능하면 `waivers.json`에 기록합니다.
 
 ## 에이전트에게 맡길 때

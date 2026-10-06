@@ -131,7 +131,7 @@ function renderDashboard() {
   const stackDecisionPanel = needsStackDecision
     ? `<section class="panel decision">
       <h2>스택 기준 없음: 정상 선택 가능</h2>
-      <p>현재는 공통 하네스만 설치된 상태입니다. 맞는 스택 하네스가 있으면 지금 또는 나중에 추가 적용하고, 없거나 스택 독립 프로젝트라면 공통 기준만 유지해도 됩니다. 공통 기준만 유지한다면 이유를 decision-log에 남깁니다.</p>
+      <p>현재는 공통 하네스만 설치된 상태입니다. 맞는 스택 하네스가 있으면 지금 또는 나중에 추가 적용하고, 없거나 스택 독립 프로젝트라면 공통 기준만 유지해도 됩니다. 이 경우 따로 남길 기록은 없습니다 — <code>profile.json</code> 의 <code>activeStack: none</code> 이 그 기록입니다.</p>
       <div class="commands">
         <code>.harness/bin/harness standards:list</code>
         <code>.harness/bin/harness stack:status</code>
@@ -404,7 +404,7 @@ function main() {
     console.log('Stack decision:')
     console.log('  현재는 공통 하네스만 설치된 상태입니다.')
     console.log('  맞는 스택 하네스가 있으면 .harness/bin/harness standards:list 로 후보를 확인하세요.')
-    console.log('  맞는 스택 하네스가 없으면 공통 기준만 유지하고 decision-log에 이유를 남기세요.')
+    console.log('  맞는 스택 하네스가 없으면 공통 기준만 유지합니다(profile.json 의 activeStack: none 이 그 기록입니다).')
   }
 
   if (shouldOpen) {

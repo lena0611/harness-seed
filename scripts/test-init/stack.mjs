@@ -69,6 +69,82 @@ function stackResetDoesNotResurrectDeletedProfileKeys() {
     'reset must still revert the stack-owned activeStack field')
 }
 
+// club-control-vue3 #60: 스택 업데이트는 같은 스택이면 reset → apply 를 돈다. reset 이 첫 적용 때 찍은 파일
+// 전체를 되써서, 적용 뒤 관리 구역 밖에 적은 프로젝트 절이 업데이트마다 사라졌다. 두 파일 모두 "구역 밖에
+// 프로젝트 내용을 적는다"고 안내하는 자리라, reset 은 관리 구역만 되돌려야 한다.
+function managedSectionResetKeepsProjectSectionsOutside() {
+  const target = makeTarget()
+  const preset = makePreset()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+
+  const rulesRel = '.harness/project/stack-preset-rules.md'
+  const seeded = read(target, rulesRel)
+
+  // 구역 밖을 손대지 않았으면 예전처럼 적용 전 파일로 정확히 돌아온다.
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
+  run(harnessBin(target), ['stack:reset'], { cwd: target })
+  assert(read(target, rulesRel) === seeded, 'an untouched file must come back byte for byte')
+
+  // 적용 뒤 구역 앞뒤에 프로젝트 절을 적는다.
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
+  const applied = read(target, rulesRel)
+  const projectAbove = '## 우리 팀 앞 절\n- 구역 앞에 적은 내용\n\n'
+  const projectBelow = '\n## 우리 팀 보충 규칙\n- 구역 뒤에 적은 내용\n'
+  fs.writeFileSync(path.join(target, rulesRel), applied.replace('<!-- harness-stack-rules:start -->', `${projectAbove}<!-- harness-stack-rules:start -->`) + projectBelow)
+
+  run(harnessBin(target), ['stack:reset'], { cwd: target })
+  const afterReset = read(target, rulesRel)
+  assert(afterReset.includes('- 구역 앞에 적은 내용') && afterReset.includes('- 구역 뒤에 적은 내용'), 'reset must keep project sections written outside the managed section')
+  assert(afterReset.includes('적용된 스택 프리셋이 없습니다.'), 'reset must still restore the managed section')
+  assert(!afterReset.includes('## 적용된 스택:'), 'reset must remove the stack rules from the managed section')
+
+  // 업데이트 한 바퀴(reset → apply)를 더 돌아도 남는다.
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
+  run(harnessBin(target), ['stack:reset'], { cwd: target })
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
+  const afterCycle = read(target, rulesRel)
+  assert(afterCycle.includes('- 구역 뒤에 적은 내용') && afterCycle.includes('## 적용된 스택:'), 'project sections must survive repeated update cycles')
+  run(harnessBin(target), ['stack:reset'], { cwd: target })
+
+  // 적용이 파일을 새로 만든 경우: 손대지 않았으면 지우고, 프로젝트가 적었으면 구역만 빼고 남긴다.
+  fs.unlinkSync(path.join(target, rulesRel))
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
+  run(harnessBin(target), ['stack:reset'], { cwd: target })
+  assert(!exists(target, rulesRel), 'a file the apply created must be removed when untouched')
+  run(harnessBin(target), ['stack:apply', '--preset-path', preset], { cwd: target })
+  fs.appendFileSync(path.join(target, rulesRel), projectBelow)
+  run(harnessBin(target), ['stack:reset'], { cwd: target })
+  const createdThenEdited = read(target, rulesRel)
+  assert(createdThenEdited.includes('- 구역 뒤에 적은 내용'), 'a file the apply created must survive reset once the project wrote in it')
+  assert(!createdThenEdited.includes('harness-stack-rules:start'), 'the managed section the apply added must be gone')
+
+  // 템플릿 계약 파일도 같은 자리다(이 견본 템플릿은 rules-only-demo 스택을 요구한다).
+  const contractRel = '.harness/project/template-contract.md'
+  run(harnessBin(target), ['stack:apply', '--preset-path', makeRulesOnlyPreset()], { cwd: target })
+  run(harnessBin(target), ['template:apply', '--preset-path', makeScaffoldTemplatePreset(), '--contract-only'], { cwd: target })
+  fs.appendFileSync(path.join(target, contractRel), '\n## 우리 팀 계약 메모\n- 템플릿 구역 뒤에 적은 내용\n')
+  run(harnessBin(target), ['template:reset'], { cwd: target })
+  const contract = read(target, contractRel)
+  assert(contract.includes('- 템플릿 구역 뒤에 적은 내용'), 'template reset must keep project notes outside the managed section')
+  assert(!contract.includes('Demo Scaffold Template'), 'template reset must still restore the managed section')
+}
+
+// scorecard-print #59: `harness update` 는 스택 init 다음에 공통 init 을 마지막으로 돌린다. 그 끝의 「현재 상태」가
+// 스택이 적용된 프로젝트에서도 "공통 하네스만 설치했습니다"라고 해 스택이 빠진 것처럼 읽혔다.
+function reinstallOverAppliedStackReportsTheStack() {
+  const target = makeTarget()
+  const first = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(first.includes('이번 선택: 공통 하네스만 설치했습니다.'), 'a base-only install still says so')
+  assert(first.includes('스택 기준은 나중에 추가할 수 있습니다.'), 'a base-only install still offers a stack later')
+
+  run(harnessBin(target), ['stack:apply', '--preset-path', makePreset()], { cwd: target })
+  const again = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!again.includes('공통 하네스만 설치했습니다'), 'with a stack applied the state must not read as base-only')
+  assert(!again.includes('스택 기준은 나중에 추가할 수 있습니다.'), 'with a stack applied there is nothing to add later')
+  assert(again.includes('적용된 스택: external-demo'), 'the state must name the applied stack')
+  assert(/설치 버전: 공통 하네스 v\S+ · 스택 하네스 v/.test(again), 'the version line must carry the stack version too')
+}
+
 function stackApplyMaterializesPresetAsLocalRules() {
   const target = makeTarget()
   const preset = makePreset()
@@ -921,6 +997,8 @@ function updateSkipsStackForBaseOnlyFlags() {
 }
 
 export {
+  managedSectionResetKeepsProjectSectionsOutside,
+  reinstallOverAppliedStackReportsTheStack,
   scanReportSuggestsBridgeCandidates,
   stackResetDoesNotResurrectDeletedProfileKeys,
   stackApplyMaterializesPresetAsLocalRules,

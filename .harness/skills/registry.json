@@ -49,8 +49,7 @@
         "충돌 또는 질문 후보"
       ],
       "records": [
-        ".harness/session/developer-input-queue.md",
-        ".harness/session/decision-log.md"
+        ".harness/session/developer-input-queue.md"
       ]
     },
     {
@@ -136,7 +135,6 @@
         "로컬룰 승격 후보"
       ],
       "records": [
-        ".harness/session/decision-log.md",
         ".harness/project/workflow-rules.md"
       ]
     },
@@ -182,8 +180,7 @@
       "records": [
         ".harness/project/domain-rules.md",
         ".harness/project/coding-conventions.md",
-        ".harness/project/architecture-rules.md",
-        ".harness/session/decision-log.md"
+        ".harness/project/architecture-rules.md"
       ]
     },
     {
@@ -223,7 +220,6 @@
         "검증 결과"
       ],
       "records": [
-        ".harness/session/decision-log.md",
         ".harness/project/architecture-rules.md"
       ]
     },
@@ -269,7 +265,6 @@
         "로컬룰 승격 후보"
       ],
       "records": [
-        ".harness/session/decision-log.md",
         ".harness/project/domain-rules.md",
         ".harness/project/coding-conventions.md",
         ".harness/project/architecture-rules.md",
@@ -362,9 +357,7 @@
         "링크 검증 결과",
         "문서-코드 동기화 판단"
       ],
-      "records": [
-        ".harness/session/decision-log.md"
-      ]
+      "records": []
     },
     {
       "id": "harness.conflict-resolution",
@@ -485,7 +478,7 @@
     {
       "id": "harness.stack-selection",
       "title": "스택 선택 흐름",
-      "purpose": "공통 하네스만 설치된 프로젝트에서 맞는 스택 하네스를 고르거나 공통 기준 단독 운영 사유를 남긴다.",
+      "purpose": "공통 하네스만 설치된 프로젝트에서 맞는 스택 하네스를 고르거나, 없으면 공통 기준만으로 운영한다(profile.json 의 activeStack: none 이 그 기록).",
       "audience": [
         "consumer"
       ],
@@ -627,7 +620,6 @@
         "업데이트 후 검증 결과"
       ],
       "records": [
-        ".harness/session/decision-log.md",
         ".harness/session/manual-actions.md"
       ]
     },
@@ -668,7 +660,6 @@
         "기준 문서 반영 필요 여부"
       ],
       "records": [
-        ".harness/session/decision-log.md",
         ".harness/session/active-context.md"
       ]
     },
@@ -716,7 +707,6 @@
         "실행하지 못한 검증과 사유"
       ],
       "records": [
-        ".harness/session/decision-log.md",
         ".harness/session/next-session-reminder.md"
       ]
     },
@@ -771,7 +761,6 @@
         "hook 미설치 또는 우회 시 직접 실행한 harness:check 결과"
       ],
       "records": [
-        ".harness/session/decision-log.md",
         ".harness/session/manual-actions.md"
       ]
     },
@@ -820,7 +809,6 @@
       "records": [
         ".harness/maintenance/work-history/<연도>/",
         ".harness/session/next-session-reminder.md",
-        ".harness/session/decision-log.md",
         ".harness/session/project-memory.md",
         ".harness/project/domain-rules.md",
         ".harness/project/coding-conventions.md",
@@ -871,8 +859,7 @@
       ],
       "records": [
         ".harness/project/architecture-rules.md",
-        ".harness/project/workflow-rules.md",
-        ".harness/session/decision-log.md"
+        ".harness/project/workflow-rules.md"
       ]
     },
     {
@@ -922,8 +909,7 @@
       ],
       "records": [
         ".harness/project/workflow-rules.md",
-        ".harness/session/manual-actions.md",
-        ".harness/session/decision-log.md"
+        ".harness/session/manual-actions.md"
       ]
     },
     {
@@ -1069,7 +1055,6 @@
         "downstream(CLI/스택 하네스) 통지 필요 여부"
       ],
       "records": [
-        ".harness/session/decision-log.md",
         "CHANGELOG.md",
         ".harness/session/next-session-reminder.md"
       ]
@@ -1284,7 +1269,7 @@
         "해석 상태 표"
       ],
       "records": [
-        ".harness/session/decision-log.md"
+        ".harness/policy/profile.json"
       ]
     }
   ]

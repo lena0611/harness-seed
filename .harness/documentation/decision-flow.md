@@ -88,7 +88,7 @@
 - 현재 저장소에선 보통 `.harness/bin/harness check`를 통합 검사 진입점으로 사용합니다.
 
 ### 12. 기록/인계
-- 다음 세션이 이어받아야 하면 `active-context.md`, `decision-log.md`를 갱신합니다.
+- 다음 세션이 이어받아야 하면 `active-context.md`를 갱신합니다.
 - 개발자 입력이 필요한 항목은 `developer-input-queue.md`에 남깁니다.
 - 문서가 길어지면 documentation harness 기준으로 분리합니다.
 - 사용자가 `세션종료`라고 말하면 `next-session-reminder.md`를 다음 세션용 요약으로 갱신합니다.
