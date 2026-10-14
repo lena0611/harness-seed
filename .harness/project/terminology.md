@@ -25,7 +25,7 @@
 | --- | --- | --- |
 | 로컬룰 승격 | 작업 중 반복된 패턴을 팀 규칙으로 올리는 것. 발명 금지 — 실제로 겪은 것만 | `.harness/project/domain-rules.md` 등 |
 | 결정 로그 | 중요한 결정의 "왜"만 남기는 기록장. 작업 기록이 아니라 코드·git 으로 알 수 있는 건 적지 않고, 사용자 허락을 받고 씁니다 | `.harness/session/decision-log.md` |
-| 세션 리마인더 | 다음 세션의 에이전트가 자동으로 읽는 인수인계 메모 | `.harness/session/next-session-reminder.md` |
+| 세션 리마인더 | 다음 세션의 에이전트가 자동으로 읽는 인수인계 메모 — 그 개발자의 개인 메모라 git 에 올라가지 않는다(0.2.153) | `.harness/session/local/next-session-reminder.md` |
 | 프로젝트 메모리 | 오래 유지되는 사실들 — 리마인더보다 수명이 긴 기억 | `.harness/session/project-memory.md` |
 | 핸드오프 | 긴 작업 중 대화가 비대해지면 상태를 파일에 적고 대화를 리셋하는 절차 | `.harness/session/handoff.md` |
 | 판단 컨텍스트 | 이번 작업에 관련된 문서·명령만 색인에서 골라 싣는 것 — 백과사전 통독 대신 색인 | `.harness/bin/harness context "작업 설명"` |

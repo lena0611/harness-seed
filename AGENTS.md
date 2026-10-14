@@ -29,7 +29,7 @@ Codex, Copilot, 기타 에이전트는 사용자가 "하네스"라고 말하지 
 
 Codex나 Copilot 계열 에이전트는 Claude Code의 `SessionStart` hook과 slash command를 그대로 강제할 수 없습니다. 대신 새 작업을 시작할 때 `CLAUDE.md`의 읽기 순서를 따릅니다. Codex 표면은 `.codex/hooks/inject-context.sh`, Copilot 표면은 `.github/copilot-instructions.md`의 조건부 리마인더도 함께 사용합니다. 필요하면 아래 파일을 직접 갱신합니다.
 
-- 리마인더: `.harness/session/next-session-reminder.md`
+- 리마인더: `.harness/session/local/next-session-reminder.md`
 - 장기 메모리: `.harness/session/project-memory.md`
 - 결정 로그: `.harness/session/decision-log.md` — 작업 기록이 아닙니다. 코드·git 이력으로 알 수 있는 건 적지 않고, 중요한 결정이나 모두가 알아야 할 공유 내용만 사용자 허락을 받고 남깁니다.
 

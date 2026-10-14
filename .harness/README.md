@@ -23,7 +23,7 @@
 | `.harness/project/architecture-rules.md` | 모듈 경계, 의존 방향, 반복 구조 규칙이 생길 때 |
 | `.harness/project/workflow-rules.md` | 검증 명령, 리뷰 기준, 릴리스/장애 대응 흐름이 바뀔 때 |
 | `.harness/session/decision-log.md` | 기준 충돌, 예외, 아키텍처 선택처럼 중요한 결정의 이유를 남길 때(작업 기록이 아님, 사용자 허락 후) |
-| `.harness/session/active-context.md` | 현재 세션의 진행 상태와 다음 작업을 남길 때 |
+| `.harness/session/local/active-context.md` | 현재 세션의 진행 상태와 다음 작업을 남길 때 |
 | `.harness/session/developer-input-queue.md` | 확인이 필요한 질문을 보류하거나 해소할 때 |
 
 ## 자동 생성 또는 하네스 관리 파일
@@ -48,7 +48,7 @@
 1. `../CLAUDE.md`
 2. `.harness/policy/ai-standard-guiding-policy.md`
 3. `.harness/session/session-start-alert.md`
-4. `.harness/session/active-context.md`
+4. `.harness/session/local/active-context.md`
 
 ## 필요할 때 추가로 볼 문서
 

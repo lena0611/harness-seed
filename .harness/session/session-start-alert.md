@@ -2,7 +2,7 @@
 
 새 세션을 열면 이 문서를 가장 먼저 읽습니다.
 
-바로 이어서 [`next-session-reminder.md`](./next-session-reminder.md)를 봅니다.
+바로 이어서 `.harness/session/local/next-session-reminder.md`를 봅니다(개인 메모 — git 에 올라가지 않는 자리라 이 PC 에 없을 수 있습니다. 없으면 그냥 넘어갑니다).
 
 Claude Code에서는 `SessionStart` hook이 `next-session-reminder.md`를 자동으로 보여줍니다. Codex와 Copilot은 같은 hook 강제성이 없으므로 `CLAUDE.md`의 읽기 순서에 따라 직접 확인합니다.
 

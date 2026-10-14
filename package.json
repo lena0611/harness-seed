@@ -25,6 +25,8 @@
     "!.harness/session/thread-handoff-*.md",
     "!.harness/session/active-context.md",
     "!.harness/session/next-session-reminder.md",
+    "!.harness/session/local",
+    "!.harness/session/local/**",
     "!.harness/session/developer-input-queue.md",
     "!.harness/session/project-memory.md",
     "!.harness/session/manual-actions.md",

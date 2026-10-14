@@ -22,7 +22,7 @@ commit/push 단계에서 동작하는 git hook, 커밋 템플릿, 최종 검증 
 
 - 본체 이슈보드는 설치·업데이트 리포트 자리입니다. 팀 배포 기록은 쌓지 않습니다.
 - 아래 pre-commit의 "기록 전용 커밋은 검사 생략" 경로는 그대로 둡니다 — 그래도 생겼을 때 `--no-verify` 우회를 막는 안전망이지, 그런 커밋을 권하는 것이 아닙니다.
-- 기록 파일을 `.gitignore`로 빼는 방식은 채택하지 않았습니다(#48 제안 A 보류). 이미 추적 중인 파일은 ignore로 빠지지 않고, `git rm --cached`를 자동으로 하면 팀원이 pull할 때 인계 내용이 사라집니다. 한 사이클 뒤 다시 판단합니다.
+- 개인 메모(`next-session-reminder.md`·`active-context.md`)는 git에 올라가지 않는 `.harness/session/local/`에 둡니다(#48 제안 A, 0.2.153). 그 개발자의 대화를 다음 대화로 넘기는 메모라 팀 저장소에 두면 개발자끼리 섞이고 브랜치를 따라다닙니다. 팀이 알아야 할 것은 `decision-log.md`·`project-memory.md`·`developer-input-queue.md`·`manual-actions.md`에 두고, 이 넷만 형상관리합니다.
 - 이 문서는 프로젝트 소유라 업데이트가 덮지 않습니다. 이미 설치된 프로젝트는 이 절을 자기 문서에 옮겨 적습니다.
 
 ## 요청별 검증 경로

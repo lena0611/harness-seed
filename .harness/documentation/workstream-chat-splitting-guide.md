@@ -110,7 +110,7 @@ git diff --staged
 | 반복되는 구조/경계 결정 | `.harness/project/architecture-rules.md` |
 | 반복되는 검증/릴리스 절차 | `.harness/project/workflow-rules.md` |
 | 중요한 선택 이유, 예외, 충돌 해결 | `.harness/session/decision-log.md` (사용자 허락 후) |
-| 다음 세션에서 반드시 이어야 할 항목 | `.harness/session/next-session-reminder.md` |
+| 다음 세션에서 반드시 이어야 할 항목 | `.harness/session/local/next-session-reminder.md` |
 | 외부 콘솔, secret, 권한, 배포 수동 조치 | `.harness/session/manual-actions.md` |
 
 모든 진행 중 메모를 영구 문서로 승격하지 않습니다. 기준이 아닌 임시 상태는 대화창 인수인계 문구로 충분합니다.

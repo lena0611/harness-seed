@@ -253,6 +253,10 @@ function findOrphans(registered) {
       continue
     }
 
+    if (isPersonalMemoPath(file) || isRetiredSessionMemoPath(file)) {
+      continue
+    }
+
     if (file.startsWith('.github/ISSUE_TEMPLATE/')) {
       continue
     }
@@ -319,8 +323,24 @@ const codePathPattern = /`((?:src|scripts|\.github|\.harness|\.claude|\.githooks
 //   이 분기가 없어도 통과한다(`listMarkdownFiles`가 `.harness`·`.claude`만 훑어 CHANGELOG를 안 보고,
 //   아카이브 결정 로그는 `isHistoryLogPath`가 이미 뺀다) — 이 분기를 지키는 것은 소비자 환경뿐이므로
 //   본체 회귀는 구체 워크플로 경로를 인용하는 픽스처 문서로 확인한다.
+// 개인 세션 메모(0.2.153, #48 A): `.harness/session/local/` 은 git 에 올라가지 않는 그 PC 개발자의 자리다. 문서가 그 경로를
+// 가리켜도 이 PC 에는 없을 수 있고(새 clone), 그 안의 파일은 registry 에 등록할 성격이 아니다 — 코드 경로 검사와 orphan 검사 모두 뺀다.
+export function isPersonalMemoPath(rel) {
+  return /^(?:\.harness|\.github)\/session\/local\//.test(toPosix(rel))
+}
+
+// 전환기(0.2.153 → 다음 릴리스): 옛 자리의 두 파일은 업데이트가 일부러 남겨 둔다(고치던 팀원의 pull 이 멈추지 않게) — registry 에서는
+// 뺐으므로 orphan 으로 잡히면 정상 업데이트 직후부터 --strict 가 실패한다(Codex 1R #3). 지워질 때까지 조용히 지나간다.
+export function isRetiredSessionMemoPath(rel) {
+  return /^(?:\.harness|\.github)\/session\/(?:next-session-reminder|active-context)\.md$/.test(toPosix(rel))
+}
+
 export function isIgnorableCodePath(target) {
   if (target.includes('*') || target.includes('...')) {
+    return true
+  }
+
+  if (isPersonalMemoPath(target)) {
     return true
   }
 
@@ -381,6 +401,12 @@ function findBrokenLinks() {
   const broken = []
 
   for (const file of listMarkdownFiles()) {
+    // 개인 메모 본문은 검사하지 않는다(Codex 1R #4): "아직 안 만든 `src/x.ts` 부터" 같은 메모가 매 커밋 dead path 로 잡히면
+    // 메모를 못 쓰게 된다 — 공유 문서가 local/ 을 가리키는 쪽의 면제(isIgnorableCodePath)와는 별개다.
+    if (isPersonalMemoPath(file)) {
+      continue
+    }
+
     const raw = fs.readFileSync(path.join(repoRoot, file), 'utf8')
     const text = stripFence(raw)
 

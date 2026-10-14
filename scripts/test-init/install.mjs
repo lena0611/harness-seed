@@ -64,7 +64,7 @@ function cleanInstallCreatesExpectedFiles() {
   assert(exists(target, '.claude/hooks/protect-paths.sh'), 'clean install should copy protected path guard hook')
   assert(exists(target, '.claude/hooks/record-tool-failure.sh'), 'clean install should copy capped tool failure recorder hook')
   assert(exists(target, '.harness/session/decision-log.md'), 'clean install should create consumer decision log')
-  assert(exists(target, '.harness/session/active-context.md'), 'clean install should create consumer active context')
+  assert(exists(target, '.harness/session/local/active-context.md'), 'clean install should create consumer active context (personal memo, 0.2.153)')
   assert(exists(target, '.harness/session/project-memory.md'), 'clean install should create consumer project memory')
   assert(exists(target, '.harness/maintenance/README.md'), 'clean install should create maintenance history guide')
   const currentYear = String(new Date().getFullYear())
@@ -174,14 +174,14 @@ function cleanInstallCreatesExpectedFiles() {
   assert(developerInputQueue.includes('상시 로드되는 큐에는 `open`과 `deferred` 항목만 유지'), 'consumer input queue should keep only open/deferred items loaded')
   assert(developerInputQueue.includes('answered` 또는 `obsolete` 항목은 관련 문서 반영'), 'consumer input queue should remove answered or obsolete items after reflection')
 
-  const activeContext = read(target, '.harness/session/active-context.md')
+  const activeContext = read(target, '.harness/session/local/active-context.md')
   assert(activeContext.includes('소비자 프로젝트 전용 문서'), 'consumer active context should explain project scope')
   assert(activeContext.includes('사용자가 "하네스"를 언급하지 않아도'), 'consumer active context should remind agents to auto-detect harness')
   assert(activeContext.includes('운영 규칙 본문은 복사하지 않고'), 'consumer active context should stay slim and point to project rules')
   assert(activeContext.includes('.harness/project/workflow-rules.md'), 'consumer active context should point to workflow rules')
   assert(!activeContext.includes('일반화 하네스 + 외부 스택 기준 런타임'), 'consumer active context should not include seed current state')
 
-  const reminder = read(target, '.harness/session/next-session-reminder.md')
+  const reminder = read(target, '.harness/session/local/next-session-reminder.md')
   assert(reminder.includes('권위 문서 포인터'), 'consumer reminder should include authority document pointers')
   assert(reminder.includes('규칙 본문을 복사하지 않고'), 'consumer reminder should avoid copying project rule body')
 
@@ -636,9 +636,12 @@ function reinstallMigratesUnchangedSeedSessionStateToConsumerTemplates() {
   runInit(target)
 
   const seedDecisionLog = fs.readFileSync(path.join(repoRoot, '.harness/session/decision-log.md'), 'utf8')
-  const seedActiveContext = fs.readFileSync(path.join(repoRoot, '.harness/session/active-context.md'), 'utf8')
+  // 옛 설치본(0.2.2x)은 본체의 active-context 를 그대로 복사해 두고 managed 로 기록했다 — 그 모양을 옛 자리에 재현한다.
+  // 본체 자신은 이제 그 파일을 local/ 에 두므로(0.2.153) 저장소에서 읽지 않고 본체 개발 기록 모양의 내용을 쓴다.
+  const seedActiveContext = '# 현재 컨텍스트\n\n## 현재 상태\n- 저장소가 **일반화 하네스 + 외부 스택 기준 런타임** 구조로 분리되었습니다.\n'
   fs.writeFileSync(path.join(target, '.harness/session/decision-log.md'), seedDecisionLog)
   fs.writeFileSync(path.join(target, '.harness/session/active-context.md'), seedActiveContext)
+  fs.rmSync(path.join(target, '.harness/session/local/active-context.md'), { force: true })
 
   const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
   manifest.managedFiles['.harness/session/decision-log.md'] = {
@@ -651,13 +654,15 @@ function reinstallMigratesUnchangedSeedSessionStateToConsumerTemplates() {
 
   const output = runInit(target, '--no-scan', '--no-check')
   const migratedDecisionLog = read(target, '.harness/session/decision-log.md')
-  const migratedActiveContext = read(target, '.harness/session/active-context.md')
+  const migratedActiveContext = read(target, '.harness/session/local/active-context.md')
   const nextManifest = JSON.parse(read(target, '.harness/install-manifest.json'))
 
   assert(output.includes('프로젝트 상태 문서:'), 'reinstall should report project state migration')
   assert(migratedDecisionLog.includes('소비자 프로젝트 전용 로그'), 'unchanged seed decision log should migrate to consumer template')
   assert(!migratedDecisionLog.includes('정식 공개 전 공개 명령 정리'), 'migrated decision log should remove seed development history')
-  assert(migratedActiveContext.includes('소비자 프로젝트 전용 문서'), 'unchanged seed active context should migrate to consumer template')
+  // 손대지 않은 본체 복사본은 local/ 로 옮기지 않는다 — 옮겨 봐야 본체 개발 기록이고, 새 자리에는 소비자 견본이 생긴다.
+  assert(migratedActiveContext.includes('소비자 프로젝트 전용 문서'), 'an untouched seed copy must not be carried into local/ — the consumer template must appear there instead')
+  assert(!migratedActiveContext.includes('일반화 하네스 + 외부 스택 기준 런타임'), 'the seed development state must not reach the personal memo')
   assert(!nextManifest.managedFiles['.harness/session/decision-log.md'], 'migrated consumer decision log should not remain managed')
 }
 
@@ -1385,7 +1390,7 @@ function backupSkipsWhatGitCanRestoreAndRotatesSets() {
   assert(statusBlock(clean).includes('백업: 안 만듦'), `the tail summary must say why no backup folder exists (got: ${statusBlock(clean)})`)
 
   // ② 관리 파일 하나를 고치면 **그 하나만** 백업한다. 나머지는 git 이 들고 있다.
-  fs.appendFileSync(path.join(target, '.harness/session/active-context.md'), '\n로컬 수정\n')
+  fs.appendFileSync(path.join(target, '.harness/session/project-memory.md'), '\n로컬 수정\n')
   const dirty = runInit(target, '--no-scan', '--no-handoff', '--no-check')
   assert(/backup: .*\(1개 기존 파일/.test(dirty), `only the file git cannot restore may be copied (got: ${dirty})`)
   assert(dirty.includes('생략'), 'the message must say how many files were skipped because git has them')
@@ -1395,7 +1400,7 @@ function backupSkipsWhatGitCanRestoreAndRotatesSets() {
     fs.mkdirSync(path.join(target, '.harness-backup', stamp), { recursive: true })
     fs.writeFileSync(path.join(target, '.harness-backup', stamp, 'blob'), 'x'.repeat(1024))
   }
-  fs.appendFileSync(path.join(target, '.harness/session/active-context.md'), '\n또 수정\n')
+  fs.appendFileSync(path.join(target, '.harness/session/project-memory.md'), '\n또 수정\n')
   const rotated = runInit(target, '--no-scan', '--no-handoff', '--no-check')
   assert(/오래된 세트 \d+개 정리/.test(rotated), `pruning must be reported, never silent (got: ${rotated})`)
   // 지운 것을 조용히 두지 않는다는 약속은 보고가 **읽히는 자리**에 있을 때만 지켜진다 — 꼬리에도 있어야 한다(#44).
@@ -1405,7 +1410,7 @@ function backupSkipsWhatGitCanRestoreAndRotatesSets() {
 
   // ④ 우리 형식이 아닌 폴더는 건드리지 않는다 — 사람이 손으로 둔 것일 수 있다.
   fs.mkdirSync(path.join(target, '.harness-backup', 'my-notes'), { recursive: true })
-  fs.appendFileSync(path.join(target, '.harness/session/active-context.md'), '\n세 번째 수정\n')
+  fs.appendFileSync(path.join(target, '.harness/session/project-memory.md'), '\n세 번째 수정\n')
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
   assert(exists(target, '.harness-backup/my-notes'), 'a folder that is not one of our timestamp sets must be left alone')
 
@@ -1413,7 +1418,7 @@ function backupSkipsWhatGitCanRestoreAndRotatesSets() {
   for (const stamp of ['2026-04-01T00-00-00-000Z', '2026-05-01T00-00-00-000Z']) {
     fs.mkdirSync(path.join(target, '.harness-backup', stamp), { recursive: true })
   }
-  fs.appendFileSync(path.join(target, '.harness/session/active-context.md'), '\n네 번째 수정\n')
+  fs.appendFileSync(path.join(target, '.harness/session/project-memory.md'), '\n네 번째 수정\n')
   const kept = runInit(target, '--keep-all-backups', '--no-scan', '--no-handoff', '--no-check')
   assert(!kept.includes('오래된 세트'), 'the opt-out flag must disable pruning')
   const after = fs.readdirSync(path.join(target, '.harness-backup')).filter((name) => /^\d{4}-\d{2}-\d{2}T/.test(name))
@@ -1430,7 +1435,7 @@ function backupSkipsWhatGitCanRestoreAndRotatesSets() {
   runInit(nested, '--no-scan', '--no-handoff', '--no-check')
   gitCommitAll(repoRootDir, 'install into a subdirectory')
 
-  const nestedManaged = '.harness/session/active-context.md'
+  const nestedManaged = '.harness/session/project-memory.md'
   fs.appendFileSync(path.join(nested, nestedManaged), '\n하위 폴더 로컬 수정\n')
   const nestedOut = runInit(nested, '--no-scan', '--no-handoff', '--no-check')
   assert(/backup: .*\(1개 기존 파일/.test(nestedOut), `a subdirectory target must still back up what git cannot restore (got: ${nestedOut})`)
@@ -1444,7 +1449,7 @@ function backupSkipsWhatGitCanRestoreAndRotatesSets() {
   runInit(hidden, '--no-scan', '--no-handoff', '--no-check')
   gitCommitAll(hidden, 'install')
 
-  const hiddenRel = '.harness/session/active-context.md'
+  const hiddenRel = '.harness/session/project-memory.md'
   run('git', ['update-index', '--assume-unchanged', hiddenRel], { cwd: hidden })
   fs.appendFileSync(path.join(hidden, hiddenRel), '\nstatus 가 숨기는 수정\n')
   const quiet = run('git', ['status', '--porcelain'], { cwd: hidden })
@@ -1462,12 +1467,12 @@ function backupSkipsWhatGitCanRestoreAndRotatesSets() {
   for (const stamp of ['2099-01-01T00-00-00-000Z', '2099-02-01T00-00-00-000Z']) {
     fs.mkdirSync(path.join(skewed, '.harness-backup', stamp), { recursive: true })
   }
-  fs.appendFileSync(path.join(skewed, '.harness/session/active-context.md'), '\n시계가 어긋난 상태의 수정\n')
+  fs.appendFileSync(path.join(skewed, '.harness/session/project-memory.md'), '\n시계가 어긋난 상태의 수정\n')
   const skewOut = runInit(skewed, '--no-scan', '--no-handoff', '--no-check')
   const madeDir = skewOut.match(/backup: (\S+) \(/)?.[1]
   assert(madeDir, `precondition: a backup set must have been created (got: ${skewOut})`)
   assert(fs.existsSync(madeDir), `the set created by this very install must survive pruning (gone: ${madeDir})`)
-  assert(fs.existsSync(path.join(madeDir, '.harness/session/active-context.md')), 'and it must still hold the edited file')
+  assert(fs.existsSync(path.join(madeDir, '.harness/session/project-memory.md')), 'and it must still hold the edited file')
 }
 // clubadm 요청(0.2.152, 결정 126): 결정 118(#48 B안)로 기록이 코드 커밋에 실리면서 결정 로그는 브랜치마다 끝에 절이 붙고, 머지마다
 // 같은 자리를 다퉜다(clubadm TD 머지 충돌 19건 — 전부 자리만 겹친 것, 내용 충돌 0건). 설치가 union 속성을 넣는다 — 결정 로그만.
@@ -2336,7 +2341,134 @@ function installTellsProjectOwnFilesApartFromPriorHarness() {
   assert(read(target, '.claude/commands/langRegister.md').includes('팀이 원래 쓰던 명령'), 'the preserved file must keep its content')
 }
 
+// #48 A(0.2.153): 개인 세션 메모(리마인더·active-context)는 그 개발자의 대화를 다음 대화로 넘기는 메모라 git 에 올라가지 않는
+// local/ 에 산다. 팀 기록(결정 로그·project-memory·입력 큐·manual-actions)만 추적된다.
+function personalSessionMemosLiveOutsideGit() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  for (const name of ['next-session-reminder.md', 'active-context.md']) {
+    assert(exists(target, `.harness/session/local/${name}`), `${name} must be created under local/`)
+    assert(!exists(target, `.harness/session/${name}`), `${name} must not be created at the old tracked place`)
+    assert(read(target, `.harness/session/local/${name}`).includes('개인 메모입니다'), `${name} template must say it is a personal memo`)
+  }
+  assert(read(target, '.gitignore').split(/\r?\n/).includes('.harness/session/local/'), '.gitignore must ignore the personal memo folder')
+
+  gitCommitAll(target, 'install')
+  const tracked = run('git', ['ls-files', '.harness/session'], { cwd: target })
+  assert(!tracked.includes('local/'), `personal memos must not be tracked (got: ${tracked})`)
+  assert(tracked.includes('.harness/session/project-memory.md') && tracked.includes('.harness/session/decision-log.md'), 'team records stay tracked')
+
+  // git 에 없다는 이유로 매 업데이트마다 백업 세트를 만들지 않는다 — 업데이트는 이 파일을 덮지 않는다.
+  const again = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!exists(target, '.harness-backup'), `an untouched update must not back up personal memos just because git does not hold them (got: ${again})`)
+  const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+  assert(!Object.keys(manifest.projectOwnedSeedShas ?? {}).some((rel) => rel.startsWith('.harness/session/local/')), 'personal memos are not seed templates to drift-check')
+  assert(!Object.keys(manifest.managedFiles ?? {}).some((rel) => rel.startsWith('.harness/session/local/')), 'personal memos are not managed files')
+
+  // 링크 자리에는 견본을 쓰지 않는다(Codex 1R #1): local/ 이 저장소 밖을 가리키는 링크여도 거기에 파일을 만들지 않는다.
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-outside-local-'))
+  fs.rmSync(path.join(target, '.harness/session/local'), { recursive: true, force: true })
+  fs.symlinkSync(outsideDir, path.join(target, '.harness/session/local'))
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(fs.readdirSync(outsideDir).length === 0, `a symlinked local/ must not receive template files (got: ${fs.readdirSync(outsideDir).join(', ')})`)
+  fs.rmSync(path.join(target, '.harness/session/local'), { force: true })
+  fs.rmSync(outsideDir, { recursive: true, force: true })
+}
+
+// 0.2.152 이하 설치본(옛 자리에 추적된 메모)의 업데이트: 이 릴리스는 local/ 로 **복사만** 하고 옛 파일은 둔다 — 그 파일을 고치던
+// 팀원의 pull 이 "로컬 변경이 덮인다"로 멈추지 않게. 그다음 릴리스의 업데이트가 지운다. local/ 은 한 번 생기면 업데이트가 덮지 않는다.
+function updateMovesPersonalMemosAndRetiresOldFilesNextRelease() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  fs.rmSync(path.join(target, '.harness/session/local'), { recursive: true, force: true })
+  fs.writeFileSync(path.join(target, '.harness/session/next-session-reminder.md'), '# 다음 세션 리마인더\n\n## 내일 할 것\n- 로그인 버그 재현\n')
+  fs.writeFileSync(path.join(target, '.harness/session/active-context.md'), '# 현재 컨텍스트\n\n- 지금 보는 것: 결제 모듈\n')
+  const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
+  lock.baseHarness.version = '0.2.152'
+  writeJson(target, '.harness/harness-lock.json', lock)
+  fs.rmSync(path.join(target, '.harness/generated/pending-report.json'), { force: true })
+  gitCommitAll(target, '0.2.152 layout')
+
+  const plan = runInit(target, '--dry-run', '--no-scan', '--no-handoff', '--no-check')
+  assert(plan.includes('[dry-run] 개인 세션 메모를 .harness/session/local/ 로 옮겼습니다'), `dry-run must announce the move (got: ${plan})`)
+  assert(!exists(target, '.harness/session/local'), 'dry-run must not write local/')
+
+  // ① 이 릴리스의 업데이트: 옮기되 옛 파일은 그대로.
+  const first = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(read(target, '.harness/session/local/next-session-reminder.md').includes('로그인 버그 재현'), 'the reminder content must move to local/')
+  assert(read(target, '.harness/session/local/active-context.md').includes('결제 모듈'), 'the active context content must move to local/')
+  assert(exists(target, '.harness/session/next-session-reminder.md') && exists(target, '.harness/session/active-context.md'), 'the old files must survive the release that moves them')
+  assert(first.includes('개인 세션 메모를 .harness/session/local/ 로 옮겼습니다'), `the update must say what it moved (got: ${first})`)
+  assert(first.includes('다음 업데이트가 지웁니다'), 'the update must say the old files go next time, not now')
+  assert(run('git', ['status', '--porcelain', '.harness/session'], { cwd: target }).trim() === '', 'moving must not dirty the tracked session files')
+  fs.appendFileSync(path.join(target, '.harness/session/local/next-session-reminder.md'), '- 추가 메모\n')
+
+  // 전환기 문서 검사(Codex 1R #3·#4): 남겨 둔 옛 파일은 orphan 이 아니고, local/ 안의 메모 본문은 검사하지 않는다 — 아직 없는
+  // 코드 경로를 적어도 --strict 가 통과해야 한다.
+  fs.writeFileSync(path.join(target, '.harness/session/local/notes.md'), '# 내 메모\n- `src/not-yet-written.ts` 부터 만들기\n')
+  run(nodeBin, [path.join(target, '.harness/bin/doc-link-check.mjs'), '--strict'], { cwd: target })
+
+  // ②-0 옛 파일에 커밋 안 된 내용이 있으면 지우지 않고 알린다(Codex 1R #2) — 깨끗한 쪽은 같은 바퀴에 지워진다.
+  fs.rmSync(path.join(target, '.harness/generated/pending-report.json'), { force: true })
+  fs.appendFileSync(path.join(target, '.harness/session/next-session-reminder.md'), '- 옛 자리에 또 적은 것\n')
+  const dirty = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(exists(target, '.harness/session/next-session-reminder.md'), 'an old memo with uncommitted content must not be deleted')
+  assert(!exists(target, '.harness/session/active-context.md'), 'the clean old memo is deleted in the same run')
+  assert(dirty.includes('커밋되지 않은 변경이 있어 지우지 않았습니다'), `the kept dirty file must be reported (got: ${dirty})`)
+  run('git', ['checkout', '--', '.harness/session/next-session-reminder.md'], { cwd: target })
+
+  // ② 다음 릴리스의 업데이트(출발 버전이 0.2.153 이상): 옛 파일을 지운다. local/ 은 손대지 않는다.
+  fs.rmSync(path.join(target, '.harness/generated/pending-report.json'), { force: true })
+  const second = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!exists(target, '.harness/session/next-session-reminder.md') && !exists(target, '.harness/session/active-context.md'), 'the next update must remove the old files')
+  assert(second.includes('옛 자리 개인 메모를 지웠습니다'), `the removal must be reported (got: ${second})`)
+  assert(!second.includes('옮겼습니다'), 'nothing is moved the second time')
+  assert(read(target, '.harness/session/local/next-session-reminder.md').includes('추가 메모'), 'local/ must not be overwritten by the update')
+}
+
+// 본체 작업 트리에 본체 개발자의 개인 메모가 있어도 설치본에 실리지 않는다 — 로컬 체크아웃 설치가 개발자 파일을 모든 설치본에 복사했던 실측(2026-09-08)과 같은 구멍.
+function seedPersonalMemosAreNotShipped() {
+  const sentinelDir = path.join(repoRoot, '.harness/session/local')
+  const sentinel = path.join(sentinelDir, 'zz-seed-personal-memo-sentinel.md')
+  const hadDir = fs.existsSync(sentinelDir)
+  fs.mkdirSync(sentinelDir, { recursive: true })
+  fs.writeFileSync(sentinel, '# 본체 개발자의 개인 메모 — 설치본에 실리면 안 된다\n')
+  try {
+    const target = makeTarget()
+    runInit(target, '--no-scan', '--no-handoff', '--no-check')
+    assert(!exists(target, '.harness/session/local/zz-seed-personal-memo-sentinel.md'), 'a personal file in the seed working tree must not be installed')
+    const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
+    assert(!Object.keys(manifest.managedFiles ?? {}).some((rel) => rel.startsWith('.harness/session/local/') || rel === '.harness/session/next-session-reminder.md' || rel === '.harness/session/active-context.md'), 'neither local/ nor the old memo places may be managed files')
+  } finally {
+    fs.rmSync(sentinel, { force: true })
+    if (!hadDir) fs.rmSync(sentinelDir, { recursive: true, force: true })
+  }
+}
+
+// --force 라도 이번 실행에서 막 옮긴 메모는 견본으로 덮지 않는다(Codex 2R #1) — 옮기기 전엔 없던 파일이라 백업에도 없고,
+// 옛 파일은 옮긴 직후 지워진다. 덮으면 그 내용이 어디에도 남지 않는다. 옮긴 것이 아닌 local/ 메모는 --force 가 종전대로 되돌린다.
+function forceUpdateKeepsAMemoMovedInTheSameRun() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  gitCommitAll(target, 'install')
+  fs.rmSync(path.join(target, '.harness/session/local'), { recursive: true, force: true })
+  fs.writeFileSync(path.join(target, '.harness/session/next-session-reminder.md'), '# 다음 세션 리마인더\n\n- 아직 커밋 안 한 메모\n')
+  fs.rmSync(path.join(target, '.harness/generated/pending-report.json'), { force: true })
+
+  runInit(target, '--force', '--confirm-overwrite-project-files', '--no-scan', '--no-handoff', '--no-check')
+  assert(read(target, '.harness/session/local/next-session-reminder.md').includes('아직 커밋 안 한 메모'), 'the memo moved in this very run must survive --force')
+  assert(!exists(target, '.harness/session/next-session-reminder.md'), 'the old file is retired once its content is safely in local/')
+
+  fs.rmSync(path.join(target, '.harness/generated/pending-report.json'), { force: true })
+  runInit(target, '--force', '--confirm-overwrite-project-files', '--no-scan', '--no-handoff', '--no-check')
+  assert(!read(target, '.harness/session/local/next-session-reminder.md').includes('아직 커밋 안 한 메모'), 'a memo not moved in this run is reset by --force as before')
+}
+
 export {
+  personalSessionMemosLiveOutsideGit,
+  updateMovesPersonalMemosAndRetiresOldFilesNextRelease,
+  seedPersonalMemosAreNotShipped,
+  forceUpdateKeepsAMemoMovedInTheSameRun,
   cleanInstallCreatesExpectedFiles,
   pruneAliasesRemovesOnlyRecognizedInjectedValues,
   staleVerifyDeclarationGetsNoticed,

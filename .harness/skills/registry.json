@@ -37,7 +37,7 @@
         "CLAUDE.md",
         ".harness/policy/ai-standard-guiding-policy.md",
         ".harness/session/session-start-alert.md",
-        ".harness/session/active-context.md"
+        ".harness/session/local/active-context.md"
       ],
       "commands": [
         ".harness/bin/harness context \"<작업 설명>\"",
@@ -76,9 +76,9 @@
       ],
       "read": [
         ".harness/session/session-start-alert.md",
-        ".harness/session/next-session-reminder.md",
+        ".harness/session/local/next-session-reminder.md",
         ".harness/session/project-memory.md",
-        ".harness/session/active-context.md",
+        ".harness/session/local/active-context.md",
         ".harness/session/developer-input-queue.md"
       ],
       "commands": [
@@ -92,7 +92,7 @@
         "developer-input-queue가 open/deferred 항목만 상시 유지하는지 확인"
       ],
       "records": [
-        ".harness/session/active-context.md",
+        ".harness/session/local/active-context.md",
         ".harness/session/developer-input-queue.md"
       ]
     },
@@ -315,8 +315,8 @@
       ],
       "records": [
         ".harness/session/developer-input-queue.md",
-        ".harness/session/active-context.md",
-        ".harness/session/next-session-reminder.md",
+        ".harness/session/local/active-context.md",
+        ".harness/session/local/next-session-reminder.md",
         ".harness/maintenance/work-history/<연도>/"
       ]
     },
@@ -660,7 +660,7 @@
         "기준 문서 반영 필요 여부"
       ],
       "records": [
-        ".harness/session/active-context.md"
+        ".harness/session/local/active-context.md"
       ]
     },
     {
@@ -707,7 +707,7 @@
         "실행하지 못한 검증과 사유"
       ],
       "records": [
-        ".harness/session/next-session-reminder.md"
+        ".harness/session/local/next-session-reminder.md"
       ]
     },
     {
@@ -788,7 +788,7 @@
       ],
       "read": [
         ".harness/maintenance/README.md",
-        ".harness/session/active-context.md",
+        ".harness/session/local/active-context.md",
         ".harness/session/decision-log.md",
         ".harness/session/project-memory.md"
       ],
@@ -808,7 +808,7 @@
       ],
       "records": [
         ".harness/maintenance/work-history/<연도>/",
-        ".harness/session/next-session-reminder.md",
+        ".harness/session/local/next-session-reminder.md",
         ".harness/session/project-memory.md",
         ".harness/project/domain-rules.md",
         ".harness/project/coding-conventions.md",
@@ -985,7 +985,7 @@
         "이어"
       ],
       "read": [
-        ".harness/session/active-context.md",
+        ".harness/session/local/active-context.md",
         ".harness/session/decision-log.md",
         ".harness/session/project-memory.md",
         ".harness/session/developer-input-queue.md"
@@ -1002,8 +1002,8 @@
         "decision-log/developer-input-queue/project-memory 기억 표면 정리 여부"
       ],
       "records": [
-        ".harness/session/next-session-reminder.md",
-        ".harness/session/active-context.md"
+        ".harness/session/local/next-session-reminder.md",
+        ".harness/session/local/active-context.md"
       ]
     },
     {
@@ -1056,7 +1056,7 @@
       ],
       "records": [
         "CHANGELOG.md",
-        ".harness/session/next-session-reminder.md"
+        ".harness/session/local/next-session-reminder.md"
       ]
     },
     {

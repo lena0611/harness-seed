@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 // 기획 본문 읽기는 spec-sync의 안전 경로만 쓴다. 여기서 path.join + readFileSync로 직접 읽으면
 // 루트·중간·leaf 심볼릭 링크를 그대로 따라가, 쓰기는 막고 읽기는 뚫리는 비대칭이 생긴다(재리뷰 P1-2).
 import { buildScreenIndex, normalizeScreenLinks, parseSpecMapText, readSpecCacheDoc, specCacheDirPath, specContextBudgetMs, specRefMatches } from './spec-sync.mjs'
+import { describeMigration, legacyMemoPath, localMemoPath, migrateSessionMemos } from './session-memos.mjs'
 
 function sha256Text(content) {
   return crypto.createHash('sha256').update(content).digest('hex')
@@ -41,11 +42,22 @@ const task = args
   .join(' ')
   .trim()
 
+// 개인 세션 메모(0.2.153, #48 A)는 git 에 올라가지 않는 local/ 에 있다. 이 명령은 Codex·Copilot 에도 닿는 유일한 자리라
+// 옛 자리 메모를 여기서도 옮긴다(옮길 것이 없으면 아무 일도 없고, 실패해도 컨텍스트 생성은 막지 않는다).
+try {
+  for (const line of describeMigration(migrateSessionMemos(repoRoot))) console.log(line)
+} catch {
+  // 옮기지 못하면 옛 파일이 그대로 남아 있을 뿐이다 — 아래 폴백이 옛 자리를 읽는다.
+}
+const activeContextPath = exists(localMemoPath('active-context.md')) || !exists(legacyMemoPath('active-context.md'))
+  ? localMemoPath('active-context.md')
+  : legacyMemoPath('active-context.md')
+
 const alwaysRead = [
   'CLAUDE.md',
   '.harness/policy/ai-standard-guiding-policy.md',
   '.harness/session/session-start-alert.md',
-  '.harness/session/active-context.md',
+  activeContextPath,
 ]
 
 const generatedFiles = [

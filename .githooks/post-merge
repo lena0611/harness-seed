@@ -85,4 +85,10 @@ if [ -f .harness/bin/decision-log-lint.mjs ] && git diff --name-only ORIG_HEAD H
   node .harness/bin/decision-log-lint.mjs || true
 fi
 
+# 개인 메모(0.2.153, #48 A): 옛 자리 리마인더·active-context 를 git 에 올라가지 않는 local/ 로 옮긴다. 이 pull 이 옛 파일을 지웠으면
+# (이 릴리스와 그다음 업데이트를 한 번에 받은 팀원) 머지 전 내 상태(ORIG_HEAD)에서 되살린다. 옮길 것이 없으면 침묵, 실패해도 pull 은 유지한다.
+if [ -f .harness/bin/session-memos.mjs ]; then
+  node .harness/bin/session-memos.mjs --after-merge || true
+fi
+
 exit 0

@@ -159,7 +159,7 @@
 ## 7단계 — 기록
 
 - [ ] 릴리스 중 따로 생긴 중요한 결정이 있으면 → 사용자 허락을 받아 [decision-log.md](../session/decision-log.md) (나간 내용 자체는 CHANGELOG·태그가 기록)
-- [ ] 다음 세션에서 이어야 할 항목 → [next-session-reminder.md](../session/next-session-reminder.md)
+- [ ] 다음 세션에서 이어야 할 항목 → `.harness/session/local/next-session-reminder.md` (개인 메모 — git 에 없음, 이 PC 에만)
 - [ ] 반복되는 본체 운영 지식 → 이 문서 또는 관련 기준 문서로 승격
 
 ## 모델 세대 교체 릴리스 (사내 표준 에이전트 모델이 바뀔 때만)

@@ -19,7 +19,7 @@
 - `commit-push-rules.md`
 - `critical-paths.md`
 - `../session/decision-log.md`
-- `../session/active-context.md`
+- `../session/local/active-context.md`
 - `../session/manual-actions.md`
 
 자동 생성 또는 하네스 관리 파일:

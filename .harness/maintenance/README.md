@@ -36,4 +36,4 @@
 - 단순 진행 로그를 무한히 쌓지 않습니다.
 - 중요한 구조 결정, 예외, 기준 충돌 해결은 사용자 허락을 받아 `.harness/session/decision-log.md`에도 남깁니다.
 - 같은 판단이 반복되면 `.harness/project/domain-rules.md`, `architecture-rules.md`, `coding-conventions.md`, `workflow-rules.md`로 승격합니다.
-- 다음 세션에서 이어야 할 항목은 `.harness/session/next-session-reminder.md`에 별도로 남깁니다.
+- 다음 세션에서 이어야 할 항목은 `.harness/session/local/next-session-reminder.md`에 별도로 남깁니다.

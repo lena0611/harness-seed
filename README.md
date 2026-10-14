@@ -287,12 +287,12 @@ npx -y git+https://git.smartscore.kr/ai-standard/harnesses/harness-seed.git#v0.2
 | 변경 이력 | `CHANGELOG.md`, 릴리스 태그 | 해당 없음 |
 | 본체 설계 판단 | 본체의 `.harness/session/decision-log.md` | 복사하지 않음 |
 | 프로젝트 판단 | 해당 없음 | 소비자용 `.harness/session/decision-log.md` 템플릿 생성 |
-| 현재 작업 맥락 | 본체의 `.harness/session/active-context.md` | 소비자용 `active-context.md` 템플릿 생성 |
+| 현재 작업 맥락 | 본체의 `.harness/session/local/active-context.md` | 소비자용 `active-context.md` 템플릿 생성 |
 | 장기 메모리 | 본체의 `.harness/session/project-memory.md` | 소비자용 `project-memory.md` 템플릿 생성 |
 
 즉, `decision-log.md`는 릴리스 노트나 체인지 로그가 아닙니다. 설치된 프로젝트에서는 그 프로젝트의 기준 충돌, 예외, 아키텍처 선택 이유를 남기는 곳입니다. 하네스 본체의 변경 요약은 `CHANGELOG.md`와 Git 태그로 관리합니다.
 
-최초 설치 시 `active-context.md`, `decision-log.md`, `developer-input-queue.md`, `next-session-reminder.md`, `project-memory.md`는 본체 파일을 그대로 복사하지 않고 소비자 프로젝트용 템플릿으로 생성합니다. 업데이트 시에는 기존 프로젝트 내용이 보존되며, 과거 버전에서 본체 문서가 그대로 복사된 상태이고 사용자가 수정하지 않은 경우에만 소비자용 템플릿으로 교체합니다.
+최초 설치 시 `active-context.md`, `decision-log.md`, `developer-input-queue.md`, `next-session-reminder.md`, `project-memory.md`는 본체 파일을 그대로 복사하지 않고 소비자 프로젝트용 템플릿으로 생성합니다(개인 메모인 `active-context.md`·`next-session-reminder.md` 둘은 git 에 올라가지 않는 `.harness/session/local/` 에, 0.2.153). 업데이트 시에는 기존 프로젝트 내용이 보존되며, 과거 버전에서 본체 문서가 그대로 복사된 상태이고 사용자가 수정하지 않은 경우에만 소비자용 템플릿으로 교체합니다.
 
 ## 강제되는 것과 강제되지 않는 것
 
@@ -683,7 +683,7 @@ npx -y git+<seed-repo-url>#vX.Y.Z init --from-git <seed-repo-url> --ref vX.Y.Z
 
 `harness:uninstall`은 기본이 dry-run입니다. `.harness/install-manifest.json`에 기록된 managed 파일 중 설치 이후 수정되지 않은 파일과 하네스가 주입한 `package.json` 명령만 삭제 대상으로 보여줍니다. 실제 삭제는 `.harness/bin/harness uninstall --confirm`으로 실행합니다. 프로젝트 소유 문서, 로컬 수정 파일, 출처를 확인할 수 없는 파일은 보존하고 리포트합니다.
 
-보존 대상 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/project/commit-push-rules.md`, `.harness/session/active-context.md`, `.harness/session/decision-log.md`, `.harness/session/project-memory.md`, `.harness/session/developer-input-queue.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다. manifest가 없는 기존 `.harness/`, `.claude/`, `.codex/`, `CLAUDE.md`는 전용 하네스일 수 있으므로 기본 보존하고 `--force --confirm-overwrite-project-files`일 때만 덮어씁니다.
+보존 대상 예시는 `.harness/project/project-charter.md`, `.harness/project/local-methodology.md`, `.harness/project/stack-preset-rules.md`, `.harness/project/domain-rules.md`, `.harness/project/architecture-rules.md`, `.harness/project/workflow-rules.md`, `.harness/project/commit-push-rules.md`, `.harness/session/local/active-context.md`, `.harness/session/decision-log.md`, `.harness/session/project-memory.md`, `.harness/session/developer-input-queue.md`, `.harness/policy/profile.json`, `.harness/policy/waivers.json`, `.claude/settings.local.json`입니다. manifest가 없는 기존 `.harness/`, `.claude/`, `.codex/`, `CLAUDE.md`는 전용 하네스일 수 있으므로 기본 보존하고 `--force --confirm-overwrite-project-files`일 때만 덮어씁니다.
 
 ## Claude Code 어댑터
 
@@ -751,7 +751,7 @@ git init                    # git hook을 쓸 프로젝트라면 먼저 저장�
 1. `CLAUDE.md`
 2. `.harness/policy/ai-standard-guiding-policy.md`
 3. `.harness/session/session-start-alert.md`
-4. `.harness/session/active-context.md`
+4. `.harness/session/local/active-context.md`
 
 세션 재개 시 추가 확인:
 

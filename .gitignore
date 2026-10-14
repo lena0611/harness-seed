@@ -17,6 +17,8 @@ outputs/
 .harness/session/handoff.md
 .harness/session/template-gap-report.md
 .harness/session/task-context.md
+# 개인 세션 메모(0.2.153, #48 A) — 그 개발자의 대화를 다음 대화로 넘기는 자리
+.harness/session/local/
 .harness/generated/
 .harness-backup/
 CLAUDE.local.md

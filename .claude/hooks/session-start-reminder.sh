@@ -3,7 +3,9 @@
 set -eu
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-REMINDER="$ROOT/.harness/session/next-session-reminder.md"
+# 개인 메모(0.2.153, #48 A): 리마인더는 git 에 올라가지 않는 local/ 에 있다. 옛 자리는 옮기기 전 폴백으로만 읽는다.
+REMINDER="$ROOT/.harness/session/local/next-session-reminder.md"
+LEGACY_REMINDER="$ROOT/.harness/session/next-session-reminder.md"
 QUEUE="$ROOT/.harness/session/developer-input-queue.md"
 
 printf '[harness] session-start\n'
@@ -88,11 +90,26 @@ fi
 # 출력 본문은 preflight.sh 가 소유한다 — 여기 복사해 두면 문구가 두 벌이 된다(이 파일의 존재 이유).
 harness_preflight_print
 
-if [ -f "$REMINDER" ]; then
+# 옛 자리 메모를 local/ 로 옮긴다(옮길 것이 없으면 침묵). 규칙은 session-memos.mjs 한 곳 — Node 를 못 쓰면 건너뛰고 옛 자리를 읽는다.
+if [ "${HARNESS_NODE_USABLE:-1}" = "1" ] && [ -f "$ROOT/.harness/bin/session-memos.mjs" ] && command -v node >/dev/null 2>&1; then
+  node "$ROOT/.harness/bin/session-memos.mjs" --root "$ROOT" || true
+fi
+
+# 링크를 따라 읽지 않는다(Codex 2R #3): 메모까지의 경로 구성요소(.harness·session·local·파일) 중 하나라도 링크면 그 파일은 읽지 않는다 —
+# 옮기기가 거부한 링크를 여기서 따라가 그 너머의 내용을 세션에 찍으면 방어가 헛된다. 일반 파일일 때만 참.
+harness_memo_plain() {
+  [ ! -L "$ROOT/.harness" ] && [ ! -L "$ROOT/.harness/session" ] && [ ! -L "$ROOT/.harness/session/local" ] && [ ! -L "$1" ] && [ -f "$1" ]
+}
+
+if ! harness_memo_plain "$REMINDER" && harness_memo_plain "$LEGACY_REMINDER"; then
+  REMINDER="$LEGACY_REMINDER"
+fi
+
+if harness_memo_plain "$REMINDER"; then
   printf '\n[harness] next-session-reminder\n'
   sed -n '1,120p' "$REMINDER"
 else
-  printf '\n[harness] next-session-reminder: 파일 없음\n'
+  printf '\n[harness] next-session-reminder: 파일 없음 (개인 메모 — 필요할 때 .harness/session/local/next-session-reminder.md 에 만듭니다)\n'
 fi
 
 if [ -f "$QUEUE" ]; then

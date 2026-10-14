@@ -20,6 +20,16 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { pathHasSymlinkComponent } from './session-memos.mjs'
+
+// 일반 파일인가(링크·폴더 아님) — 읽을 후보를 고를 때 잎까지 확인한다.
+function isRegularFile(abs) {
+  try {
+    return !fs.lstatSync(abs).isSymbolicLink() && fs.statSync(abs).isFile()
+  } catch {
+    return false
+  }
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // 인자: [모드] [root] --key value … (플래그는 어디에 와도 됨). 모드 생략 = status.
@@ -118,14 +128,23 @@ function resolveLinkedProjects(projectRoot = root) {
     const hasHarness = abs ? fs.existsSync(path.join(abs, '.harness/bin/harness')) : false
     const docs = abs ? [path.join(abs, 'CLAUDE.md'), ...(focus ? [path.join(abs, focus, 'CLAUDE.md')] : [])].filter((d) => fs.existsSync(d)) : []
     let reminderHeads = []
+    // 개인 메모(0.2.153)는 local/ 에 있다 — 그쪽이 아직 옛 자리라면(옮기기 전) 옛 파일을 읽는다.
+    // 링크는 따라가지 않는다(Codex 3R #1): 그쪽 저장소의 경로 구성요소(.harness·session·local·파일) 중 하나라도 링크면 읽지 않는다 —
+    // 세션 시작 훅이 이 출력을 그대로 컨텍스트에 싣기 때문에, 직접 읽기(harness_memo_plain)와 같은 경계를 둔다.
+    let reminderPath = null
     if (abs && hasHarness) {
+      reminderPath = ['.harness/session/local/next-session-reminder.md', '.harness/session/next-session-reminder.md']
+        .filter((rel) => !pathHasSymlinkComponent(abs, rel) && isRegularFile(path.join(abs, rel)))
+        .map((rel) => path.join(abs, rel))[0] ?? null
       try {
-        reminderHeads = fs.readFileSync(path.join(abs, '.harness/session/next-session-reminder.md'), 'utf8')
-          .split(/\r?\n/).filter((l) => /^## /.test(l)).slice(0, 3).map((h) => h.replace(/^## /, ''))
+        if (reminderPath) {
+          reminderHeads = fs.readFileSync(reminderPath, 'utf8')
+            .split(/\r?\n/).filter((l) => /^## /.test(l)).slice(0, 3).map((h) => h.replace(/^## /, ''))
+        }
       } catch {}
     }
     const branch = abs ? currentBranch(abs) : null
-    return { label, repo: item.repo ?? null, focus, hint: item.path ?? null, abs, via, branch, hasHarness, docs, reminderHeads }
+    return { label, repo: item.repo ?? null, focus, hint: item.path ?? null, abs, via, branch, hasHarness, docs, reminderHeads, reminderPath }
   })
 }
 
@@ -232,7 +251,7 @@ if (mode === 'json') {
       if (it.hasHarness) {
         console.log(`  그쪽 하네스 명령은 ${path.join(it.abs, '.harness/bin/harness')} <명령> 으로 실행합니다(이 저장소 런처가 아님). 커밋·푸시는 그 저장소 안에서 — 그쪽 git 훅이 검사합니다.`)
         console.log('  ⚠ 그쪽 훅(쓰기 시점 차단·검사)은 이 세션에서 자동 실행되지 않습니다 — 그쪽 파일을 고쳤으면 그 저장소에서 커밋해 훅 검사를 받고, 필요하면 위 런처로 check를 돌리세요.')
-        if (it.reminderHeads.length) console.log(`  그쪽 리마인더 최근 항목: ${it.reminderHeads.join(' / ')} (전문: ${path.join(it.abs, '.harness/session/next-session-reminder.md')})`)
+        if (it.reminderHeads.length) console.log(`  그쪽 리마인더 최근 항목: ${it.reminderHeads.join(' / ')} (전문: ${it.reminderPath})`)
       }
     }
     console.log('  같은 이름의 슬래시 명령(/하네스업데이트 등)은 이 저장소 것만 뜹니다 — 연결 저장소 작업은 위 런처 경로로.')

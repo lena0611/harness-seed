@@ -4,10 +4,10 @@
 
 ## 읽기 순서
 1. [세션 시작 알림](./session-start-alert.md)
-2. [다음 세션 리마인더](./next-session-reminder.md)
+2. 다음 세션 리마인더 — `.harness/session/local/next-session-reminder.md` (개인 메모, 없으면 건너뜀)
 3. [세션 부트 가이드](./session-boot.md)
 4. [프로젝트 메모리](./project-memory.md)
-5. [현재 컨텍스트](./active-context.md)
+5. 현재 컨텍스트 — `.harness/session/local/active-context.md` (개인 메모, 없으면 건너뜀)
 6. [결정 로그](./decision-log.md)
 7. [개발자 입력 큐](./developer-input-queue.md)
 8. [수동 조치 목록](./manual-actions.md)
@@ -24,8 +24,24 @@
 - 이전 세션의 핵심 결정을 빠르게 재구성합니다.
 - 바로 다음 작업에 들어가기 전 필요한 사실과 제약을 확인합니다.
 
+## 개인 메모와 팀 기록 (0.2.153, #48 A)
+
+이 폴더의 파일은 성격이 둘입니다. **그 개발자의 대화를 다음 대화로 넘기는 개인 메모**와, **팀이 같이 보는 기록**입니다.
+
+| 성격 | 파일 | git |
+| --- | --- | --- |
+| 개인 메모 — 이 PC 개발자의 다음 할 일·현재 맥락 | `local/next-session-reminder.md`, `local/active-context.md` | **올리지 않음** (`.harness/session/local/` 은 `.gitignore`) |
+| 팀 기록 — 모두가 알아야 할 것 | `decision-log.md`(+아카이브), `project-memory.md`, `developer-input-queue.md`, `manual-actions.md` | 올림 |
+| 하네스가 깔아 주는 안내 | `README.md`, `session-start-alert.md`, `session-boot.md` | 올림 (업데이트가 갱신) |
+| 자동 생성물 | `handoff.md`, `task-context.md`, `project-scan-report.md` | 올리지 않음 |
+
+개인 메모를 팀 저장소에 두면 개발자끼리 한 파일을 섞어 쓰고, 브랜치를 바꿀 때 메모가 브랜치를 따라가고, 작업 커밋마다 딸려 들어가 머지 때 부딪힙니다(clubadm 실측 — 작업 커밋 3개 중 1개에 리마인더가 섞였다). 그래서 git 에 올라가지 않는 `local/` 에 둡니다. 대가는 하나 — PC 를 바꾸면 메모가 따라오지 않습니다. 잃으면 아까운 내용이라면 애초에 팀 기록 쪽에 있어야 합니다.
+
+- 옛 자리(`.harness/session/` 바로 아래의 `next-session-reminder.md`·`active-context.md`)에 있던 내용은 업데이트·pull·세션 시작·`harness context` 가 `local/` 로 복사합니다. 옛 파일은 그 릴리스에서는 지우지 않고(고치던 팀원의 pull 이 멈추지 않게) 다음 업데이트가 지웁니다. pull 이 옛 파일을 지웠으면 post-merge 가 머지 전 상태에서 되살립니다.
+- `local/` 안에 다른 개인 파일(인수인계 메모 등)을 둬도 됩니다 — 문서 검사가 보지 않습니다.
+
 ## 본체와 소비자 프로젝트 구분
-- 하네스 본체 저장소의 `decision-log.md`, `active-context.md`, `project-memory.md`는 본체 개발을 위한 세션 기록입니다.
+- 하네스 본체 저장소의 `decision-log.md`, `project-memory.md`는 본체 개발을 위한 세션 기록입니다(개인 메모는 본체도 `local/`).
 - 소비자 프로젝트에 설치할 때는 본체 세션 기록을 그대로 복사하지 않고, 소비자 프로젝트용 초기 템플릿을 생성합니다.
 - 소비자 프로젝트의 `decision-log.md`는 하네스 릴리스 노트가 아니라 해당 프로젝트의 기준 충돌, 예외, 아키텍처 선택 이유를 남기는 문서입니다.
 - 하네스 본체 변경 이력은 본체 저장소의 `CHANGELOG.md`와 릴리스 태그를 기준으로 확인합니다.
@@ -36,7 +52,7 @@ Claude Code에서는 아래 slash command를 사용합니다. Codex와 Copilot�
 
 | 명령 | 대상 파일 | 목적 |
 | --- | --- | --- |
-| `/reminder` | `.harness/session/next-session-reminder.md` | 다음 세션에서 반드시 떠올릴 항목 정리 |
+| `/reminder` | `.harness/session/local/next-session-reminder.md` (개인 메모) | 다음 세션에서 반드시 떠올릴 항목 정리 |
 | `/memory` | `.harness/session/project-memory.md` | 오래 유지되는 프로젝트 사실 기록 |
 | `/decision` | `.harness/session/decision-log.md` | 구조 결정, 예외, 충돌 해결 이유 기록 |
 | `/harness-scan` | `.harness/session/project-scan-report.md` | 현재 프로젝트 스캔과 로컬 기준 후보 정리 |
@@ -44,13 +60,13 @@ Claude Code에서는 아래 slash command를 사용합니다. Codex와 Copilot�
 | `/운영업무` | .harness/maintenance/work-history/연도별 폴더 | JIRA 운영 업무를 접수하고 업무 유형별 흐름으로 연결 |
 | `/업무요약` | .harness/maintenance/work-history/연도별 폴더 | 완료 후보를 사용자가 승인한 운영 업무의 요청, 변경, 검증, TODO 기록 |
 
-Claude Code는 `SessionStart` hook으로 `next-session-reminder.md`를 자동 표시합니다. 다른 에이전트는 `CLAUDE.md`와 이 README의 읽기 순서를 통해 같은 기준을 따라야 합니다.
+Claude Code는 `SessionStart` hook으로 `local/next-session-reminder.md`를 자동 표시합니다. 다른 에이전트는 `CLAUDE.md`와 이 README의 읽기 순서를 통해 같은 기준을 따라야 합니다.
 
 ## 운영 규칙
 - 장기적으로 유지되는 사실은 `project-memory.md`에 기록합니다.
-- 최근 상태, 다음 작업, 확인이 필요한 항목은 `active-context.md`에 기록합니다.
-- `active-context.md`는 프로젝트 고정 사실, 최신 작업 상태, 핸드오프만 짧게 남깁니다. 운영 규칙 본문은 복사하지 말고 `workflow-rules.md`, `commit-push-rules.md`, `CLAUDE.md` 같은 권위 문서를 단일 출처로 가리킵니다.
-- `next-session-reminder.md`는 다음 세션 부트스트랩 체크리스트와 미결 항목만 남깁니다. `project/*` 규칙 본문을 붙여 넣지 말고 포인터로 축약합니다.
+- 최근 상태, 다음 작업, 확인이 필요한 항목은 `local/active-context.md`(개인 메모)에 기록합니다.
+- `local/active-context.md`는 프로젝트 고정 사실, 최신 작업 상태, 핸드오프만 짧게 남깁니다. 운영 규칙 본문은 복사하지 말고 `workflow-rules.md`, `commit-push-rules.md`, `CLAUDE.md` 같은 권위 문서를 단일 출처로 가리킵니다.
+- `local/next-session-reminder.md`(개인 메모)는 다음 세션 부트스트랩 체크리스트와 미결 항목만 남깁니다. `project/*` 규칙 본문을 붙여 넣지 말고 포인터로 축약합니다.
 - 중요한 결정이나 모두가 알아야 할 공유 내용이 생겼을 때만 `decision-log.md`에 남깁니다 — 사용자에게 먼저 묻고 허락을 받은 뒤 씁니다(아래 「결정 로그 기록 기준」).
 - 에이전트가 직접 처리할 수 없는 외부 콘솔, secret, capability, Pages/배포 설정은 `manual-actions.md`에 남깁니다.
 - 큰 작업이나 생소한 영역은 `harness:sync`로 생성 컨텍스트를 최신화하고 `harness:context`로 에이전트 판단 컨텍스트를 만듭니다.
@@ -60,14 +76,14 @@ Claude Code는 `SessionStart` hook으로 `next-session-reminder.md`를 자동 �
 - 긴 대화창 때문에 작업 범위가 흐려지면 [Workstream 대화창 분리 가이드](../documentation/workstream-chat-splitting-guide.md)를 참고합니다. 프로젝트가 session workstreams README를 만들어 opt-in 한 경우에만 매 요청 시작 시 현재 workstream을 식별합니다.
 - 새 세션 시작 시에는 항상 `session-boot.md`의 순서를 따릅니다.
 - 새 세션 시작 시에는 항상 `session-start-alert.md`를 최우선으로 읽습니다.
-- 사용자가 `세션종료`라고 말하면 그 세션의 미결 사항과 다음 세션 상기 사항을 `next-session-reminder.md`에 정리합니다.
+- 사용자가 `세션종료`라고 말하면 그 세션의 미결 사항과 다음 세션 상기 사항을 `local/next-session-reminder.md`에 정리합니다.
 - 정보 부족으로 막힌 항목은 `developer-input-queue.md`에 남겨 다음 세션에서 다시 묻습니다.
 - 정책 문서 또는 `src/` 변경 작업은 시작 전 `harness:impact`, 사용자 최종화 승인 후 `harness:check` 흐름으로 다룹니다.
 - 문서가 길어질 때의 분리 기준은 [documentation/split-thresholds.md](../documentation/split-thresholds.md)가 정본입니다.
 
 ## 기억 표면 정리
 
-매 세션 또는 재개 시 로드되는 `active-context.md`, `next-session-reminder.md`, `project-memory.md`, `decision-log.md`, `developer-input-queue.md`, `MEMORY.md`류 인덱스는 부트스트랩, 핸드오프, 현재 유효 항목만 유지합니다. 규칙 본문은 `.harness/project/*` 단일 출처로 보내고, 오래된 이력은 날짜별 아카이브나 thread handoff 스냅샷으로 분리합니다. `answered`/`obsolete` 큐 항목과 supersede된 결정/기억은 현재 파일에 상주시키지 않습니다.
+매 세션 또는 재개 시 로드되는 `local/active-context.md`, `local/next-session-reminder.md`, `project-memory.md`, `decision-log.md`, `developer-input-queue.md`, `MEMORY.md`류 인덱스는 부트스트랩, 핸드오프, 현재 유효 항목만 유지합니다. 규칙 본문은 `.harness/project/*` 단일 출처로 보내고, 오래된 이력은 날짜별 아카이브나 thread handoff 스냅샷으로 분리합니다. `answered`/`obsolete` 큐 항목과 supersede된 결정/기억은 현재 파일에 상주시키지 않습니다.
 
 ## 결정 로그 기록 기준 (write 게이트)
 

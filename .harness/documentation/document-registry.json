@@ -40,11 +40,9 @@
       "id": "session-harness",
       "index": ".harness/session/README.md",
       "children": [
-        ".harness/session/next-session-reminder.md",
         ".harness/session/session-start-alert.md",
         ".harness/session/session-boot.md",
         ".harness/session/project-memory.md",
-        ".harness/session/active-context.md",
         ".harness/session/decision-log.md",
         ".harness/session/developer-input-queue.md",
         ".harness/session/manual-actions.md"

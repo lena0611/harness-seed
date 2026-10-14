@@ -228,8 +228,9 @@ function sessionOnlyCommitSkipsHeavyCheck() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
 
-  fs.appendFileSync(path.join(target, '.harness/session/next-session-reminder.md'), '\n- 기록 한 줄.\n')
-  run('git', ['add', '.harness/session/next-session-reminder.md'], { cwd: target })
+  // 리마인더는 0.2.153 부터 git 에 올라가지 않는 개인 메모라 스테이징할 수 없다 — 팀 기록인 project-memory 로 같은 경계를 본다.
+  fs.appendFileSync(path.join(target, '.harness/session/project-memory.md'), '\n- 기록 한 줄.\n')
+  run('git', ['add', '.harness/session/project-memory.md'], { cwd: target })
   const skipped = run('sh', [path.join(target, '.githooks/pre-commit')], { cwd: target })
   assert(skipped.includes('세션 기록 전용 커밋'), 'session-only staging must announce the skip')
   assert(!skipped.includes('Harness check summary'), 'session-only staging must not run the full check')
@@ -1886,7 +1887,133 @@ function sessionStartHookSnoozesQueueRowsUntilReviewDate() {
   assert(legacy.includes('[open] old-q') && legacy.includes('[deferred] old-d'), 'legacy queue schema must keep printing every open/deferred row')
 }
 
+// #48 A(0.2.153): 세션 시작 훅은 local/ 의 개인 메모를 보여 준다. 옛 자리만 있는 clone(0.2.152 에서 pull 로 0.2.153 을 받은
+// 팀원)은 여기서 local/ 로 옮겨 보여 주고, 옛 파일은 지우지 않는다. 둘 다 없으면 어디에 만들지 말한다.
+function sessionStartShowsPersonalReminderFromLocal() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const hook = path.join(target, '.claude/hooks/session-start-reminder.sh')
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: target }
+
+  fs.writeFileSync(path.join(target, '.harness/session/local/next-session-reminder.md'), '# 다음 세션 리마인더\n\n## 내 메모\n- 결제 화면부터\n')
+  const fromLocal = run('/bin/sh', [hook], { cwd: target, env })
+  assert(fromLocal.includes('- 결제 화면부터'), `session start must print the personal memo from local/ (got: ${fromLocal})`)
+
+  fs.rmSync(path.join(target, '.harness/session/local'), { recursive: true, force: true })
+  fs.writeFileSync(path.join(target, '.harness/session/next-session-reminder.md'), '# 다음 세션 리마인더\n\n## 옛 자리 메모\n- 로그인 버그\n')
+  const migrated = run('/bin/sh', [hook], { cwd: target, env })
+  assert(migrated.includes('옮겼습니다') && migrated.includes('- 로그인 버그'), `session start must move the old memo to local/ and show it (got: ${migrated})`)
+  assert(read(target, '.harness/session/local/next-session-reminder.md').includes('로그인 버그'), 'the moved memo must be in local/')
+  assert(exists(target, '.harness/session/next-session-reminder.md'), 'the hook must not delete the old file — the next update does')
+  const quiet = run('/bin/sh', [hook], { cwd: target, env })
+  assert(!quiet.includes('옮겼습니다'), 'once moved, session start must stay quiet about it')
+
+  fs.rmSync(path.join(target, '.harness/session/local'), { recursive: true, force: true })
+  fs.rmSync(path.join(target, '.harness/session/next-session-reminder.md'), { force: true })
+  const none = run('/bin/sh', [hook], { cwd: target, env })
+  assert(none.includes('파일 없음') && none.includes('.harness/session/local/next-session-reminder.md'), `without a memo the hook must say where to make one (got: ${none})`)
+
+  // 옛 자리가 심볼릭 링크면 따라가지 않는다 — 저장소에 든 링크가 가리키는 바깥 파일을 메모 자리에 복사해 세션 컨텍스트에 찍는 통로가 된다.
+  const outside = path.join(os.tmpdir(), `harness-outside-${crypto.randomUUID()}.md`)
+  fs.writeFileSync(outside, '# 바깥 파일\n- 바깥 파일 표식 QX17\n')
+  fs.symlinkSync(outside, path.join(target, '.harness/session/next-session-reminder.md'))
+  const linked = run('/bin/sh', [hook], { cwd: target, env })
+  assert(!exists(target, '.harness/session/local/next-session-reminder.md'), 'a symlinked old memo must not be copied into local/')
+  assert(!linked.includes('옮겼습니다'), 'the hook must not claim it moved a symlink')
+  // 옮기기를 거부한 링크를 폴백 읽기가 따라가면 방어가 헛된다(Codex 2R #3) — 출력에도 나오면 안 된다.
+  assert(!linked.includes('QX17'), 'the hook must not print a memo reached through a link')
+  fs.rmSync(outside, { force: true })
+
+  // 상위 폴더가 링크여도 따라가지 않는다(Codex 2R #2): session/ 이 바깥 폴더를 가리키면 거기에 local/ 을 만들지도, 그 안의 옛 메모를 읽지도 않는다.
+  const extSession = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-ext-session-'))
+  fs.writeFileSync(path.join(extSession, 'next-session-reminder.md'), '# 다음 세션 리마인더\n\n- 바깥 폴더 표식 QX18\n')
+  const sessionDir = path.join(target, '.harness/session')
+  fs.renameSync(sessionDir, `${sessionDir}.real`)
+  fs.symlinkSync(extSession, sessionDir)
+  const viaParent = run('/bin/sh', [hook], { cwd: target, env })
+  assert(!fs.existsSync(path.join(extSession, 'local')), 'a linked session/ must not receive local/')
+  assert(!viaParent.includes('QX18'), 'the hook must not print a memo reached through a linked session/')
+  fs.rmSync(sessionDir, { force: true })
+  fs.renameSync(`${sessionDir}.real`, sessionDir)
+  fs.rmSync(extSession, { recursive: true, force: true })
+}
+
+// pull 이 옛 자리 메모를 지운 경우(이 릴리스와 그다음 업데이트를 한 번에 받은 팀원): post-merge 가 머지 전 상태(ORIG_HEAD)에서
+// local/ 로 되살린다. 이미 local/ 이 있으면 손대지 않는다.
+function postMergeRestoresPersonalMemoThePullDeleted() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  fs.rmSync(path.join(target, '.harness/session/local'), { recursive: true, force: true })
+  fs.writeFileSync(path.join(target, '.harness/session/next-session-reminder.md'), '# 다음 세션 리마인더\n\n## 내 메모\n- 결제 화면부터\n')
+  gitCommitAll(target, 'old layout')
+  const base = run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: target }).trim()
+  const commit = (message) => run('git', ['-c', 'user.name=Harness Test', '-c', 'user.email=harness-test@example.invalid', 'commit', '--quiet', '-m', message], { cwd: target })
+
+  // 동료가 올린 커밋: 다음 릴리스 업데이트가 옛 파일을 지웠다.
+  run('git', ['checkout', '--quiet', '-b', 'update'], { cwd: target })
+  run('git', ['rm', '--quiet', '.harness/session/next-session-reminder.md'], { cwd: target })
+  commit('retire the old memo place')
+  run('git', ['checkout', '--quiet', base], { cwd: target })
+  assert(exists(target, '.harness/session/next-session-reminder.md'), 'precondition: the old memo is back on the base branch')
+
+  // pull = merge + post-merge. 머지가 ORIG_HEAD 를 머지 전 내 상태로 둔다.
+  run('git', ['merge', '--quiet', '--ff-only', 'update'], { cwd: target })
+  assert(!exists(target, '.harness/session/next-session-reminder.md'), 'precondition: the pull deleted the old memo')
+  const pulled = run('sh', [path.join(target, '.githooks/post-merge')], { cwd: target, env: { ...process.env } })
+  assert(pulled.includes('되살렸습니다'), `post-merge must say it restored the memo (got: ${pulled})`)
+  assert(read(target, '.harness/session/local/next-session-reminder.md').includes('- 결제 화면부터'), 'the memo must come back under local/ from the pre-merge state')
+
+  fs.appendFileSync(path.join(target, '.harness/session/local/next-session-reminder.md'), '- 그 뒤 적은 것\n')
+  const again = run('sh', [path.join(target, '.githooks/post-merge')], { cwd: target, env: { ...process.env } })
+  assert(!again.includes('되살렸습니다'), 'with local/ present the hook must not touch it')
+  assert(read(target, '.harness/session/local/next-session-reminder.md').includes('그 뒤 적은 것'), 'local/ content must survive later pulls')
+}
+
+// 연결 프로젝트의 리마인더 요약도 링크를 따라가지 않는다(Codex 3R #1) — 세션 시작 훅이 이 출력을 컨텍스트에 싣는다.
+function linkedProjectReminderIsNotReadThroughLinks() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const other = makeTarget()
+  runInit(other, '--no-scan', '--no-handoff', '--no-check')
+  const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
+  profile.linkedProjects = [{ label: 'other', path: other }]
+  writeJson(target, '.harness/policy/profile.json', profile)
+  const session = () => run(nodeBin, [path.join(target, '.harness/bin/linked-projects.mjs'), 'session', target], { cwd: target })
+
+  // 일반 파일이면 제목이 요약된다 — 아래 부정 단언이 "아무것도 안 읽어서" 통과하는 것이 아님을 먼저 못 박는다.
+  const localReminder = path.join(other, '.harness/session/local/next-session-reminder.md')
+  fs.writeFileSync(localReminder, '# 다음 세션 리마인더\n\n## 그쪽 메모 제목\n- 내용\n')
+  assert(session().includes('그쪽 메모 제목'), 'a plain reminder in the linked project is summarised')
+
+  // 파일이 링크면(새 자리든 옛 자리든) 읽지 않는다.
+  const outside = path.join(os.tmpdir(), `harness-outside-${crypto.randomUUID()}.md`)
+  fs.writeFileSync(outside, '# 바깥\n\n## 바깥 파일 표식 QX19\n')
+  fs.rmSync(localReminder)
+  fs.symlinkSync(outside, localReminder)
+  const legacyReminder = path.join(other, '.harness/session/next-session-reminder.md')
+  fs.symlinkSync(outside, legacyReminder)
+  assert(!session().includes('QX19'), 'a linked reminder file must not be summarised')
+  fs.rmSync(localReminder, { force: true })
+  fs.rmSync(legacyReminder, { force: true })
+
+  // 상위 폴더(session/)가 링크여도 읽지 않는다.
+  const extSession = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-ext-session-'))
+  fs.mkdirSync(path.join(extSession, 'local'))
+  fs.writeFileSync(path.join(extSession, 'local/next-session-reminder.md'), '# 다음 세션 리마인더\n\n## 바깥 폴더 표식 QX20\n')
+  const sessionDir = path.join(other, '.harness/session')
+  fs.renameSync(sessionDir, `${sessionDir}.real`)
+  fs.symlinkSync(extSession, sessionDir)
+  assert(!session().includes('QX20'), 'a reminder behind a linked session/ must not be summarised')
+  fs.rmSync(sessionDir, { force: true })
+  fs.renameSync(`${sessionDir}.real`, sessionDir)
+  fs.rmSync(extSession, { recursive: true, force: true })
+  fs.rmSync(outside, { force: true })
+}
+
 export {
+  sessionStartShowsPersonalReminderFromLocal,
+  postMergeRestoresPersonalMemoThePullDeleted,
+  linkedProjectReminderIsNotReadThroughLinks,
   freshInstallAutoActivatesGitHooks,
   sessionStartAdapterWarnsWhenHooksMissing,
   sessionStartHookAutoEnablesGitHooks,

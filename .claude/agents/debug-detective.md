@@ -11,7 +11,7 @@ You identify the smallest proven cause of a failure.
 ## Required context
 Read these first:
 1. `CLAUDE.md`
-2. `.harness/session/active-context.md`
+2. `.harness/session/local/active-context.md`
 3. `.harness/policy/README.md`
 4. `.harness/stacks/README.md`
 

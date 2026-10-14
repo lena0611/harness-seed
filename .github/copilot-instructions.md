@@ -18,7 +18,7 @@ Copilot은 Claude Code의 `SessionStart` hook이나 slash command를 강제 실�
 
 실제 업무 진행을 보고할 때는 `[harness] request/context/impact/action/decision/verify` visible trace 형식으로 요약합니다. 단순 질문 응답, 잡담, 메타 확인처럼 업무 진행 보고가 아닌 턴에는 이 형식을 강요하지 않습니다.
 
-- `.harness/session/next-session-reminder.md`
+- `.harness/session/local/next-session-reminder.md`
 - `.harness/session/project-memory.md`
 - `.harness/session/decision-log.md` — 작업 기록이 아닙니다. 코드·git 이력으로 알 수 있는 건 적지 않고, 중요한 결정이나 모두가 알아야 할 공유 내용만 사용자 허락을 받고 남깁니다.
 

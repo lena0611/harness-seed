@@ -32,6 +32,8 @@ import {
   relative,
   resolve as pathResolve,
 } from 'path';
+// 개인 세션 메모(0.2.153, #48 A)의 자리와 옮기는 규칙은 이 모듈 한 곳이 소유한다 — 훅·harness context 도 같은 것을 부른다.
+import { LOCAL_SESSION_DIR, SESSION_MEMOS, legacyMemoPath, localMemoPath, migrateSessionMemos, pathHasSymlinkComponent } from '../.harness/bin/session-memos.mjs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -43,11 +45,12 @@ const MANIFEST_PATH = '.harness/install-manifest.json';
 const LOCK_PATH = '.harness/harness-lock.json';
 
 const CONSUMER_PROJECT_STATE_PATHS = [
-  '.harness/session/active-context.md',
+  // 개인 세션 메모 둘은 .gitignore 에 든 local/ 에 만든다(0.2.153, #48 A) — 그 개발자의 대화를 다음 대화로 넘기는 메모다.
+  localMemoPath('active-context.md'),
   '.harness/session/decision-log.md',
   '.harness/session/developer-input-queue.md',
   '.harness/session/manual-actions.md',
-  '.harness/session/next-session-reminder.md',
+  localMemoPath('next-session-reminder.md'),
   '.harness/session/project-memory.md',
 ];
 
@@ -120,12 +123,15 @@ const PROJECT_OWNED_PATHS = new Set([
   '.harness/project/spec-map.md',
   '.harness/spec-sources.json',
   '.harness/spec-lock.json',
+  // 옛 자리 개인 메모(0.2.153 이전)도 계속 프로젝트 소유다 — 지우는 것은 retireLegacySessionMemos 한 곳이다.
   '.harness/session/active-context.md',
   '.harness/session/decision-log.md',
   '.harness/session/developer-input-queue.md',
   '.harness/session/manual-actions.md',
   '.harness/session/next-session-reminder.md',
   '.harness/session/project-memory.md',
+  localMemoPath('active-context.md'),
+  localMemoPath('next-session-reminder.md'),
   '.claude/settings.json',
   '.claude/settings.local.json',
   'CLAUDE.local.md',
@@ -830,6 +836,10 @@ function shouldIncludeInstallFile(relPath) {
     // 개인 로컬 파일은 시드에 있어도 배포하지 않는다 — 목록은 PERSONAL_LOCAL_PATHS 한 곳.
     PERSONAL_LOCAL_PATHS.includes(rel) ||
     CONSUMER_PROJECT_STATE_PATHS.includes(rel) ||
+    // 개인 세션 메모(0.2.153): local/ 은 그 PC 개발자의 것이다. 옛 자리 두 파일도 더는 소비자 상태가 아니다 —
+    // 시드 작업 트리에 남아 있어도(본체 개발자의 메모) 싣지 않는다.
+    rel.startsWith(`${LOCAL_SESSION_DIR}/`) ||
+    SESSION_MEMOS.map(legacyMemoPath).includes(rel) ||
     [
       '.harness/session/project-scan-report.md',
       '.harness/session/handoff.md',
@@ -1836,12 +1846,13 @@ function consumerProjectStateTemplate(rel, context) {
   const packageVersion = context.packageVersion;
 
   switch (rel) {
-    case '.harness/session/active-context.md':
+    case localMemoPath('active-context.md'):
       return `# 현재 컨텍스트
 
 이 문서는 이 프로젝트에서 최근 작업 상태와 다음 작업을 짧게 이어받기 위한 소비자 프로젝트 전용 문서입니다.
 
 > 하네스 본체의 개발 기록이 아닙니다. 설치된 프로젝트의 현재 작업 맥락만 기록합니다.
+> **개인 메모입니다** — 이 PC 개발자의 대화를 다음 대화로 넘기는 자리라 git 에 올라가지 않습니다(\`.harness/session/local/\`). 팀이 알아야 할 것은 \`project-memory.md\`·\`decision-log.md\`·\`developer-input-queue.md\` 에 둡니다.
 
 ## 현재 상태
 - generatedAt: ${generatedAt}
@@ -1946,10 +1957,12 @@ function consumerProjectStateTemplate(rel, context) {
 - 수동 조치가 구현 방향을 바꾸는 중요한 결정이면 사용자 허락을 받아 \`decision-log.md\`에도 근거를 남깁니다.
 `;
 
-    case '.harness/session/next-session-reminder.md':
+    case localMemoPath('next-session-reminder.md'):
       return `# 다음 세션 리마인더
 
 새 세션에서 바로 이어받기 위한 소비자 프로젝트 전용 메모입니다.
+
+> **개인 메모입니다** — 이 PC 개발자의 대화를 다음 대화로 넘기는 자리라 git 에 올라가지 않습니다(\`.harness/session/local/\`). 팀이 알아야 할 것은 \`project-memory.md\`·\`decision-log.md\`·\`developer-input-queue.md\` 에, 작업이 끝난 뒤 일어난 일은 팀이 쓰는 이슈에 둡니다.
 
 ## 먼저 확인할 것
 1. \`git --no-pager status --short\`
@@ -2014,7 +2027,46 @@ function isUnchangedManagedProjectState(target, rel, manifest) {
   return matchesRecordedSha(abs, manifest.managedFiles[rel].sha256);
 }
 
-function writeConsumerProjectStateFiles(target, opts, manifest, sourcePkg) {
+// 옛 자리(.harness/session/<이름>) 개인 메모를 지우는 것은 **이 릴리스를 이미 거친 저장소의 다음 업데이트**다(0.2.153, #48 A).
+// 옮기기와 지우기를 한 업데이트에 실으면, 옛 파일을 고치던 중인 팀원의 pull 이 "로컬 변경이 덮인다"로 멈춘다 — 0.2.153 부터는
+// 아무도 옛 파일을 쓰지 않으므로 그다음 업데이트에서 지우면 부딪힐 것이 없다. local/ 에 옮겨진 것을 확인한 파일만 지운다.
+const SESSION_MEMOS_LOCAL_SINCE = '0.2.153';
+
+function retireLegacySessionMemos(target, opts, startVersion) {
+  const result = { removed: [], kept: [], keptDirty: [] };
+  const start = parseSemverLoose(startVersion);
+  const passedMigration = Boolean(start) && compareSemverLoose(start, parseSemverLoose(SESSION_MEMOS_LOCAL_SINCE)) >= 0;
+  // 지워도 잃는 것이 없을 때만 지운다(Codex 1R #2): 옛 파일이 HEAD 와 같거나(git 이 들고 있다) local/ 과 바이트까지 같을 때.
+  // 커밋 안 된 내용이 있으면 — 옛 자리에 계속 적는 낡은 도구·습관 — 지우지 않고 알린다. 링크는 건드리지 않는다.
+  const present = SESSION_MEMOS.map(legacyMemoPath).filter((rel) => isRegularFile(join(target, rel)));
+  const recoverable = passedMigration && present.length > 0 ? gitRecoverablePaths(target, present) : new Set();
+
+  for (const name of SESSION_MEMOS) {
+    const legacyRel = legacyMemoPath(name);
+    const legacyAbs = join(target, legacyRel);
+    if (!existsSync(legacyAbs) && !isSymlinkPath(legacyAbs)) continue;
+    const localAbs = join(target, localMemoPath(name));
+    // 링크 너머의 파일은 지우지 않는다(Codex 2R #2) — session/ 이 링크면 옛 파일의 rmSync 가 저장소 밖 파일을 지운다.
+    const moved = passedMigration && !pathHasSymlinkComponent(target, legacyRel) && !pathHasSymlinkComponent(target, localMemoPath(name))
+      && isRegularFile(legacyAbs) && isRegularFile(localAbs);
+    if (!moved) {
+      result.kept.push(legacyRel);
+      continue;
+    }
+    if (recoverable.has(legacyRel) || filesEqual(legacyAbs, localAbs)) {
+      if (!opts.dryRun) rmSync(legacyAbs, { force: true });
+      result.removed.push(legacyRel);
+    } else {
+      result.keptDirty.push(legacyRel);
+    }
+  }
+
+  return result;
+}
+
+// keep: 이번 실행에서 옛 자리로부터 막 옮긴 파일. --force 라도 견본으로 덮지 않는다(Codex 2R #1) — 옮기기 전에는 없던 파일이라
+// 백업에도 없고, 옛 파일은 옮긴 직후 지워질 수 있어 덮으면 그 내용이 어디에도 남지 않는다.
+function writeConsumerProjectStateFiles(target, opts, manifest, sourcePkg, { keep = [] } = {}) {
   const result = { added: 0, updated: 0, preserved: 0, planned: 0, files: [] };
   const context = {
     generatedAt: new Date().toISOString(),
@@ -2023,6 +2075,12 @@ function writeConsumerProjectStateFiles(target, opts, manifest, sourcePkg) {
 
   for (const rel of CONSUMER_PROJECT_STATE_PATHS) {
     const abs = join(target, rel);
+    // 링크 자리에는 쓰지 않는다(Codex 1R #1, 2R #2): 파일이나 경로 구성요소(.harness·session·local)가 링크면 writeFileSync 가
+    // 링크 너머(저장소 밖일 수 있다)에 견본을 만든다. 보존으로 센다 — 사용자 파일을 건드리지 않았다는 뜻이다.
+    if (pathHasSymlinkComponent(target, rel) || keep.includes(rel)) {
+      result.preserved++;
+      continue;
+    }
     const exists = existsSync(abs);
     const template = consumerProjectStateTemplate(rel, context);
     const unchangedManaged = isUnchangedManagedProjectState(target, rel, manifest);
@@ -2319,6 +2377,8 @@ function normalizeSourceRef(ref, repo, packageVersion) {
 function collectProjectOwnedSeedShas(sourceRoot, projectOwnedFiles) {
   const shas = {}
   for (const rel of projectOwnedFiles) {
+    // 개인 세션 메모는 견본이 아니다 — 본체 작업 트리의 local/ 은 본체 개발자의 메모다(0.2.153).
+    if (rel.startsWith(`${LOCAL_SESSION_DIR}/`)) continue
     const abs = join(sourceRoot, rel)
     if (!existsSync(abs) || !statSync(abs).isFile()) continue
     shas[rel] = sha256(abs)
@@ -2671,6 +2731,9 @@ function mergeGitignore(target, opts) {
     // 기존 설치본도 다음 업데이트에서 자동 보정된다.
     '.harness/session/task-context.md',
     '.harness/session/template-gap-report.md',
+    // 개인 세션 메모(0.2.153, #48 A): 그 개발자의 대화를 다음 대화로 넘기는 메모라 팀 저장소에 올리지 않는다.
+    // 목록은 누락분만 덧붙이므로 기존 설치본도 이번 업데이트에서 들어간다.
+    `${LOCAL_SESSION_DIR}/`,
     '.harness-backup/',
     // prune:aliases와 managed 파일 덮어쓰기가 남기는 사이드카 백업. 커밋에 딸려 들어가지 않게 한다.
     '*.harness-bak',
@@ -3312,7 +3375,11 @@ function main() {
     // 꼬리 요약에서도 같은 사실을 내보내려고 결과를 블록 밖에 둔다(#44).
     let backupSummary = null;
     if (!opts.noBackup) {
-      const backup = backupExisting(TARGET, [...files, ...CONSUMER_PROJECT_STATE_PATHS, ...legacyManagedRootScripts], opts.dryRun);
+      // 개인 세션 메모(local/)는 git 에 없어 늘 "되돌릴 수 없음"으로 잡히지만, 업데이트가 덮어쓰지 않는 파일이다(있으면 보존) —
+      // 매 업데이트마다 백업 세트를 만들게 두지 않는다. 덮어쓰는 --force 때만 백업한다.
+      const backupCandidates = [...files, ...CONSUMER_PROJECT_STATE_PATHS, ...legacyManagedRootScripts]
+        .filter((rel) => opts.force || !rel.startsWith(`${LOCAL_SESSION_DIR}/`));
+      const backup = backupExisting(TARGET, backupCandidates, opts.dryRun);
       backupSummary = { dir: backup.dir, count: backup.count, skipped: backup.skipped, prunedCount: 0, prunedBytes: 0 };
       if (backup.count > 0) {
         console.log(`backup: ${backup.dir} (${backup.count}개 기존 파일${backup.skipped > 0 ? `, git 이 되돌릴 수 있는 ${backup.skipped}개는 생략` : ''})`);
@@ -3337,7 +3404,19 @@ function main() {
     }
 
     const installed = installFiles(sourceRoot, TARGET, files, opts, recognizedManifest);
-    const projectState = writeConsumerProjectStateFiles(TARGET, opts, recognizedManifest, sourcePkg);
+    // 개인 세션 메모(0.2.153, #48 A): 옛 자리 내용을 local/ 로 먼저 복사한다 — 템플릿이 먼저 생기면 옛 메모가 옮겨지지 않는다.
+    // 옛 설치본이 본체 문서를 그대로 복사해 둔 채 손대지 않은 파일(managed sha 일치)은 옮기지 않는다 — 새 자리에 소비자 견본이 생긴다.
+    const sessionMemos = migrateSessionMemos(TARGET, {
+      dryRun: opts.dryRun,
+      skip: SESSION_MEMOS.filter((name) => isUnchangedManagedProjectState(TARGET, legacyMemoPath(name), recognizedManifest)),
+    });
+    const retiredMemos = retireLegacySessionMemos(TARGET, opts, lowerVersion(
+      pickUpdateFrom(opts, readJson(join(TARGET, LOCK_PATH), {})?.baseHarness?.version),
+      readResolvedUpdateFrom(TARGET, sourcePkg.version),
+    ));
+    const projectState = writeConsumerProjectStateFiles(TARGET, opts, recognizedManifest, sourcePkg, {
+      keep: sessionMemos.moved.map(localMemoPath),
+    });
     const workHistoryYear = ensureCurrentWorkHistoryYear(TARGET, opts);
     const migration = removeLegacyManagedRootScripts(TARGET, legacyManagedRootScripts, opts);
     const seedOnlyCleanup = removeSeedOnlyDocs(TARGET, recognizedManifest, opts);
@@ -3680,6 +3759,23 @@ function main() {
     if (staleNotesMigrated) {
       console.log('');
       console.log('profile.json notes의 낡은 harnessMode 안내를 갱신했습니다 (maintenance 은퇴 반영 — 다른 필드는 그대로).');
+    }
+
+    // 개인 세션 메모(0.2.153, #48 A) — 한 일만 말한다. 옛 파일을 남긴 이유는 리더가 미리 지우지 않게 하려고 한 줄 붙인다.
+    if (sessionMemos.moved.length > 0) {
+      console.log('');
+      console.log(`${opts.dryRun ? '[dry-run] ' : ''}개인 세션 메모를 ${LOCAL_SESSION_DIR}/ 로 옮겼습니다 — git 에 올라가지 않는 자리입니다(그 개발자의 대화를 다음 대화로 넘기는 메모): ${sessionMemos.moved.join(', ')}`);
+    }
+    if (retiredMemos.kept.length > 0 && sessionMemos.moved.length > 0) {
+      console.log(`옛 자리 파일(${retiredMemos.kept.join(', ')})은 이번엔 그대로 둡니다. 더는 읽지도 쓰지도 않고, 다음 업데이트가 지웁니다 — 미리 지우면 그 파일을 고치던 팀원의 pull 이 멈출 수 있습니다.`);
+    }
+    if (retiredMemos.removed.length > 0) {
+      console.log('');
+      console.log(`${opts.dryRun ? '[dry-run] ' : ''}옛 자리 개인 메모를 지웠습니다: ${retiredMemos.removed.join(', ')} — 내용은 각자 PC 의 ${LOCAL_SESSION_DIR}/ 에 있고 git 이력에도 남습니다.`);
+    }
+    if (retiredMemos.keptDirty.length > 0) {
+      console.log('');
+      console.log(`옛 자리 개인 메모에 커밋되지 않은 변경이 있어 지우지 않았습니다: ${retiredMemos.keptDirty.join(', ')} — 이제 읽지 않는 자리입니다. 필요한 내용은 ${LOCAL_SESSION_DIR}/ 로 옮기고 그 파일을 되돌리거나 커밋하면 다음 업데이트가 지웁니다.`);
     }
 
     const bridgeCandidates = detectBridgeCandidates(TARGET, installed.skippedFiles);
