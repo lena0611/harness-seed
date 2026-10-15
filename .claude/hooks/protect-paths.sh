@@ -25,9 +25,35 @@ deny() {
   exit 0
 }
 
-if ! command -v node >/dev/null 2>&1; then
+# nvm 만 쓰는 PC(PATH 에 node 없음)에서도 하네스 실행 Node 를 찾는다(smartscore-backend/common #61 ①, 0.2.153 핫픽스): 커밋 훅·
+# 세션 시작과 같은 dual-node 탐색(~/.nvm/versions/node)을 거친다. PATH 에 있는 node 는 버전과 무관하게 그대로 쓰고(JSON 파싱뿐),
+# nvm 자동 탐색 후보는 dual-node 규칙대로 20.19 이상만 — 규칙을 둘로 두지 않는다. 전환 안내는 내지 않는다 — 이 훅의 stdout 은
+# 판정 JSON 한 덩어리여야 한다. 파일이 없거나 실패하면 종전 판정으로 간다.
+harness_hook_find_node() {
+  local dual="" candidate
+  for candidate in "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.harness/bin/dual-node.sh" "${CLAUDE_PROJECT_DIR:-}/.harness/bin/dual-node.sh"; do
+    if [ -f "$candidate" ]; then dual="$candidate"; break; fi
+  done
+  [ -n "$dual" ] || return 0
+  HARNESS_DUAL_RUNTIME_ANNOUNCED=1
+  export HARNESS_DUAL_RUNTIME_ANNOUNCED
+  # shellcheck disable=SC1090
+  . "$dual" 2>/dev/null || return 0
+  if command -v harness_dual_node_activate >/dev/null 2>&1; then
+    harness_dual_node_activate >/dev/null 2>&1 || true
+  fi
+}
+harness_hook_find_node
+
+# 있어도 실행이 안 되면(아키텍처 불일치·공유 라이브러리 누락, 또는 node 가 아닌 실행 파일) 없는 것과 같다(Codex 핫픽스 리뷰 #1):
+# 그대로 두면 파싱 결과가 비거나 엉뚱한 문자열이 돼 "허용"으로 떨어진다 — 찾지 못한 경우와 똑같이 막는다.
+harness_hook_node_usable() {
+  command -v node >/dev/null 2>&1 && [ "$(node -e 'process.stdout.write("ok")' 2>/dev/null)" = "ok" ]
+}
+
+if ! harness_hook_node_usable; then
   if printf '%s' "$input" | grep -Eq '"(file_path|path)"[[:space:]]*:'; then
-    deny "하네스가 차단함: node를 찾지 못해 쓰기 대상 경로를 안전하게 파싱할 수 없습니다. 하네스 실행 Node를 먼저 연결하세요."
+    deny "하네스가 차단함: node를 찾지 못해 쓰기 대상 경로를 안전하게 파싱할 수 없습니다(찾았지만 실행이 안 되는 경우 포함). 하네스 실행 Node를 먼저 연결하세요."
   fi
   exit 0
 fi

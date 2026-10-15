@@ -16,6 +16,7 @@ import {
   makeBareTarget,
   makeTarget,
   makeNoGitTarget,
+  makeFakeNvmDir,
   runInit,
   runInitDefaultHooks,
   runGuard,
@@ -2010,10 +2011,82 @@ function linkedProjectReminderIsNotReadThroughLinks() {
   fs.rmSync(outside, { force: true })
 }
 
+// smartscore-backend/common #61 ①(0.2.153 핫픽스): nvm 만 쓰는 PC(PATH 에 node 없음)에서 커밋 훅은 dual-node 로 통과하는데
+// Claude 의 block-dangerous·protect-paths 는 command -v node 만 봐서 git status 까지 모든 Bash·쓰기를 막았다. 두 훅도 같은 탐색을 거친다.
+function claudeHooksFindNvmNodeWhenPathHasNone() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const fakeNvm = makeFakeNvmDir(['v24.15.0'])
+  // 가짜 nvm 의 node 는 버전만 찍는 셸 스크립트라 JSON 을 못 읽는다 — 진짜 node 를 그 자리에 건다.
+  const nvmNode = path.join(fakeNvm, 'versions/node/v24.15.0/bin/node')
+  fs.rmSync(nvmNode)
+  fs.symlinkSync(process.execPath, nvmNode)
+  const emptyNvm = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-empty-nvm-'))
+  // "node 가 없는 PATH" 는 고정 목록이 아니라 지금 PATH 에서 node 가 든 폴더만 뺀 것이다(Codex 핫픽스 리뷰 #2) — /usr/bin/node 가
+  // 있는 Linux 에서는 고정 목록에도 node 가 남아 전제가 안 선다. 빼고 나서 훅이 쓰는 도구가 사라지면 이 환경에서는 못 보는 회귀다.
+  const hasTool = (dir, tool) => { try { fs.accessSync(path.join(dir, tool), fs.constants.X_OK); return true } catch { return false } }
+  const pathDirs = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean)
+  const noNodeDirs = pathDirs.filter((dir) => !hasTool(dir, 'node'))
+  const noNodePath = noNodeDirs.join(path.delimiter)
+  for (const tool of ['bash', 'sh', 'git', 'grep', 'cat']) {
+    if (!noNodeDirs.some((dir) => hasTool(dir, tool))) {
+      console.log(`  SKIP: '${tool}' 이 node 와 같은 PATH 폴더에만 있어 "node 없는 PATH" 를 만들 수 없는 환경입니다 — 이 회귀는 여기서 볼 수 없습니다.`)
+      return
+    }
+  }
+  assert(!noNodeDirs.some((dir) => hasTool(dir, 'node')), 'precondition: the derived PATH must not contain node')
+  const ask = (hookName, toolInput, nvmDir) => {
+    try {
+      return execFileSync('bash', [path.join(target, '.claude/hooks', hookName)], {
+        cwd: target,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        input: JSON.stringify({ tool_input: toolInput, cwd: target }),
+        env: { PATH: noNodePath, HOME: target, NVM_DIR: nvmDir, CLAUDE_PROJECT_DIR: target },
+      })
+    } catch (error) {
+      throw new Error(`${hookName} exited ${error.status}: ${error.stdout ?? ''}${error.stderr ?? ''}`)
+    }
+  }
+
+  // 전제: nvm 에도 node 가 없으면 종전대로 막는다 — 파싱 못 하는 입력을 열어 주지 않는다.
+  const stillBlocked = ask('block-dangerous.sh', { command: 'git status' }, emptyNvm)
+  assert(stillBlocked.includes('node를 찾지 못해'), `without any node the hook must still deny (got: ${stillBlocked})`)
+
+  // PATH 에 node 가 없어도 nvm 설치본을 찾아 평소대로 판정한다 — 허용은 허용대로, 위험 명령은 본래 이유로.
+  const allowed = ask('block-dangerous.sh', { command: 'git status' }, fakeNvm)
+  assert(allowed.trim() === '', `a harmless command must pass once node is found through nvm (got: ${allowed})`)
+  const dangerous = ask('block-dangerous.sh', { command: 'rm -rf /' }, fakeNvm)
+  assert(dangerous.includes('"permissionDecision": "deny"') && !dangerous.includes('node를 찾지 못해'), `a dangerous command must be denied for the real reason (got: ${dangerous})`)
+  assert(!allowed.includes('dual-runtime') && !dangerous.includes('dual-runtime'), 'the node switch must not print into the hook output — stdout is the decision JSON')
+
+  const write = ask('protect-paths.sh', { file_path: path.join(target, 'src/a.js') }, fakeNvm)
+  assert(write.trim() === '', `a normal write must pass once node is found through nvm (got: ${write})`)
+  const protectedWrite = ask('protect-paths.sh', { file_path: path.join(target, 'node_modules/x.js') }, fakeNvm)
+  assert(protectedWrite.includes('"permissionDecision": "deny"') && !protectedWrite.includes('node를 찾지 못해'), `a protected path must be denied for the real reason (got: ${protectedWrite})`)
+
+  // 찾았지만 실행이 안 되는 node(Codex 핫픽스 리뷰 #1): 실행 권한만 있고 node 가 아닌 파일(가짜 nvm 의 기본 node — 버전만 찍고 끝)과
+  // 돌다 죽는 바이너리를 흉내 낸 것. 둘 다 파싱이 비거나 엉뚱해지므로 "없음"과 똑같이 막아야 한다 — 허용으로 떨어지면 보호가 사라진다.
+  const notNode = makeFakeNvmDir(['v24.15.0'])
+  const crashing = makeFakeNvmDir(['v24.15.0'])
+  fs.writeFileSync(path.join(crashing, 'versions/node/v24.15.0/bin/node'), '#!/bin/sh\nexit 127\n')
+  for (const [label, brokenNvm] of [['not-node', notNode], ['crashing', crashing]]) {
+    const brokenWrite = ask('protect-paths.sh', { file_path: path.join(target, 'node_modules/x.js') }, brokenNvm)
+    assert(brokenWrite.includes('"permissionDecision": "deny"') && brokenWrite.includes('node를 찾지 못해'), `[${label}] an unusable node must deny a protected write like a missing one (got: ${brokenWrite})`)
+    const brokenCmd = ask('block-dangerous.sh', { command: 'rm -rf /' }, brokenNvm)
+    assert(brokenCmd.includes('"permissionDecision": "deny"') && brokenCmd.includes('node를 찾지 못해'), `[${label}] an unusable node must deny a command like a missing one (got: ${brokenCmd})`)
+    fs.rmSync(brokenNvm, { recursive: true, force: true })
+  }
+
+  fs.rmSync(fakeNvm, { recursive: true, force: true })
+  fs.rmSync(emptyNvm, { recursive: true, force: true })
+}
+
 export {
   sessionStartShowsPersonalReminderFromLocal,
   postMergeRestoresPersonalMemoThePullDeleted,
   linkedProjectReminderIsNotReadThroughLinks,
+  claudeHooksFindNvmNodeWhenPathHasNone,
   freshInstallAutoActivatesGitHooks,
   sessionStartAdapterWarnsWhenHooksMissing,
   sessionStartHookAutoEnablesGitHooks,
