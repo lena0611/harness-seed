@@ -2082,11 +2082,80 @@ function claudeHooksFindNvmNodeWhenPathHasNone() {
   fs.rmSync(emptyNvm, { recursive: true, force: true })
 }
 
+// smartscore-backend/common #61 ②: protect-paths 가 vendor/·target/ 같은 폴더 이름만 보고 프로젝트 자체 소스(ss/vendor/ PHP 컨트롤러,
+// ss/js/mng/target/)를 막았다. 프로젝트가 profile.json 의 protectedPathAllow 에 저장소 기준 접두를 적으면 그 아래만 의존성·생성물
+// 규칙에서 빠진다. 시스템 경로·.git·비밀 파일·lockfile 규칙은 선언과 무관하고, 저장소 밖 경로는 선언해도 통하지 않는다.
+function protectPathsHonorsProjectDeclaredSourceFolders() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const ask = (filePath) => execFileSync('bash', [path.join(target, '.claude/hooks/protect-paths.sh')], {
+    cwd: target,
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    input: JSON.stringify({ tool_input: { file_path: filePath }, cwd: target }),
+    env: { ...process.env, CLAUDE_PROJECT_DIR: target },
+  })
+  const vendorFile = path.join(target, 'ss/vendor/util.html')
+  const before = ask(vendorFile)
+  assert(before.includes('"permissionDecision": "deny"') && before.includes('protectedPathAllow'), `a vendor/ path is denied by default and the denial must say how to declare it (got: ${before})`)
+
+  // 선언은 { path, reason } — 안전장치를 여는 선언이라 이유가 없는 항목(문자열만, reason 빈 것)은 선언으로 치지 않는다.
+  const profile = JSON.parse(read(target, '.harness/policy/profile.json'))
+  profile.protectedPathAllow = ['ss/vendor/', { path: 'ss/js/mng/target' }]
+  writeJson(target, '.harness/policy/profile.json', profile)
+  assert(ask(vendorFile).includes('"permissionDecision": "deny"'), 'a bare string entry is not a declaration')
+  assert(ask(path.join(target, 'ss/js/mng/target/app.js')).includes('"permissionDecision": "deny"'), 'an entry without a reason is not a declaration')
+
+  profile.protectedPathAllow = [
+    { path: 'ss/vendor/', reason: '업체(vendor)용 PHP 컨트롤러 — 의존성 아님' },
+    { path: './ss/js/mng/target', reason: '자체 코드' },
+    { path: path.join(os.tmpdir(), 'elsewhere'), reason: '절대 경로 선언은 무시돼야 한다' },
+  ]
+  writeJson(target, '.harness/policy/profile.json', profile)
+  assert(ask(vendorFile).trim() === '', `a declared source folder must pass (got: ${ask(vendorFile)})`)
+  assert(ask(path.join(target, 'ss/js/mng/target/app.js')).trim() === '', 'a prefix written with ./ and without a trailing slash must pass too')
+  assert(ask('ss/vendor/relative.php').trim() === '', 'a relative path under the declared prefix must pass')
+  assert(ask(path.join(target, 'node_modules/x.js')).includes('"permissionDecision": "deny"'), 'an undeclared dependency dir stays denied')
+  assert(ask(path.join(target, 'ss/vendor/.env')).includes('secret 또는 자격증명'), 'the secret-file rule still applies under a declared prefix')
+  assert(ask(path.join(target, 'ss/vendor/.git/config')).includes('.git 내부'), 'the .git rule still applies under a declared prefix')
+  // Codex 리뷰 #1: 선언으로 연 폴더 안의 lockfile 도 막힌다(판정 순서).
+  assert(ask(path.join(target, 'ss/vendor/package-lock.json')).includes('lockfile'), 'the lockfile rule still applies under a declared prefix')
+  assert(ask(path.join(os.tmpdir(), 'elsewhere/ss/vendor/z.php')).includes('"permissionDecision": "deny"'), 'a path outside the project never matches, even when declared as an absolute path')
+  // 저장소 밖인데 앞부분이 선언과 우연히 같은 절대 경로(파일시스템 루트의 /ss/vendor/…) — 루트 아래 판정이 없으면 열린다.
+  assert(ask('/ss/vendor/outside.php').includes('"permissionDecision": "deny"'), 'an absolute path outside the project whose leading parts match the declaration must stay denied')
+
+  // Codex 리뷰 #2·#3: 선언 아래의 링크는 열지 않는다 — 끊어진 링크(없는 파일처럼 보임), 비밀 파일로 가는 링크, 다른 곳을 가리키는 폴더 링크.
+  fs.mkdirSync(path.join(target, 'ss/vendor'), { recursive: true })
+  fs.symlinkSync(path.join(os.tmpdir(), 'no-such-dir/new.php'), path.join(target, 'ss/vendor/dangling.php'))
+  assert(ask(path.join(target, 'ss/vendor/dangling.php')).includes('"permissionDecision": "deny"'), 'a dangling symlink under a declared prefix must stay denied')
+  fs.writeFileSync(path.join(target, 'ss/vendor/.env'), 'SECRET=1\n')
+  fs.symlinkSync(path.join(target, 'ss/vendor/.env'), path.join(target, 'ss/vendor/public.txt'))
+  assert(ask(path.join(target, 'ss/vendor/public.txt')).includes('"permissionDecision": "deny"'), 'a symlink to a secret file under a declared prefix must stay denied')
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-outside-vendor-'))
+  fs.symlinkSync(outsideDir, path.join(target, 'ss/vendor/lib'))
+  assert(ask(path.join(target, 'ss/vendor/lib/x.php')).includes('"permissionDecision": "deny"'), 'a directory symlink under a declared prefix must stay denied')
+  // Codex 2R #1: `link/../victim` — normalize 가 링크 구성요소를 지워도 파일시스템은 링크를 따라간다. `..` 가 든 원본 경로는 선언 적용 안 함.
+  // path.join 은 `..` 를 미리 지우므로 문자열 그대로 넘긴다 — 훅이 받는 원본에 `..` 가 남아 있어야 한다.
+  assert(ask(`${target}/ss/vendor/lib/../victim.php`).includes('"permissionDecision": "deny"'), 'a path that steps through a symlink with .. must stay denied')
+  fs.rmSync(outsideDir, { recursive: true, force: true })
+  // Codex 2R #2·#3: 대소문자를 안 가리는 파일시스템·Windows 혼합 구분자에서도 .git·비밀 파일·lockfile 규칙은 선언 안에서 그대로다.
+  for (const [rel, why] of [
+    ['ss/vendor/.ENV', 'an upper-cased secret file name'],
+    ['ss/vendor/PACKAGE-LOCK.JSON', 'an upper-cased lockfile name'],
+    ['ss/vendor/.GIT/config', 'an upper-cased .git directory'],
+    ['ss/vendor/.git\\config', 'a backslash-separated .git path'],
+    ['ss/vendor/sub\\.env', 'a backslash-separated secret file'],
+  ]) {
+    assert(ask(path.join(target, rel)).includes('"permissionDecision": "deny"'), `${why} under a declared prefix must stay denied`)
+  }
+}
+
 export {
   sessionStartShowsPersonalReminderFromLocal,
   postMergeRestoresPersonalMemoThePullDeleted,
   linkedProjectReminderIsNotReadThroughLinks,
   claudeHooksFindNvmNodeWhenPathHasNone,
+  protectPathsHonorsProjectDeclaredSourceFolders,
   freshInstallAutoActivatesGitHooks,
   sessionStartAdapterWarnsWhenHooksMissing,
   sessionStartHookAutoEnablesGitHooks,

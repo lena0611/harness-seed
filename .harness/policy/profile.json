@@ -7,5 +7,6 @@
   "stackManifest": null,
   "sources": [],
   "linkedProjects": [],
-  "notes": "이 파일은 프로젝트 소유입니다. 각 키의 계약은 .harness/project/config-contract.md가 정본이고, sources·linkedProjects의 상세는 portability-guide.md와 context-protocol.md에 있습니다. 요약: activeStack은 적용된 스택 프리셋('none'이면 공통 하네스만), harnessMode는 기준 동기화 신호 등급 3단(bootstrap·active·strict), stackManifest는 적용 스냅샷 경로, available은 지금까지 적용해 본 스택 기록, sources는 .harness/project/* 밖에 둔 룰 문서 선언({ path[, owner, kind, inject] } — inject는 'always'만 의미가 있고 생략하면 등록만), linkedProjects는 한 세션에서 함께 다루는 다른 저장소 선언({ label, repo, focus[, path] } — 사람마다 다른 PC 경로는 적지 않습니다). 코드 품질 검사(lint/test/build)는 하네스가 실행하지 않으며 소유는 프로젝트입니다(0.2.131). 기획 문서 연동은 알려주기만 하고 push를 막지 않습니다(0.2.142에서 차단 모드 제거)."
+  "protectedPathAllow": [],
+  "notes": "이 파일은 프로젝트 소유입니다. 각 키의 계약은 .harness/project/config-contract.md가 정본이고, sources·linkedProjects의 상세는 portability-guide.md와 context-protocol.md에 있습니다. 요약: activeStack은 적용된 스택 프리셋('none'이면 공통 하네스만), harnessMode는 기준 동기화 신호 등급 3단(bootstrap·active·strict), stackManifest는 적용 스냅샷 경로, available은 지금까지 적용해 본 스택 기록, sources는 .harness/project/* 밖에 둔 룰 문서 선언({ path[, owner, kind, inject] } — inject는 'always'만 의미가 있고 생략하면 등록만), linkedProjects는 한 세션에서 함께 다루는 다른 저장소 선언({ label, repo, focus[, path] } — 사람마다 다른 PC 경로는 적지 않습니다), protectedPathAllow는 vendor/·target/ 같은 이름이지만 프로젝트 자체 소스인 폴더의 선언({ path, reason } — 저장소 기준 경로와 이유, 둘 다 필수; Claude 쓰기 차단 훅이 그 아래만 의존성·생성물 규칙에서 뺍니다). 코드 품질 검사(lint/test/build)는 하네스가 실행하지 않으며 소유는 프로젝트입니다(0.2.131). 기획 문서 연동은 알려주기만 하고 push를 막지 않습니다(0.2.142에서 차단 모드 제거)."
 }

@@ -2271,10 +2271,7 @@ function assertForceOverwriteConfirmed(opts, targets) {
 function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, previousManifest = null) {
   const seedPkg = readJson(join(sourceRoot, 'package.json'), {})
   const managedFiles = {}
-  const projectOwnedFiles = [...new Set([
-    ...files.filter((rel) => isProjectOwned(rel)),
-    ...CONSUMER_PROJECT_STATE_PATHS,
-  ])].sort()
+  const projectOwnedFiles = collectProjectOwnedFiles(files)
   const source = buildSourceMetadata(sourceRoot, opts, seedPkg)
 
   // 세션 이력 아카이브(0.2.95)는 isProjectOwned가 project-owned로 분류하므로 아래 승계 조건에서
@@ -2374,6 +2371,15 @@ function normalizeSourceRef(ref, repo, packageVersion) {
 // 대상 파일의 sha 가 아니라 **견본 파일의 sha** 를 남기는 것이 핵심이다. 대상 것을 남기면 팀이 고친
 // 것과 견본이 바뀐 것을 구분할 수 없어, 자기 규칙을 손댄 팀마다 매 업데이트 경고가 뜬다. 견본끼리
 // 비교하면 팀 수정과 무관하게 "이번 릴리스가 이 견본을 바꿨나"만 답한다.
+// 이번 설치가 프로젝트 소유로 분류하는 파일 — manifest 에 적는 값이자, dry-run 에서 「옮겨 적을 것」을 지목할 때의 기준이다
+// (smartdid #63 ②: dry-run 은 manifest 를 쓰지 않아 이 목록이 비었고, 그래서 실행 전에는 지목이 안 보였다).
+function collectProjectOwnedFiles(files) {
+  return [...new Set([
+    ...files.filter((rel) => isProjectOwned(rel)),
+    ...CONSUMER_PROJECT_STATE_PATHS,
+  ])].sort()
+}
+
 function collectProjectOwnedSeedShas(sourceRoot, projectOwnedFiles) {
   const shas = {}
   for (const rel of projectOwnedFiles) {
@@ -3762,16 +3768,17 @@ function main() {
     }
 
     // 개인 세션 메모(0.2.153, #48 A) — 한 일만 말한다. 옛 파일을 남긴 이유는 리더가 미리 지우지 않게 하려고 한 줄 붙인다.
+    // dry-run 은 앞으로의 일로 말한다(smartdid #63 ①) — 아무것도 옮기지 않았는데 "옮겼습니다"는 거짓 안내다.
     if (sessionMemos.moved.length > 0) {
       console.log('');
-      console.log(`${opts.dryRun ? '[dry-run] ' : ''}개인 세션 메모를 ${LOCAL_SESSION_DIR}/ 로 옮겼습니다 — git 에 올라가지 않는 자리입니다(그 개발자의 대화를 다음 대화로 넘기는 메모): ${sessionMemos.moved.join(', ')}`);
+      console.log(`${opts.dryRun ? '[dry-run] 개인 세션 메모를 ' + LOCAL_SESSION_DIR + '/ 로 옮깁니다' : '개인 세션 메모를 ' + LOCAL_SESSION_DIR + '/ 로 옮겼습니다'} — git 에 올라가지 않는 자리입니다(그 개발자의 대화를 다음 대화로 넘기는 메모): ${sessionMemos.moved.join(', ')}`);
     }
     if (retiredMemos.kept.length > 0 && sessionMemos.moved.length > 0) {
       console.log(`옛 자리 파일(${retiredMemos.kept.join(', ')})은 이번엔 그대로 둡니다. 더는 읽지도 쓰지도 않고, 다음 업데이트가 지웁니다 — 미리 지우면 그 파일을 고치던 팀원의 pull 이 멈출 수 있습니다.`);
     }
     if (retiredMemos.removed.length > 0) {
       console.log('');
-      console.log(`${opts.dryRun ? '[dry-run] ' : ''}옛 자리 개인 메모를 지웠습니다: ${retiredMemos.removed.join(', ')} — 내용은 각자 PC 의 ${LOCAL_SESSION_DIR}/ 에 있고 git 이력에도 남습니다.`);
+      console.log(`${opts.dryRun ? '[dry-run] 옛 자리 개인 메모를 지웁니다' : '옛 자리 개인 메모를 지웠습니다'}: ${retiredMemos.removed.join(', ')} — 내용은 각자 PC 의 ${LOCAL_SESSION_DIR}/ 에 있고 git 이력에도 남습니다.`);
     }
     if (retiredMemos.keptDirty.length > 0) {
       console.log('');
@@ -3893,11 +3900,14 @@ ${renderHookStep(TARGET, 7, diagnostics.hooks)}
     // 견본이 바뀌었는데 덮지 않은 파일을 알린다(0.2.152). 자리를 여기로 잡은 이유: 설치 출력 끝은
     // 에이전트가 반드시 보는 곳이다. changelog 를 따로 불러야만 보이면 부르지 않는 순간 조용히 사라진다 —
     // #48 원칙이 실제로 그 경로였다(공지에 "옮겨 적으세요"가 있었지만 그것을 보려면 한 단계를 더 밟아야 했다).
-    const seedDrift = collectProjectOwnedSeedDrift(sourceRoot, recognizedManifest, writtenManifest?.projectOwnedFiles ?? []);
+    // dry-run 에서도 같은 파일을 지목한다(smartdid #63 ②) — 실행 전에 프로젝트 문서를 손볼 범위까지 같이 정할 수 있게. 쓰지는 않는다.
+    const seedDrift = collectProjectOwnedSeedDrift(sourceRoot, recognizedManifest, writtenManifest?.projectOwnedFiles ?? collectProjectOwnedFiles(files));
     if (seedDrift.length > 0) {
       console.log('');
       console.log('::: 옮겨 적을 것 :::');
-      console.log('  이번 업데이트가 견본을 바꿨지만, 프로젝트 소유 파일이라 덮지 않았습니다. 내 파일은 그대로입니다.');
+      console.log(opts.dryRun
+        ? '  이번 업데이트는 견본이 바뀐 아래 파일을 프로젝트 소유라 덮지 않습니다. 내 파일은 그대로입니다.'
+        : '  이번 업데이트가 견본을 바꿨지만, 프로젝트 소유 파일이라 덮지 않았습니다. 내 파일은 그대로입니다.');
       for (const rel of seedDrift) {
         console.log(`    - ${rel}`);
       }

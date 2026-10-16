@@ -1699,6 +1699,10 @@ function updateNamesProjectOwnedFilesWhoseSeedChanged() {
   try {
     // ① 견본이 바뀌면 지목한다.
     fs.writeFileSync(seed, `${original}\n<!-- seed drift fixture -->\n`)
+    // smartdid #63 ②: dry-run 에서도 같은 파일을 지목한다 — 실행 전에 손볼 범위를 같이 정할 수 있게. 쓰지는 않는다.
+    const planned = runInit(target, '--dry-run', '--no-scan', '--no-handoff', '--no-check')
+    assert(planned.includes('::: 옮겨 적을 것 :::') && planned.includes('.harness/project/commit-push-rules.md'), `dry-run must name the same files (got: ${planned.slice(-800)})`)
+    assert(planned.includes('덮지 않습니다') && !planned.includes('덮지 않았습니다'), 'dry-run must speak of what it would do, not what it did')
     const drifted = runInit(target, '--no-scan', '--no-handoff', '--no-check')
     assert(drifted.includes('::: 옮겨 적을 것 :::'), `a changed seed of a project-owned file must be named (got: ${drifted.slice(-800)})`)
     assert(drifted.includes('.harness/project/commit-push-rules.md'), 'and the row must name which file')
@@ -2390,7 +2394,9 @@ function updateMovesPersonalMemosAndRetiresOldFilesNextRelease() {
   gitCommitAll(target, '0.2.152 layout')
 
   const plan = runInit(target, '--dry-run', '--no-scan', '--no-handoff', '--no-check')
-  assert(plan.includes('[dry-run] 개인 세션 메모를 .harness/session/local/ 로 옮겼습니다'), `dry-run must announce the move (got: ${plan})`)
+  // smartdid #63 ①: dry-run 은 앞으로의 일로 말한다 — 옮기지 않았는데 "옮겼습니다"는 거짓 안내다.
+  assert(plan.includes('[dry-run] 개인 세션 메모를 .harness/session/local/ 로 옮깁니다'), `dry-run must announce the move in the future tense (got: ${plan})`)
+  assert(!plan.includes('옮겼습니다'), 'dry-run must not claim it already moved anything')
   assert(!exists(target, '.harness/session/local'), 'dry-run must not write local/')
 
   // ① 이 릴리스의 업데이트: 옮기되 옛 파일은 그대로.

@@ -38,7 +38,7 @@ Claude Code 환경에서는 `.claude/settings.json` hook으로 다음 방어를 
 | --- | --- | --- |
 | `scan-secrets.sh` | 사용자 프롬프트의 API key, token, private key, password-like 값 패턴 감지 | 값을 저장하지 않고 컨텍스트 경고만 출력 |
 | `block-dangerous.sh` | `rm -rf /`, `git reset --hard`, `git clean -fd`, `--no-verify`, `curl \| sh`, secret 파일 읽기 우회 차단 | 누적 없음 |
-| `protect-paths.sh` | `.env`, `.git`, dependency/generated 디렉터리, lockfile 직접 쓰기 차단 | 누적 없음 |
+| `protect-paths.sh` | `.env`, `.git`, dependency/generated 디렉터리, lockfile 직접 쓰기 차단 (프로젝트 자체 소스가 `vendor/`·`target/` 같은 이름의 폴더에 살면 `profile.json` 의 `protectedPathAllow` 에 적어 그 아래만 뺌 — 0.2.154) | 누적 없음 |
 | `record-tool-failure.sh` | `PostToolUseFailure`와 `PermissionDenied`를 redaction 후 기록해 같은 시도 반복을 줄임 | `.harness/generated/agent-events.ndjson`에 capped 기록. 컨텍스트 주입은 TTL 안의 마지막 1건만. 프로젝트 기준 승격은 별도 판단 |
 
 ## 활성 스택 자동 검증 (`activeStack`에 따라 ON/OFF)
