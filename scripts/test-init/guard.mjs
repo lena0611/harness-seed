@@ -405,6 +405,33 @@ function guardFlagsInvalidHarnessModeInsteadOfSilentlyDowngrading() {
   assert(defaulted.includes('Harness mode: bootstrap'), 'a missing harnessMode field defaults to bootstrap')
 }
 
+// profile 의 strict 가 문서/링크 검사까지 닿는가(0.2.155, 2026-10-16 실측): config-contract.md 는 "하위 검사도 strict 로 전파"를
+// 약속하는데 guard 는 템플릿 계약 검사에만 --strict 를 넘기고 doc-link-check 에는 받은 인자만 넘겼다 — 등록 안 된 문서가
+// profile strict 에서는 보고만 되고(exit 0) `check --strict` 에서만 막혔다. CI 의 플래그와 프로젝트의 profile 이 같은 판정을 내야 한다.
+function guardPropagatesProfileStrictToDocLinkCheck() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const rel = '.harness/policy/profile.json'
+  const profile = JSON.parse(read(target, rel))
+  const orphan = path.join(target, '.harness/project/zz-strict-probe.md')
+
+  // (1) 기본 모드(active)는 종전대로 — 등록 안 된 문서를 알려만 주고 막지 않는다. 결정 요청 #4(알림 vs 차단)를 선점하지 않는다.
+  writeJson(target, rel, { ...profile, harnessMode: 'active' })
+  fs.writeFileSync(orphan, '# 등록 안 된 문서\n')
+  const activeOut = runGuard(target, '--no-cache')
+  assert(activeOut.includes('Orphan markdown files') && activeOut.includes('zz-strict-probe.md'), `active mode must still report the orphan (got: ${activeOut.slice(-600)})`)
+
+  // (2) profile strict 는 같은 상황을 막는다 — 플래그 없이도. 그리고 막힌 이유(고아 문서)가 출력에 있어야 한다.
+  writeJson(target, rel, { ...profile, harnessMode: 'strict' })
+  const strictOut = expectFailure(() => runGuard(target, '--no-cache'), 'profile harnessMode=strict must make an unregistered document fail the check, exactly as `check --strict` does')
+  assert(strictOut.includes('Orphan markdown files') && strictOut.includes('zz-strict-probe.md'), `and the failure must name the orphan (got: ${strictOut.slice(-600)})`)
+
+  // (3) 고아가 없으면 strict 도 통과한다 — 차단이 "strict 면 항상 실패"가 아니라 문서 검사 결과를 따른다는 증명.
+  fs.rmSync(orphan)
+  const cleanStrict = runGuard(target, '--no-cache')
+  assert(!cleanStrict.includes('Orphan markdown files'), `a clean tree must pass in strict mode (got: ${cleanStrict.slice(-400)})`)
+}
+
 export {
   workflowWorkstreamChangeDoesNotTriggerCommitPushHookPolicy,
   guardCacheHitSkipsRevalidationOnSameTree,
@@ -423,4 +450,5 @@ export {
   contextSelectsRulePromotionForEntrypointMigrationRequest,
   contextClassifiesPlainKoreanDevelopmentRequest,
   guardFlagsInvalidHarnessModeInsteadOfSilentlyDowngrading,
+  guardPropagatesProfileStrictToDocLinkCheck,
 }

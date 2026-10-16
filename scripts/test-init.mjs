@@ -195,6 +195,7 @@ import {
   scanTreatsEveryDeclaredSourceAsRuleDoc,
   scanValidatesDeclaredProjectSources,
   installReportsExistingAiRuleDocuments,
+  scanSaysWhenNoSourceRootIsFound,
   scanReportsHeadingOnlyAiRuleDocuments,
   scanReportsIgnoredAiRuleCandidates,
   scanIgnoresArchivedRuleCopies,
@@ -230,6 +231,7 @@ import {
   contextSelectsRulePromotionForEntrypointMigrationRequest,
   contextClassifiesPlainKoreanDevelopmentRequest,
   guardFlagsInvalidHarnessModeInsteadOfSilentlyDowngrading,
+  guardPropagatesProfileStrictToDocLinkCheck,
 } from './test-init/guard.mjs'
 import {
   reportInstallHelpWritesNothing,
@@ -501,10 +503,12 @@ const tests = [
   commitStageEnvIsNoopForConsumers,
   guardNoCacheForcesRevalidation,
   guardCacheMissAfterTreeChange,
+  guardPropagatesProfileStrictToDocLinkCheck,
   buildContextMergesProfileAlwaysSources,
   scanValidatesDeclaredProjectSources,
   scanTreatsEveryDeclaredSourceAsRuleDoc,
   installReportsExistingAiRuleDocuments,
+  scanSaysWhenNoSourceRootIsFound,
   scanReportsHeadingOnlyAiRuleDocuments,
   scanReportsIgnoredAiRuleCandidates,
   scanPrefersTrackedAiRuleForRegistrationExample,

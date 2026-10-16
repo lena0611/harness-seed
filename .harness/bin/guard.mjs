@@ -847,7 +847,10 @@ printPendingReportNotice()
 run('node', ['.harness/bin/policy-harness.mjs', 'guard', ...forwardedArgs])
 const edgeResult = runSupabaseEdgeFunctionChecks(scripts)
 const criticalResult = printCriticalPathReview()
-run('node', ['.harness/bin/doc-link-check.mjs', ...forwardedArgs])
+// profile 의 harnessMode=strict 는 하위 검사까지 strict 다(config-contract.md 「harnessMode」) — 아랫줄 템플릿 계약 검사는 처음부터
+// 그렇게 넘겼는데 문서/링크 검사만 받은 인자를 그대로 넘겨, 등록 안 된 문서·깨진 링크가 profile strict 에서는 보고만 되고(exit 0)
+// `check --strict` 에서만 막혔다(2026-10-16 실측, 0.2.155). CI 의 --strict 와 profile 의 strict 가 같은 판정을 내야 한다.
+run('node', ['.harness/bin/doc-link-check.mjs', ...forwardedArgs, ...(strictMode && !forwardedArgs.includes('--strict') ? ['--strict'] : [])])
 run('node', ['.harness/bin/check-template-contract.mjs', ...(strictMode ? ['--strict'] : [])])
 checkHarnessVersionLock()
 printManagedDriftNotice(managedDrift)

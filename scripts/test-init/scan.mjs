@@ -14,6 +14,7 @@ import {
   writeJson,
   sha256Text,
   makeTarget,
+  makeBareTarget,
   runInit,
   runGuard,
   SEED_ONLY_DOCS,
@@ -379,13 +380,20 @@ function preservedForeignRegistryIsGuidedAndReadopted() {
   assert(crlfManifest.managedFiles?.[termRel] && !crlfManifest.preservedForeignFiles?.includes(termRel), 'a CRLF-only copy of a harness file must be adopted as managed, not recorded as foreign')
 
   // --replace-file 은 프로젝트 소유 파일을 거절한다 — 팀 설정(profile.json 등)을 템플릿으로 덮는 사고를 막는다.
+  // 단 설치 때 받은 견본 그대로인(손대지 않은) 파일은 팀 내용이 없으므로 받는다(kiosk #66) — 거절은 팀이 고친 파일에 대한 것이다.
+  const untouchedOut = runInit(restored, '--no-scan', '--no-handoff', '--no-check', '--replace-file', '.harness/policy/profile.json')
+  assert(!untouchedOut.includes('프로젝트 소유 파일입니다'), 'an untouched project-owned seed copy may be replaced by the new seed')
+  const profileJson = JSON.parse(read(restored, '.harness/policy/profile.json'))
+  profileJson.linkedProjects = [{ label: 'team-edit', path: '../other' }]
+  writeJson(restored, '.harness/policy/profile.json', profileJson)
   let refused = ''
   try {
     runInit(restored, '--no-scan', '--no-handoff', '--no-check', '--replace-file', '.harness/policy/profile.json')
   } catch (error) {
     refused = `${error.stdout ?? ''}${error.stderr ?? ''}`
   }
-  assert(refused.includes('프로젝트 소유 파일입니다'), `--replace-file on a project-owned file must be refused with a clear reason (got: ${refused.slice(0, 300)})`)
+  assert(refused.includes('프로젝트 소유 파일입니다'), `--replace-file on an edited project-owned file must be refused with a clear reason (got: ${refused.slice(0, 300)})`)
+  assert(JSON.parse(read(restored, '.harness/policy/profile.json')).linkedProjects?.[0]?.label === 'team-edit', 'and the team edit must be untouched')
 
   // 적대적 리뷰 P1: 마커 진입점은 거절해야 한다 — 설치 기록이 없는 외래 .harness/ 상태에선 통째로 덮여 팀 문서가 사라졌다.
   const foreignHarness = makeTarget()
@@ -984,7 +992,20 @@ function localDocumentRegistryGivesProjectOwnedRegistrationPoint() {
   assert(read(target, '.harness/session/task-context.md').includes(docRel), 'locally registered docs must be selectable as task context candidates')
 }
 
+// smartscore-backend/common #67 ②: 소스 루트를 못 찾으면 '확인 필요'가 값처럼 문장에 끼어 "확인 필요를 주요 소스 루트로 사용합니다"가 됐다.
+// 비-Node(package.json 없음)·관례 밖 폴더 구조에서는 별도 문장으로 말한다.
+function scanSaysWhenNoSourceRootIsFound() {
+  const target = makeBareTarget()
+  const output = runInit(target, '--no-handoff', '--no-check')
+  const report = read(target, '.harness/session/project-scan-report.md')
+  for (const [label, text] of [['install output', output], ['scan report', report]]) {
+    assert(text.includes('주요 소스 루트를 찾지 못했습니다'), `${label} must say plainly that no source root was found (got: ${text.slice(-400)})`)
+    assert(!text.includes('확인 필요를 주요 소스 루트'), `${label} must not embed the placeholder as if it were a folder name`)
+  }
+}
+
 export {
+  scanSaysWhenNoSourceRootIsFound,
   scanReportDraftsStyleRulesFromConfigFiles,
   isIgnorableCodePathClassifiesExamplesAndCiPaths,
   consumerDocLinkCheckIgnoresCiExamplePaths,

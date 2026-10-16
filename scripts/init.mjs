@@ -556,7 +556,7 @@ Options:
   --no-hooks             최초 설치 시 git hook 자동 활성화를 건너뜁니다. (업데이트는 원래 재배선하지 않습니다)
   --replace-hook <이름>  같은 이름의 기존 .claude/hooks 훅이 하네스 원본과 다를 때: 원본으로 교체하고 기존 파일은 <경로>.harness-bak에 보관 (반복 가능)
   --keep-hook <이름>     같은 상황에서 기존 파일을 유지(팀 settings.json이 그 파일을 실행 — 프로젝트 책임). 기록·재보고됩니다 (반복 가능)
-  --replace-file <경로>  하네스가 배포하는 파일 하나를 원본으로 교체하고 기존 파일은 <경로>.harness-bak에 보관 (반복 가능). 관리 밖으로 나간(보존된) 파일과 로컬 수정된 관리 파일 둘 다 대상. 프로젝트 소유 파일·마커 진입점(CLAUDE.md 등)은 거절합니다
+  --replace-file <경로>  하네스가 배포하는 파일 하나를 원본으로 교체하고 기존 파일은 <경로>.harness-bak에 보관 (반복 가능). 관리 밖으로 나간(보존된) 파일과 로컬 수정된 관리 파일 둘 다 대상. 프로젝트 소유 파일·마커 진입점(CLAUDE.md 등)은 거절합니다 — 단, 설치 때 받은 견본 그대로인(손대지 않은) 프로젝트 소유 파일은 새 견본을 받습니다
   --with-package-json    은퇴(0.2.131) — 받아들이지만 아무 동작도 하지 않습니다. 하네스는 package.json을 만들거나 쓰지 않습니다.
   --embedded             스택 하네스 설치 흐름 내부에서 호출될 때 중간 안내를 줄입니다.
   --verbose              설치 내부 명령과 진단 출력을 자세히 표시합니다.
@@ -1416,6 +1416,7 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
   const preservedLocallyModified = [];
   const replacedHooks = [];            // --replace-hook 으로 교체한 훅(기존 파일은 .harness-bak)
   const replacedFiles = [];            // --replace-file 로 원본으로 교체한 파일(기존 파일은 .harness-bak) — 0.2.148, #34
+  const refreshedSeedFiles = [];       // 견본 그대로였던 프로젝트 소유 파일을 새 견본으로 갱신 — 0.2.155, kiosk #66 · backend #67 ①
   const readoptedFiles = [];           // 하네스 원본과 같은 내용이 되어 다시 관리 대상으로 들인 파일 — 0.2.148, #34
   const nonRegularSkipped = [];        // 심볼릭 링크·디렉터리·끊어진 링크라 어떤 경로로도 쓰지 않은 대상 — Codex 3R #1·#2·#3
   const preservedForeignFiles = [];    // 하네스 원본과 다른 동명 파일을 보존한 것(현황 기록)
@@ -1584,7 +1585,7 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
       }
     }
     // --replace-file(0.2.148, #34): 보존돼 관리 밖으로 나간 파일(또는 로컬 수정된 managed 파일 하나)을 원본으로 되돌린다.
-    if (exists && !projectOwned && opts.replaceFiles?.has(rel) && !opts.replaceHookRels?.has(rel)) {
+    if (exists && (!projectOwned || opts.replaceUntouchedSeedRels?.has(rel)) && opts.replaceFiles?.has(rel) && !opts.replaceHookRels?.has(rel)) {
       if (!isRegularFile(dest)) {
         // 심볼릭 링크를 따라 저장소 밖 파일을 덮는 사고를 막는다(적대적 리뷰 P3). 경고만 하고 두면 managed 파일은
         // 일반 복사 경로(1337의 shouldCopy)가 그대로 링크 너머를 쓴다 — 경고가 거짓이 된다(Codex 1R #1). 복사도 끈다.
@@ -1603,6 +1604,16 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
         shouldCopy = true;
         replacedFile = true;
       }
+    }
+
+    // 손대지 않은 견본(kiosk #66 · smartscore-backend/common #67 ①, 사용자 결정 2026-10-16): 프로젝트 소유 파일이라도 설치 때 받은
+    // 견본 그대로면(기록된 견본 sha 와 같음 — 팀 내용이 0) 새 견본으로 갱신한다. 잃는 것이 없고, 두 팀이 매 업데이트마다 손으로
+    // 하던 일이다. 한 글자라도 다르면 종전대로 보존하고 「옮겨 적을 것」으로 지목한다. 견본이 안 바뀌었으면 쓸 것도 없다.
+    let refreshedSeed = false;
+    if (exists && projectOwned && !opts.force && !replacedFile && !nonRegularTarget && isRegularFile(dest)
+      && isUntouchedSeedCopy(target, rel, manifest) && !filesEquivalent(src, dest)) {
+      shouldCopy = true;
+      refreshedSeed = true;
     }
 
     // 비정규 대상 판정은 최종이다(Codex 2R #1): 아래 로컬 수정 가드는 --resync-managed 로 shouldCopy 를 다시 켤 수 있는데,
@@ -1665,6 +1676,8 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
         replacedHooks.push({ rel, backup: backupRel });
       } else if (replacedFile) {
         replacedFiles.push({ rel, backup: backupRel });
+      } else if (refreshedSeed) {
+        refreshedSeedFiles.push(rel);
       } else if (backupRel) {
         overwroteLocallyModified.push({ rel, backup: backupRel });
       }
@@ -1698,6 +1711,7 @@ function installFiles(sourceRoot, target, files, opts, manifest) {
     ...stats,
     skippedFiles,
     copiedFiles,
+    refreshedSeedFiles,
     replacedHooks,
     replacedFiles,
     readoptedFiles,
@@ -2027,6 +2041,15 @@ function isUnchangedManagedProjectState(target, rel, manifest) {
   return matchesRecordedSha(abs, manifest.managedFiles[rel].sha256);
 }
 
+// 손대지 않은 견본인가(kiosk #66) — 설치·업데이트 때 기록한 견본 sha(projectOwnedSeedShas), 또는 그 뒤 업데이트가 "아직 견본 그대로"로
+// 적어 둔 sha(untouchedSeedShas)와 지금 파일이 같다. 팀 내용이 없는 파일이라 새 견본으로 바꿔도 잃는 것이 없다.
+function isUntouchedSeedCopy(target, rel, manifest) {
+  const abs = join(target, rel);
+  if (!isRegularFile(abs)) return false;
+  const candidates = [manifest?.projectOwnedSeedShas?.[rel], manifest?.untouchedSeedShas?.[rel]].filter(Boolean);
+  return candidates.some((sha) => matchesRecordedSha(abs, sha));
+}
+
 // 옛 자리(.harness/session/<이름>) 개인 메모를 지우는 것은 **이 릴리스를 이미 거친 저장소의 다음 업데이트**다(0.2.153, #48 A).
 // 옮기기와 지우기를 한 업데이트에 실으면, 옛 파일을 고치던 중인 팀원의 pull 이 "로컬 변경이 덮인다"로 멈춘다 — 0.2.153 부터는
 // 아무도 옛 파일을 쓰지 않으므로 그다음 업데이트에서 지우면 부딪힐 것이 없다. local/ 에 옮겨진 것을 확인한 파일만 지운다.
@@ -2324,6 +2347,7 @@ function buildInstallManifest(sourceRoot, target, files, copiedFiles, opts, prev
     projectOwnedFiles: projectOwnedFiles.sort(),
     // 견본 쪽 sha — 다음 업데이트가 "이번 릴리스가 이 견본을 바꿨나"를 판정하는 기준이다.
     projectOwnedSeedShas: collectProjectOwnedSeedShas(sourceRoot, projectOwnedFiles),
+    untouchedSeedShas: collectUntouchedSeedShas(target, previousManifest, projectOwnedFiles),
     // 현황 기록(0.2.146): 하네스 원본과 다른 동명 파일을 보존한 것. 소유권 표시가 아니며 하네스가 덮어쓰거나 지우지 않는다.
     preservedForeignFiles: [...lastPreservedForeignFiles].sort(),
   }
@@ -2380,11 +2404,36 @@ function collectProjectOwnedFiles(files) {
   ])].sort()
 }
 
+// 손대지 않은 견본 사본(kiosk #66): 이전 기록의 견본 sha 와 같은 프로젝트 소유 파일은 팀 내용이 없다. 그 사실을 manifest 에 남겨 두어야
+// 업데이트 **뒤**에도(기록된 견본 sha 는 이미 새 견본 것으로 바뀐다) `--replace-file` 이 그 파일을 받아들일 수 있다. 파일이 바뀌면 빠진다.
+function collectUntouchedSeedShas(target, previousManifest, projectOwnedFiles) {
+  const out = {}
+  for (const rel of projectOwnedFiles) {
+    const abs = join(target, rel)
+    if (!isRegularFile(abs)) continue
+    const candidates = [previousManifest?.projectOwnedSeedShas?.[rel], previousManifest?.untouchedSeedShas?.[rel]].filter(Boolean)
+    if (candidates.some((sha) => matchesRecordedSha(abs, sha))) out[rel] = sha256(abs)
+  }
+  return out
+}
+
+// 견본 비교 대상인가 — 소비자가 **본체 파일을 그대로** 받는 프로젝트 소유 파일만이다. 소비자 템플릿으로 대체되는 세션 상태 파일
+// (결정 로그·입력 큐 등), 소비자에게 배포하지 않는 seed-only 문서·세션 이력 아카이브, 개인 메모(local/·옛 자리)는 본체에 파일이 있어도
+// 소비자의 견본이 아니다. 배포 패키지에는 애초에 없지만 로컬 체크아웃 설치·테스트에서는 있어서, 본체 결정 로그가 바뀔 때마다
+// "옮겨 적을 것: decision-log.md"로 거짓 지목하던 것을 막는다(0.2.155).
+function isSeedComparable(rel) {
+  const posix = toPosix(rel)
+  if (posix.startsWith(`${LOCAL_SESSION_DIR}/`)) return false
+  if (CONSUMER_PROJECT_STATE_PATHS.includes(posix)) return false
+  if (SESSION_MEMOS.map(legacyMemoPath).includes(posix)) return false
+  if (SEED_ONLY_DOC_PATHS.has(posix) || isSessionHistoryLog(posix)) return false
+  return true
+}
+
 function collectProjectOwnedSeedShas(sourceRoot, projectOwnedFiles) {
   const shas = {}
   for (const rel of projectOwnedFiles) {
-    // 개인 세션 메모는 견본이 아니다 — 본체 작업 트리의 local/ 은 본체 개발자의 메모다(0.2.153).
-    if (rel.startsWith(`${LOCAL_SESSION_DIR}/`)) continue
+    if (!isSeedComparable(rel)) continue
     const abs = join(sourceRoot, rel)
     if (!existsSync(abs) || !statSync(abs).isFile()) continue
     shas[rel] = sha256(abs)
@@ -2401,6 +2450,7 @@ function collectProjectOwnedSeedDrift(sourceRoot, previousManifest, projectOwned
 
   const drifted = []
   for (const rel of projectOwnedFiles) {
+    if (!isSeedComparable(rel)) continue   // 0.2.152~0.2.154 가 기록해 둔 템플릿·미배포 파일의 sha 도 무시한다
     const recorded = before[rel]
     if (!recorded) continue
     const abs = join(sourceRoot, rel)
@@ -2751,17 +2801,48 @@ function mergeGitignore(target, opts) {
     current = readFileSync(gitignorePath, 'utf8');
   }
 
-  const lines = current.split(/\r?\n/);
+  let lines = current.split(/\r?\n/);
   // 같은 경로를 이미 다루는 줄이 있으면 넣지 않는다 — 모양이 달라도(`/dist`·`dist`·`dist/`·`**/dist`) 같은 이름이면 팀이 이미
   // 정한 것이다(0.2.152, kiosk #56). vue-cli 기본 .gitignore(`node_modules`·`/dist`)에 `node_modules/`·`dist/` 가 한 번 더 붙었고,
   // `dist/` 는 루트 한정이던 `/dist` 보다 넓어 하위 폴더 dist 까지 무시됐다 — 동작 영향은 없어도 팀 규칙을 조용히 넓힌 것이다.
   // 팀이 `!dist/` 처럼 명시적으로 무시를 푼 경우, node_modules·dist 같은 **프로젝트 관례 항목**은 따르고 넣지 않는다. 하네스
   // 자기 산출물·토큰 파일은 그 경우에도 넣는다 — 뒤에 오는 줄이 이기므로 다시 무시된다(비밀 파일이 추적되는 쪽이 더 나쁘다).
   const normalizeIgnore = (line) => line.trim().replace(/^!/, '').replace(/^\*\*\//, '').replace(/^\//, '').replace(/\/$/, '');
+  const projectConvention = new Set(['node_modules/', 'dist/']);
+
+  // 0.2.151 이하가 넣어 둔 중복 줄을 거둔다(kiosk #64 ②): #56 수정(0.2.152)은 새로 넣지 않을 뿐이라, 팀 줄(`node_modules`·`/dist`)과
+  // 겹치는 우리 줄(`node_modules/`·`dist/`)이 하네스 블록에 그대로 남았다 — `dist/` 는 루트 한정이던 `/dist` 보다 넓다. 하네스 블록
+  // (`# harness-seed generated artifacts` 머리글부터 빈 줄 전까지) 안의 프로젝트 관례 항목만, 블록 밖에 같은 이름의 팀 줄이 있을 때만 뺀다.
+  const harnessHeader = '# harness-seed generated artifacts';
+  const inHarnessBlock = [];
+  let insideBlock = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === harnessHeader) insideBlock = true;
+    else if (trimmed === '') insideBlock = false;
+    inHarnessBlock.push(insideBlock && trimmed !== harnessHeader);
+  }
+  const teamKeys = new Set(lines
+    .filter((line, index) => !inHarnessBlock[index])
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#') && !line.startsWith('!'))
+    .map(normalizeIgnore));
+  const stale = lines
+    .map((line, index) => ({ line: line.trim(), index }))
+    .filter(({ line, index }) => inHarnessBlock[index] && projectConvention.has(line) && teamKeys.has(normalizeIgnore(line)));
+  if (stale.length > 0) {
+    const staleIndexes = new Set(stale.map(({ index }) => index));
+    lines = lines.filter((_, index) => !staleIndexes.has(index));
+    // 비워진 블록의 머리글도 거둔다 — 머리글만 남으면 다음 업데이트가 그 아래에 또 붙인다.
+    lines = lines.filter((line, index) => !(line.trim() === harnessHeader && (lines[index + 1] === undefined || lines[index + 1].trim() === '')));
+    current = lines.join('\n');
+    if (!opts.dryRun) writeFileSync(gitignorePath, current);
+    console.log(`${opts.dryRun ? '[dry-run] ' : ''}.gitignore: 예전 하네스가 넣은 중복 줄을 뺐습니다 — ${stale.map(({ line }) => line).join(', ')} (팀 줄이 같은 폴더를 이미 다룹니다)`);
+  }
+
   const active = lines.map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
   const covered = new Set(active.map(normalizeIgnore));
   const optedOut = new Set(active.filter((line) => line.startsWith('!')).map(normalizeIgnore));
-  const projectConvention = new Set(['node_modules/', 'dist/']);
   const missing = entries.filter((entry) => {
     const key = normalizeIgnore(entry);
     if (covered.has(key) && !optedOut.has(key)) return false;
@@ -3355,10 +3436,17 @@ function main() {
     //  ② 마커 진입점(CLAUDE.md·AGENTS.md·copilot-instructions) 거절 — 정상 설치에선 마커 병합 경로가 먼저라 조용히 무시되지만,
     //     설치 기록이 없는 외래 .harness/ 상태에선 통째로 덮여 팀 문서가 사라진다(리뷰 P1, --force 동의 관문도 우회)
     //  ③ 하네스가 배포하지 않는 경로는 오타일 확률이 높다 — 안내를 따라 친 한 글자 오타가 "복원됐다"는 믿음으로 끝나면 안 된다
+    opts.replaceUntouchedSeedRels = new Set();
     for (const rel of opts.replaceFiles ?? []) {
       if (isProjectOwned(rel)) {
-        console.error(`--replace-file 대상 '${rel}'은 프로젝트 소유 파일입니다 — 하네스 원본으로 덮을 수 없습니다(팀 설정이 사라집니다). 되돌리려면 직접 편집하세요.`);
-        process.exit(1);
+        // 손대지 않은 견본(설치·업데이트 때의 견본 sha 와 같음)은 팀 내용이 없으므로 새 견본으로 바꿔도 잃는 것이 없다(kiosk #66) —
+        // 「옮겨 적을 것」이 지목한 파일을 받는 공식 경로다. 한 글자라도 다르면 종전대로 거절한다.
+        if (isUntouchedSeedCopy(TARGET, rel, recognizedManifest)) {
+          opts.replaceUntouchedSeedRels.add(rel);
+        } else {
+          console.error(`--replace-file 대상 '${rel}'은 프로젝트 소유 파일입니다 — 하네스 원본으로 덮을 수 없습니다(팀 설정이 사라집니다). 되돌리려면 직접 편집하세요. (설치 때 받은 견본 그대로인 파일만 이 플래그로 새 견본을 받습니다)`);
+          process.exit(1);
+        }
       }
       if (isMarkerManaged(rel)) {
         console.error(`--replace-file 대상 '${rel}'은 마커로 병합하는 진입점입니다 — 통째로 교체할 수 없습니다(프로젝트 영역이 사라집니다). 하네스 블록은 그냥 업데이트하면 마커 안만 갱신됩니다.`);
@@ -3589,6 +3677,12 @@ function main() {
       console.log('');
       console.log(`기존 파일 ${installed.replacedFiles.length}개를 하네스 원본으로 ${opts.dryRun ? '교체합니다(dry-run — 실제 실행 시)' : '교체했습니다'}(--replace-file):`);
       for (const item of installed.replacedFiles) console.log(`  - ${item.rel}  (기존 파일 → ${item.backup})`);
+    }
+    // 견본 그대로였던 프로젝트 소유 파일의 갱신(0.2.155) — 한 일만 말한다. 팀이 고친 파일은 여기 오지 않는다(「옮겨 적을 것」으로).
+    if (installed.refreshedSeedFiles && installed.refreshedSeedFiles.length > 0) {
+      console.log('');
+      console.log(`${opts.dryRun ? '[dry-run] ' : ''}견본 그대로였던 프로젝트 소유 파일 ${installed.refreshedSeedFiles.length}개를 새 견본으로 ${opts.dryRun ? '갱신합니다' : '갱신했습니다'} — 팀이 고친 적 없는 파일이라 잃는 내용이 없습니다:`);
+      for (const rel of installed.refreshedSeedFiles) console.log(`  - ${rel}`);
     }
     if (nonRegular.length > 0) {
       console.log('');
@@ -3901,17 +3995,29 @@ ${renderHookStep(TARGET, 7, diagnostics.hooks)}
     // 에이전트가 반드시 보는 곳이다. changelog 를 따로 불러야만 보이면 부르지 않는 순간 조용히 사라진다 —
     // #48 원칙이 실제로 그 경로였다(공지에 "옮겨 적으세요"가 있었지만 그것을 보려면 한 단계를 더 밟아야 했다).
     // dry-run 에서도 같은 파일을 지목한다(smartdid #63 ②) — 실행 전에 프로젝트 문서를 손볼 범위까지 같이 정할 수 있게. 쓰지는 않는다.
-    const seedDrift = collectProjectOwnedSeedDrift(sourceRoot, recognizedManifest, writtenManifest?.projectOwnedFiles ?? collectProjectOwnedFiles(files));
+    // 이번 실행이 쓴 파일은 지목에서 뺀다 — 견본 그대로라 새 견본으로 갱신한 것(0.2.155), 없어서 새로 놓은 것, --force 로 덮은 것은
+    // 이미 새 견본이라 옮겨 적을 것이 없다(종전에는 그런 파일도 "덮지 않았습니다"로 거짓 보고했다). 팀이 고쳐서 보존한 파일만 남는다.
+    const writtenThisRun = new Set(installed.copiedFiles ?? []);
+    const seedDrift = collectProjectOwnedSeedDrift(sourceRoot, recognizedManifest, writtenManifest?.projectOwnedFiles ?? collectProjectOwnedFiles(files))
+      .filter((rel) => !writtenThisRun.has(rel));
     if (seedDrift.length > 0) {
       console.log('');
       console.log('::: 옮겨 적을 것 :::');
       console.log(opts.dryRun
-        ? '  이번 업데이트는 견본이 바뀐 아래 파일을 프로젝트 소유라 덮지 않습니다. 내 파일은 그대로입니다.'
-        : '  이번 업데이트가 견본을 바꿨지만, 프로젝트 소유 파일이라 덮지 않았습니다. 내 파일은 그대로입니다.');
+        ? '  이번 업데이트는 견본이 바뀐 아래 파일을 팀이 고친 파일이라 덮지 않습니다. 내 파일은 그대로입니다.'
+        : '  이번 업데이트가 견본을 바꿨지만, 팀이 고친 파일이라 덮지 않았습니다. 내 파일은 그대로입니다.');
       for (const rel of seedDrift) {
         console.log(`    - ${rel}`);
       }
       console.log('  무엇이 바뀌었는지는 .harness/bin/harness changelog 의 "### 공지" 절에 있습니다. 필요한 부분만 자기 파일에 옮겨 적으세요.');
+    } else if (recognizedManifest && !recognizedManifest.projectOwnedSeedShas) {
+      // 비교 기준이 없는 옛 설치본(0.2.152 이전)의 첫 업데이트(kiosk #64): 무엇이 바뀌었는지 지목하지 못하는 것은 그대로지만
+      // (모르는 것을 "전부 바뀌었다"로 부풀리지 않는다), 침묵하면 블록에 조건을 건 공지("보이면 바꿔 적으세요")가 아예 닿지 않는다.
+      // 지목 대신 "이번엔 직접 보라"를 한 번 말한다 — 이 업데이트가 기준을 만들므로 다음부터는 지목한다.
+      console.log('');
+      console.log('::: 옮겨 적을 것 (이번엔 직접 확인) :::');
+      console.log('  이 설치본에는 견본 비교 기준이 없었습니다(0.2.152 이전 설치본). 그래서 이번 업데이트가 어떤 견본을 바꿨는지 지목하지 못합니다 — 다음 업데이트부터는 지목합니다.');
+      console.log('  지난 공지에 "옮겨 적으세요"가 있으면 그 문장이 자기 파일에 아직 남아 있는지 직접 보세요: .harness/bin/harness changelog 의 "### 공지" 절.');
     }
 
     printInstallReportPrompt();

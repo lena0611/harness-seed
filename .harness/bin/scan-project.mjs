@@ -635,8 +635,12 @@ function renderHarnessEffectSummary({ profile, pkg, sourceRoots, testRoots, exis
   const trackedAiRules = existingAiRuleDocs.filter((doc) => doc.gitTracked)
   const ignoredAiRules = existingAiRuleDocs.filter((doc) => doc.gitIgnored)
   const unignoredAiRules = existingAiRuleDocs.filter((doc) => !doc.gitTracked && !doc.gitIgnored)
+  // 소스 루트를 못 찾았을 때 '확인 필요'를 값처럼 문장에 끼우지 않는다(smartscore-backend/common #67 ②: "확인 필요를 주요 소스 루트로 사용합니다").
+  const sourceRootSentence = sourceRoots.length
+    ? `이 프로젝트는 ${sourceRoots.join(', ')}를 주요 소스 루트로 사용합니다.`
+    : '주요 소스 루트를 찾지 못했습니다(확인 필요 — 비-Node 프로젝트나 관례 밖 폴더 구조일 수 있습니다).'
   const lines = [
-    `이 프로젝트는 ${sourceRoots.length ? sourceRoots.join(', ') : '확인 필요'}를 주요 소스 루트로 사용합니다. 이번 설치는 ${activeStack === 'none' ? '공통 하네스만 적용' : `${activeStack} 스택 기준 적용`} 상태입니다. 기존 AI 룰 후보는 ${existingAiRuleDocs.length}건입니다.`,
+    `${sourceRootSentence} 이번 설치는 ${activeStack === 'none' ? '공통 하네스만 적용' : `${activeStack} 스택 기준 적용`} 상태입니다. 기존 AI 룰 후보는 ${existingAiRuleDocs.length}건입니다.`,
   ]
 
   if (activeStack === 'none') {

@@ -543,6 +543,25 @@ function initSkipsGitignoreEntriesTheProjectAlreadyCovers() {
   const clean = makeTarget()
   runInit(clean, '--no-scan', '--no-handoff', '--no-check')
   assert(linesOf(clean).includes('node_modules/') && linesOf(clean).includes('dist/'), 'a project without its own rules still gets both')
+
+  // ⑤ 0.2.151 이하가 이미 넣어 둔 중복 줄은 업데이트가 거둔다(kiosk #64 ②) — 하네스 블록 안의 관례 항목만, 팀 줄이 같은 폴더를 다룰 때만.
+  const legacy = makeTarget()
+  runInit(legacy, '--no-scan', '--no-handoff', '--no-check')
+  fs.writeFileSync(path.join(legacy, '.gitignore'), 'node_modules\n/dist\n\n# harness-seed generated artifacts\nnode_modules/\ndist/\n.env\n.issue-adapter.env\n.harness/generated/\n')
+  const swept = runInit(legacy, '--no-scan', '--no-handoff', '--no-check')
+  const legacyLines = linesOf(legacy)
+  assert(!legacyLines.includes('node_modules/') && !legacyLines.includes('dist/'), `the harness-inserted duplicates must be removed (got: ${legacyLines.join(' | ')})`)
+  assert(legacyLines.includes('node_modules') && legacyLines.includes('/dist') && legacyLines.includes('.env') && legacyLines.includes('.issue-adapter.env'), 'team lines and the other harness entries stay')
+  assert(swept.includes('중복 줄을 뺐습니다') && swept.includes('dist/'), `the sweep must be reported by name (got: ${swept.slice(-400)})`)
+  const quietAgain = runInit(legacy, '--no-scan', '--no-handoff', '--no-check')
+  assert(!quietAgain.includes('중복 줄을 뺐습니다'), 'a second update has nothing left to sweep')
+
+  // ⑥ 팀 줄이 없으면 예전 하네스 줄은 그대로 둔다 — 중복이 아니면 거둘 이유가 없다.
+  const keep = makeTarget()
+  runInit(keep, '--no-scan', '--no-handoff', '--no-check')
+  fs.writeFileSync(path.join(keep, '.gitignore'), '.DS_Store\n\n# harness-seed generated artifacts\nnode_modules/\ndist/\n.env\n')
+  runInit(keep, '--no-scan', '--no-handoff', '--no-check')
+  assert(linesOf(keep).includes('node_modules/') && linesOf(keep).includes('dist/'), 'without a team line the harness lines are not duplicates and stay')
 }
 
 function initAddsHarnessBackupIgnoreWhenNodeOverrideExists() {
@@ -1693,20 +1712,32 @@ function updateNamesProjectOwnedFilesWhoseSeedChanged() {
   const manifest = JSON.parse(read(target, '.harness/install-manifest.json'))
   assert(manifest.projectOwnedSeedShas && Object.keys(manifest.projectOwnedSeedShas).length > 0,
     'install must record the seed-side sha of project-owned files — without it there is nothing to compare next time')
+  // 견본은 소비자가 그대로 받은 파일뿐이다(0.2.155): 소비자 템플릿으로 대체되는 세션 상태 파일과 배포하지 않는 이력 아카이브·seed-only
+  // 문서는 본체(로컬 체크아웃 설치의 원본)에 있어도 기록하지 않는다 — 기록하면 본체 결정 로그가 바뀔 때마다 거짓으로 지목한다.
+  for (const rel of Object.keys(manifest.projectOwnedSeedShas)) {
+    assert(fs.existsSync(path.join(target, rel)), `a seed sha is recorded for a file the consumer never received: ${rel}`)
+  }
+  for (const rel of ['.harness/session/decision-log.md', '.harness/session/developer-input-queue.md', '.harness/session/project-memory.md', '.harness/session/manual-actions.md']) {
+    assert(!manifest.projectOwnedSeedShas[rel], `a consumer template is not a seed copy — its body-side sha must not be recorded: ${rel}`)
+  }
 
   const seed = path.join(repoRoot, '.harness/project/commit-push-rules.md')
   const original = fs.readFileSync(seed, 'utf8')
   try {
     // ① 견본이 바뀌면 지목한다.
     fs.writeFileSync(seed, `${original}\n<!-- seed drift fixture -->\n`)
-    // smartdid #63 ②: dry-run 에서도 같은 파일을 지목한다 — 실행 전에 손볼 범위를 같이 정할 수 있게. 쓰지는 않는다.
+    // 0.2.155(kiosk #66 · backend #67 ①, 사용자 결정): 팀이 손대지 않은 견본 그대로의 파일은 지목 대신 **새 견본으로 갱신하고 알린다** —
+    // 잃는 내용이 없다. dry-run 은 "갱신합니다"로 미리 보여 주고 쓰지 않는다.
     const planned = runInit(target, '--dry-run', '--no-scan', '--no-handoff', '--no-check')
-    assert(planned.includes('::: 옮겨 적을 것 :::') && planned.includes('.harness/project/commit-push-rules.md'), `dry-run must name the same files (got: ${planned.slice(-800)})`)
-    assert(planned.includes('덮지 않습니다') && !planned.includes('덮지 않았습니다'), 'dry-run must speak of what it would do, not what it did')
+    assert(planned.includes('[dry-run] 견본 그대로였던 프로젝트 소유 파일') && planned.includes('.harness/project/commit-push-rules.md'), `dry-run must announce the refresh of the untouched copy (got: ${planned.slice(-800)})`)
+    assert(!planned.includes('::: 옮겨 적을 것 :::'), 'an untouched copy is not something to transcribe — it is refreshed instead')
+    assert(!read(target, '.harness/project/commit-push-rules.md').includes('seed drift fixture'), 'dry-run must not write')
     const drifted = runInit(target, '--no-scan', '--no-handoff', '--no-check')
-    assert(drifted.includes('::: 옮겨 적을 것 :::'), `a changed seed of a project-owned file must be named (got: ${drifted.slice(-800)})`)
-    assert(drifted.includes('.harness/project/commit-push-rules.md'), 'and the row must name which file')
-    assert(drifted.includes('harness changelog'), 'and where to read what changed')
+    assert(drifted.includes('새 견본으로 갱신했습니다') && drifted.includes('.harness/project/commit-push-rules.md'), `the untouched copy must be refreshed and reported (got: ${drifted.slice(-800)})`)
+    assert(read(target, '.harness/project/commit-push-rules.md').includes('seed drift fixture'), 'the file must now equal the new seed')
+    assert(!drifted.includes('::: 옮겨 적을 것 :::'), 'nothing is left to transcribe when every changed seed was an untouched copy')
+    const afterRefresh = JSON.parse(read(target, '.harness/install-manifest.json'))
+    assert(!afterRefresh.managedFiles?.['.harness/project/commit-push-rules.md'], 'a refreshed project-owned file must stay project-owned, not become managed')
   } finally {
     fs.writeFileSync(seed, original)
   }
@@ -1722,14 +1753,35 @@ function updateNamesProjectOwnedFilesWhoseSeedChanged() {
   fs.appendFileSync(path.join(target, '.harness/project/commit-push-rules.md'), '\n우리 팀 규칙 추가\n')
   const localEdit = runInit(target, '--no-scan', '--no-handoff', '--no-check')
   assert(!localEdit.includes('옮겨 적을 것'), `a consumer edit is not a seed change (got: ${localEdit.slice(-500)})`)
+  // 팀이 고친 파일은 견본이 바뀌어도 갱신하지 않는다 — 지목만 한다(0.2.155 의 경계).
+  try {
+    fs.writeFileSync(seed, `${original}\n<!-- seed drift fixture 2 -->\n`)
+    const editedDrift = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+    assert(editedDrift.includes('::: 옮겨 적을 것 :::') && editedDrift.includes('.harness/project/commit-push-rules.md'), `an edited project-owned file whose seed changed must be named, not refreshed (got: ${editedDrift.slice(-800)})`)
+    assert(!editedDrift.includes('새 견본으로 갱신했습니다'), 'and no refresh line may claim it was replaced')
+    const kept = read(target, '.harness/project/commit-push-rules.md')
+    assert(kept.includes('우리 팀 규칙 추가') && !kept.includes('seed drift fixture 2'), 'the team edit must be untouched')
+  } finally {
+    fs.writeFileSync(seed, original)
+  }
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  // 고친 파일은 --replace-file 이 종전대로 거절한다 — "손대지 않은 견본" 예외는 한 글자라도 다르면 닫힌다(kiosk #66).
+  const refused = expectFailure(() => runInit(target, '--replace-file', '.harness/project/commit-push-rules.md', '--no-scan', '--no-handoff', '--no-check'), 'an edited project-owned file must still be refused by --replace-file')
+  assert(refused.includes('프로젝트 소유 파일'), `and the refusal must say why (got: ${refused.slice(-300)})`)
+  assert(read(target, '.harness/project/commit-push-rules.md').includes('우리 팀 규칙 추가'), 'and the team edit must be untouched')
 
   // ④ 기록이 없는 옛 설치본(0.2.151 이하)은 비교 기준이 없다. 모르는 것을 "전부 바뀌었다"로
   //    부풀리지 않는다 — 첫 업데이트가 26개를 쏟아내면 그 자리에서 신뢰를 잃는다.
   const legacy = JSON.parse(read(target, '.harness/install-manifest.json'))
   delete legacy.projectOwnedSeedShas
   fs.writeFileSync(path.join(target, '.harness/install-manifest.json'), `${JSON.stringify(legacy, null, 2)}\n`)
+  //    대신 "이번엔 직접 확인"을 한 번 말한다(kiosk #64 ①) — 침묵하면 블록에 조건을 건 공지가 아예 닿지 않는다. 파일은 지목하지 않는다.
   const noRecord = runInit(target, '--no-scan', '--no-handoff', '--no-check')
-  assert(!noRecord.includes('옮겨 적을 것'), `an install without the recorded shas must stay silent (got: ${noRecord.slice(-500)})`)
+  assert(noRecord.includes('옮겨 적을 것 (이번엔 직접 확인)'), `an install without the recorded shas must say it cannot point and ask for a manual look (got: ${noRecord.slice(-600)})`)
+  assert(!/::: 옮겨 적을 것 :::/.test(noRecord) && !noRecord.includes('    - .harness/project/'), 'and it must not list files it cannot judge')
+  //    그 업데이트가 기준을 만들었으므로 다음부터는 종전대로 — 바뀐 견본이 없으면 침묵.
+  const afterBaseline = runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  assert(!afterBaseline.includes('옮겨 적을 것'), `once the baseline exists an unchanged seed must stay silent again (got: ${afterBaseline.slice(-500)})`)
 }
 
 function installOutputEndsWithReportPrompt() {
