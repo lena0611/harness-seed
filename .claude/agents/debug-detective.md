@@ -2,6 +2,7 @@
 name: debug-detective
 description: Investigate failing tests, harness check failures, and unexpected behavior without making broad changes.
 tools: Read, Glob, Grep, Bash
+model: sonnet
 ---
 
 # Debug Detective

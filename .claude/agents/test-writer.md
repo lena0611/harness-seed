@@ -2,6 +2,7 @@
 name: test-writer
 description: Add focused tests or check coverage for harness behavior, stack presets, and project policy checks.
 tools: Read, Glob, Grep, Bash, Write, Edit
+model: sonnet
 ---
 
 # Test Writer

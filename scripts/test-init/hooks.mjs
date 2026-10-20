@@ -76,6 +76,143 @@ function sessionStartAdapterWarnsWhenHooksMissing() {
   assert(!after.includes('hooks are OFF'), 'adapter must stay quiet once hooks are installed')
 }
 
+// 토큰 절약(0.2.155): 매 프롬프트 훅은 안내 한 줄만 싣고, 최종화 규칙은 사용자가 최종화를 말한 프롬프트에만 붙인다. 전체 안내 두 줄은
+// 세션 시작 훅이 세션마다 한 번 싣는다 — 대화가 매 턴 통째로 다시 전송되는 구조라 같은 두 줄(≈190토큰)이 긴 세션에서 그대로 쌓였다.
+function promptHookKeepsOneGuidanceLineAndAddsFinalizationOnDemand() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const hook = path.join(target, '.claude/hooks/inject-context.sh')
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: target }
+  const ask = (payload) => run('bash', [hook], { cwd: target, env, input: payload === undefined ? '' : JSON.stringify(payload) })
+
+  const plain = ask({ session_id: 's1', prompt: '로그인 버그 고쳐줘' })
+  assert(plain.includes('Harness: follow CLAUDE.md') && plain.includes('activeStack=none'), `every prompt keeps one guidance line (got: ${plain})`)
+  assert(plain.includes('[harness] request/context/impact/action/decision/verify'), 'and the reporting format stays in that line')
+  assert(!plain.includes('Harness finalization') && !plain.includes('read CLAUDE.md first'), `an ordinary prompt must not carry the finalization rule or the old two lines (got: ${plain})`)
+
+  for (const prompt of ['커밋해줘', '푸시해줘', '릴리스해줘', '최종 검증만 해줘', 'please push it', 'open a PR']) {
+    const out = ask({ session_id: 's1', prompt })
+    assert(out.includes('Harness finalization'), `a finalization prompt must carry the rule: ${prompt} (got: ${out})`)
+  }
+  // 판정을 못 하면(입력 없음·JSON 아님) 종전처럼 싣는다 — 잃는 쪽으로 실패하지 않는다.
+  assert(ask(undefined).includes('Harness finalization'), 'no hook input must fall back to carrying the rule')
+  // 단어 안의 pr 은 PR 이 아니다.
+  assert(!ask({ session_id: 's1', prompt: 'prompt 문구 다듬어줘' }).includes('Harness finalization'), 'a word that merely contains "pr" is not a PR request')
+
+  const start = run('/bin/sh', [path.join(target, '.claude/hooks/session-start-reminder.sh')], { cwd: target, env })
+  assert(start.includes('Harness context:') && start.includes('Harness reporting:') && start.includes('ai-standard-guiding-policy.md'), `the full two lines moved to session start (got: ${start.slice(0, 800)})`)
+}
+
+// 같은 도구 실패를 TTL(120분) 동안 매 프롬프트 전문으로 붙이지 않는다(0.2.155): 세션마다 처음 한 번 전문, 그 뒤 한 줄. 세션 시작 훅이
+// (요약·재개 포함) 표식을 지워 다시 한 번 전문이 나온다. session_id 가 없으면 중복을 가릴 수 없으니 종전대로 매번 전문.
+function promptHookShowsAFailureInFullOncePerSession() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const hook = path.join(target, '.claude/hooks/inject-context.sh')
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: target }
+  const ask = (payload) => run('bash', [hook], { cwd: target, env, input: JSON.stringify(payload) })
+  fs.mkdirSync(path.join(target, '.harness/generated'), { recursive: true })
+  const eventTs = new Date().toISOString()
+  fs.writeFileSync(path.join(target, '.harness/generated/agent-events.ndjson'),
+    `${JSON.stringify({ ts: eventTs, type: 'tool_failure', tool: 'Bash', input: 'make probe-QX31', error: 'exit 2' })}\n`)
+
+  const first = ask({ session_id: 'a', prompt: 'hi' })
+  assert(first.includes('input=make probe-QX31'), `the first prompt after a failure carries it in full (got: ${first})`)
+  const second = ask({ session_id: 'a', prompt: 'hi' })
+  assert(second.includes('already shown in full') && !second.includes('probe-QX31'), `the same session gets one short line afterwards (got: ${second})`)
+  assert(ask({ session_id: 'b', prompt: 'hi' }).includes('input=make probe-QX31'), 'another session has not seen it — full again')
+  run('/bin/sh', [path.join(target, '.claude/hooks/session-start-reminder.sh')], { cwd: target, env })
+  assert(ask({ session_id: 'b', prompt: 'hi' }).includes('input=make probe-QX31'), 'a session start (compact, resume) shows it in full once more')
+  assert(ask({ prompt: 'hi' }).includes('probe-QX31') && ask({ prompt: 'hi' }).includes('probe-QX31'), 'without a session id there is no way to dedupe — keep the old behaviour')
+  // 표식 자리가 링크면 그 너머를 덮지 않는다 — 덮지 못하면 다음에도 전문이 나갈 뿐이다.
+  const outside = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'harness-marker-')), 'victim.txt')
+  fs.writeFileSync(outside, 'keep-QX34\n')
+  const marker = path.join(target, '.harness/generated/agent-event-shown')
+  fs.rmSync(marker, { force: true })
+  fs.symlinkSync(outside, marker)
+  assert(ask({ session_id: 'c', prompt: 'hi' }).includes('input=make probe-QX31'), 'a linked marker is not trusted — full text')
+  assert(fs.readFileSync(outside, 'utf8') === 'keep-QX34\n', 'the hook must not write through a linked marker')
+  // 링크 너머에 정확히 맞는 키가 있어도 "이미 보였다"의 증거로 쓰지 않는다(Codex 1R #3).
+  fs.writeFileSync(outside, `d:${eventTs}`)
+  assert(ask({ session_id: 'd', prompt: 'hi' }).includes('input=make probe-QX31'), 'a linked marker holding the exact key must still not hide the event')
+  // 세션 시작 훅은 상위 경로(generated)가 링크면 그 너머의 같은 이름 파일을 지우지 않는다(Codex 1R #1).
+  const generated = path.join(target, '.harness/generated')
+  const realGenerated = `${generated}.real`
+  fs.renameSync(generated, realGenerated)
+  const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-generated-'))
+  fs.writeFileSync(path.join(elsewhere, 'agent-event-shown'), 'keep-QX36\n')
+  fs.symlinkSync(elsewhere, generated)
+  try {
+    run('/bin/sh', [path.join(target, '.claude/hooks/session-start-reminder.sh')], { cwd: target, env })
+    assert(fs.existsSync(path.join(elsewhere, 'agent-event-shown')), 'a linked generated/ must not let the session-start hook delete a file beyond the link')
+  } finally {
+    fs.rmSync(generated)
+    fs.renameSync(realGenerated, generated)
+  }
+}
+
+// 재개(resume)는 대화가 살아 있다 — 같은 세션이 이미 본 메모가 그대로면 전문 대신 한 줄(0.2.155). 메모가 바뀌었거나, 다른 세션이거나,
+// 시작·요약이면 전문. 입력이 없으면(터미널에서 직접 실행) 전문.
+function sessionStartSkipsAnUnchangedMemoOnResume() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const hook = path.join(target, '.claude/hooks/session-start-reminder.sh')
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: target }
+  const memo = path.join(target, '.harness/session/local/next-session-reminder.md')
+  fs.mkdirSync(path.dirname(memo), { recursive: true })
+  fs.writeFileSync(memo, '# 다음 세션 리마인더\n\n- 결제 화면 QX32 부터\n')
+  const start = (payload) => run('/bin/sh', [hook], { cwd: target, env, ...(payload ? { input: JSON.stringify(payload) } : {}) })
+
+  assert(start({ session_id: 'a', source: 'startup' }).includes('QX32'), 'startup shows the memo in full')
+  const resumed = start({ session_id: 'a', source: 'resume' })
+  assert(!resumed.includes('QX32') && resumed.includes('이 대화에 이미 있습니다'), `resuming the same session with an unchanged memo gets one line (got: ${resumed})`)
+  fs.appendFileSync(memo, '- 그 뒤 QX33 추가\n')
+  assert(start({ session_id: 'a', source: 'resume' }).includes('QX33'), 'a memo changed since this session saw it is shown in full')
+  assert(start({ session_id: 'b', source: 'resume' }).includes('QX32'), 'another session has not seen it — full')
+  assert(start({ session_id: 'b', source: 'compact' }).includes('QX32'), 'compact folds the conversation — full again')
+  assert(start(null).includes('QX32'), 'no hook input (run by hand) — full')
+  // 표식 자리가 링크면 그 너머를 덮지 않는다(재개도 전문으로 남는다).
+  const outside = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'harness-memo-marker-')), 'victim.txt')
+  fs.writeFileSync(outside, 'keep-QX35\n')
+  const marker = path.join(target, '.harness/generated/memo-shown')
+  fs.rmSync(marker, { force: true })
+  fs.symlinkSync(outside, marker)
+  start({ session_id: 'c', source: 'startup' })
+  assert(fs.readFileSync(outside, 'utf8') === 'keep-QX35\n', 'the session-start hook must not write through a linked marker')
+  assert(start({ session_id: 'c', source: 'resume' }).includes('QX32'), 'without a trusted marker a resume stays full')
+  // 링크 너머에 정확히 맞는 키가 있어도 믿지 않는다(Codex 1R #3).
+  fs.writeFileSync(outside, `e:${crypto.createHash('sha256').update(fs.readFileSync(memo)).digest('hex')}`)
+  assert(start({ session_id: 'e', source: 'resume' }).includes('QX32'), 'a linked marker holding the exact key must still not hide the memo')
+  fs.rmSync(marker)
+  // 입력 파이프를 닫지 않는 호출자가 있어도 세션 시작 안내 전체가 멈추지 않는다(Codex 1R #4) — 시간 제한 뒤 입력 불명 = 전문.
+  const fifoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-stdin-'))
+  const probe = run('bash', ['-c', [
+    'F="$1"; H="$2"; mkfifo "$F"',
+    'sleep 20 > "$F" 2>/dev/null </dev/null &',
+    'W=$!; S=$(date +%s)',
+    '/bin/sh "$H" < "$F" > "$F.out" 2>&1',
+    'E=$(date +%s); kill $W 2>/dev/null; wait $W 2>/dev/null',
+    'echo "elapsed=$((E-S))"; cat "$F.out"',
+  ].join('\n'), 'probe', path.join(fifoDir, 'stdin'), hook], { cwd: target, env })
+  const elapsed = Number((probe.match(/elapsed=(\d+)/) ?? [])[1])
+  // 평소 0.8초, 이 경우 2.4초(제한 1.5초 포함) 실측 — 12초는 CI 부하 여유이고, 멈추면 sleep 20초가 끝날 때까지라 그대로 걸린다.
+  assert(Number.isFinite(elapsed) && elapsed <= 12, `an open, silent stdin must not hold the session-start hook (took ${elapsed}s)`)
+  assert(probe.includes('QX32') && probe.includes('Harness context:'), `and the full output must still come out (got: ${probe.slice(0, 600)})`)
+  // 온전한 재개 입력을 보내고 파이프만 안 닫아도 시간 초과는 입력 불명이다 — 이미 본 메모라도 전문(Codex 2R #1).
+  start({ session_id: 'f', source: 'startup' })
+  assert(!start({ session_id: 'f', source: 'resume' }).includes('QX32'), 'precondition: with a closed pipe this resume would be folded to one line')
+  const fifoDir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-stdin-'))
+  const held = run('bash', ['-c', [
+    'F="$1"; H="$2"; mkfifo "$F"',
+    '{ printf \'%s\' \'{"session_id":"f","source":"resume"}\'; sleep 20; } > "$F" 2>/dev/null </dev/null &',
+    'W=$!',
+    '/bin/sh "$H" < "$F" > "$F.out" 2>&1',
+    'kill $W 2>/dev/null; pkill -P $W 2>/dev/null; wait $W 2>/dev/null',
+    'cat "$F.out"',
+  ].join('\n'), 'probe', path.join(fifoDir2, 'stdin'), hook], { cwd: target, env })
+  assert(held.includes('QX32'), `a timed-out read is unknown input — the memo must be printed in full (got: ${held.slice(0, 600)})`)
+}
+
 function sessionStartHookAutoEnablesGitHooks() {
   // 결정 94(보강, 2026-08-28): clone의 훅 꺼짐은 누가 끈 선택이 아니라 git 설정이
   // clone을 따라가지 않는 물리 기본값이다 — 세션 시작 훅이 기계적으로 복원한다(fail-open).
@@ -2151,6 +2288,9 @@ function protectPathsHonorsProjectDeclaredSourceFolders() {
 }
 
 export {
+  promptHookKeepsOneGuidanceLineAndAddsFinalizationOnDemand,
+  promptHookShowsAFailureInFullOncePerSession,
+  sessionStartSkipsAnUnchangedMemoOnResume,
   sessionStartShowsPersonalReminderFromLocal,
   postMergeRestoresPersonalMemoThePullDeleted,
   linkedProjectReminderIsNotReadThroughLinks,

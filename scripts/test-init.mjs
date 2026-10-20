@@ -138,6 +138,9 @@ import {
   commitStageEnvIsNoopForConsumers,
   prePushPassesBufferedStdinToPreviousHook,
   sessionStartHookSnoozesQueueRowsUntilReviewDate,
+  promptHookKeepsOneGuidanceLineAndAddsFinalizationOnDemand,
+  promptHookShowsAFailureInFullOncePerSession,
+  sessionStartSkipsAnUnchangedMemoOnResume,
 } from './test-init/hooks.mjs'
 import {
   installOutputUsesConditionalNvmAndGitGuidance,
@@ -504,6 +507,9 @@ const tests = [
   guardNoCacheForcesRevalidation,
   guardCacheMissAfterTreeChange,
   guardPropagatesProfileStrictToDocLinkCheck,
+  promptHookKeepsOneGuidanceLineAndAddsFinalizationOnDemand,
+  promptHookShowsAFailureInFullOncePerSession,
+  sessionStartSkipsAnUnchangedMemoOnResume,
   buildContextMergesProfileAlwaysSources,
   scanValidatesDeclaredProjectSources,
   scanTreatsEveryDeclaredSourceAsRuleDoc,

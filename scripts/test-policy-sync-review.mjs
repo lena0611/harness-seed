@@ -91,6 +91,15 @@ try {
   assert.match(defaultOutput, /일반 구현 변경이면 문서 수정이 필요 없습니다/)
   assert.doesNotMatch(defaultOutput, /SYNC GAP/)
 
+  // 기본 impact(--verbose 없음, 0.2.155 토큰 절약): 참고 등급 후보는 한 줄로 접고 판단 문장은 끝에 한 번 — 매칭 경로·연결 문서를
+  // 후보마다 되풀이하지 않는다(본체 실측 362줄 → 167줄). 전체 목록은 --verbose 가 그대로 보인다(위 출력).
+  const compactOutput = run(process.execPath, ['.harness/bin/policy-harness.mjs', 'impact'], defaultTarget)
+  assert.match(compactOutput, /\[가볍게 확인\] \[test\.api-contract\] API contract review — 소스만 변경됨: src\/apis\/users\.js/)
+  assert.doesNotMatch(compactOutput, /동기화 강제 설정:/)
+  assert.match(compactOutput, /일반 구현 변경이면 문서 수정이 필요 없습니다/)
+  assert.match(compactOutput, /impact --verbose/)
+  assert.match(defaultOutput, /동기화 강제 설정: review/)
+
   const defaultSummary = JSON.parse(fs.readFileSync(path.join(defaultTarget, '.harness/generated/policy-impact-summary.json'), 'utf8'))
   assert.equal(defaultSummary.syncReviewCandidates, 1)
   assert.equal(defaultSummary.syncReviewLevels['review suggested'], 1)
@@ -103,6 +112,10 @@ try {
   const enforcedOutput = run(process.execPath, ['.harness/bin/policy-harness.mjs', 'impact', '--strict', '--verbose'], enforcedTarget, 1)
   assert.match(enforcedOutput, /\[차단\]/)
   assert.match(enforcedOutput, /동기화 강제 설정: block/)
+  // 필수 조치(차단·확인 필수)는 기본 impact 에서도 상세 그대로 — 무엇을 고칠지가 그 후보의 전부다.
+  const enforcedCompact = run(process.execPath, ['.harness/bin/policy-harness.mjs', 'impact', '--strict'], enforcedTarget, 1)
+  assert.match(enforcedCompact, /동기화 강제 설정: block/)
+  assert.match(enforcedCompact, /변경 파일:\n  - src\/apis\/users\.js/)
 
   writeJson(enforcedTarget, '.harness/policy/policy-registry.json', {
     version: 3,

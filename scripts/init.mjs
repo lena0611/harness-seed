@@ -2585,6 +2585,34 @@ function computeChangelogDelta(sourceRoot, fromVersion, toVersion) {
   return entries.length ? { from: from.version, to: to.version, entries } : null
 }
 
+// 업데이트 출력의 변경 내역 요약(0.2.155, 토큰 절약): `### 상세` 아래만 항목마다 굵은 머리말(없으면 앞 100자)로 접고, 나머지는
+// 원문 그대로 보인다 — 공지, 그 밖의 `###` 절, 공지·상세 구분이 없는 옛 릴리스(0.2.119 이하)는 공지인지 상세인지 판정할 수 없으므로
+// 접지 않는다(Codex 1R #5: 판정을 못 하면 종전 출력). 업데이트를 돌리는 쪽은 대개 에이전트라 이 출력이 통째로 대화에 실린다 —
+// 0.2.152 설치본을 올리는 실측에서 변경 내역 블록 28KB. 상세를 아예 빼지 않는 이유: 에이전트만 마주치는 변화(출력 형식·새 플래그)는
+// 공지 규칙상 상세에만 적힌다. 전문은 lock 의 lastUpdate 에 그대로 남고 `harness changelog` 가 다시 보여 준다 — 줄이는 것은 화면뿐이다.
+function summarizeChangelogEntryLines(lines) {
+  const out = [];
+  let inDetail = false;
+  for (const line of lines ?? []) {
+    const heading = line.match(/^###\s+(.*?)\s*$/);
+    if (heading) {
+      inDetail = heading[1] === '상세';
+      out.push(line);
+      continue;
+    }
+    if (!inDetail) {
+      out.push(line);
+      continue;
+    }
+    const bullet = line.match(/^-\s+(.*)$/);
+    if (!bullet) continue;
+    const bold = bullet[1].match(/^\*\*(.+?)\*\*/);
+    const text = bold ? bold[1] : bullet[1];
+    out.push(`- ${!bold && text.length > 100 ? `${text.slice(0, 100)}…` : text}`);
+  }
+  return out;
+}
+
 // 보고 표식이 이미 해결해 둔 출발 버전(연속 구간 이어받기 포함)을 읽는다. 표식은 이 함수보다 먼저
 // 기록되므로(writeInstallManifest → writeHarnessLock) 여기서는 완성된 값이다. 추정이 아니라 재사용이다.
 function readResolvedUpdateFrom(target, toVersion) {
@@ -3644,12 +3672,12 @@ function main() {
       for (const entry of cl.entries) {
         console.log('');
         console.log(`  ## ${entry.version}${entry.date ? ` - ${entry.date}` : ''}`);
-        for (const line of entry.lines) {
+        for (const line of summarizeChangelogEntryLines(entry.lines)) {
           console.log(`  ${line}`);
         }
       }
       console.log('');
-      console.log('이 내역은 나중에 .harness/bin/harness changelog 로 다시 볼 수 있습니다.');
+      console.log('공지는 전문, 상세는 항목 제목만 보였습니다 — 상세 전문은 .harness/bin/harness changelog 로 다시 볼 수 있습니다.');
     }
 
     const foreignPreserved = installed.preservedForeignFiles ?? [];

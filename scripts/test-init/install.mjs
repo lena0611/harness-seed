@@ -928,6 +928,27 @@ function updateRecordsAndReplaysChangelogDelta() {
 
   const output = runInit(target)
   assert(output.includes('이번 업데이트로 반영된 공통 하네스 변경'), 'update should print the changelog delta inline')
+  // 업데이트 출력은 공지 전문 + 상세는 항목 제목만(0.2.155, 토큰 절약 — 업데이트를 돌리는 쪽은 대개 에이전트라 출력이 통째로 대화에
+  // 실린다). 전문은 lock 의 lastUpdate 에 그대로 남고 changelog 명령이 다시 보인다 — 아래 replay 에서 확인한다.
+  let changelogSection = ''
+  let detail = null
+  for (const line of fs.readFileSync(path.join(repoRoot, 'CHANGELOG.md'), 'utf8').split(/\r?\n/)) {
+    if (/^## /.test(line)) { changelogSection = ''; continue }
+    const heading = line.match(/^###\s+(.*?)\s*$/)
+    if (heading) { changelogSection = heading[1]; continue }
+    const bullet = changelogSection === '상세' && line.match(/^- \*\*(.+?)\*\*(.{60,})$/)
+    if (bullet) { detail = { head: bullet[1], body: bullet[2].slice(10, 50) }; break }
+  }
+  assert(detail, 'precondition: the changelog has a detail bullet with a bold head and a body')
+  assert(output.includes(detail.head), `the update output keeps each detail headline (${detail.head})`)
+  assert(!output.includes(detail.body), `but not the detail body (${detail.body})`)
+  assert(output.includes('### 공지') && output.includes('상세 전문은 .harness/bin/harness changelog'), 'notices are printed and the full text is pointed at')
+  // 공지·상세 구분이 없는 옛 릴리스는 무엇이 공지인지 판정할 수 없으니 접지 않는다(Codex 1R #5 — 판정을 못 하면 종전 출력).
+  const legacySection = fs.readFileSync(path.join(repoRoot, 'CHANGELOG.md'), 'utf8').split(/\n(?=## \d+\.\d+\.\d+)/).slice(1)
+    .find((section) => !section.includes('### ') && /^- .{60,}$/m.test(section))
+  assert(legacySection, 'precondition: the changelog still has an old-format release without notice/detail headings')
+  const legacyLine = legacySection.split('\n').find((line) => /^- .{60,}$/.test(line)).slice(2)
+  assert(output.includes(legacyLine), `an old-format release must be printed verbatim (missing: ${legacyLine.slice(0, 80)})`)
 
   const lock = JSON.parse(read(target, '.harness/harness-lock.json'))
   assert(lock.lastUpdate, 'update should record lastUpdate in the lock')
@@ -939,6 +960,7 @@ function updateRecordsAndReplaysChangelogDelta() {
   // 독립 harness:changelog 명령이 lock의 lastUpdate를 다시 출력해야 한다.
   const replay = run(nodeBin, [path.join(target, '.harness/bin/changelog-delta.mjs')], { cwd: target })
   assert(replay.includes(packageVersion), 'harness:changelog should re-print the recorded delta from lock.lastUpdate')
+  assert(replay.includes(detail.body), 'the full detail text must still be one command away')
 }
 
 function reinstallPreservesLocallyEditedManagedHarnessFile() {

@@ -10,6 +10,17 @@ QUEUE="$ROOT/.harness/session/developer-input-queue.md"
 
 printf '[harness] session-start\n'
 
+# 전체 안내(0.2.155, 토큰 절약): 매 프롬프트 훅(inject-context.sh)이 싣던 두 줄을 이 자리에서 세션마다 한 번 낸다 —
+# 시작·재개·요약(compact)·비우기(clear) 모두 이 훅이 돌므로 요약으로 대화가 접혀도 다시 실린다. 프롬프트마다는 한 줄만 남는다.
+printf '[harness] Harness context: CLAUDE.md is the entry point (already loaded into this session); check .harness/policy/ai-standard-guiding-policy.md before work; source of truth is .harness/; before user finalization, report checks as candidates. If user asks final check, run .harness/bin/harness check. If user asks commit/push and hooks are installed, trust pre-commit/pre-push checks and do not run duplicate manual harness:check first.\n'
+printf '[harness] Harness reporting: when reporting actual work progress, summarize as [harness] request/context/impact/action/decision/verify. Do not force this format for simple Q&A, casual, or meta-only turns.\n'
+# 실패 이벤트는 세션마다 처음 한 번만 전문으로 싣는다(inject-context.sh) — 새 세션·요약 직후에는 다시 한 번 보이도록 표식을 지운다.
+# 상위 경로(.harness·generated)가 링크면 지우지 않는다 — 링크 너머의 같은 이름 파일을 지우게 된다(Codex 1R #1). 표식 자체가 링크면
+# rm 은 링크만 지운다. 못 지우면 inject-context 가 링크 표식을 믿지 않으므로 어차피 전문이 나간다.
+if [ ! -L "$ROOT/.harness" ] && [ ! -L "$ROOT/.harness/generated" ]; then
+  rm -f "$ROOT/.harness/generated/agent-event-shown" 2>/dev/null || true
+fi
+
 # ── 준비 상태(0.2.149, 사용자 지시 2026-09-10) ────────────────────────────────
 # 하네스가 돌기 위한 조건 중 **못 갖춘 것만** 표로 모은다. 사람과 에이전트가 같은 줄을 읽으므로
 # 채널을 하나로 둔다. 다 갖춰졌으면 아무것도 찍지 않는다 — 정상은 침묵이 이 훅의 규칙이다.
@@ -105,7 +116,73 @@ if ! harness_memo_plain "$REMINDER" && harness_memo_plain "$LEGACY_REMINDER"; th
   REMINDER="$LEGACY_REMINDER"
 fi
 
-if harness_memo_plain "$REMINDER"; then
+# 재개(resume)는 대화가 그대로 살아 있다 — 같은 세션이 같은 메모를 이미 봤으면 전문 대신 한 줄(0.2.155, 토큰 절약).
+# 판정은 '이 세션 id + 메모 내용 해시'를 표식과 비교한다: 메모가 그사이 바뀌었거나(다른 세션·사람이 고침) 다른 세션이면 전문.
+# 시작·요약·비우기는 항상 전문이다. Node 를 못 쓰거나 입력을 못 읽으면 전문 — 정보를 잃는 쪽으로 실패하지 않는다.
+MEMO_MODE='full'
+# 판정 스크립트(작은따옴표 안 — 셸이 건드리지 않는다). 훅 입력은 이 node 가 **시간 제한(1.5초)을 두고** 직접 읽는다: 입력을 닫지 않는
+# 호출자가 있어도 세션 시작 안내 전체가 멈추지 않는다(Codex 1R #4 — 예전에는 이 훅이 stdin 을 아예 읽지 않았다). 시간 안에 못 읽으면
+# 입력 불명 = 전문. 표식은 경로에 링크가 하나라도 있으면 읽지도(믿지 않음 — 1R #3) 쓰지도 않는다. 쓰기는 마지막 조각을 O_NOFOLLOW
+# 로 열어 검사와 쓰기 사이에 링크로 바꿔치는 경우도 막는다(1R #2 — 상위 폴더를 실행 도중 바꾸는 경쟁은 이미 저장소에 마음대로 쓸 수
+# 있는 공격자라 범위 밖).
+MEMO_JS='
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+const seenFile = process.env.HARNESS_MEMO_SEEN;
+const noLink = (file) => [path.dirname(path.dirname(file)), path.dirname(file), file].every((p) => {
+  try { return !fs.lstatSync(p).isSymbolicLink(); } catch (e) { return Boolean(e) && e.code === "ENOENT"; }
+});
+let raw = "";
+let done = false;
+// complete=false(시간 초과·입력 오류)는 입력 불명이다 — 받은 조각이 온전한 JSON 이어도 판정에 쓰지 않고 전문, 표식도 그대로(Codex 2R #1).
+const finish = (complete) => {
+  if (done) return;
+  done = true;
+  if (!complete) { process.stdout.write("full"); process.exit(0); }
+  let input = {};
+  try { input = JSON.parse(raw) || {}; } catch (_) {}
+  const sid = typeof input.session_id === "string" ? input.session_id : "";
+  const source = typeof input.source === "string" ? input.source : "";
+  let sha = "";
+  try { sha = crypto.createHash("sha256").update(fs.readFileSync(process.env.HARNESS_MEMO)).digest("hex"); } catch (_) { process.stdout.write("full"); process.exit(0); }
+  const key = `${sid}:${sha}`;
+  const trusted = noLink(seenFile);
+  let seen = "";
+  // 읽기도 마지막 조각을 O_NOFOLLOW 로 연다 — 검사와 열기 사이에 링크로 바뀌면 열기가 실패하고 "본 적 없음"이 된다(Codex 2R #2).
+  if (trusted) {
+    try {
+      const fd = fs.openSync(seenFile, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+      try { seen = fs.readFileSync(fd, "utf8").trim(); } finally { fs.closeSync(fd); }
+    } catch (_) {}
+  }
+  const same = Boolean(sid) && source === "resume" && seen === key;
+  if (!same && sid && trusted) {
+    try {
+      fs.mkdirSync(path.dirname(seenFile), { recursive: true });
+      const flags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | (fs.constants.O_NOFOLLOW || 0);
+      const fd = fs.openSync(seenFile, flags, 0o644);
+      try { fs.writeSync(fd, key); } finally { fs.closeSync(fd); }
+    } catch (_) {}
+  }
+  process.stdout.write(same ? "same" : "full");
+  process.exit(0);
+};
+setTimeout(() => finish(false), 1500);
+process.stdin.on("data", (d) => { raw += d; }).on("end", () => finish(true)).on("error", () => finish(false));
+'
+if harness_memo_plain "$REMINDER" && [ "${HARNESS_NODE_USABLE:-1}" = "1" ] && command -v node >/dev/null 2>&1; then
+  if [ -t 0 ]; then
+    # 터미널에서 직접 부른 경우 — 입력이 없다. 기다리지 않는다.
+    MEMO_MODE="$(HARNESS_MEMO="$REMINDER" HARNESS_MEMO_SEEN="$ROOT/.harness/generated/memo-shown" node -e "$MEMO_JS" </dev/null 2>/dev/null || printf 'full')"
+  else
+    MEMO_MODE="$(HARNESS_MEMO="$REMINDER" HARNESS_MEMO_SEEN="$ROOT/.harness/generated/memo-shown" node -e "$MEMO_JS" 2>/dev/null || printf 'full')"
+  fi
+fi
+
+if harness_memo_plain "$REMINDER" && [ "$MEMO_MODE" = "same" ]; then
+  printf '\n[harness] next-session-reminder: 이 대화에 이미 있습니다(재개 — 그 뒤 내용 변화 없음). 원문: %s\n' "${REMINDER#"$ROOT"/}"
+elif harness_memo_plain "$REMINDER"; then
   printf '\n[harness] next-session-reminder\n'
   sed -n '1,120p' "$REMINDER"
 else

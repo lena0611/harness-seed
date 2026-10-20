@@ -14,10 +14,11 @@
 - `commands/운영업무.md`: JIRA 운영 업무 접수와 업무 유형별 하네스 스킬 연결
 - `commands/업무요약.md`: 운영 업무 완료 후 유지보수 히스토리 기록
 - `agents/code-reviewer.md`: 변경 리뷰
-- `agents/debug-detective.md`: 실패 원인 분석
-- `agents/test-writer.md`: 테스트 작성
+- `agents/debug-detective.md`: 실패 원인 분석 — Sonnet 고정(0.2.155): 조사형 작업이라 메인 모델을 물려받지 않습니다. 어려운 건은 부를 때 모델을 올립니다
+- `agents/test-writer.md`: 테스트 작성 — Sonnet 고정(0.2.155)
 - `agents/security-auditor.md`: 보안 점검
-- `hooks/inject-context.sh`: 프롬프트마다 하네스 상태 요약 주입
+- `hooks/inject-context.sh`: 프롬프트마다 하네스 한 줄 상기(활성 스택·보고 형식) + 사용자가 최종화(커밋·푸시·배포·릴리스·최종 검증)를 말한 프롬프트에만 최종화 규칙. 같은 도구 실패는 세션마다 처음 한 번만 전문으로 싣습니다(0.2.155)
+- `hooks/session-start-reminder.sh`: 세션 시작·재개·요약·비우기 때 전체 하네스 안내 두 줄과 개인 메모·입력 큐를 한 번 싣습니다. 재개 때 같은 세션이 이미 본 메모가 그대로면 한 줄로 줄입니다(0.2.155)
 - `hooks/scan-secrets.sh`: 사용자 프롬프트의 secret 패턴을 값 저장 없이 감지
 - `hooks/block-dangerous.sh`: Bash 위험 명령과 secret 파일 읽기 우회 차단
 - `hooks/protect-paths.sh`: Write/Edit의 secret, `.git`, 생성물, lockfile 직접 쓰기 차단

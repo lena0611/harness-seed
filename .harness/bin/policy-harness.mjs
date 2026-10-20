@@ -1019,6 +1019,27 @@ function formatFileList(files) {
   return files.map((filePath) => `  - ${filePath}`).join('\n')
 }
 
+// 독립 impact 의 파일 목록 상한(0.2.155, 토큰 절약): 같은 변경 파일이 정책마다·절마다 되풀이돼 본체 실측 290줄(≈7천 토큰)이 됐다 —
+// 에이전트가 작업 중에 돌리는 명령이라 출력이 통째로 대화에 실린다. 앞 몇 개와 "외 N개"만 보이고 전부는 --verbose 가 보인다.
+// 필수 조치(차단·확인 필수) 후보는 full 로 불러 상한 없이 편다 — 줄이는 것은 참고 등급의 목록뿐이고, 판단 문장은 그대로다.
+const FILE_LIST_CAP = 5
+
+function formatFileListCapped(files, full = false) {
+  if (full || verboseMode || files.length <= FILE_LIST_CAP) return formatFileList(files)
+  return `${formatFileList(files.slice(0, FILE_LIST_CAP))}\n  - … 외 ${files.length - FILE_LIST_CAP}개 (전부 보기: --verbose)`
+}
+
+// "matched rules" 는 트리거 경로가 파일 그 자체일 때 trigger files 와 똑같은 목록이다 — 기본 출력에서는 다를 때만 싣는다(0.2.155).
+function sameFileList(a, b) {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+function printMatchedRules(label, triggeredFiles, matched, full = false) {
+  if (!verboseMode && sameFileList(triggeredFiles, matched)) return
+  console.log(label)
+  console.log(formatFileListCapped(matched, full))
+}
+
 function formatFileSummary(files) {
   if (files.length === 0) {
     return '  - 없음'
@@ -1510,11 +1531,11 @@ function runImpact() {
       for (const item of policyTriggered) {
         console.log(`- [${item.id}] ${item.title}`)
         console.log('  trigger files:')
-        console.log(formatFileList(item.triggeredFiles))
-        console.log('  matched rules:')
-        console.log(formatFileList(item.matchedRules))
+        console.log(formatFileListCapped(item.triggeredFiles))
+        printMatchedRules('  matched rules:', item.triggeredFiles, item.matchedRules)
         console.log('  review scope:')
-        console.log(baselineOnly && !showBaseline ? formatFileSummary(item.files) : formatFileList(item.files))
+        // 정책이 맡은 파일 전부라 수백 줄이 될 수 있다 — 기본은 폴더별 개수, 전부는 --verbose(0.2.155).
+        console.log(verboseMode ? formatFileList(item.files) : formatFileSummary(item.files))
       }
 
       console.log('')
@@ -1531,11 +1552,10 @@ function runImpact() {
       for (const item of codeTriggered) {
         console.log(`- [${item.id}] ${item.title}`)
         console.log('  trigger files:')
-        console.log(formatFileList(item.triggeredFiles))
-        console.log('  matched rules:')
-        console.log(formatFileList(item.matchedRules))
+        console.log(formatFileListCapped(item.triggeredFiles))
+        printMatchedRules('  matched rules:', item.triggeredFiles, item.matchedRules)
         console.log('  related documents:')
-        console.log(baselineOnly && !showBaseline ? formatFileSummary(item.documents) : formatFileList(item.documents))
+        console.log(baselineOnly && !showBaseline ? formatFileSummary(item.documents) : formatFileListCapped(item.documents))
       }
 
       console.log('')
@@ -1615,19 +1635,30 @@ function runImpact() {
       console.log('- bootstrap 완화 적용 중: 강제 선언(확인 필수·차단)이 없어 이번 후보는 모두 참고입니다. 지키고 싶은 항목이 있으면 syncEnforcement를 선언하거나 harnessMode를 active로 올리세요.')
     }
 
+    // 참고 등급 후보의 공통 판단 문장 — 기본 출력에서는 후보마다 되풀이하지 않고 목록 끝에 (등급·방향)별로 한 번만 싣는다(0.2.155).
+    const compactNotes = new Map()
     const printGapDetail = (gap) => {
       const sideLabel = gap.side === 'document-only' ? '문서만 변경됨' : '소스만 변경됨'
       const level = syncReviewLevel(gap, informational, logFindings.reversalDetected, bootstrapRelaxed)
+      // 필수 조치(차단·확인 필수)는 목록을 줄이지 않는다 — 고칠 대상이 무엇인지가 이 후보의 전부다(0.2.155).
+      const full = ['blocking', 'action required'].includes(level)
+      if (!full && !verboseMode) {
+        // 참고 등급은 한 줄: 같은 정책이 바로 위 두 절(변경 코드↔기준 문서, 변경 문서↔구현 기준)에 연결 문서·범위와 함께 이미 나왔다.
+        const shown = gap.triggeredFiles.slice(0, FILE_LIST_CAP).join(', ')
+        const more = gap.triggeredFiles.length > FILE_LIST_CAP ? ` 외 ${gap.triggeredFiles.length - FILE_LIST_CAP}개` : ''
+        console.log(`- [${syncReviewLevelLabel(level)}] [${gap.id}] ${gap.title} — ${sideLabel}: ${shown}${more}`)
+        compactNotes.set(`${level}|${gap.side}`, { level, side: gap.side })
+        return
+      }
       console.log(`- [${syncReviewLevelLabel(level)}] [${gap.id}] ${gap.title} — ${sideLabel}`)
       console.log(`  동기화 강제 설정: ${gap.syncEnforcement}`)
       console.log('  변경 파일:')
-      console.log(formatFileList(gap.triggeredFiles))
-      console.log('  매칭 경로:')
-      console.log(formatFileList(gap.matchedRules))
+      console.log(formatFileListCapped(gap.triggeredFiles, full))
+      printMatchedRules('  매칭 경로:', gap.triggeredFiles, gap.matchedRules, full)
       console.log('  연결 문서:')
-      console.log(informational && !showBaseline ? formatFileSummary(gap.documents) : formatFileList(gap.documents))
+      console.log(informational && !showBaseline ? formatFileSummary(gap.documents) : formatFileListCapped(gap.documents, full))
       console.log('  연결 구현 범위:')
-      console.log(informational && !showBaseline ? formatFileSummary(gap.ownedAreas) : formatFileList(gap.ownedAreas))
+      console.log(informational && !showBaseline ? formatFileSummary(gap.ownedAreas) : formatFileListCapped(gap.ownedAreas, full))
       console.log(`  판단 기준: ${actionMessage(level, gap.side)}`)
       console.log(`  조치 없음 조건: ${ignoreMessage(gap.side)}`)
     }
@@ -1657,6 +1688,14 @@ function runImpact() {
 
       for (const gap of syncGaps) {
         printGapDetail(gap)
+      }
+      for (const { level, side } of compactNotes.values()) {
+        const sideLabel = side === 'document-only' ? '문서만 변경됨' : '소스만 변경됨'
+        console.log(`  [${syncReviewLevelLabel(level)} · ${sideLabel}] 판단 기준: ${actionMessage(level, side)}`)
+        console.log(`  [${syncReviewLevelLabel(level)} · ${sideLabel}] 조치 없음 조건: ${ignoreMessage(side)}`)
+      }
+      if (compactNotes.size > 0) {
+        console.log('  연결 문서·구현 범위는 위 두 절에 있습니다. 후보별 전체 목록: .harness/bin/harness impact --verbose')
       }
     }
 
