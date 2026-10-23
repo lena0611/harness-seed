@@ -7,9 +7,12 @@
 // 찾아 base ref까지 써줬다. 본체가 스택을 이름으로 아는 유일한 코드였고, 그래서 본체 릴리스가
 // 스택 개수만큼 무거워졌다. 남이 운영하는 스택은 그 자리에 아예 없다.
 //
-// 지금 계약: **스택·scaffold는 자기 ref를 자기가 소유한다.** 본체 버전을 어떻게 따라갈지는
-// 각 저장소가 정하고(태그 고정 또는 `semver:` 범위 — 작성 가이드의 판단 표), 그 저장소의
-// 자기 검사가 확인한다. 본체는 남의 릴리스 번호를 들고 있지 않는다.
+// 지금 계약: **스택·scaffold는 자기 ref를 자기가 소유한다.** 본체 버전을 언제 따라갈지는
+// 각 저장소가 정하고(값은 검증한 정확한 태그 — 범위 표기는 2026-09-07 외부 리뷰로 되돌렸다,
+// stacks/authoring-guide.md 「`baseHarness.ref`」 절), 그 저장소의 자기 검사가 확인한다. 이 스크립트는
+// 남의 릴리스 번호를 쓰지 않는다 — 배포 카탈로그(.harness/stacks·templates/registry.json)가 위성의 검증된
+// 태그를 고정하는 것은 별개이고, 소유자 요청으로 손으로 갱신한다(body-release-checklist 6단계,
+// 검사는 scripts/test-standards-registry.mjs).
 import { readFileSync } from 'fs'
 import { dirname, join, resolve } from 'path'
 import { fileURLToPath } from 'url'
