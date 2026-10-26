@@ -167,6 +167,10 @@ function walk(dir) {
     const full = path.join(dir, entry.name)
 
     if (entry.isDirectory()) {
+      // 자기 `.git`(연결 worktree 는 파일, 안에 둔 clone 은 폴더)을 가진 하위 폴더는 다른 체크아웃이다 — 이 저장소 문서가 아니다
+      // (0.2.156). Claude Code 는 worktree 를 `.claude/worktrees/` 아래에 만들어, 그 사본 전부가 「등록 안 된 문서」·깨진 링크로
+      // 잡혔다(strict 면 원래 체크아웃의 커밋이 막힌다). git 도 그 안은 보지 않는다.
+      if (fs.existsSync(path.join(full, '.git'))) continue
       out.push(...walk(full))
       continue
     }

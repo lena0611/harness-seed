@@ -56,8 +56,11 @@ function listProjectFiles() {
       if (relDir === '' && excluded.has(entry.name)) continue
       const rel = relDir ? `${relDir}/${entry.name}` : entry.name
       const abs = path.join(absDir, entry.name)
-      if (entry.isDirectory()) walk(abs, rel)
-      else out.push(toPosix(rel))
+      // 자기 `.git` 을 가진 하위 폴더(`.claude/worktrees/` 의 worktree 등)는 다른 체크아웃이다 — 그 사본의 파일로 계약을
+      // 「채웠다」고 보면 거짓 통과가 된다(0.2.156, doc-link-check 와 같은 규칙).
+      if (entry.isDirectory()) {
+        if (!fs.existsSync(path.join(abs, '.git'))) walk(abs, rel)
+      } else out.push(toPosix(rel))
     }
   }
 

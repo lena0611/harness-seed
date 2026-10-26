@@ -17,6 +17,7 @@ import {
   makeBareTarget,
   runInit,
   runGuard,
+  expectFailure,
   SEED_ONLY_DOCS,
 } from './helpers.mjs'
 
@@ -1004,7 +1005,37 @@ function scanSaysWhenNoSourceRootIsFound() {
   }
 }
 
+// 0.2.156 — Claude Code 는 worktree 를 `.claude/worktrees/<이름>` 에 만든다. 문서 검사·컨텍스트 동기화·스캔·템플릿 계약이 그 안까지
+// 훑어 사본 전체를 이 저장소 것으로 셌다 — 문서 검사는 「등록 안 된 문서」·깨진 링크로 잡아 strict 면 원래 체크아웃 커밋이 막혔다.
+// 자기 `.git`(연결 worktree 는 파일, clone 은 폴더)을 가진 하위 폴더는 다른 체크아웃이라 건너뛴다. 대조: `.git` 이 없는 같은 폴더는
+// 종전대로 세고 잡아야 한다 — 건너뛰기가 「.claude 아래 전부」로 넓어지지 않았음을 보인다.
+function repoWalkersSkipOtherCheckouts() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const docCheck = path.join(target, '.harness/bin/doc-link-check.mjs')
+  const fileCount = () => {
+    run(nodeBin, [path.join(target, '.harness/bin/sync-context.mjs')], { cwd: target })
+    return Number(/- files: (\d+)/.exec(read(target, '.harness/generated/project-map.md'))[1])
+  }
+  const before = fileCount()
+
+  const nested = path.join(target, '.claude/worktrees/probe')
+  fs.mkdirSync(path.join(nested, 'src'), { recursive: true })
+  fs.writeFileSync(path.join(nested, '.git'), 'gitdir: /nowhere/.git/worktrees/probe\n')
+  fs.writeFileSync(path.join(nested, 'stray.md'), '# stray\n\n[깨진 링크](./missing.md)\n')
+  fs.writeFileSync(path.join(nested, 'src/probe-only.js'), 'export const probe = 1\n')
+
+  assert(!run(nodeBin, [docCheck, '--strict'], { cwd: target }).includes('worktrees/probe'), 'doc check must not walk into another checkout under .claude/worktrees')
+  assert(fileCount() === before, 'the project map must not count another checkout')
+
+  fs.rmSync(path.join(nested, '.git'))
+  const caught = expectFailure(() => run(nodeBin, [docCheck, '--strict'], { cwd: target }), 'without its .git the same folder belongs to this repo and must still be checked')
+  assert(caught.includes('worktrees/probe'), 'the plain folder must be reported as before')
+  assert(fileCount() > before, 'the plain folder must be counted as before')
+}
+
 export {
+  repoWalkersSkipOtherCheckouts,
   scanSaysWhenNoSourceRootIsFound,
   scanReportDraftsStyleRulesFromConfigFiles,
   isIgnorableCodePathClassifiesExamplesAndCiPaths,

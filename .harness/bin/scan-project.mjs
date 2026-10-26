@@ -73,6 +73,9 @@ function walk(dir, depth = 0, maxDepth = 3) {
     if (ignoredDirs.has(entry.name)) continue
 
     const abs = path.join(dir, entry.name)
+    // 자기 `.git` 을 가진 하위 폴더(`.claude/worktrees/` 의 worktree 등)는 다른 체크아웃이다 — 스캔에 넣지 않는다
+    // (0.2.156, doc-link-check 와 같은 규칙).
+    if (entry.isDirectory() && fs.existsSync(path.join(abs, '.git'))) continue
     const rel = path.relative(repoRoot, abs).split(path.sep).join('/')
     out.push({ rel, entry, abs, depth })
 
