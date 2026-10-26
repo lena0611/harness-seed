@@ -2,6 +2,7 @@
 
 import { spawnSync, execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -53,6 +54,9 @@ function gitCommonDir() {
 function toAbs(value) {
   if (!value) return ''
   if (path.isAbsolute(value)) return value
+  // `~/…` 는 git 처럼 홈 폴더로 편다(0.2.156). 전역 core.hooksPath 가 `~/…` 면 설치기가 그 값을 그대로 보관하는데, 펴지 않으면
+  // 작업 폴더 아래(<repo>/~/…)를 찾아 전역 팀 훅이 말없이 빠졌다. `~사용자/…` 형태는 펴지 않는다.
+  if (value === '~' || value.startsWith('~/')) return path.join(os.homedir(), value.slice(1))
   if (value === '.git' || value.startsWith('.git/')) return path.join(gitCommonDir(), value.slice(4).replace(/^\//, ''))
   return path.resolve(repoRoot, value)
 }
@@ -72,6 +76,25 @@ function isExecutable(file) {
   } catch {
     return false
   }
+}
+
+// 팀 훅이 실행되지 못하고 빠지면 말없이 넘어가지 않는다(0.2.156) — 그대로 침묵하면 lint-staged·lock 가드가 꺼진 채 커밋된다.
+// 막지는 않는다(알림 vs 차단은 미결).
+// - husky 9 배치(<폴더>/_): 실행기 <폴더>/_/<훅> 이 없으면 팀 훅 <폴더>/<훅> 이 돌지 않는다. 실행기 폴더는 gitignore 라 새
+//   worktree 에는 통째로 없고, 복사가 덜 되면 빈 폴더만 남는다 — 폴더가 아니라 그 훅의 실행기로 본다(코덱스 1차: 빈 .husky/_ 를
+//   정상으로 봤다). 팀 훅이 원래 없으면 빠지는 것도 없으니 조용히 둔다.
+// - 그 밖의 폴더: 폴더는 있고 그 훅만 없으면 팀이 그 훅을 안 쓰는 것이라 조용히 둔다. 폴더째 못 찾으면 worktree 와 상관없이 값
+//   자체가 틀렸을 수 있어 찾은 위치를 보인다.
+function noticeSkippedTeamHook(declared, abs) {
+  if (path.basename(abs) === '_') {
+    const teamHook = path.join(path.dirname(abs), hookName)
+    if (!fs.existsSync(teamHook)) return
+    const runner = path.join(abs, hookName)
+    console.error(`[harness] 팀 훅 ${path.relative(repoRoot, teamHook) || teamHook} 을 건너뛰었습니다 — husky 실행기(${path.relative(repoRoot, runner) || runner})가 이 작업 폴더에 없습니다. 새 worktree 라면 .harness/project/hook-coexistence.md 「worktree에서 의존성을 설치할 때」를 보세요.`)
+    return
+  }
+  if (fs.existsSync(abs)) return
+  console.error(`[harness] 팀 ${hookName} 훅을 건너뛰었습니다 — 이전 훅 폴더를 찾지 못했습니다(harness.previousHooksPath=${declared} → ${abs}).`)
 }
 
 if (!allowedHooks.has(hookName)) {
@@ -102,6 +125,7 @@ if (samePath(previousHooksAbs, harnessHooksAbs)) {
 
 const previousHook = path.join(previousHooksAbs, hookName)
 if (!fs.existsSync(previousHook) || fs.statSync(previousHook).isDirectory()) {
+  noticeSkippedTeamHook(previousHooksPath, previousHooksAbs)
   process.exit(0)
 }
 

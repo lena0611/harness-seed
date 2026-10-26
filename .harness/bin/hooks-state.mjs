@@ -11,6 +11,7 @@
 // 함께 쓴다 — 판정 규칙과 경로 해석을 한 곳에 두어 "설치됨"의 정의가 갈리지 않게 한다.
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -108,6 +109,9 @@ export function gitHooksDir(repoRoot) {
 export function resolveHooksPath(repoRoot, value) {
   if (!value) return ''
   if (path.isAbsolute(value)) return value
+  // `~/…` 는 git 처럼 홈 폴더로 편다(0.2.156) — 전역 core.hooksPath 의 `~/…` 가 그대로 보관돼 작업 폴더 아래로 풀리면 전역 팀 훅이
+  // 말없이 빠졌다. run-previous-hook·래퍼의 resolve_path 와 같은 규칙이다. `~사용자/…` 형태는 펴지 않는다.
+  if (value === '~' || value.startsWith('~/')) return path.join(os.homedir(), value.slice(1))
   if (value === '.git' || value.startsWith('.git/')) return path.join(gitCommonDir(repoRoot), value.slice(4).replace(/^\//, ''))
   return path.resolve(repoRoot, value)
 }
@@ -215,6 +219,8 @@ case "\$common" in /*) ;; *) common="\$root/\$common" ;; esac
 resolve_path() {
   case "\$1" in
     /*) printf '%s' "\$1" ;;
+    "~") printf '%s' "\$HOME" ;;
+    "~/"*) printf '%s/%s' "\$HOME" "\${1#??}" ;;
     .git) printf '%s' "\$common" ;;
     .git/*) printf '%s/%s' "\$common" "\${1#.git/}" ;;
     *) printf '%s/%s' "\$root" "\$1" ;;
@@ -332,6 +338,20 @@ if (isMain) {
       // 그대로 두 번 찍혔다 — 실제 husky 설치 경로에서 나오는 값이다(install-hooks는 git config 값을 그대로 저장한다).
       // 화살표가 남아야 하는 경우는 `.git/…` 보관함 값이다: 공통 .git 기준이라 연결 워크트리에서 순진한 해석과 갈린다.
       console.log(`  이전 훅 체인(harness.previousHooksPath): ${info.previousHooksPath || '없음'}${previousHooksPathReveal(repoRoot, info.previousHooksPath)}`)
+      // 팀 훅이 실제로 돌 수 있는지 — 커밋·푸시 때 run-previous-hook 이 한 줄 알리는 것과 같은 판정(0.2.156). 정상이면 이 줄은 없다.
+      // husky 9 배치(<폴더>/_)는 팀 훅(<폴더>/<훅>)마다 실행기(<폴더>/_/<훅>)가 있는지 본다 — 실행기 폴더는 gitignore 라 새 worktree
+      // 에는 통째로 없고, 복사가 덜 되면 빈 폴더만 남는다(코덱스 1차: 폴더만 보면 빈 폴더를 정상으로 본다). 그 밖의 폴더는 worktree 와
+      // 상관없이 값이 틀렸을 수 있어 폴더째 못 찾으면 찾은 위치를 보인다.
+      const prevAbs = info.previousHooksPath ? resolveHooksPath(repoRoot, info.previousHooksPath) : ''
+      if (prevAbs && path.basename(prevAbs) === '_') {
+        const teamDir = path.dirname(prevAbs)
+        const stranded = WRAPPED_HOOKS.filter((name) => fs.existsSync(path.join(teamDir, name)) && !fs.existsSync(path.join(prevAbs, name)))
+        if (stranded.length) {
+          console.log(`  이전 훅 폴더: husky 실행기가 없어 팀 훅이 돌지 않습니다 (${stranded.join(', ')}) — 새 worktree 라면 hook-coexistence.md 「worktree에서 의존성을 설치할 때」`)
+        }
+      } else if (prevAbs && !fs.existsSync(prevAbs)) {
+        console.log(`  이전 훅 폴더: 찾지 못함 (${prevAbs}) — 팀 훅이 돌지 않습니다`)
+      }
       console.log(`  이 브랜치의 ${HARNESS_HOOKS_DIR}/: ${fs.existsSync(path.join(repoRoot, HARNESS_HOOKS_DIR)) ? '있음' : '없음 — 커밋·푸시 때 한 줄 알리고 통과합니다'}`)
     }
   } else {

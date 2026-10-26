@@ -1619,6 +1619,24 @@ function hookCoexistenceDocCoversOwnHookDirPattern() {
   assert(doc.includes('.git/hooks/*') && doc.includes('.githooks/*'), 'it must name the two wrong places (untracked .git/hooks, managed .githooks)')
 }
 
+// 0.2.156 — 필수공통 push 검사가 HARNESS_PUSH_STDIN 을 읽는다: 공식 인터페이스라는 약속(64KB 상한 포함)과, 읽는 명령이
+// 여럿일 때 목록을 한 번만 읽어 파이프로 나누는 줄을 정본이 들고 있어야 한다. 알림이 가리키는 절 제목도 여기서 고정한다.
+function hookCoexistenceDocPinsPushStdinAndWorktreeInstall() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const doc = read(target, '.harness/project/hook-coexistence.md')
+  assert(doc.includes('HARNESS_PUSH_STDIN') && doc.includes('공식 인터페이스'), 'the doc must declare HARNESS_PUSH_STDIN as an official interface')
+  assert(doc.includes('64KB'), 'it must say the variable is only made up to 64KB (bigger lists would hit the env size limit)')
+  // 문서의 「한 번 읽어 두기」 줄은 실제로 돌려 본다 — 글자만 맞는지 보면 논리를 깨도 통과한다.
+  const readOnce = doc.split('\n').find((docLine) => docLine.startsWith('push_list="$(cat; printf x)"'))
+  assert(readOnce, 'it must give the read-once line for hooks with several readers')
+  const list = 'refs/heads/a 1111 refs/heads/a 2222\nrefs/heads/b 3333 refs/heads/b 4444\n'
+  const echoed = run('sh', ['-c', `${readOnce}\nprintf '%s' "$push_list"`], { input: list })
+  assert(echoed === list, 'the documented read-once line must keep the list byte-for-byte, trailing newline included')
+  assert(doc.includes('## worktree에서 의존성을 설치할 때'), 'the section the hook notices point at must exist under that exact title')
+  assert(doc.includes('--ignore-scripts'), 'it must show the install order that leaves the shared git config alone')
+}
+
 function hooksInstallWarnsWhenStoredChainIsReplaced() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -1964,6 +1982,8 @@ function commitStageEnvIsNoopForConsumers() {
 // pre-push는 stdin(push ref 목록)을 한 번 버퍼링해 이전 훅에 그대로 넘긴다. 훅이 stdin을
 // 소비하면 뒤따르는 소비자가 빈 입력을 받기 때문이다(0.2.100). 0.2.142에서 기획 게이트가
 // 사라져 지금의 소비자는 이전 훅뿐이고, 버퍼링은 그 계약으로 남는다.
+// 0.2.156: 끝 줄바꿈까지 그대로 넘긴다 — git 견본처럼 `while read` 로 읽는 훅이 마지막(대개 유일한) 줄을 못 읽었다(결함 재현).
+// HARNESS_PUSH_STDIN 은 프로젝트 훅이 쓰는 공식 인터페이스라(필수공통 push 검사가 읽는다) 이름과 내용을 함께 고정한다.
 function prePushPassesBufferedStdinToPreviousHook() {
   const target = makeTarget()
   runInit(target, '--no-scan', '--no-handoff', '--no-check')
@@ -1972,7 +1992,15 @@ function prePushPassesBufferedStdinToPreviousHook() {
   pushWithoutHooks(target)
 
   fs.mkdirSync(path.join(target, '.git/custom-hooks'), { recursive: true })
-  fs.writeFileSync(path.join(target, '.git/custom-hooks/pre-push'), '#!/bin/sh\ncat > "$PWD/.git/seen-stdin.txt"\nexit 0\n')
+  fs.writeFileSync(path.join(target, '.git/custom-hooks/pre-push'), [
+    '#!/bin/sh',
+    'cat > "$PWD/.git/seen-stdin.txt"',
+    'n=0; while read lref lsha rref rsha; do n=$((n+1)); done < "$PWD/.git/seen-stdin.txt"; echo "$n" > "$PWD/.git/seen-lines.txt"',
+    'printf %s "${HARNESS_PUSH_STDIN-UNSET}" > "$PWD/.git/seen-env.txt"',
+    '[ -f "$PWD/.git/fail-previous-hook" ] && exit 1',
+    'exit 0',
+    '',
+  ].join('\n'))
   fs.chmodSync(path.join(target, '.git/custom-hooks/pre-push'), 0o755)
   run('git', ['config', 'harness.previousHooksPath', '.git/custom-hooks'], { cwd: target })
 
@@ -1984,6 +2012,101 @@ function prePushPassesBufferedStdinToPreviousHook() {
 
   const seen = read(target, '.git/seen-stdin.txt')
   assert(seen.includes(localSha), 'the previous pre-push hook must receive the buffered ref line')
+  assert(read(target, '.git/seen-lines.txt').trim() === '1', 'a `while read` hook (git sample style) must see the ref line — the buffer must keep the trailing newline')
+  assert(read(target, '.git/seen-env.txt') === line, 'HARNESS_PUSH_STDIN must carry exactly what git gave (official interface for project hooks)')
+
+  // 이 줄(printf | run-previous-hook)을 고쳤으니 fail-open 이 없음을 함께 잠근다 — 이전 pre-push 가 실패하면 push 가 막혀야 한다.
+  // 64KiB 가 넘는 목록은 export 하지 않는다(환경변수 크기 제한 E2BIG 으로 그 뒤 실행이 죽어 push 가 막혔다) — 이전 훅에는
+  // 표준 입력으로 그대로 간다. 실패하는 이전 훅으로 돌려 하네스 검사까지 가지 않게 해 시간을 아낀다.
+  fs.writeFileSync(path.join(target, '.git/fail-previous-hook'), '')
+  const big = Array.from({ length: 700 }, (_, i) => `refs/tags/v${i} ${'a'.repeat(40)} refs/tags/v${i} ${'0'.repeat(40)}\n`).join('')
+  expectFailure(
+    () => run('sh', [path.join(target, '.githooks/pre-push'), 'origin', remote], { cwd: target, input: big, env: { ...process.env } }),
+    'a failing previous pre-push hook must block the push',
+  )
+  assert(read(target, '.git/seen-stdin.txt') === big, 'a big push list must still reach the previous hook byte-for-byte through stdin')
+  assert(read(target, '.git/seen-env.txt') === 'UNSET', 'a push list over 64KiB must not be exported — E2BIG would kill every later exec')
+}
+
+// 0.2.156 — 필수공통 보안 1단계 실측: 새 worktree 엔 husky 9 실행기(.husky/_, gitignore)가 없어 팀 훅(lint-staged·lock 가드)이
+// 아무 말 없이 빠졌다. 막지는 않되 한 줄 알린다(hooks:status 도 같은 사실을 보인다). 폴더가 아니라 팀 훅마다 실행기가 있는지로
+// 본다 — 복사가 덜 된 빈 실행기 폴더도 잡아야 한다. 팀이 원래 안 쓰는 훅, 실행기가 있는 정상 체크아웃은 종전대로 조용해야 한다 —
+// 헛경보가 생기면 알림 자체를 안 읽게 된다.
+function previousHookAnnouncesMissingHooksDir() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  const runPreviousHook = path.join(target, '.harness/bin/run-previous-hook.mjs')
+  // run() 은 0 이 아닌 종료에서 던진다 — 통과 자체가 「막지 않는다」의 증명이다. 알림은 stderr 라 합쳐 읽는다.
+  const chain = (hook) => run('sh', ['-c', `"${nodeBin}" "${runPreviousHook}" ${hook} 2>&1`], { cwd: target })
+  const explain = () => run(nodeBin, [path.join(target, '.harness/bin/hooks-state.mjs'), '--explain'], { cwd: target })
+
+  // husky 9 배치인데 .husky/ 자체가 없다(husky 를 안 쓰는 브랜치) — 돌 팀 훅도 없으니 실행도 상태도 조용해야 한다.
+  run('git', ['config', 'harness.previousHooksPath', '.husky/_'], { cwd: target })
+  assert(!chain('pre-commit').includes('[harness]'), 'no notice when the branch has no husky hooks at all')
+  assert(!explain().includes('이전 훅 폴더'), 'hooks:status must agree with the silent run when there is no team hook dir')
+
+  // 팀 훅(.husky/pre-commit)은 있는데 실행기 폴더(.husky/_)가 없다 = npm install 전의 새 worktree.
+  fs.mkdirSync(path.join(target, '.husky'), { recursive: true })
+  fs.writeFileSync(path.join(target, '.husky/pre-commit'), 'npx lint-staged\n')
+  const skipped = chain('pre-commit')
+  assert(skipped.includes('.husky/pre-commit') && skipped.includes('.husky/_/pre-commit'), 'the skipped team hook must be named together with its missing husky runner')
+  assert(skipped.includes('worktree에서 의존성을 설치할 때'), 'the notice must point at the coexistence doc section')
+  const status = explain()
+  assert(status.includes('husky 실행기가 없어 팀 훅이 돌지 않습니다 (pre-commit)') && status.includes('worktree에서 의존성을 설치할 때'), 'hooks:status must name the stranded hook and the same doc section instead of a bare 켜짐')
+
+  // 팀이 그 훅을 안 쓰면(.husky/pre-push 없음) 빠지는 것도 없다 — 조용해야 한다.
+  assert(!chain('pre-push').includes('[harness]'), 'no notice for a hook the team does not have')
+
+  // 실행기 폴더는 있는데 비었다(복사가 덜 됨) — 폴더만 보면 정상이지만 팀 훅은 여전히 안 돈다(코덱스 1차).
+  fs.mkdirSync(path.join(target, '.husky/_'), { recursive: true })
+  assert(chain('pre-commit').includes('.husky/_/pre-commit'), 'an empty runner dir must still announce the skipped team hook')
+  assert(explain().includes('husky 실행기가 없어 팀 훅이 돌지 않습니다 (pre-commit)'), 'hooks:status must not take an empty runner dir for a healthy one')
+
+  // 그 훅의 실행기가 있으면(정상 설치) 종전 경로 그대로 — 알림도 상태 줄도 없다.
+  fs.writeFileSync(path.join(target, '.husky/_/pre-commit'), '#!/bin/sh\nexit 0\n')
+  fs.chmodSync(path.join(target, '.husky/_/pre-commit'), 0o755)
+  assert(!chain('pre-commit').includes('[harness]'), 'a present runner runs the team hook without a notice')
+  assert(!explain().includes('이전 훅 폴더'), 'hooks:status must not add the line when every team hook has its runner')
+
+  // husky 가 아닌 폴더(팀 자체 훅 폴더·전역 훅·보관함)는 worktree 와 상관없이 값이 틀렸을 수 있다 — worktree 로 안내하지
+  // 않고 찾은 위치를 보인다(`~/…` 전역 훅 값이 작업 폴더 아래로 풀리는데 「새 worktree 라면」으로 안내하던 것).
+  run('git', ['config', 'harness.previousHooksPath', 'scripts/git-hooks'], { cwd: target })
+  const generic = chain('pre-commit')
+  assert(generic.includes('harness.previousHooksPath=scripts/git-hooks →'), 'a missing non-husky hooks dir must be named with where it was looked for')
+  assert(!generic.includes('worktree'), 'a missing non-husky hooks dir must not be blamed on a worktree')
+  assert(explain().includes('이전 훅 폴더: 찾지 못함'), 'hooks:status must show the non-husky miss too')
+}
+
+// 0.2.156 — 전역 core.hooksPath 가 `~/…` 면 설치기가 그 값을 그대로 보관하는데, 이전 훅을 풀 때 `~` 를 펴지 않아 작업 폴더 아래
+// (<repo>/~/…)를 찾았다 — 전역 팀 훅이 말없이 빠졌다(자체 리뷰). git 처럼 홈 폴더로 편다. 하네스 훅 경로(run-previous-hook),
+// hooks:status, .githooks 가 없는 브랜치에서 래퍼가 바로 부르는 경로 셋이 같은 규칙이어야 한다.
+function previousHooksPathExpandsTildeLikeGit() {
+  const target = makeTarget()
+  runInit(target, '--no-scan', '--no-handoff', '--no-check')
+  run(path.join(target, '.harness/bin/harness'), ['hooks:install'], { cwd: target })
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-home-'))
+  fs.mkdirSync(path.join(home, 'global-hooks'))
+  fs.writeFileSync(path.join(home, 'global-hooks/pre-commit'), '#!/bin/sh\necho ran >> "$HOME/global-ran.txt"\n')
+  fs.chmodSync(path.join(home, 'global-hooks/pre-commit'), 0o755)
+  run('git', ['config', 'harness.previousHooksPath', '~/global-hooks'], { cwd: target })
+  const env = { ...process.env, HOME: home }
+  const ranCount = () => {
+    const file = path.join(home, 'global-ran.txt')
+    return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim().split('\n').length : 0
+  }
+
+  const chained = run('sh', ['-c', `"${nodeBin}" "${path.join(target, '.harness/bin/run-previous-hook.mjs')}" pre-commit 2>&1`], { cwd: target, env })
+  assert(ranCount() === 1, 'a ~/… previous hook must run from the home folder, as git would run it')
+  assert(!chained.includes('찾지 못했습니다'), 'a ~/… previous hook must not be reported as missing')
+  const status = run(nodeBin, [path.join(target, '.harness/bin/hooks-state.mjs'), '--explain'], { cwd: target, env })
+  assert(!status.includes('찾지 못함'), 'hooks:status must resolve ~/… the same way')
+
+  // .githooks 가 없는 브랜치: 래퍼가 이전 훅을 바로 부른다 — 같은 풀이여야 한다.
+  fs.renameSync(path.join(target, '.githooks/pre-commit'), path.join(target, '.githooks/pre-commit.off'))
+  const commonDir = run('git', ['rev-parse', '--git-common-dir'], { cwd: target }).trim()
+  const wrapper = path.join(path.isAbsolute(commonDir) ? commonDir : path.join(target, commonDir), 'hooks/pre-commit')
+  run('sh', [wrapper], { cwd: target, env })
+  assert(ranCount() === 2, 'the branch-independent wrapper must expand ~/… too')
 }
 
 // clubadm 개선요청(2026-08-24): 장기 보류(정책 부재형) 질문이 신규 질문과 같은 무게로 매 세션
@@ -2333,6 +2456,7 @@ export {
   sessionStartHookInjectsLinkedProjectPointers,
   bodyHooksDeclareScope,
   hookCoexistenceDocCoversOwnHookDirPattern,
+  hookCoexistenceDocPinsPushStdinAndWorktreeInstall,
   hooksInstallWarnsWhenStoredChainIsReplaced,
   dangerousHookAllowsWriterHeredocMentions,
   dangerousHookEnvReadNeedsACommandBoundary,
@@ -2342,5 +2466,7 @@ export {
   seedCommitStageDefersRegressionsToPush,
   commitStageEnvIsNoopForConsumers,
   prePushPassesBufferedStdinToPreviousHook,
+  previousHookAnnouncesMissingHooksDir,
+  previousHooksPathExpandsTildeLikeGit,
   sessionStartHookSnoozesQueueRowsUntilReviewDate,
 }

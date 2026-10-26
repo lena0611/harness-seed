@@ -62,6 +62,29 @@ fi
 - `node .harness/bin/hooks-state.mjs`(인자 없음)의 한 단어 출력과 `--json`은 **프로젝트 스크립트가 써도 되는 공식 인터페이스**입니다 — 하네스 자신의 훅·`harness check`·`hooks:status`가 같은 판정을 씁니다(0.2.146부터). 단어 목록은 위 다섯 개이고, 추가될 수는 있어도 뜻이 바뀌거나 사라지지는 않습니다.
 - `installed`면 husky 훅은 이미 이전 훅 체인으로 돌고 있으니 아무것도 하지 않는 것이 맞습니다.
 
+## pre-push에서 push 목록 읽기 — `HARNESS_PUSH_STDIN` (0.2.100, 0.2.156)
+
+git은 pre-push 훅에 이번 push 목록(`<로컬 ref> <로컬 sha> <원격 ref> <원격 sha>`가 한 줄씩)을 **표준 입력으로 한 번만** 줍니다. 먼저 읽는 쪽이 다 가져가면 뒤에서 읽는 쪽은 빈 입력을 받습니다.
+
+하네스 pre-push는 그 목록을 한 번 읽어 두 길로 넘깁니다.
+
+- 이전 훅(husky `pre-push` 등)의 표준 입력: git이 준 그대로입니다. 끝 줄바꿈도 그대로입니다(0.2.156).
+- 환경변수 `HARNESS_PUSH_STDIN`: 같은 내용입니다. 단 **64KB 이하일 때만** 만듭니다. 환경변수 하나가 너무 크면(Linux는 128KB) 그 뒤의 모든 실행이 실패해 push가 막히기 때문입니다. ref가 수백 개 넘게 한꺼번에 가는 push(`--mirror`, 처음 맞추는 원격 등)가 여기에 걸립니다.
+
+`HARNESS_PUSH_STDIN`은 **프로젝트 훅이 써도 되는 공식 인터페이스**입니다. 이름과 뜻은 바꾸지 않습니다(회귀 테스트로 고정). 읽는 쪽은 **변수가 있으면 변수, 없으면 표준 입력**으로 읽으세요. 변수가 없는 경우는 셋입니다. 목록이 64KB를 넘을 때, 하네스가 없을 때, 하네스가 깔렸어도 `.githooks/`가 없는 브랜치일 때(래퍼가 이전 훅을 바로 부릅니다)입니다. 표준 입력은 셋 모두에서 그대로 옵니다. ref 이름이 UTF-8이 아니면 변수 쪽은 글자가 바뀔 수 있으니, 바이트 그대로가 필요하면 표준 입력을 읽으세요.
+
+husky `pre-push` 안에서 **목록이 필요한 명령이 둘 이상이면**(검사 여러 줄, `git lfs pre-push` 등) 맨 위에서 표준 입력을 한 번 읽어 두고, 명령마다 파이프로 넘기세요. 표준 입력은 첫 명령이 다 가져가기 때문입니다. 이 방식은 변수가 있든 없든, 목록이 크든 작든 똑같이 동작합니다.
+
+```sh
+# .husky/pre-push 맨 위 — 목록을 한 번만 읽어 둔다 (export 하지 않는다: 큰 목록은 환경변수 크기 제한에 걸린다)
+push_list="$(cat; printf x)"; push_list="${push_list%x}"
+# 목록이 필요한 명령마다 파이프로 넘긴다
+printf '%s' "$push_list" | node scripts/my-push-check.cjs
+printf '%s' "$push_list" | git lfs pre-push "$@"
+```
+
+- 0.2.155까지는 이전 훅에 넘기는 표준 입력에서 끝 줄바꿈이 빠졌습니다. git 견본처럼 `while read ...`로 읽는 훅은 마지막(대개 유일한) 줄을 못 읽어 push 목록을 빈 것으로 봤습니다.
+
 ## 이미 체인 중인 저장소에 husky를 나중에 얹는 경우 (0.2.135)
 
 하네스의 "이전 훅 보관함"(`harness.previousHooksPath`)은 **한 칸**입니다. 하네스는 자기 훅을 돌린 뒤
@@ -90,9 +113,29 @@ sh "$(git rev-parse --git-common-dir)/hooks/harness-prev/pre-commit"
 
 - 래퍼는 git **클라이언트 훅 전부**를 덮습니다(`applypatch-msg`·`pre-applypatch`·`post-applypatch`·`pre-commit`·`pre-merge-commit`·`prepare-commit-msg`·`commit-msg`·`post-commit`·`pre-rebase`·`post-checkout`·`post-merge`·`pre-push`·`pre-auto-gc`·`post-rewrite`·`post-index-change`·`sendemail-validate`). 예전 방식(`core.hooksPath=.githooks`)에서 실행되던 `.githooks/*`는 이름이 무엇이든 그대로 실행됩니다. 서버 측 훅과 `fsmonitor-watchman`·`p4-*`·`reference-transaction`은 대상이 아닙니다.
 - 래퍼 자리에 있던 프로젝트 훅은 `harness-prev/`로 옮겨 계속 실행합니다. 심볼릭 링크는 대상을 새 위치 기준으로 다시 잇습니다. 같은 이름이 다시 나타나면(다른 도구가 훅을 갱신) **새 파일이 실행 자리**를 차지하고 옛 것은 `<이름>.<시각>.old`로 남습니다 — 제거 시 실행 자리의 것이 원래 자리로 돌아가고 `.old`는 남으니 필요 없으면 지우세요.
-- 전역(`~/.gitconfig`) `core.hooksPath`가 있는 PC에서는 전역을 건드리지 않고 저장소 로컬에 기본 훅 폴더를 명시해 덮습니다. 전역 훅 폴더의 훅은 이전 훅 체인으로 계속 실행됩니다.
-- 워크트리는 공통 `.git`의 훅 폴더 하나를 나눠 쓰므로 어느 워크트리에서 커밋해도 같은 래퍼·같은 보관함이 동작합니다.
+- 전역(`~/.gitconfig`) `core.hooksPath`가 있는 PC에서는 전역을 건드리지 않고 저장소 로컬에 기본 훅 폴더를 명시해 덮습니다. 전역 훅 폴더의 훅은 이전 훅 체인으로 계속 실행됩니다. 값이 `~/…`여도 git처럼 홈 폴더로 풉니다(0.2.155까지는 풀지 못해 전역 훅이 말없이 빠졌습니다).
+- 워크트리는 공통 `.git`의 훅 폴더 하나를 나눠 쓰므로 어느 워크트리에서 커밋해도 같은 래퍼·같은 보관함이 동작합니다. 워크트리에서 의존성을 설치할 때는 아래 「worktree에서 의존성을 설치할 때」를 보세요.
 - **Claude 세션이 없는 PC(Codex·Copilot·터미널만)**: 예전 방식 설치가 자동으로 갱신될 계기가 없습니다. 동작은 종전과 같고, `.harness/bin/harness hooks:install` 한 번이면 래퍼 방식으로 넘어옵니다.
+
+## worktree에서 의존성을 설치할 때 (0.2.156)
+
+worktree(같은 저장소의 작업 폴더를 하나 더 만든 것, Claude Code는 `.claude/worktrees/` 아래에 만듭니다)는 원래 체크아웃과 **git 설정과 훅 폴더를 같이 씁니다.** 방은 여러 개인데 현관은 하나인 셈입니다. 그래서 의존성을 설치하든 안 하든 걸리는 것이 하나씩 있습니다.
+
+- **그냥 `npm install`·`npm ci`를 하면** 그동안 다른 체크아웃의 하네스 훅이 꺼집니다. `prepare`(husky)가 같이 쓰는 설정의 `core.hooksPath`를 husky 경로로 바꾸고, 이어지는 `postprepare`(하네스 설치)가 되돌리기 때문입니다. 하네스 설치가 실패하면 꺼진 채 남고(원래 체크아웃에서 `.harness/bin/harness hooks:install`로 되돌립니다), 그 worktree 브랜치의 하네스 버전이 다르면 같이 쓰는 래퍼(`<공통 .git>/hooks`)가 그 버전으로 다시 쓰입니다.
+- **설치를 안 하면** 팀 훅이 돌지 않습니다. husky 실행기 폴더(`.husky/_`)는 gitignore 돼 있어서 새 worktree에는 없습니다.
+  - husky 9: 하네스가 팀 훅을 건너뛰고 커밋·push 때 한 줄 알립니다(0.2.155까지는 말없이 건너뛰었습니다). `hooks:status`에도 「husky 실행기가 없어 팀 훅이 돌지 않습니다」와 그 훅 이름이 나옵니다.
+  - husky 7·8: 팀 훅이 `_/husky.sh`를 못 찾아 실패하고, 커밋이 막힙니다.
+
+같이 쓰는 설정을 건드리지 않고 husky 실행기만 만드는 순서입니다.
+
+```bash
+npm ci --ignore-scripts                                          # prepare·postprepare를 돌리지 않는다 — 같이 쓰는 git 설정이 그대로다
+mkdir -p .husky/_ && cp -R <원래 체크아웃>/.husky/_/. .husky/_/   # husky 실행기를 원래 체크아웃에서 그대로 복사
+```
+
+- `--ignore-scripts`는 다른 패키지의 설치 스크립트도 건너뜁니다. 꼭 필요한 패키지가 있으면 `npm rebuild <패키지>`로 그 패키지만 따로 돌리세요.
+- 확인(husky 9): `.harness/bin/harness hooks:status`에 「이전 훅 폴더」 줄이 안 보이면 팀 훅마다 실행기 파일이 있는 것입니다. 폴더가 있는지가 아니라 훅마다 보므로, 복사가 덜 됐으면 빠진 훅 이름이 나옵니다. husky 7·8은 status가 여기까지 보지 않으니 `.husky/_/husky.sh`가 있는지 직접 확인하세요.
+- 프로젝트 안 worktree(`.claude/worktrees/`)는 설치를 안 해도 빌드가 돌 수 있습니다. Node는 패키지를 찾을 때 윗 폴더로 올라가므로 원래 체크아웃의 `node_modules`를 빌려 쓰는데, 그 버전이 이 브랜치의 lock과 다를 수 있습니다. lock 기준 버전으로 확인해야 하는 작업이면 그 worktree에서 설치하세요.
 
 ## husky가 없는 프로젝트(PHP 등)의 자체 훅 폴더 (0.2.141)
 

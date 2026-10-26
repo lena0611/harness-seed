@@ -28,11 +28,23 @@ node .harness/bin/check-node-version.mjs
 
 # pre-push stdin(push ref 목록)은 한 번만 읽어 이전 훅에 그대로 재전달한다.
 # 훅이 stdin을 소비해 버리면 뒤따르는 소비자가 빈 입력을 받는다(0.2.100).
-HARNESS_PUSH_STDIN="$(cat 2>/dev/null || true)"
-export HARNESS_PUSH_STDIN
+# HARNESS_PUSH_STDIN 은 프로젝트 훅이 써도 되는 공식 인터페이스다 — 이름·뜻을 바꾸지 않는다(hook-coexistence.md).
+# 끝 줄바꿈까지 그대로 둔다(0.2.156): $(...) 는 끝 줄바꿈을 지워서, git 견본처럼 `while read` 로 읽는 이전 훅이
+# 마지막(대개 유일한) 줄을 못 읽고 push 목록을 빈 것으로 봤다. 끝에 표지(x)를 붙여 읽고 표지만 떼면 줄바꿈이 남는다.
+harness_push_list="$(cat 2>/dev/null || true; printf x)"
+harness_push_list="${harness_push_list%x}"
+# 64KiB 이하일 때만 export 한다(0.2.156): 환경변수 하나가 Linux 에서 128KiB(MAX_ARG_STRLEN)를 넘으면 그 뒤 모든 실행
+# (node 등)이 E2BIG 로 죽어 push 가 막힌다 — --mirror·처음 맞추는 원격처럼 ref 가 1,100개쯤이면 닿는다. 이전 훅에는 크기와
+# 상관없이 표준 입력으로 그대로 넘긴다(printf 는 내장 명령이라 이 제한이 없다). 바깥에서 물려받은 같은 이름은 먼저 지운다 —
+# 물려받은 변수는 대입해도 export 상태로 남는다.
+unset HARNESS_PUSH_STDIN
+if [ "$(printf '%s' "$harness_push_list" | wc -c | tr -d ' ')" -le 65536 ]; then
+  HARNESS_PUSH_STDIN="$harness_push_list"
+  export HARNESS_PUSH_STDIN
+fi
 
 # 기존 프로젝트 pre-push hook이 있으면 먼저 실행 (dual-runtime 전환 전의 PATH로 실행됨)
-printf '%s' "$HARNESS_PUSH_STDIN" | node .harness/bin/run-previous-hook.mjs pre-push "$@"
+printf '%s' "$harness_push_list" | node .harness/bin/run-previous-hook.mjs pre-push "$@"
 
 # P3(2026-06-09): npm/package.json 없는 비-Node 프로젝트에서도 동작하도록 npm 대신 harness 런처를 호출한다.
 .harness/bin/harness check --fast
